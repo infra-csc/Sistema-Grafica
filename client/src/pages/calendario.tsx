@@ -323,53 +323,53 @@ export default function Calendario() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Legenda - Tipo de Data</CardTitle>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-muted/30 border-muted">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Legenda - Tipo de Data</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <Calendar className="h-4 w-4 text-primary shrink-0" />
-                <span className="text-sm">Início do Evento</span>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground">Início do Evento</span>
               </div>
-              <div className="flex items-center gap-3">
-                <Truck className="h-4 w-4 text-primary shrink-0" />
-                <span className="text-sm">Saída do Caminhão</span>
+              <div className="flex items-center gap-2">
+                <Truck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground">Saída do Caminhão</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Legenda - Status por Prazo</CardTitle>
+        <Card className="bg-muted/30 border-muted">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Legenda - Status por Prazo</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-muted-foreground mb-1">
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[10px] text-muted-foreground/70 mb-0.5">
                 Cada data tem seu próprio status baseado no prazo:
               </p>
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded bg-status-completed shrink-0" />
-                <span className="text-sm font-medium text-status-completed">Verde:</span>
-                <span className="text-sm">Realizado ou finalizado</span>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-status-completed shrink-0" />
+                <span className="text-xs font-medium text-status-completed">Verde:</span>
+                <span className="text-xs text-muted-foreground">Realizado ou finalizado</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded bg-status-approved shrink-0" />
-                <span className="text-sm font-medium text-status-approved">Azul:</span>
-                <span className="text-sm">Mais de 48h restantes</span>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-status-approved shrink-0" />
+                <span className="text-xs font-medium text-status-approved">Azul:</span>
+                <span className="text-xs text-muted-foreground">Mais de 48h restantes</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded bg-status-pending shrink-0" />
-                <span className="text-sm font-medium text-status-pending">Amarelo:</span>
-                <span className="text-sm">Entre 24h e 48h</span>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-status-pending shrink-0" />
+                <span className="text-xs font-medium text-status-pending">Amarelo:</span>
+                <span className="text-xs text-muted-foreground">Entre 24h e 48h</span>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded bg-status-urgent shrink-0" />
-                <span className="text-sm font-medium text-status-urgent">Vermelho:</span>
-                <span className="text-sm">Menos de 24h</span>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-status-urgent shrink-0" />
+                <span className="text-xs font-medium text-status-urgent">Vermelho:</span>
+                <span className="text-xs text-muted-foreground">Menos de 24h</span>
               </div>
             </div>
           </CardContent>

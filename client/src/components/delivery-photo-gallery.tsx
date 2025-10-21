@@ -37,12 +37,9 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
       const currentUser = uploadedBy || "Usuário";
       localStorage.setItem("userName", currentUser);
       
-      return apiRequest(`/api/items/${itemId}/photos`, {
-        method: "POST",
-        body: JSON.stringify({
-          photoUrl,
-          uploadedBy: currentUser,
-        }),
+      return apiRequest("POST", `/api/items/${itemId}/photos`, {
+        photoUrl,
+        uploadedBy: currentUser,
       });
     },
     onSuccess: () => {
@@ -63,9 +60,7 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
 
   const deleteMutation = useMutation({
     mutationFn: async (photoId: string) => {
-      return apiRequest(`/api/photos/${photoId}`, {
-        method: "DELETE",
-      });
+      return apiRequest("DELETE", `/api/photos/${photoId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", itemId, "photos"] });

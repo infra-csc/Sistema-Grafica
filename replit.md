@@ -315,19 +315,25 @@ O sistema usa tema light profissional:
 
 ## Funcionalidades Futuras (Fase 2)
 
-1. **Sistema de perfis de acesso**:
+1. **Sistema de perfis de acesso** (Tabela já criada, falta autenticação):
    - Admin: acesso total
    - Solicitação: cria eventos e itens
    - Arte: libera arquivos
    - Gráfica: atualiza produção
+   - Login/Logout com sessão
 
-2. **Modelos de eventos**: Criar evento baseado em evento anterior
+2. **Integrar Comentários e Fotos nas Páginas**:
+   - Adicionar componentes CommentsSection e DeliveryPhotoGallery nas páginas de eventos
+   - Modal expandido de item com todas as informações + comentários + fotos
 
-3. **Histórico de alterações**: Rastreamento completo de quem alterou o quê
+3. **Logs de Auditoria Visíveis**:
+   - Exibir "Modificado por X em DD/MM/YYYY HH:MM" em todas as telas
+   - Timeline de alterações por item/evento
+   - Filtro por usuário
 
-4. **Confirmação manual de alterações**: Notificações com aprovação antes de modificar
+4. **Modelos de eventos**: Criar evento baseado em evento anterior
 
-5. **Relatórios e exportação**: Dados por período, evento ou status
+5. **Confirmação manual de alterações**: Notificações com aprovação antes de modificar
 
 ## Configuração e Execução
 
@@ -356,6 +362,7 @@ npm run build
 
 ## Melhorias Implementadas
 
+### Funcionalidades Core
 - ✅ Cálculo automático de m²
 - ✅ Badges de status com ícones e cores (sem quebra de linha)
 - ✅ Filtros e busca inteligente
@@ -370,8 +377,45 @@ npm run build
 - ✅ Campo de descrição opcional para itens
 - ✅ Gráfica simplificada focada em entrega com campos específicos
 - ✅ Botões dinâmicos (Iniciar/Continuar Produção)
-- ✅ Histórico completo com timeline visual
+- ✅ Histórico completo com timeline visual e filtro por evento
 - ✅ Legendas discretas no calendário
+
+### Dashboard Avançado (Novo!)
+- ✅ **Gráficos Visuais**:
+  - Gráfico de pizza: distribuição por status
+  - Gráfico de barras: itens por evento (total vs entregues)
+- ✅ **Alertas de Prazo**:
+  - Cards destacados para eventos urgentes (<48h até saída do caminhão)
+  - Contador regressivo em tempo real (horas e minutos)
+  - Código de cores: 🔴 Vermelho (<24h) | 🟠 Laranja (24-48h)
+- ✅ **Estatísticas Expandidas**:
+  - Tempo médio de aprovação (Solicitação → Arte)
+  - Tempo médio de produção (Arte → Entrega)
+  - Taxa de entrega (% de eventos finalizados)
+  - Item mais produzido com contagem
+- ✅ **Exportação de Relatórios**:
+  - Botão "Exportar CSV" com todos os dados filtrados
+  - Inclui todos os campos: evento, item, quantidades, medidas, status
+
+### Sistema de Colaboração (Backend Pronto)
+- ✅ **Sistema de Comentários**:
+  - Comentários por item com timestamp
+  - Nome do usuário (mock - sem autenticação por enquanto)
+  - Notificações em tempo real via WebSocket
+  - Componente reutilizável CommentsSection
+- ✅ **Galeria de Fotos de Entrega**:
+  - Múltiplas fotos por item
+  - Upload via base64 (aceita arquivos de imagem)
+  - Modal com zoom para visualização
+  - Identificação de quem enviou cada foto
+  - Componente reutilizável DeliveryPhotoGallery
+
+### Arquitetura do Banco de Dados Expandida
+- ✅ Tabela `users`: preparação para autenticação futura
+- ✅ Tabela `comments`: sistema de comentários
+- ✅ Tabela `deliveryPhotos`: galeria de fotos de entrega
+- ✅ Tabela `auditLogs`: preparação para logs de auditoria
+- ✅ Relações e schemas Zod completos
 
 ## Observações Técnicas
 

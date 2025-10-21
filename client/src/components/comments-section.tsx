@@ -37,12 +37,9 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
       const currentUserName = userName || "Usuário";
       localStorage.setItem("userName", currentUserName);
       
-      return apiRequest(`/api/items/${itemId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({
-          content,
-          userName: currentUserName,
-        }),
+      return apiRequest("POST", `/api/items/${itemId}/comments`, {
+        content,
+        userName: currentUserName,
       });
     },
     onSuccess: () => {
@@ -64,9 +61,7 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
 
   const deleteMutation = useMutation({
     mutationFn: async (commentId: string) => {
-      return apiRequest(`/api/comments/${commentId}`, {
-        method: "DELETE",
-      });
+      return apiRequest("DELETE", `/api/comments/${commentId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", itemId, "comments"] });

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertCircle, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -18,9 +19,14 @@ import { useState } from "react";
 export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [eventFilter, setEventFilter] = useState<string>("all");
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items/pending"],
+  });
+
+  const { data: events = [] } = useQuery<any[]>({
+    queryKey: ["/api/events"],
   });
 
   const approveItemMutation = useMutation({
@@ -45,8 +51,13 @@ export default function Arte() {
     },
   });
 
-  const pendingItems = items.filter(item => item.status === 'requested');
-  const approvedItems = items.filter(item => item.status !== 'requested');
+  const filteredItems = items.filter(item => {
+    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+    return matchesEvent;
+  });
+
+  const pendingItems = filteredItems.filter(item => item.status === 'requested');
+  const approvedItems = filteredItems.filter(item => item.status !== 'requested');
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -102,12 +113,27 @@ export default function Arte() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Itens Pendentes de Aprovação
-            {pendingItems.length > 0 && (
-              <Badge variant="destructive">{pendingItems.length}</Badge>
-            )}
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="flex items-center gap-2">
+              Itens Pendentes de Aprovação
+              {pendingItems.length > 0 && (
+                <Badge variant="destructive">{pendingItems.length}</Badge>
+              )}
+            </CardTitle>
+            <Select value={eventFilter} onValueChange={setEventFilter}>
+              <SelectTrigger className="w-full sm:w-64" data-testid="select-event-filter">
+                <SelectValue placeholder="Filtrar por evento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os eventos</SelectItem>
+                {events.map((event) => (
+                  <SelectItem key={event.id} value={event.id}>
+                    {event.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (

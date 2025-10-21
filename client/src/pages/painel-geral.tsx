@@ -10,6 +10,7 @@ import { useState } from "react";
 export default function PainelGeral() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [eventFilter, setEventFilter] = useState<string>("all");
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -23,7 +24,8 @@ export default function PainelGeral() {
     const matchesSearch = item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+    return matchesSearch && matchesStatus && matchesEvent;
   });
 
   const stats = {
@@ -132,6 +134,19 @@ export default function PainelGeral() {
                   data-testid="input-search"
                 />
               </div>
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
+                  <SelectValue placeholder="Filtrar por evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os eventos</SelectItem>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
                   <SelectValue placeholder="Filtrar por status" />

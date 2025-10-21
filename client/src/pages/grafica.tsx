@@ -22,6 +22,7 @@ export default function Grafica() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalType, setModalType] = useState<"production" | "delivery" | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [eventFilter, setEventFilter] = useState<string>("all");
   const [productionData, setProductionData] = useState({
     quantityProduced: 0,
   });
@@ -32,6 +33,10 @@ export default function Grafica() {
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items/approved"],
+  });
+
+  const { data: events = [] } = useQuery<any[]>({
+    queryKey: ["/api/events"],
   });
 
   const startProductionMutation = useMutation({
@@ -86,9 +91,11 @@ export default function Grafica() {
     },
   });
 
-  const filteredItems = statusFilter === "all" 
-    ? items 
-    : items.filter(item => item.status === statusFilter);
+  const filteredItems = items.filter(item => {
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+    return matchesStatus && matchesEvent;
+  });
 
   const stats = {
     total: items.length,
@@ -129,7 +136,7 @@ export default function Grafica() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -178,24 +185,52 @@ export default function Grafica() {
             </p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Entregues</CardTitle>
+            <Truck className="h-4 w-4 text-status-completed" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-status-completed" data-testid="stat-delivered">{stats.delivered}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Para alguém
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardTitle>Itens para Produção</CardTitle>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
-                <SelectValue placeholder="Filtrar por status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="approved">Liberados</SelectItem>
-                <SelectItem value="inProduction">Em Produção</SelectItem>
-                <SelectItem value="produced">Produzidos</SelectItem>
-                <SelectItem value="delivered">Entregues</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
+                  <SelectValue placeholder="Filtrar por evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os eventos</SelectItem>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
+                  <SelectValue placeholder="Filtrar por status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="approved">Liberados</SelectItem>
+                  <SelectItem value="inProduction">Em Produção</SelectItem>
+                  <SelectItem value="produced">Produzidos</SelectItem>
+                  <SelectItem value="delivered">Entregues</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

@@ -305,7 +305,9 @@ export default function Grafica() {
                               data-testid={`button-production-${item.id}`}
                             >
                               <Package className="h-4 w-4 mr-1" />
-                              Iniciar Produção
+                              {item.quantityProduced && item.quantityProduced > 0 
+                                ? "Continuar Produção" 
+                                : "Iniciar Produção"}
                             </Button>
                           )}
                           {item.status !== 'delivered' && (
@@ -342,11 +344,17 @@ export default function Grafica() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {modalType === "production" ? "Iniciar Produção" : "Confirmar Entrega"}
+              {modalType === "production" 
+                ? (selectedItem?.quantityProduced && selectedItem.quantityProduced > 0 
+                    ? "Continuar Produção" 
+                    : "Iniciar Produção")
+                : "Confirmar Entrega"}
             </DialogTitle>
             <DialogDescription>
               {modalType === "production" 
-                ? "Registre a quantidade produzida do material"
+                ? (selectedItem?.quantityProduced && selectedItem.quantityProduced > 0
+                    ? "Atualize a quantidade produzida do material"
+                    : "Registre a quantidade produzida do material")
                 : "Registre a entrega do material produzido"}
             </DialogDescription>
           </DialogHeader>

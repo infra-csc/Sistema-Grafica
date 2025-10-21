@@ -75,12 +75,13 @@ export function useWebSocket() {
             });
             break;
             
+          case 'production_started':
           case 'production_updated':
             // Invalidate items queries
             queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
             toast({
-              title: 'Produção atualizada',
+              title: data.type === 'production_started' ? 'Produção iniciada' : 'Produção atualizada',
               description: `Item ${data.item?.type} atualizado`,
             });
             break;

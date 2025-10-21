@@ -248,28 +248,14 @@ export default function PainelGeral() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map((item, index) => {
-                    const event = events.find(e => e.id === item.eventId);
-                    const isUrgent = event && (() => {
-                      const now = new Date();
-                      const departure = new Date(event.truckDepartureDate);
-                      const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
-                      return hoursUntilDeparture < 48 && event.status !== 'completed';
-                    })();
-                    
-                    return (
+                  {filteredItems.map((item, index) => (
                     <tr 
                       key={item.id}
-                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''} ${isUrgent ? 'border-l-4 border-l-status-urgent' : ''}`}
+                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
                       data-testid={`row-item-${item.id}`}
                     >
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
-                          {isUrgent && (
-                            <Badge variant="destructive" className="text-xs">Urgente</Badge>
-                          )}
-                        </div>
+                        <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
                       </td>
                       <td className="py-3 px-4">
                         <div className="text-sm">{item.type}</div>
@@ -296,8 +282,7 @@ export default function PainelGeral() {
                         {new Date(item.updatedAt).toLocaleDateString('pt-BR')}
                       </td>
                     </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>

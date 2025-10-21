@@ -69,7 +69,6 @@ The system features a professional light mode theme with a clean white backgroun
 Dashboard principal com visão geral simplificada:
 - 6 cards de estatísticas (Total, Solicitados, Liberados, Em Produção, Produzidos, Entregues)
 - Tabela completa com todos os itens
-- **🆕 Indicadores de Urgência**: Items urgentes destacados com border vermelho quando evento tem <48h até saída do caminhão
 - **🆕 Filtros Avançados**: Material e Acabamento (botão toggle com reset)
 - Filtros por evento, status e busca por texto
 - Foco em operação do dia-a-dia
@@ -84,7 +83,6 @@ Tela dedicada a métricas avançadas e visualizações:
 
 ### 3. Eventos (/eventos)
 Gerenciamento de eventos com cards visuais
-- **🆕 Badges de Urgência**: Eventos com <48h até saída do caminhão exibem badge vermelho com countdown
 - Cards com status colorido e informações-chave
 
 ### 4. Arte (/arte)

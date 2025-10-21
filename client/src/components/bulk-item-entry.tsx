@@ -12,6 +12,7 @@ const finishes = ["Ilhós", "Soldado", "Bastão", "Sem acabamento"];
 interface BulkItemRow {
   id: string;
   type: string;
+  description: string;
   quantity: string;
   area: string;
   visual: string;
@@ -36,6 +37,7 @@ export function BulkItemEntry({ eventId, onSubmit, onCancel, isPending }: BulkIt
     return {
       id: Math.random().toString(36).substring(7),
       type: "",
+      description: "",
       quantity: "1",
       area: "",
       visual: "",
@@ -108,6 +110,7 @@ export function BulkItemEntry({ eventId, onSubmit, onCancel, isPending }: BulkIt
       .map(row => ({
         eventId,
         type: row.type,
+        description: row.description || "",
         quantity: parseInt(row.quantity),
         area: parseFloat(row.area),
         visual: parseFloat(row.visual),
@@ -156,6 +159,7 @@ export function BulkItemEntry({ eventId, onSubmit, onCancel, isPending }: BulkIt
             <tr>
               <th className="p-2 text-left font-medium whitespace-nowrap w-[40px]">#</th>
               <th className="p-2 text-left font-medium whitespace-nowrap min-w-[120px]">Tipo*</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap min-w-[150px]">Descrição</th>
               <th className="p-2 text-left font-medium whitespace-nowrap w-[80px]">Qtd*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap w-[80px]">Área*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap w-[80px]">Visual*</th>
@@ -186,6 +190,18 @@ export function BulkItemEntry({ eventId, onSubmit, onCancel, isPending }: BulkIt
                       ))}
                     </SelectContent>
                   </Select>
+                </td>
+
+                {/* Descrição */}
+                <td className="p-2">
+                  <Input
+                    type="text"
+                    value={row.description}
+                    onChange={(e) => updateRow(row.id, 'description', e.target.value)}
+                    className="h-8"
+                    placeholder="Opcional"
+                    data-testid={`input-description-${index}`}
+                  />
                 </td>
 
                 {/* Quantidade */}

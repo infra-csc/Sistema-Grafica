@@ -20,6 +20,7 @@ export const items = pgTable("items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   type: text("type").notNull(), // "2x1", "rolo", "palco", etc
+  description: text("description"), // Descrição personalizada do item
   quantity: integer("quantity").notNull(),
   area: decimal("area", { precision: 10, scale: 2 }).notNull(),
   visual: decimal("visual", { precision: 10, scale: 2 }).notNull(),

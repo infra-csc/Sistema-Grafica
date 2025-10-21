@@ -80,7 +80,8 @@ shared/
 - **Rota**: `/eventos/:id`
 - **Funcionalidade**: Gerenciamento de itens gráficos por evento
 - **Features**:
-  - Adição de itens com tipo, quantidade, área, visual, material, acabamento
+  - Adição de itens com tipo, descrição, quantidade, área, visual, material, acabamento
+  - Campo **descrição** opcional para detalhar melhor cada item
   - Cálculo automático de m² = quantidade × área × visual
   - Observações por item
   - Não pode modificar itens, apenas adicionar (conforme especificação)
@@ -89,13 +90,17 @@ shared/
 - **Rota**: `/arte`
 - **Funcionalidade**: Liberação de arquivos para impressão
 - **Features**:
-  - Visualização de itens pendentes de aprovação
-  - Detalhes completos de cada item
-  - Botão de liberação que:
+  - Duas visualizações: **Pendentes** e **Liberados** (histórico)
+  - Seleção múltipla com checkboxes para aprovação em massa
+  - Confirmação obrigatória antes de liberar (individual ou em massa)
+  - Botão "Liberar Selecionados" quando há itens marcados
+  - Detalhes completos de cada item incluindo descrição personalizada
+  - Botão de liberação individual ou em massa que:
+    - Mostra modal de confirmação com detalhes
     - Muda status para "approved"
     - Notifica a Gráfica automaticamente
     - Torna item visível no módulo de produção
-  - Histórico de itens aprovados
+  - Histórico completo de itens aprovados com filtro por evento
 
 ### 5. Gráfica
 - **Rota**: `/grafica`
@@ -168,6 +173,7 @@ shared/
   id: varchar (UUID)
   eventId: varchar (FK)
   type: text
+  description: text (nullable)  // Descrição personalizada do item
   quantity: integer
   area: decimal
   visual: decimal

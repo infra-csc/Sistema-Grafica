@@ -107,8 +107,25 @@ Timeline de atividades com filtro por evento
 - ✅ **ProfileSelector**: Dropdown no header para trocar perfis
 - ✅ **4 Perfis**: Admin, Solicitação, Arte, Gráfica
 - ✅ **Permissões**: Função `hasPermission()` para controle de acesso
+- ✅ **Audit Logs**: Registro automático de todas ações com nome e horário
 - 🔜 **Autenticação Real**: Backend com login/senha (Fase 2)
 - 🔜 **Enforcement**: Ocultar módulos baseado em permissões (Fase 2)
+
+### 🆕 Audit Logs - Rastreamento de Modificações
+- ✅ **Tabela auditLogs**: Banco de dados com todos os logs
+- ✅ **Endpoint GET /api/audit-logs**: Lista logs (filtráveis por tipo/entidade)
+- ✅ **Registro Automático**: Logs criados para:
+  - Criação de eventos
+  - Criação de itens
+  - Aprovação de itens (Arte)
+  - Entrega de itens (Gráfica)
+- ✅ **Informações Registradas**:
+  - Nome do usuário (do perfil selecionado)
+  - Data e hora (timestamp automático)
+  - Ação realizada
+  - Tipo de entidade (event, item)
+  - ID da entidade
+  - Detalhes da mudança
 
 ### Backend Pronto (Componentes Criados)
 - ✅ **Sistema de Comentários**: Backend + componente CommentsSection

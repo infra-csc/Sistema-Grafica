@@ -7,6 +7,7 @@ import {
   productionUpdates,
   comments,
   deliveryPhotos,
+  auditLogs,
   type Event, 
   type InsertEvent,
   type Item,
@@ -20,7 +21,9 @@ import {
   type Comment,
   type InsertComment,
   type DeliveryPhoto,
-  type InsertDeliveryPhoto
+  type InsertDeliveryPhoto,
+  type AuditLog,
+  type InsertAuditLog
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -72,6 +75,10 @@ export interface IStorage {
   getDeliveryPhotos(itemId: string): Promise<DeliveryPhoto[]>;
   addDeliveryPhoto(photo: InsertDeliveryPhoto): Promise<DeliveryPhoto>;
   deleteDeliveryPhoto(id: string): Promise<boolean>;
+  
+  // Audit Logs
+  getAuditLogs(entityType?: string, entityId?: string): Promise<AuditLog[]>;
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -392,6 +399,47 @@ export class DatabaseStorage implements IStorage {
       .delete(deliveryPhotos)
       .where(eq(deliveryPhotos.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Audit Logs
+  async getAuditLogs(entityType?: string, entityId?: string): Promise<AuditLog[]> {
+    if (entityType && entityId) {
+      return await db
+        .select()
+        .from(auditLogs)
+        .where(
+          and(
+            eq(auditLogs.entityType, entityType),
+            eq(auditLogs.entityId, entityId)
+          )
+        )
+        .orderBy(desc(auditLogs.createdAt));
+    } else if (entityType) {
+      return await db
+        .select()
+        .from(auditLogs)
+        .where(eq(auditLogs.entityType, entityType))
+        .orderBy(desc(auditLogs.createdAt));
+    } else if (entityId) {
+      return await db
+        .select()
+        .from(auditLogs)
+        .where(eq(auditLogs.entityId, entityId))
+        .orderBy(desc(auditLogs.createdAt));
+    }
+    
+    return await db
+      .select()
+      .from(auditLogs)
+      .orderBy(desc(auditLogs.createdAt));
+  }
+
+  async createAuditLog(insertLog: InsertAuditLog): Promise<AuditLog> {
+    const [log] = await db
+      .insert(auditLogs)
+      .values(insertLog)
+      .returning();
+    return log;
   }
 }
 

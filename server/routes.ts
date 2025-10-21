@@ -10,7 +10,8 @@ import {
   insertNotificationSchema,
   insertProductionUpdateSchema,
   insertCommentSchema,
-  insertDeliveryPhotoSchema
+  insertDeliveryPhotoSchema,
+  insertAuditLogSchema
 } from "@shared/schema";
 import { db } from "./db";
 import { events } from "@shared/schema";
@@ -28,7 +29,34 @@ function broadcast(data: any) {
   });
 }
 
+// Helper to create audit logs
+async function createAuditLog(
+  userName: string,
+  action: string,
+  entityType: string,
+  entityId: string,
+  details?: string
+) {
+  try {
+    await storage.createAuditLog({
+      userName,
+      action,
+      entityType,
+      entityId,
+      details,
+    });
+  } catch (error) {
+    console.error("Failed to create audit log:", error);
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Middleware to extract user info from headers
+  app.use((req, res, next) => {
+    req.userName = (req.headers['x-user-name'] as string) || 'Sistema';
+    next();
+  });
+
   // ============ EVENTS ============
   
   // Get all events with items count
@@ -73,6 +101,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertEventSchema.parse(req.body);
       const event = await storage.createEvent(validatedData);
+      
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'created',
+        'event',
+        event.id,
+        `Evento "${event.name}" criado`
+      );
       
       // Create notification
       await storage.createNotification({
@@ -215,6 +252,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const event = await storage.getEvent(item.eventId);
       
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'created',
+        'item',
+        item.id,
+        `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
+      );
+      
       // Create notification
       await storage.createNotification({
         type: "itemAdded",
@@ -284,6 +330,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const event = await storage.getEvent(item.eventId);
       
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'approved',
+        'item',
+        item.id,
+        `Item "${item.type}" aprovado para produção`
+      );
+      
       // Create notification
       await storage.createNotification({
         type: "arteApproved",
@@ -347,6 +402,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const event = await storage.getEvent(item.eventId);
+      
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'delivered',
+        'item',
+        item.id,
+        `Item "${item.type}" entregue - Recebido por: ${receivedBy}`
+      );
       
       // Create notification
       await storage.createNotification({
@@ -544,6 +608,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       broadcast({ type: "photo_deleted", photoId: req.params.id });
       
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ AUDIT LOGS ============
+  
+  // Get audit logs (all or filtered by type/entity)
+  app.get("/api/audit-logs", async (req, res) => {
+    try {
+      const { entityType, entityId } = req.query;
+      const logs = await storage.getAuditLogs(
+        entityType as string | undefined,
+        entityId as string | undefined
+      );
+      res.json(logs);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

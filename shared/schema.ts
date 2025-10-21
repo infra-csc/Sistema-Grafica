@@ -74,6 +74,48 @@ export const productionUpdates = pgTable("production_updates", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Users table (for authentication and audit trail)
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  role: text("role").notNull().default("solicitacao"), // admin, solicitacao, arte, grafica
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Comments table (discussion on items)
+export const comments = pgTable("comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  userName: text("user_name").notNull(), // Denormalized for deleted users
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+// Delivery Photos table (multiple photos per delivery)
+export const deliveryPhotos = pgTable("delivery_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  photoUrl: text("photo_url").notNull(),
+  uploadedBy: text("uploaded_by").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+// Audit Logs table (track all modifications)
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  userName: text("user_name").notNull(), // Denormalized for deleted users
+  action: text("action").notNull(), // created, updated, deleted, approved, delivered, etc.
+  entityType: text("entity_type").notNull(), // event, item, comment
+  entityId: varchar("entity_id").notNull(),
+  details: text("details"), // JSON string with change details
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // Relations
 export const eventsRelations = relations(events, ({ many }) => ({
   items: many(items),
@@ -87,6 +129,8 @@ export const itemsRelations = relations(items, ({ one, many }) => ({
   }),
   notifications: many(notifications),
   productionUpdates: many(productionUpdates),
+  comments: many(comments),
+  deliveryPhotos: many(deliveryPhotos),
 }));
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
@@ -103,6 +147,28 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 export const productionUpdatesRelations = relations(productionUpdates, ({ one }) => ({
   item: one(items, {
     fields: [productionUpdates.itemId],
+    references: [items.id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  comments: many(comments),
+}));
+
+export const commentsRelations = relations(comments, ({ one }) => ({
+  item: one(items, {
+    fields: [comments.itemId],
+    references: [items.id],
+  }),
+  user: one(users, {
+    fields: [comments.userId],
+    references: [users.id],
+  }),
+}));
+
+export const deliveryPhotosRelations = relations(deliveryPhotos, ({ one }) => ({
+  item: one(items, {
+    fields: [deliveryPhotos.itemId],
     references: [items.id],
   }),
 }));
@@ -149,6 +215,27 @@ export const insertProductionUpdateSchema = createInsertSchema(productionUpdates
   quantityProduced: z.number().min(0),
 });
 
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCommentSchema = createInsertSchema(comments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDeliveryPhotoSchema = createInsertSchema(deliveryPhotos).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Event = typeof events.$inferSelect;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
@@ -164,3 +251,15 @@ export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 
 export type ProductionUpdate = typeof productionUpdates.$inferSelect;
 export type InsertProductionUpdate = z.infer<typeof insertProductionUpdateSchema>;
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Comment = typeof comments.$inferSelect;
+export type InsertComment = z.infer<typeof insertCommentSchema>;
+
+export type DeliveryPhoto = typeof deliveryPhotos.$inferSelect;
+export type InsertDeliveryPhoto = z.infer<typeof insertDeliveryPhotoSchema>;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;

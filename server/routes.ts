@@ -8,7 +8,9 @@ import {
   insertItemSchema, 
   insertStandardItemSchema,
   insertNotificationSchema,
-  insertProductionUpdateSchema
+  insertProductionUpdateSchema,
+  insertCommentSchema,
+  insertDeliveryPhotoSchema
 } from "@shared/schema";
 import { db } from "./db";
 import { events } from "@shared/schema";
@@ -449,6 +451,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       broadcast({ type: "notification_read", notification });
       
       res.json(notification);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ COMMENTS ============
+  
+  // Get comments for an item
+  app.get("/api/items/:itemId/comments", async (req, res) => {
+    try {
+      const comments = await storage.getComments(req.params.itemId);
+      res.json(comments);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create a comment
+  app.post("/api/items/:itemId/comments", async (req, res) => {
+    try {
+      const validatedData = insertCommentSchema.parse({
+        ...req.body,
+        itemId: req.params.itemId,
+      });
+      
+      const comment = await storage.createComment(validatedData);
+      
+      // Broadcast new comment to all connected clients
+      broadcast({ type: "new_comment", comment });
+      
+      res.json(comment);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete a comment
+  app.delete("/api/comments/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteComment(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Comment not found" });
+      }
+      
+      broadcast({ type: "comment_deleted", commentId: req.params.id });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ DELIVERY PHOTOS ============
+  
+  // Get delivery photos for an item
+  app.get("/api/items/:itemId/photos", async (req, res) => {
+    try {
+      const photos = await storage.getDeliveryPhotos(req.params.itemId);
+      res.json(photos);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add a delivery photo
+  app.post("/api/items/:itemId/photos", async (req, res) => {
+    try {
+      const validatedData = insertDeliveryPhotoSchema.parse({
+        ...req.body,
+        itemId: req.params.itemId,
+      });
+      
+      const photo = await storage.addDeliveryPhoto(validatedData);
+      
+      broadcast({ type: "photo_added", photo });
+      
+      res.json(photo);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete a delivery photo
+  app.delete("/api/photos/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteDeliveryPhoto(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Photo not found" });
+      }
+      
+      broadcast({ type: "photo_deleted", photoId: req.params.id });
+      
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

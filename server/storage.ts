@@ -5,6 +5,8 @@ import {
   standardItems, 
   notifications, 
   productionUpdates,
+  comments,
+  deliveryPhotos,
   type Event, 
   type InsertEvent,
   type Item,
@@ -14,7 +16,11 @@ import {
   type Notification,
   type InsertNotification,
   type ProductionUpdate,
-  type InsertProductionUpdate
+  type InsertProductionUpdate,
+  type Comment,
+  type InsertComment,
+  type DeliveryPhoto,
+  type InsertDeliveryPhoto
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -56,6 +62,16 @@ export interface IStorage {
   // Production Updates
   getProductionUpdates(itemId: string): Promise<ProductionUpdate[]>;
   createProductionUpdate(update: InsertProductionUpdate): Promise<ProductionUpdate>;
+  
+  // Comments
+  getComments(itemId: string): Promise<Comment[]>;
+  createComment(comment: InsertComment): Promise<Comment>;
+  deleteComment(id: string): Promise<boolean>;
+  
+  // Delivery Photos
+  getDeliveryPhotos(itemId: string): Promise<DeliveryPhoto[]>;
+  addDeliveryPhoto(photo: InsertDeliveryPhoto): Promise<DeliveryPhoto>;
+  deleteDeliveryPhoto(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -328,6 +344,54 @@ export class DatabaseStorage implements IStorage {
       .values(insertUpdate)
       .returning();
     return update;
+  }
+
+  // Comments
+  async getComments(itemId: string): Promise<Comment[]> {
+    return await db
+      .select()
+      .from(comments)
+      .where(eq(comments.itemId, itemId))
+      .orderBy(comments.createdAt);
+  }
+
+  async createComment(insertComment: InsertComment): Promise<Comment> {
+    const [comment] = await db
+      .insert(comments)
+      .values(insertComment)
+      .returning();
+    return comment;
+  }
+
+  async deleteComment(id: string): Promise<boolean> {
+    const result = await db
+      .delete(comments)
+      .where(eq(comments.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Delivery Photos
+  async getDeliveryPhotos(itemId: string): Promise<DeliveryPhoto[]> {
+    return await db
+      .select()
+      .from(deliveryPhotos)
+      .where(eq(deliveryPhotos.itemId, itemId))
+      .orderBy(deliveryPhotos.createdAt);
+  }
+
+  async addDeliveryPhoto(insertPhoto: InsertDeliveryPhoto): Promise<DeliveryPhoto> {
+    const [photo] = await db
+      .insert(deliveryPhotos)
+      .values(insertPhoto)
+      .returning();
+    return photo;
+  }
+
+  async deleteDeliveryPhoto(id: string): Promise<boolean> {
+    const result = await db
+      .delete(deliveryPhotos)
+      .where(eq(deliveryPhotos.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 

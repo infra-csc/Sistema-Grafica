@@ -293,31 +293,35 @@ export default function Grafica() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setModalType("production");
-                              setProductionData({ quantityProduced: item.quantity });
-                            }}
-                            data-testid={`button-production-${item.id}`}
-                          >
-                            <Package className="h-4 w-4 mr-1" />
-                            Iniciar Produção
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setModalType("delivery");
-                              setDeliveryData({ photoUrl: "", receivedBy: "" });
-                            }}
-                            data-testid={`button-deliver-${item.id}`}
-                          >
-                            <Truck className="h-4 w-4 mr-1" />
-                            Marcar Entregue
-                          </Button>
+                          {item.status !== 'produced' && item.status !== 'delivered' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedItem(item);
+                                setModalType("production");
+                                setProductionData({ quantityProduced: item.quantity });
+                              }}
+                              data-testid={`button-production-${item.id}`}
+                            >
+                              <Package className="h-4 w-4 mr-1" />
+                              Iniciar Produção
+                            </Button>
+                          )}
+                          {item.status !== 'delivered' && (
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setSelectedItem(item);
+                                setModalType("delivery");
+                                setDeliveryData({ photoUrl: "", receivedBy: "" });
+                              }}
+                              data-testid={`button-deliver-${item.id}`}
+                            >
+                              <Truck className="h-4 w-4 mr-1" />
+                              Marcar Entregue
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

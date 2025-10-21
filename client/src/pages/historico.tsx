@@ -35,6 +35,7 @@ interface TimelineEvent {
 export default function Historico() {
   const [, setLocation] = useLocation();
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [actionFilter, setActionFilter] = useState<string>("all");
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -145,10 +146,15 @@ export default function Historico() {
     b.timestamp.getTime() - a.timestamp.getTime()
   );
 
-  // Filtrar por evento se necessário
-  const filteredTimeline = eventFilter === "all" 
+  // Filtrar por evento
+  let filteredTimeline = eventFilter === "all" 
     ? sortedTimeline 
     : sortedTimeline.filter(event => event.eventId === eventFilter);
+
+  // Filtrar por tipo de ação
+  if (actionFilter !== "all") {
+    filteredTimeline = filteredTimeline.filter(event => event.type === actionFilter);
+  }
 
   const getEventConfig = (type: TimelineEvent['type']) => {
     switch (type) {
@@ -260,19 +266,34 @@ export default function Historico() {
               <Clock className="h-5 w-5" />
               Atividades Recentes
             </CardTitle>
-            <Select value={eventFilter} onValueChange={setEventFilter}>
-              <SelectTrigger className="w-full sm:w-64" data-testid="select-event-filter">
-                <SelectValue placeholder="Filtrar por evento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os eventos</SelectItem>
-                {events.map((event) => (
-                  <SelectItem key={event.id} value={event.id}>
-                    {event.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Select value={actionFilter} onValueChange={setActionFilter}>
+                <SelectTrigger className="w-full sm:w-48" data-testid="select-action-filter">
+                  <SelectValue placeholder="Tipo de ação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as ações</SelectItem>
+                  <SelectItem value="event_created">Criações de eventos</SelectItem>
+                  <SelectItem value="item_created">Adições de itens</SelectItem>
+                  <SelectItem value="item_approved">Aprovações</SelectItem>
+                  <SelectItem value="production_started">Em produção</SelectItem>
+                  <SelectItem value="item_delivered">Entregas</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
+                  <SelectValue placeholder="Filtrar por evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os eventos</SelectItem>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

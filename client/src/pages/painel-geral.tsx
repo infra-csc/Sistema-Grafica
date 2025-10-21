@@ -24,6 +24,17 @@ export default function PainelGeral() {
     queryKey: ["/api/events"],
   });
 
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
+  });
+
+  // Criar mapa de audit logs
+  const auditLogMap = new Map<string, any>();
+  auditLogs.forEach(log => {
+    const key = `${log.entityId}-${log.action}`;
+    auditLogMap.set(key, log);
+  });
+
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -276,7 +287,25 @@ export default function PainelGeral() {
                       <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
                       <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
                       <td className="py-3 px-4">
-                        <StatusBadge status={item.status} />
+                        <div className="flex flex-col gap-1">
+                          <StatusBadge status={item.status} />
+                          {item.status === 'approved' || item.status === 'inProduction' || item.status === 'produced' || item.status === 'delivered' ? (
+                            <div className="text-xs text-muted-foreground">
+                              {(() => {
+                                const approvedLog = auditLogMap.get(`${item.id}-approved`);
+                                return approvedLog ? `Aprovado por ${approvedLog.userName.split(' ')[0]}` : null;
+                              })()}
+                            </div>
+                          ) : null}
+                          {item.status === 'delivered' ? (
+                            <div className="text-xs text-muted-foreground">
+                              {(() => {
+                                const deliveredLog = auditLogMap.get(`${item.id}-delivered`);
+                                return deliveredLog ? `Entregue por ${deliveredLog.userName.split(' ')[0]}` : null;
+                              })()}
+                            </div>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">
                         {new Date(item.updatedAt).toLocaleDateString('pt-BR')}

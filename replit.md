@@ -129,7 +129,18 @@ Timeline de atividades com filtro por evento
 - ✅ **Visualização no Histórico**: 
   - Cada ação mostra "por [Nome do Usuário] • [tempo relativo]"
   - Data e hora completa no canto direito
-  - Informação visível apenas em ações importantes (criação, aprovação, entrega)
+  - Informação visível em ações importantes (criação, aprovação, entrega)
+  - **Filtros por tipo de ação**: Criações, Aprovações, Em Produção, Entregas
+  - Combinação de filtros: tipo de ação + evento específico
+- ✅ **Mini-Timeline na Página de Detalhes do Evento**:
+  - Exibe últimas 5 ações relacionadas ao evento
+  - Mostra quem fez cada ação e quando
+  - Ícones coloridos por tipo de ação
+  - Atualização automática conforme ações acontecem
+- ✅ **Informações nos Cards de Itens**:
+  - "Aprovado por [Nome]" visível em itens aprovados
+  - "Entregue por [Nome]" visível em itens entregues
+  - Informação discreta mas sempre visível no Painel Geral
 
 ### Backend Pronto (Componentes Criados)
 - ✅ **Sistema de Comentários**: Backend + componente CommentsSection

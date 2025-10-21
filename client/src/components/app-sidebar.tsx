@@ -52,14 +52,12 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="h-16 flex items-center px-4 border-b border-sidebar-border bg-gradient-to-r from-primary/8 via-[hsl(var(--norte-magenta))]/8 to-accent/8">
         <div className="flex items-center gap-3">
-          <img 
-            src="/attached_assets/download_1761057817125.jpg" 
-            alt="NORTE Marketing Esportivo" 
-            className="h-10 w-10 rounded-lg object-contain bg-white p-1"
-          />
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary via-[hsl(var(--norte-magenta))] to-accent flex items-center justify-center text-white font-bold text-lg">
+            N
+          </div>
           <div>
-            <h1 className="text-base font-semibold text-primary">NORTE</h1>
-            <p className="text-xs text-muted-foreground">Marketing Esportivo</p>
+            <h1 className="text-base font-semibold text-primary">Sistema de Gestão de Gráfica</h1>
+            <p className="text-xs text-muted-foreground">NORTE Marketing Esportivo</p>
           </div>
         </div>
       </SidebarHeader>

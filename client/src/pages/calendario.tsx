@@ -33,7 +33,8 @@ export default function Calendario() {
     if (event.status === 'completed' || hoursUntilStart < 0) {
       return { 
         status: 'completed', 
-        color: 'bg-status-completed/60', 
+        colorBg: 'bg-status-completed', 
+        colorAccent: 'bg-status-completed/20',
         textColor: 'text-status-completed', 
         borderColor: 'border-status-completed',
         label: hoursUntilStart < 0 ? 'Realizado' : 'Finalizado' 
@@ -44,7 +45,8 @@ export default function Calendario() {
     if (hoursUntilStart < 24) {
       return { 
         status: 'critical', 
-        color: 'bg-status-urgent/60', 
+        colorBg: 'bg-status-urgent',
+        colorAccent: 'bg-status-urgent/20',
         textColor: 'text-status-urgent',
         borderColor: 'border-status-urgent',
         label: 'Início em menos de 24h' 
@@ -55,7 +57,8 @@ export default function Calendario() {
     if (hoursUntilStart < 48) {
       return { 
         status: 'warning', 
-        color: 'bg-status-pending/60', 
+        colorBg: 'bg-status-pending',
+        colorAccent: 'bg-status-pending/20',
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
         label: 'Início em menos de 48h' 
@@ -65,7 +68,8 @@ export default function Calendario() {
     // Azul: Mais de 48h para início
     return { 
       status: 'normal', 
-      color: 'bg-status-approved/60', 
+      colorBg: 'bg-status-approved',
+      colorAccent: 'bg-status-approved/20',
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
       label: 'Início em mais de 48h' 
@@ -82,7 +86,8 @@ export default function Calendario() {
     if (event.status === 'completed' || hoursUntilDeparture < 0) {
       return { 
         status: 'completed', 
-        color: 'bg-status-completed/60', 
+        colorBg: 'bg-status-completed',
+        colorAccent: 'bg-status-completed/20',
         textColor: 'text-status-completed', 
         borderColor: 'border-status-completed',
         label: hoursUntilDeparture < 0 ? 'Concluído' : 'Finalizado' 
@@ -93,7 +98,8 @@ export default function Calendario() {
     if (hoursUntilDeparture < 24) {
       return { 
         status: 'critical', 
-        color: 'bg-status-urgent/60', 
+        colorBg: 'bg-status-urgent',
+        colorAccent: 'bg-status-urgent/20',
         textColor: 'text-status-urgent',
         borderColor: 'border-status-urgent',
         label: 'Saída em menos de 24h' 
@@ -104,7 +110,8 @@ export default function Calendario() {
     if (hoursUntilDeparture < 48) {
       return { 
         status: 'warning', 
-        color: 'bg-status-pending/60', 
+        colorBg: 'bg-status-pending',
+        colorAccent: 'bg-status-pending/20',
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
         label: 'Saída em menos de 48h' 
@@ -114,7 +121,8 @@ export default function Calendario() {
     // Azul: Mais de 48h para saída
     return { 
       status: 'normal', 
-      color: 'bg-status-approved/60', 
+      colorBg: 'bg-status-approved',
+      colorAccent: 'bg-status-approved/20',
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
       label: 'Saída em mais de 48h' 
@@ -262,7 +270,7 @@ export default function Calendario() {
                         {eventsForDay.slice(0, 3).map((eventData) => {
                           const isStart = eventData.type === 'start';
                           // Status diferente para cada tipo de data
-                          const { color, borderColor } = isStart 
+                          const { colorBg, colorAccent } = isStart 
                             ? getEventStartStatus(eventData) 
                             : getTruckDepartureStatus(eventData);
                           const Icon = isStart ? Calendar : Truck;
@@ -284,10 +292,10 @@ export default function Calendario() {
                               data-testid={`event-${eventData.id}-${eventData.type}`}
                             >
                               {/* Barra lateral colorida grossa */}
-                              <div className={cn("absolute left-0 top-0 bottom-0 w-1", color)} />
+                              <div className={cn("absolute left-0 top-0 bottom-0 w-1", colorBg)} />
                               
                               {/* Ícone com fundo colorido */}
-                              <div className={cn("flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center", color)}>
+                              <div className={cn("flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center", colorBg)}>
                                 <Icon className="h-4 w-4 text-white" />
                               </div>
                               
@@ -385,7 +393,7 @@ export default function Calendario() {
             {selectedDate && getEventsForDate(selectedDate).map((eventData) => {
               const isStart = eventData.type === 'start';
               // Status diferente para cada tipo de data
-              const { color, textColor, borderColor, label } = isStart 
+              const { colorBg, colorAccent, textColor, borderColor, label } = isStart 
                 ? getEventStartStatus(eventData) 
                 : getTruckDepartureStatus(eventData);
               const Icon = isStart ? Calendar : Truck;
@@ -403,12 +411,12 @@ export default function Calendario() {
                   className={cn(
                     "flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-all hover-elevate border-l-4",
                     borderColor,
-                    color
+                    colorAccent
                   )}
                   data-testid={`dialog-event-${eventData.id}-${eventData.type}`}
                 >
-                  <div className={cn("p-2 rounded-md", color)}>
-                    <Icon className={cn("h-5 w-5", textColor)} />
+                  <div className={cn("p-2 rounded-md", colorBg)}>
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">

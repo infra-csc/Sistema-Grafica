@@ -10,7 +10,7 @@ export const events = pgTable("events", {
   name: text("name").notNull(),
   startDate: timestamp("start_date").notNull(),
   truckDepartureDate: timestamp("truck_departure_date").notNull(),
-  status: text("status").notNull().default("created"), // created, completed, urgent
+  status: text("status").notNull().default("created"), // created, completed
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

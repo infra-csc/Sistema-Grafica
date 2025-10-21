@@ -581,12 +581,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hoursRemaining: hours,
           });
         }
-
-        // Update event status to urgent if < 48h
-        if (hoursUntilDeparture < 48 && event.status !== 'urgent') {
-          await storage.updateEvent(event.id, { status: 'urgent' });
-          broadcast({ type: "event_urgent", event });
-        }
       }
     } catch (error) {
       console.error("Error checking deadlines:", error);

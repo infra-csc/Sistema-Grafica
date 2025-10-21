@@ -17,11 +17,6 @@ const statusConfig = {
     color: "bg-status-completed/20 text-status-completed border-status-completed",
     icon: CheckCircle,
   },
-  urgent: {
-    label: "Urgente",
-    color: "bg-status-urgent/20 text-status-urgent border-status-urgent",
-    icon: AlertCircle,
-  },
   requested: {
     label: "Solicitado",
     color: "bg-status-pending/20 text-status-pending border-status-pending",

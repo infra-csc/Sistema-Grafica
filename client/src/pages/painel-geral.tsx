@@ -31,7 +31,8 @@ export default function PainelGeral() {
     requested: items.filter(i => i.status === 'requested').length,
     approved: items.filter(i => i.status === 'approved').length,
     inProduction: items.filter(i => i.status === 'inProduction').length,
-    completed: items.filter(i => ['produced', 'delivered'].includes(i.status)).length,
+    produced: items.filter(i => i.status === 'produced').length,
+    delivered: items.filter(i => i.status === 'delivered').length,
   };
 
   return (
@@ -45,10 +46,10 @@ export default function PainelGeral() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Itens</CardTitle>
+            <CardTitle className="text-sm font-medium">Total</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -83,16 +84,35 @@ export default function PainelGeral() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-status-production" data-testid="stat-production">{stats.inProduction}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Produção parcial
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Finalizados</CardTitle>
+            <CardTitle className="text-sm font-medium">Produzidos</CardTitle>
             <CheckCircle className="h-4 w-4 text-status-completed" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-status-completed" data-testid="stat-completed">{stats.completed}</div>
+            <div className="text-2xl font-bold text-status-completed" data-testid="stat-produced">{stats.produced}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Não entregue
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Entregues</CardTitle>
+            <CheckCircle className="h-4 w-4 text-status-completed" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-status-completed" data-testid="stat-delivered">{stats.delivered}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Para alguém
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -145,7 +165,8 @@ export default function PainelGeral() {
                   <tr>
                     <th className="text-left py-3 px-4 font-medium">Evento</th>
                     <th className="text-left py-3 px-4 font-medium">Item</th>
-                    <th className="text-left py-3 px-4 font-medium">Quantidade</th>
+                    <th className="text-left py-3 px-4 font-medium">Qtd Total</th>
+                    <th className="text-left py-3 px-4 font-medium">Qtd Produzida</th>
                     <th className="text-left py-3 px-4 font-medium">Área × Visual</th>
                     <th className="text-left py-3 px-4 font-medium">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Status</th>
@@ -169,6 +190,15 @@ export default function PainelGeral() {
                         )}
                       </td>
                       <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
+                      <td className="py-3 px-4">
+                        {item.quantityProduced ? (
+                          <div className="text-sm font-semibold tabular-nums text-status-production">
+                            {item.quantityProduced}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">-</div>
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
                       <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
                       <td className="py-3 px-4">

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, Truck, AlertCircle, Search } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, Search, Clock } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import {
@@ -198,13 +198,26 @@ export default function Eventos() {
             const status = getEventStatus(event);
             const itemCount = event.items?.length || 0;
             
+            const now = new Date();
+            const departure = new Date(event.truckDepartureDate);
+            const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
+            const isUrgent = hoursUntilDeparture < 48 && event.status !== 'completed';
+            
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
-                <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-event-${event.id}`}>
+                <Card className={`hover-elevate cursor-pointer transition-all ${isUrgent ? 'border-status-urgent' : ''}`} data-testid={`card-event-${event.id}`}>
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-base">{event.name}</CardTitle>
-                      <StatusBadge status={status} />
+                      <div className="flex gap-2">
+                        {isUrgent && (
+                          <Badge variant="destructive" className="flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            Urgente
+                          </Badge>
+                        )}
+                        <StatusBadge status={status} />
+                      </div>
                     </div>
                     <CardDescription className="flex flex-col gap-1 mt-2">
                       <div className="flex items-center gap-2 text-sm">
@@ -215,6 +228,16 @@ export default function Eventos() {
                         <Truck className="h-3.5 w-3.5" />
                         <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR')}</span>
                       </div>
+                      {isUrgent && (
+                        <div className="flex items-center gap-2 text-sm text-status-urgent font-medium mt-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>
+                            {hoursUntilDeparture > 0 
+                              ? `Faltam ${Math.floor(hoursUntilDeparture)}h` 
+                              : 'Prazo vencido!'}
+                          </span>
+                        </div>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardFooter className="border-t pt-4">

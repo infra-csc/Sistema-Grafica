@@ -122,10 +122,14 @@ shared/
 - **Rota**: `/calendario`
 - **Funcionalidade**: Visualização temporal de eventos
 - **Features**:
-  - Grade mensal com indicadores de eventos
-  - Cores por status
-  - Alertas visuais para eventos com <48h
+  - Grade mensal com indicadores de eventos (semana começa na segunda-feira, domingo no final)
+  - Cores por status **SEPARADAS** para cada tipo de data:
+    - 📅 **Início do Evento** (startDate): status baseado em quanto tempo falta para o evento começar
+    - 🚚 **Saída do Caminhão** (truckDepartureDate): status baseado em quanto tempo falta para o caminhão sair
+  - Cada data exibe sua própria cor: 🟢 Verde (passou/finalizado) 🔵 Azul (>48h) 🟡 Amarelo (24-48h) 🔴 Vermelho (<24h)
+  - Alertas visuais para saída do caminhão com <48h
   - Legenda explicativa
+  - Modal com detalhes completos ao clicar no dia
   - Cards de alerta com contagem regressiva
 
 ## Sistema de Status

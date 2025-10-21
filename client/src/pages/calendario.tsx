@@ -23,53 +23,101 @@ export default function Calendario() {
     queryKey: ["/api/events"],
   });
 
-  const getEventStatus = (event: any) => {
-    // IMPORTANTE: Sempre usar horário local do navegador (Brasília)
-    // O banco armazena em UTC mas o JavaScript converte automaticamente
+  // Status para DATA DO EVENTO (startDate)
+  const getEventStartStatus = (event: any) => {
+    const now = new Date();
+    const start = new Date(event.startDate);
+    const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    // Verde: Evento já passou ou finalizado
+    if (event.status === 'completed' || hoursUntilStart < 0) {
+      return { 
+        status: 'completed', 
+        color: 'bg-status-completed', 
+        textColor: 'text-status-completed', 
+        borderColor: 'border-status-completed',
+        label: hoursUntilStart < 0 ? 'Evento já passou' : 'Finalizado' 
+      };
+    }
+    
+    // Vermelho: Menos de 24h para início
+    if (hoursUntilStart < 24) {
+      return { 
+        status: 'critical', 
+        color: 'bg-status-urgent', 
+        textColor: 'text-status-urgent',
+        borderColor: 'border-status-urgent',
+        label: 'Início em < 24h' 
+      };
+    }
+    
+    // Amarelo: Entre 24h e 48h para início
+    if (hoursUntilStart < 48) {
+      return { 
+        status: 'warning', 
+        color: 'bg-status-pending', 
+        textColor: 'text-status-pending',
+        borderColor: 'border-status-pending',
+        label: 'Início em < 48h' 
+      };
+    }
+    
+    // Azul: Mais de 48h para início
+    return { 
+      status: 'normal', 
+      color: 'bg-status-approved', 
+      textColor: 'text-status-approved',
+      borderColor: 'border-status-approved',
+      label: 'Início em > 48h' 
+    };
+  };
+
+  // Status para SAÍDA DO CAMINHÃO (truckDepartureDate)
+  const getTruckDepartureStatus = (event: any) => {
     const now = new Date();
     const departure = new Date(event.truckDepartureDate);
     const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    // Verde: Evento finalizado ou já passou
+    // Verde: Caminhão já saiu ou evento finalizado
     if (event.status === 'completed' || hoursUntilDeparture < 0) {
       return { 
         status: 'completed', 
         color: 'bg-status-completed', 
         textColor: 'text-status-completed', 
         borderColor: 'border-status-completed',
-        label: hoursUntilDeparture < 0 ? 'Concluído' : 'Finalizado' 
+        label: hoursUntilDeparture < 0 ? 'Caminhão já saiu' : 'Finalizado' 
       };
     }
     
-    // Vermelho: Menos de 24h para saída
+    // Vermelho: Menos de 24h para saída - CRÍTICO!
     if (hoursUntilDeparture < 24) {
       return { 
         status: 'critical', 
         color: 'bg-status-urgent', 
         textColor: 'text-status-urgent',
         borderColor: 'border-status-urgent',
-        label: 'Crítico (< 24h)' 
+        label: 'Saída em < 24h - CRÍTICO!' 
       };
     }
     
-    // Amarelo: Entre 24h e 48h para saída
+    // Amarelo: Entre 24h e 48h para saída - ATENÇÃO
     if (hoursUntilDeparture < 48) {
       return { 
         status: 'warning', 
         color: 'bg-status-pending', 
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
-        label: 'Atenção (< 48h)' 
+        label: 'Saída em < 48h - Atenção' 
       };
     }
     
-    // Azul: Mais de 48h, em andamento normal
+    // Azul: Mais de 48h para saída
     return { 
       status: 'normal', 
       color: 'bg-status-approved', 
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
-      label: 'Em andamento' 
+      label: 'Saída em > 48h' 
     };
   };
 
@@ -79,7 +127,8 @@ export default function Calendario() {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+    // Ajuste para começar na segunda-feira (0=domingo vira 6, 1=segunda vira 0)
+    const startingDayOfWeek = (firstDay.getDay() + 6) % 7;
 
     return { daysInMonth, startingDayOfWeek, year, month };
   };
@@ -108,7 +157,8 @@ export default function Calendario() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
 
-  const weekDays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+  // Semana começando na SEGUNDA-FEIRA (domingo no final - padrão brasileiro)
+  const weekDays = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -210,8 +260,11 @@ export default function Calendario() {
                       
                       <div className="flex-1 flex flex-col gap-1 overflow-hidden">
                         {eventsForDay.slice(0, 3).map((eventData) => {
-                          const { color, borderColor } = getEventStatus(eventData);
                           const isStart = eventData.type === 'start';
+                          // Status diferente para cada tipo de data
+                          const { color, borderColor } = isStart 
+                            ? getEventStartStatus(eventData) 
+                            : getTruckDepartureStatus(eventData);
                           const Icon = isStart ? Calendar : Truck;
                           const time = isStart 
                             ? new Date(eventData.startDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -280,26 +333,29 @@ export default function Calendario() {
             <CardTitle className="text-base">Legenda - Status por Prazo</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground mb-1">
+                Cada data tem seu próprio status baseado no prazo:
+              </p>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-completed shrink-0" />
                 <span className="text-sm font-medium text-status-completed">Verde:</span>
-                <span className="text-sm">Evento finalizado ou já passou</span>
+                <span className="text-sm">Já passou ou finalizado</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-approved shrink-0" />
                 <span className="text-sm font-medium text-status-approved">Azul:</span>
-                <span className="text-sm">Mais de 48h para saída</span>
+                <span className="text-sm">Mais de 48h restantes</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-pending shrink-0" />
                 <span className="text-sm font-medium text-status-pending">Amarelo:</span>
-                <span className="text-sm">Faltam entre 24h e 48h</span>
+                <span className="text-sm">Entre 24h e 48h - Atenção!</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-urgent shrink-0" />
                 <span className="text-sm font-medium text-status-urgent">Vermelho:</span>
-                <span className="text-sm">Crítico - Menos de 24h!</span>
+                <span className="text-sm">Menos de 24h - CRÍTICO!</span>
               </div>
             </div>
           </CardContent>
@@ -322,8 +378,11 @@ export default function Calendario() {
           </DialogHeader>
           <div className="space-y-3 mt-4">
             {selectedDate && getEventsForDate(selectedDate).map((eventData) => {
-              const { color, textColor, borderColor, label } = getEventStatus(eventData);
               const isStart = eventData.type === 'start';
+              // Status diferente para cada tipo de data
+              const { color, textColor, borderColor, label } = isStart 
+                ? getEventStartStatus(eventData) 
+                : getTruckDepartureStatus(eventData);
               const Icon = isStart ? Calendar : Truck;
               const dateTime = isStart 
                 ? new Date(eventData.startDate)

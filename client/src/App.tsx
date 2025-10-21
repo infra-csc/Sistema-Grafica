@@ -17,6 +17,7 @@ import Arte from "@/pages/arte";
 import Grafica from "@/pages/grafica";
 import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
+import Historico from "@/pages/historico";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/grafica" component={Grafica} />
       <Route path="/modelos" component={Modelos} />
       <Route path="/calendario" component={Calendario} />
+      <Route path="/historico" component={Historico} />
       <Route component={NotFound} />
     </Switch>
   );

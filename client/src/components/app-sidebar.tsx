@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard } from "lucide-react";
+import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -42,6 +42,11 @@ const menuItems = [
     title: "Calendário",
     url: "/calendario",
     icon: Calendar,
+  },
+  {
+    title: "Histórico",
+    url: "/historico",
+    icon: Activity,
   },
 ];
 

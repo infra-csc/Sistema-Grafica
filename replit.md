@@ -134,9 +134,29 @@ shared/
     - 🚚 **Saída do Caminhão** (truckDepartureDate): status baseado em quanto tempo falta para o caminhão sair
   - Cada data exibe sua própria cor: 🟢 Verde (passou/finalizado) 🔵 Azul (>48h) 🟡 Amarelo (24-48h) 🔴 Vermelho (<24h)
   - Alertas visuais para saída do caminhão com <48h
-  - Legenda explicativa
+  - Legenda explicativa discreta
   - Modal com detalhes completos ao clicar no dia
   - Cards de alerta com contagem regressiva
+
+### 8. Histórico
+- **Rota**: `/historico`
+- **Funcionalidade**: Timeline cronológica de todas as atividades do sistema
+- **Features**:
+  - Linha do tempo visual com todas as ações do sistema
+  - Ordenação cronológica reversa (mais recente primeiro)
+  - Tipos de atividades rastreadas:
+    - 📅 Evento Criado
+    - ➕ Item Adicionado
+    - ✓ Item Liberado (Arte)
+    - 📦 Em Produção (Gráfica)
+    - 🚚 Item Entregue
+  - Cada atividade mostra:
+    - Ícone e badge colorido por tipo
+    - Descrição detalhada da ação
+    - Data/hora exata
+    - Tempo relativo ("há 2 horas", "há 3 dias")
+  - Clique para navegar ao evento/item correspondente
+  - Design de timeline vertical com linha conectora
 
 ## Sistema de Status
 
@@ -186,7 +206,9 @@ shared/
   quantityProduced: integer (nullable)
   receivedBy: text (nullable)
   deliveryPhotoUrl: text (nullable)
-  deliveredAt: timestamp (nullable)
+  approvedAt: timestamp (nullable)  // Timestamp quando foi liberado pela Arte
+  productionStartedAt: timestamp (nullable)  // Timestamp quando produção iniciou
+  deliveredAt: timestamp (nullable)  // Timestamp quando foi entregue
   createdAt: timestamp
   updatedAt: timestamp
 }
@@ -333,7 +355,7 @@ npm run build
 ## Melhorias Implementadas
 
 - ✅ Cálculo automático de m²
-- ✅ Badges de status com ícones e cores
+- ✅ Badges de status com ícones e cores (sem quebra de linha)
 - ✅ Filtros e busca inteligente
 - ✅ Cards de estatísticas em tempo real
 - ✅ Calendário visual com alertas
@@ -343,7 +365,11 @@ npm run build
 - ✅ Modais bem formatados para formulários
 - ✅ Design system consistente
 - ✅ Entrada rápida de itens (bulk entry) como modo padrão
+- ✅ Campo de descrição opcional para itens
 - ✅ Gráfica simplificada focada em entrega com campos específicos
+- ✅ Botões dinâmicos (Iniciar/Continuar Produção)
+- ✅ Histórico completo com timeline visual
+- ✅ Legendas discretas no calendário
 
 ## Observações Técnicas
 

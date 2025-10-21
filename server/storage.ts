@@ -197,7 +197,7 @@ export class DatabaseStorage implements IStorage {
   async approveItem(id: string): Promise<Item | undefined> {
     const [item] = await db
       .update(items)
-      .set({ status: 'approved', updatedAt: new Date() })
+      .set({ status: 'approved', approvedAt: new Date(), updatedAt: new Date() })
       .where(eq(items.id, id))
       .returning();
     return item || undefined;
@@ -213,13 +213,20 @@ export class DatabaseStorage implements IStorage {
       newStatus = 'produced';
     }
     
+    // Set productionStartedAt only on first production update
+    const updateData: any = {
+      status: newStatus,
+      quantityProduced,
+      updatedAt: new Date()
+    };
+    
+    if (!item.productionStartedAt) {
+      updateData.productionStartedAt = new Date();
+    }
+    
     const [updatedItem] = await db
       .update(items)
-      .set({ 
-        status: newStatus,
-        quantityProduced,
-        updatedAt: new Date() 
-      })
+      .set(updateData)
       .where(eq(items.id, id))
       .returning();
     return updatedItem || undefined;

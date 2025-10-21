@@ -82,6 +82,13 @@
   --norte-purple: 280 55% 45%;
   --norte-cyan: 188 100% 42%;
 
+  /* Status Colors - Workflow */
+  --status-completed: 142 76% 36%;    /* Verde - Finalizado */
+  --status-pending: 45 93% 47%;        /* Amarelo - Aguardando */
+  --status-urgent: 0 84% 60%;          /* Vermelho - Urgente */
+  --status-approved: 217 91% 60%;      /* Azul - Aprovado */
+  --status-production: 25 95% 53%;     /* Laranja - Em Produção */
+
   --font-sans: Inter, Open Sans, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
@@ -357,5 +364,66 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+
+  /* Status Color Utilities */
+  .bg-status-completed {
+    background-color: hsl(var(--status-completed));
+  }
+  
+  .bg-status-pending {
+    background-color: hsl(var(--status-pending));
+  }
+  
+  .bg-status-urgent {
+    background-color: hsl(var(--status-urgent));
+  }
+  
+  .bg-status-approved {
+    background-color: hsl(var(--status-approved));
+  }
+  
+  .bg-status-production {
+    background-color: hsl(var(--status-production));
+  }
+
+  .text-status-completed {
+    color: hsl(var(--status-completed));
+  }
+  
+  .text-status-pending {
+    color: hsl(var(--status-pending));
+  }
+  
+  .text-status-urgent {
+    color: hsl(var(--status-urgent));
+  }
+  
+  .text-status-approved {
+    color: hsl(var(--status-approved));
+  }
+  
+  .text-status-production {
+    color: hsl(var(--status-production));
+  }
+
+  .border-status-completed {
+    border-color: hsl(var(--status-completed));
+  }
+  
+  .border-status-pending {
+    border-color: hsl(var(--status-pending));
+  }
+  
+  .border-status-urgent {
+    border-color: hsl(var(--status-urgent));
+  }
+  
+  .border-status-approved {
+    border-color: hsl(var(--status-approved));
+  }
+  
+  .border-status-production {
+    border-color: hsl(var(--status-production));
   }
 }

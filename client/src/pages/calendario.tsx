@@ -408,12 +408,12 @@ export default function Calendario() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-base">{eventData.name}</h3>
+                      <h3 className="font-semibold text-base text-foreground">{eventData.name}</h3>
                       <Badge 
                         className={cn(
-                          "shrink-0",
+                          "shrink-0 text-foreground font-semibold border",
                           color,
-                          textColor,
+                          borderColor,
                           "bg-opacity-20"
                         )}
                       >

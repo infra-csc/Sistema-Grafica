@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Package, CheckCircle, Upload, Image as ImageIcon } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
+import { AlertCircle, Package, CheckCircle, Upload, Image as ImageIcon, Truck, Check } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -14,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,10 +24,12 @@ export default function Grafica() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<string>("production");
   const [updateData, setUpdateData] = useState({
     deliveredBy: "",
     quantityProduced: 0,
     photoUrl: "",
+    markAsDelivered: false,
   });
 
   const { data: items = [], isLoading } = useQuery<any[]>({
@@ -39,15 +44,15 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
-      setUpdateData({ deliveredBy: "", quantityProduced: 0, photoUrl: "" });
+      setUpdateData({ deliveredBy: "", quantityProduced: 0, photoUrl: "", markAsDelivered: false });
       toast({
-        title: "Produção atualizada",
-        description: "O status do item foi atualizado com sucesso",
+        title: "Produção registrada",
+        description: "O registro de produção foi salvo com sucesso",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao atualizar produção",
+        title: "Erro ao registrar produção",
         description: error.message,
         variant: "destructive",
       });
@@ -205,10 +210,12 @@ export default function Grafica() {
                           size="sm"
                           onClick={() => {
                             setSelectedItem(item);
+                            setActiveTab("production");
                             setUpdateData({
                               deliveredBy: "",
                               quantityProduced: item.quantity,
                               photoUrl: "",
+                              markAsDelivered: false,
                             });
                           }}
                           data-testid={`button-update-${item.id}`}
@@ -227,90 +234,217 @@ export default function Grafica() {
       </Card>
 
       <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Atualizar Produção</DialogTitle>
+            <DialogTitle>Controle de Produção</DialogTitle>
             <DialogDescription>
-              Registre o progresso da produção
+              Registre a produção e entrega de materiais
             </DialogDescription>
           </DialogHeader>
           {selectedItem && (
-            <form onSubmit={handleSubmitUpdate} className="space-y-4">
-              <div className="p-4 bg-muted/50 rounded-md space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium">Item:</span>
-                  <span className="text-sm">{selectedItem.type}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium">Quantidade:</span>
-                  <span className="text-sm">{selectedItem.quantity}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium">Evento:</span>
-                  <span className="text-sm">{selectedItem.event?.name}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="deliveredBy">Entregue por</Label>
-                <Input
-                  id="deliveredBy"
-                  value={updateData.deliveredBy}
-                  onChange={(e) => setUpdateData({ ...updateData, deliveredBy: e.target.value })}
-                  placeholder="Nome de quem entregou o arquivo"
-                  data-testid="input-delivered-by"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="quantityProduced">Quantidade Produzida</Label>
-                <Input
-                  id="quantityProduced"
-                  type="number"
-                  min="0"
-                  max={selectedItem.quantity}
-                  value={updateData.quantityProduced}
-                  onChange={(e) => setUpdateData({ ...updateData, quantityProduced: parseInt(e.target.value) })}
-                  required
-                  data-testid="input-quantity-produced"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Total necessário: {selectedItem.quantity}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="photoUrl">URL da Foto (opcional)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="photoUrl"
-                    type="url"
-                    value={updateData.photoUrl}
-                    onChange={(e) => setUpdateData({ ...updateData, photoUrl: e.target.value })}
-                    placeholder="https://..."
-                    data-testid="input-photo-url"
-                  />
-                  <Button type="button" variant="outline" size="icon">
-                    <Upload className="h-4 w-4" />
-                  </Button>
-                </div>
-                {updateData.photoUrl && (
-                  <div className="mt-2 p-2 border rounded-md">
-                    <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto" />
-                    <p className="text-xs text-center text-muted-foreground mt-2">Preview da foto</p>
+            <div className="space-y-4">
+              {/* Informações do Item */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-base">{selectedItem.type}</h3>
+                    <p className="text-sm text-muted-foreground">{selectedItem.event?.name}</p>
                   </div>
-                )}
+                  <StatusBadge status={selectedItem.status} />
+                </div>
+                <Separator />
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Quantidade Total</span>
+                    <p className="font-semibold">{selectedItem.quantity} un.</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Material</span>
+                    <p className="font-semibold">{selectedItem.material}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Acabamento</span>
+                    <p className="font-semibold">{selectedItem.finish}</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex gap-2 justify-end">
-                <Button type="button" variant="outline" onClick={() => setSelectedItem(null)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={updateProductionMutation.isPending} data-testid="button-submit-production">
-                  {updateProductionMutation.isPending ? "Salvando..." : "Salvar Atualização"}
-                </Button>
-              </div>
-            </form>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="production" data-testid="tab-production">
+                    <Package className="h-4 w-4 mr-2" />
+                    Registrar Produção
+                  </TabsTrigger>
+                  <TabsTrigger value="delivery" data-testid="tab-delivery">
+                    <Truck className="h-4 w-4 mr-2" />
+                    Marcar Entregue
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="production" className="space-y-4 mt-4">
+                  <form onSubmit={handleSubmitUpdate} className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="deliveredBy" className="text-base font-semibold">
+                          1. Quem entregou o arquivo?
+                        </Label>
+                        <Input
+                          id="deliveredBy"
+                          value={updateData.deliveredBy}
+                          onChange={(e) => setUpdateData({ ...updateData, deliveredBy: e.target.value })}
+                          placeholder="Ex: João Silva, Maria Souza..."
+                          data-testid="input-delivered-by"
+                          className="text-base"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Nome da pessoa que entregou o material para impressão
+                        </p>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-2">
+                        <Label htmlFor="quantityProduced" className="text-base font-semibold">
+                          2. Quantidade produzida
+                        </Label>
+                        <div className="flex gap-3 items-end">
+                          <div className="flex-1">
+                            <Input
+                              id="quantityProduced"
+                              type="number"
+                              min="1"
+                              max={selectedItem.quantity}
+                              value={updateData.quantityProduced}
+                              onChange={(e) => setUpdateData({ ...updateData, quantityProduced: parseInt(e.target.value) })}
+                              required
+                              data-testid="input-quantity-produced"
+                              className="text-base"
+                            />
+                          </div>
+                          <Button 
+                            type="button" 
+                            variant="outline"
+                            onClick={() => setUpdateData({ ...updateData, quantityProduced: selectedItem.quantity })}
+                            data-testid="button-set-full-quantity"
+                          >
+                            Total ({selectedItem.quantity})
+                          </Button>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            Produção parcial ou total
+                          </span>
+                          <span className="font-medium">
+                            {updateData.quantityProduced} de {selectedItem.quantity} unidades
+                          </span>
+                        </div>
+                        <Progress 
+                          value={(updateData.quantityProduced / selectedItem.quantity) * 100} 
+                          className="h-2"
+                        />
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-2">
+                        <Label htmlFor="photoUrl" className="text-base font-semibold">
+                          3. Anexar foto do material (opcional)
+                        </Label>
+                        <Input
+                          id="photoUrl"
+                          type="url"
+                          value={updateData.photoUrl}
+                          onChange={(e) => setUpdateData({ ...updateData, photoUrl: e.target.value })}
+                          placeholder="https://exemplo.com/foto.jpg"
+                          data-testid="input-photo-url"
+                          className="text-base"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          URL da foto do material produzido (pode enviar depois)
+                        </p>
+                        {updateData.photoUrl && (
+                          <div className="mt-2 p-3 border rounded-md bg-card">
+                            <div className="flex items-center gap-2">
+                              <ImageIcon className="h-5 w-5 text-primary" />
+                              <span className="text-sm font-medium">Foto anexada</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end pt-4">
+                      <Button type="button" variant="outline" onClick={() => setSelectedItem(null)}>
+                        Cancelar
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        disabled={updateProductionMutation.isPending || updateData.quantityProduced === 0} 
+                        data-testid="button-submit-production"
+                      >
+                        {updateProductionMutation.isPending ? "Salvando..." : "Registrar Produção"}
+                      </Button>
+                    </div>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="delivery" className="space-y-4 mt-4">
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    updateProductionMutation.mutate({
+                      itemId: selectedItem.id,
+                      data: { ...updateData, markAsDelivered: true }
+                    });
+                  }} className="space-y-4">
+                    <div className="p-4 border border-status-completed bg-status-completed/10 rounded-lg space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-status-completed/20 rounded-full">
+                          <Check className="h-6 w-6 text-status-completed" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">Marcar como Entregue</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Confirme que o material foi entregue e está pronto para uso no evento
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold">Confirmar informações:</Label>
+                      <div className="p-3 bg-muted/50 rounded-md space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Item:</span>
+                          <span className="font-medium">{selectedItem.type}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Quantidade:</span>
+                          <span className="font-medium">{selectedItem.quantity} unidades</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Evento:</span>
+                          <span className="font-medium">{selectedItem.event?.name}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end pt-4">
+                      <Button type="button" variant="outline" onClick={() => setSelectedItem(null)}>
+                        Cancelar
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        disabled={updateProductionMutation.isPending}
+                        className="bg-status-completed hover:bg-status-completed/90"
+                        data-testid="button-mark-delivered"
+                      >
+                        {updateProductionMutation.isPending ? "Processando..." : "Confirmar Entrega"}
+                      </Button>
+                    </div>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            </div>
           )}
         </DialogContent>
       </Dialog>

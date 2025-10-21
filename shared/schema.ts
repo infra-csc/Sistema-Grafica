@@ -29,6 +29,10 @@ export const items = pgTable("items", {
   calculatedM2: decimal("calculated_m2", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().default("requested"), // requested, approved, inProduction, produced, delivered
   observations: text("observations"),
+  quantityProduced: integer("quantity_produced"),
+  receivedBy: text("received_by"),
+  deliveryPhotoUrl: text("delivery_photo_url"),
+  deliveredAt: timestamp("delivered_at"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

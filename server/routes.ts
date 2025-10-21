@@ -298,6 +298,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Mark item as delivered (Gráfica module)
+  app.patch("/api/items/:id/deliver", async (req, res) => {
+    try {
+      const { receivedBy, photoUrl } = req.body;
+      
+      if (!receivedBy) {
+        return res.status(400).json({ error: "receivedBy is required" });
+      }
+      
+      const item = await storage.markItemAsDelivered(req.params.id, receivedBy, photoUrl);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      
+      // Create notification
+      await storage.createNotification({
+        type: "itemDelivered",
+        message: `Item entregue: ${item.type} - Recebido por: ${receivedBy} - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+      });
+      
+      broadcast({ type: "item_delivered", item });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Update production (Gráfica module)
   app.post("/api/items/:id/production", async (req, res) => {
     try {

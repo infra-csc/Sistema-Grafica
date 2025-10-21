@@ -99,15 +99,16 @@ shared/
 
 ### 5. Gráfica
 - **Rota**: `/grafica`
-- **Funcionalidade**: Controle de produção
+- **Funcionalidade**: Controle de entrega de materiais
 - **Features**:
-  - Visualização de itens liberados pela Arte
-  - Registro de:
-    - Quem entregou o arquivo
-    - Quantidade produzida (parcial ou total)
-    - Foto da produção (URL)
+  - Visualização de itens liberados pela Arte em tabela
+  - Colunas: Evento, Item, Qtd Total, Qtd Produzida, Material, Status
+  - Botão "Marcar Entregue" por item
+  - Modal de entrega com:
+    - Quem recebeu o material (obrigatório)
+    - Foto da entrega (opcional)
   - Filtros por status
-  - Atualização de status da produção
+  - Atualização em tempo real
 
 ### 6. Modelos
 - **Rota**: `/modelos`
@@ -176,6 +177,10 @@ shared/
   calculatedM2: decimal
   status: text
   observations: text
+  quantityProduced: integer (nullable)
+  receivedBy: text (nullable)
+  deliveryPhotoUrl: text (nullable)
+  deliveredAt: timestamp (nullable)
   createdAt: timestamp
   updatedAt: timestamp
 }
@@ -235,7 +240,9 @@ shared/
 - `GET /api/items/pending` - Itens pendentes de aprovação (Arte)
 - `GET /api/items/approved` - Itens aprovados (Gráfica)
 - `POST /api/items` - Cria novo item
+- `POST /api/items/bulk` - Cria múltiplos itens (entrada rápida)
 - `PATCH /api/items/:id/approve` - Aprova item (Arte)
+- `PATCH /api/items/:id/deliver` - Marca item como entregue (Gráfica)
 - `POST /api/items/:id/production` - Atualiza produção (Gráfica)
 
 ### Standard Items
@@ -329,6 +336,8 @@ npm run build
 - ✅ Tabelas com zebra striping e hover states
 - ✅ Modais bem formatados para formulários
 - ✅ Design system consistente
+- ✅ Entrada rápida de itens (bulk entry) como modo padrão
+- ✅ Gráfica simplificada focada em entrega com campos específicos
 
 ## Observações Técnicas
 

@@ -33,10 +33,10 @@ export default function Calendario() {
     if (event.status === 'completed' || hoursUntilStart < 0) {
       return { 
         status: 'completed', 
-        color: 'bg-status-completed', 
+        color: 'bg-status-completed/20', 
         textColor: 'text-status-completed', 
         borderColor: 'border-status-completed',
-        label: hoursUntilStart < 0 ? 'Evento já passou' : 'Finalizado' 
+        label: hoursUntilStart < 0 ? 'Realizado' : 'Finalizado' 
       };
     }
     
@@ -44,10 +44,10 @@ export default function Calendario() {
     if (hoursUntilStart < 24) {
       return { 
         status: 'critical', 
-        color: 'bg-status-urgent', 
+        color: 'bg-status-urgent/20', 
         textColor: 'text-status-urgent',
         borderColor: 'border-status-urgent',
-        label: 'Início em < 24h' 
+        label: 'Início em menos de 24h' 
       };
     }
     
@@ -55,20 +55,20 @@ export default function Calendario() {
     if (hoursUntilStart < 48) {
       return { 
         status: 'warning', 
-        color: 'bg-status-pending', 
+        color: 'bg-status-pending/20', 
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
-        label: 'Início em < 48h' 
+        label: 'Início em menos de 48h' 
       };
     }
     
     // Azul: Mais de 48h para início
     return { 
       status: 'normal', 
-      color: 'bg-status-approved', 
+      color: 'bg-status-approved/20', 
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
-      label: 'Início em > 48h' 
+      label: 'Início em mais de 48h' 
     };
   };
 
@@ -82,42 +82,42 @@ export default function Calendario() {
     if (event.status === 'completed' || hoursUntilDeparture < 0) {
       return { 
         status: 'completed', 
-        color: 'bg-status-completed', 
+        color: 'bg-status-completed/20', 
         textColor: 'text-status-completed', 
         borderColor: 'border-status-completed',
-        label: hoursUntilDeparture < 0 ? 'Caminhão já saiu' : 'Finalizado' 
+        label: hoursUntilDeparture < 0 ? 'Concluído' : 'Finalizado' 
       };
     }
     
-    // Vermelho: Menos de 24h para saída - CRÍTICO!
+    // Vermelho: Menos de 24h para saída
     if (hoursUntilDeparture < 24) {
       return { 
         status: 'critical', 
-        color: 'bg-status-urgent', 
+        color: 'bg-status-urgent/20', 
         textColor: 'text-status-urgent',
         borderColor: 'border-status-urgent',
-        label: 'Saída em < 24h - CRÍTICO!' 
+        label: 'Saída em menos de 24h' 
       };
     }
     
-    // Amarelo: Entre 24h e 48h para saída - ATENÇÃO
+    // Amarelo: Entre 24h e 48h para saída
     if (hoursUntilDeparture < 48) {
       return { 
         status: 'warning', 
-        color: 'bg-status-pending', 
+        color: 'bg-status-pending/20', 
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
-        label: 'Saída em < 48h - Atenção' 
+        label: 'Saída em menos de 48h' 
       };
     }
     
     // Azul: Mais de 48h para saída
     return { 
       status: 'normal', 
-      color: 'bg-status-approved', 
+      color: 'bg-status-approved/20', 
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
-      label: 'Saída em > 48h' 
+      label: 'Saída em mais de 48h' 
     };
   };
 
@@ -279,9 +279,8 @@ export default function Calendario() {
                               }}
                               className={cn(
                                 "flex items-start gap-1 px-1.5 py-1 rounded text-[10px] cursor-pointer transition-all hover-elevate border-l-2",
-                                color,
                                 borderColor,
-                                "bg-opacity-20 hover:bg-opacity-30"
+                                color
                               )}
                               title={`${isStart ? '📅 Início' : '🚚 Saída'}: ${eventData.name} - ${time}`}
                               data-testid={`event-${eventData.id}-${eventData.type}`}
@@ -340,7 +339,7 @@ export default function Calendario() {
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-completed shrink-0" />
                 <span className="text-sm font-medium text-status-completed">Verde:</span>
-                <span className="text-sm">Já passou ou finalizado</span>
+                <span className="text-sm">Realizado ou finalizado</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-approved shrink-0" />
@@ -350,12 +349,12 @@ export default function Calendario() {
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-pending shrink-0" />
                 <span className="text-sm font-medium text-status-pending">Amarelo:</span>
-                <span className="text-sm">Entre 24h e 48h - Atenção!</span>
+                <span className="text-sm">Entre 24h e 48h</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-urgent shrink-0" />
                 <span className="text-sm font-medium text-status-urgent">Vermelho:</span>
-                <span className="text-sm">Menos de 24h - CRÍTICO!</span>
+                <span className="text-sm">Menos de 24h</span>
               </div>
             </div>
           </CardContent>
@@ -397,24 +396,22 @@ export default function Calendario() {
                   }}
                   className={cn(
                     "flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-all hover-elevate border-l-4",
-                    color,
                     borderColor,
-                    "bg-opacity-10 hover:bg-opacity-20"
+                    color
                   )}
                   data-testid={`dialog-event-${eventData.id}-${eventData.type}`}
                 >
-                  <div className={cn("p-2 rounded-md", color, "bg-opacity-20")}>
+                  <div className={cn("p-2 rounded-md", color)}>
                     <Icon className={cn("h-5 w-5", textColor)} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-semibold text-base text-foreground">{eventData.name}</h3>
                       <Badge 
+                        variant="outline"
                         className={cn(
-                          "shrink-0 text-foreground font-semibold border",
-                          color,
-                          borderColor,
-                          "bg-opacity-20"
+                          "shrink-0 font-medium",
+                          borderColor
                         )}
                       >
                         {label}

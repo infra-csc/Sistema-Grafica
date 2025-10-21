@@ -146,13 +146,14 @@ export default function Calendario() {
     
     const eventStarts = events
       .filter(event => new Date(event.startDate).toDateString() === dateStr)
-      .map(event => ({ ...event, type: 'start' }));
+      .map(event => ({ ...event, type: 'start', sortTime: new Date(event.startDate).getTime() }));
     
     const eventDepartures = events
       .filter(event => new Date(event.truckDepartureDate).toDateString() === dateStr)
-      .map(event => ({ ...event, type: 'departure' }));
+      .map(event => ({ ...event, type: 'departure', sortTime: new Date(event.truckDepartureDate).getTime() }));
     
-    return [...eventStarts, ...eventDepartures];
+    // Ordena todos os eventos por horário
+    return [...eventStarts, ...eventDepartures].sort((a, b) => a.sortTime - b.sortTime);
   };
 
   const { daysInMonth, startingDayOfWeek, year, month } = getDaysInMonth(currentDate);

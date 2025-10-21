@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell } from "@/components/notification-bell";
+import { ProfileSelector } from "@/components/profile-selector";
+import { AuthProvider } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "./lib/queryClient";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -63,10 +65,13 @@ function AppContent() {
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="border-l h-6 border-border ml-2" />
           </div>
-          <NotificationBell
-            notifications={notifications}
-            onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
-          />
+          <div className="flex items-center gap-3">
+            <ProfileSelector />
+            <NotificationBell
+              notifications={notifications}
+              onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+            />
+          </div>
         </header>
         <main className="flex-1 overflow-auto bg-background">
           <Router />
@@ -84,12 +89,14 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-          <AppContent />
-        </SidebarProvider>
-        <Toaster />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+            <AppContent />
+          </SidebarProvider>
+          <Toaster />
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

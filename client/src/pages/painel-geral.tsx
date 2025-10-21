@@ -4,13 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertCircle, Clock, Package, CheckCircle } from "lucide-react";
+import { Search, AlertCircle, Clock, Package, CheckCircle, Filter } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 export default function PainelGeral() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [materialFilter, setMaterialFilter] = useState<string>("all");
+  const [finishFilter, setFinishFilter] = useState<string>("all");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -25,7 +29,9 @@ export default function PainelGeral() {
                          (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
     const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-    return matchesSearch && matchesStatus && matchesEvent;
+    const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
+    const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
+    return matchesSearch && matchesStatus && matchesEvent && matchesMaterial && matchesFinish;
   });
 
   const stats = {
@@ -121,46 +127,99 @@ export default function PainelGeral() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <CardTitle>Todos os Itens</CardTitle>
-            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-              <div className="relative flex-1 sm:flex-initial">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por item ou evento..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-full sm:w-64"
-                  data-testid="input-search"
-                />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+              <CardTitle>Todos os Itens</CardTitle>
+              <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                <div className="relative flex-1 sm:flex-initial">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por item ou evento..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 w-full sm:w-64"
+                    data-testid="input-search"
+                  />
+                </div>
+                <Select value={eventFilter} onValueChange={setEventFilter}>
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
+                    <SelectValue placeholder="Filtrar por evento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os eventos</SelectItem>
+                    {events.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
+                    <SelectValue placeholder="Filtrar por status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="requested">Solicitado</SelectItem>
+                    <SelectItem value="approved">Liberado</SelectItem>
+                    <SelectItem value="inProduction">Em Produção</SelectItem>
+                    <SelectItem value="produced">Produzido</SelectItem>
+                    <SelectItem value="delivered">Entregue</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  variant="outline" 
+                  size="default"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="w-full sm:w-auto"
+                  data-testid="button-advanced-filters"
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filtros Avançados
+                </Button>
               </div>
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
-                  <SelectValue placeholder="Filtrar por evento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os eventos</SelectItem>
-                  {events.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="requested">Solicitado</SelectItem>
-                  <SelectItem value="approved">Liberado</SelectItem>
-                  <SelectItem value="inProduction">Em Produção</SelectItem>
-                  <SelectItem value="produced">Produzido</SelectItem>
-                  <SelectItem value="delivered">Entregue</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
+            
+            {showAdvancedFilters && (
+              <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
+                <Select value={materialFilter} onValueChange={setMaterialFilter}>
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-material-filter">
+                    <SelectValue placeholder="Filtrar por material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os materiais</SelectItem>
+                    <SelectItem value="Lona">Lona</SelectItem>
+                    <SelectItem value="Tecido">Tecido</SelectItem>
+                    <SelectItem value="Adesivo">Adesivo</SelectItem>
+                    <SelectItem value="Vinílico">Vinílico</SelectItem>
+                    <SelectItem value="Banner">Banner</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={finishFilter} onValueChange={setFinishFilter}>
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-finish-filter">
+                    <SelectValue placeholder="Filtrar por acabamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os acabamentos</SelectItem>
+                    <SelectItem value="Ilhós">Ilhós</SelectItem>
+                    <SelectItem value="Soldado">Soldado</SelectItem>
+                    <SelectItem value="Bastão">Bastão</SelectItem>
+                    <SelectItem value="Sem acabamento">Sem acabamento</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => {
+                    setMaterialFilter("all");
+                    setFinishFilter("all");
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  Limpar Filtros
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, Truck, AlertCircle } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, Search } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import {
@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function Eventos() {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     startDate: "",
@@ -69,6 +70,10 @@ export default function Eventos() {
     createEventMutation.mutate(formData);
   };
 
+  const filteredEvents = events.filter((event) =>
+    event.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -80,13 +85,24 @@ export default function Eventos() {
             Gerencie todos os eventos de produção gráfica
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-event">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Evento
-            </Button>
-          </DialogTrigger>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar eventos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 w-full sm:w-64"
+              data-testid="input-search-events"
+            />
+          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-event">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Evento
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Criar Novo Evento</DialogTitle>
@@ -145,6 +161,7 @@ export default function Eventos() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {isLoading ? (
@@ -165,9 +182,19 @@ export default function Eventos() {
             </div>
           </CardContent>
         </Card>
+      ) : filteredEvents.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum evento encontrado</h3>
+              <p className="text-muted-foreground">Tente uma busca diferente</p>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {events.map((event) => {
+          {filteredEvents.map((event) => {
             const status = getEventStatus(event);
             const itemCount = event.items?.length || 0;
             

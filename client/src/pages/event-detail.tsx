@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, ChevronDown, ChevronUp, MessageSquare, Image as ImageIcon } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -20,13 +20,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { BulkItemEntry } from "@/components/bulk-item-entry";
-import { CommentsSection } from "@/components/comments-section";
-import { DeliveryPhotoGallery } from "@/components/delivery-photo-gallery";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 
 const itemTypes = ["2x1", "Rolo", "Palco", "Banner", "Faixa", "Adesivo", "Backdrop"];
 const materials = ["Lona", "Tecido", "Adesivo", "Vinílico", "Banner"];
@@ -37,7 +30,6 @@ export default function EventDetail() {
   const eventId = params?.id;
   const [open, setOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(true);
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -361,92 +353,44 @@ export default function EventDetail() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {items.map((item) => (
-                <Collapsible 
-                  key={item.id}
-                  open={expandedItems[item.id] || false}
-                  onOpenChange={(isOpen) => setExpandedItems({ ...expandedItems, [item.id]: isOpen })}
-                >
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <div className="p-4 cursor-pointer hover-elevate" data-testid={`item-${item.id}`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-4">
-                            <div>
-                              <div className="text-xs text-muted-foreground">Tipo</div>
-                              <div className="font-medium">{item.type}</div>
-                              {item.observations && (
-                                <div className="text-xs text-muted-foreground mt-1">{item.observations}</div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-xs text-muted-foreground">Quantidade</div>
-                              <div className="font-medium tabular-nums">{item.quantity}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-muted-foreground">Área × Visual</div>
-                              <div className="font-medium tabular-nums">{item.area} × {item.visual}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-muted-foreground">m²</div>
-                              <div className="font-medium tabular-nums">{item.calculatedM2}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-muted-foreground">Material</div>
-                              <div className="font-medium">{item.material}</div>
-                              <div className="text-xs text-muted-foreground">{item.finish}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-muted-foreground mb-1">Status</div>
-                              <StatusBadge status={item.status} />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 ml-4">
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedItems({ ...expandedItems, [item.id]: !expandedItems[item.id] });
-                              }}
-                            >
-                              {expandedItems[item.id] ? (
-                                <ChevronUp className="h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="border-t border-border p-4 bg-muted/20">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                          {/* Comentários */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-3">
-                              <MessageSquare className="h-4 w-4 text-primary" />
-                              <h4 className="font-semibold">Comentários</h4>
-                            </div>
-                            <CommentsSection itemId={item.id} />
-                          </div>
-                          
-                          {/* Galeria de Fotos */}
-                          <div>
-                            <div className="flex items-center gap-2 mb-3">
-                              <ImageIcon className="h-4 w-4 text-primary" />
-                              <h4 className="font-semibold">Fotos de Entrega</h4>
-                            </div>
-                            <DeliveryPhotoGallery itemId={item.id} />
-                          </div>
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted/50 text-xs uppercase tracking-wide">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium">Tipo</th>
+                    <th className="text-left py-3 px-4 font-medium">Qtd</th>
+                    <th className="text-left py-3 px-4 font-medium">Área × Visual</th>
+                    <th className="text-left py-3 px-4 font-medium">m²</th>
+                    <th className="text-left py-3 px-4 font-medium">Material</th>
+                    <th className="text-left py-3 px-4 font-medium">Acabamento</th>
+                    <th className="text-left py-3 px-4 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, index) => (
+                    <tr
+                      key={item.id}
+                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
+                      data-testid={`row-item-${item.id}`}
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-sm">{item.type}</div>
+                        {item.observations && (
+                          <div className="text-xs text-muted-foreground">{item.observations}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
+                      <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
+                      <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
+                      <td className="py-3 px-4 text-sm">{item.material}</td>
+                      <td className="py-3 px-4 text-sm">{item.finish}</td>
+                      <td className="py-3 px-4">
+                        <StatusBadge status={item.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>

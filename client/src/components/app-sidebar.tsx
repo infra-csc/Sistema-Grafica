@@ -50,14 +50,16 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="h-16 flex items-center px-4 border-b border-sidebar-border bg-gradient-to-r from-primary/5 to-primary/10">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <FileText className="h-5 w-5 text-primary" />
-          </div>
+      <SidebarHeader className="h-16 flex items-center px-4 border-b border-sidebar-border bg-gradient-to-r from-primary/8 via-[hsl(var(--norte-magenta))]/8 to-accent/8">
+        <div className="flex items-center gap-3">
+          <img 
+            src="/attached_assets/download_1761057817125.jpg" 
+            alt="NORTE Marketing Esportivo" 
+            className="h-10 w-10 rounded-lg object-contain bg-white p-1"
+          />
           <div>
-            <h1 className="text-base font-semibold text-sidebar-foreground">Gestão Gráfica</h1>
-            <p className="text-xs text-muted-foreground">Produção e Controle</p>
+            <h1 className="text-base font-semibold text-primary">NORTE</h1>
+            <p className="text-xs text-muted-foreground">Marketing Esportivo</p>
           </div>
         </div>
       </SidebarHeader>

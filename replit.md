@@ -1,10 +1,22 @@
-# Sistema de Gestão de Produção Gráfica
+# NORTE - Sistema de Gestão de Produção Gráfica
 
 ## Visão Geral
 
-Sistema completo de gestão de produção gráfica desenvolvido para substituir planilhas Excel, mantendo a agilidade do processo atual mas com controle total, rastreabilidade e notificações automáticas.
+Sistema completo de gestão de produção gráfica desenvolvido para **NORTE Marketing Esportivo** para substituir planilhas Excel, mantendo a agilidade do processo atual mas com controle total, rastreabilidade e notificações automáticas.
 
 O sistema gerencia o fluxo completo: **Solicitação → Arte → Gráfica → Entrega**
+
+## Identidade Visual
+
+**Cliente**: NORTE Marketing Esportivo  
+**Logo**: Exibido no header da sidebar  
+**Paleta de Cores**:
+- NORTE Blue (Primária): 210 70% 25% - Azul escuro do logo
+- NORTE Cyan (Accent): 188 100% 42% - Turquesa/Ciano do logo
+- NORTE Magenta: 330 65% 50% - Rosa/Magenta do degradê
+- NORTE Purple: 280 55% 45% - Roxo/Violeta do degradê
+
+**Tema**: Light mode profissional com fundo branco limpo, bordas sutis e gradientes de marca no header.
 
 ## Arquitetura
 
@@ -240,19 +252,25 @@ As notificações são criadas automaticamente em:
 
 ## Sistema de Cores (Design Guidelines)
 
-### Status Colors
+### Cores da Marca NORTE
+- **NORTE Blue** (210 70% 25%): Cor primária - botões principais, elementos importantes
+- **NORTE Cyan** (188 100% 42%): Accent - ações secundárias, links
+- **NORTE Magenta** (330 65% 50%): Destaques especiais (decorativo)
+- **NORTE Purple** (280 55% 45%): Accent alternativo (decorativo)
+
+### Status Colors (Sistema de Workflow)
 - **Verde** (142 76% 36%): Finalizado, Produzido, Entregue
 - **Amarelo** (45 93% 47%): Criado, Solicitado, Aguardando
 - **Vermelho** (0 84% 60%): Urgente, Atraso
 - **Azul** (217 91% 60%): Liberado, Em Processo
 - **Laranja** (25 95% 53%): Em Produção
 
-### Dark Mode
-O sistema é otimizado para dark mode (padrão):
-- Background: 220 15% 10%
-- Surface: 220 12% 14%
-- Border: 220 10% 25%
-- Text Primary: 0 0% 95%
+### Light Mode (Padrão)
+O sistema usa tema light profissional:
+- Background: 0 0% 100% (branco puro)
+- Cards: 0 0% 100% (branco)
+- Border: 220 13% 91% (cinza suave)
+- Text Primary: 220 15% 15% (cinza escuro)
 
 ## Funcionalidades Futuras (Fase 2)
 

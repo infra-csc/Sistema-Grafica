@@ -107,26 +107,32 @@ export default function Eventos() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="startDate">Data de Início</Label>
+                <Label htmlFor="startDate">Data e Hora de Início do Evento</Label>
                 <Input
                   id="startDate"
-                  type="date"
+                  type="datetime-local"
                   value={formData.startDate}
                   onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                   required
                   data-testid="input-start-date"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Quando o evento começa
+                </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="truckDepartureDate">Data de Saída do Caminhão</Label>
+                <Label htmlFor="truckDepartureDate">Data e Hora de Saída do Caminhão</Label>
                 <Input
                   id="truckDepartureDate"
-                  type="date"
+                  type="datetime-local"
                   value={formData.truckDepartureDate}
                   onChange={(e) => setFormData({ ...formData, truckDepartureDate: e.target.value })}
                   required
                   data-testid="input-truck-date"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Prazo final para entrega dos materiais
+                </p>
               </div>
               <div className="flex gap-2 justify-end">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>

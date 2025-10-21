@@ -1,15 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, AlertCircle, Calendar, Truck } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertCircle, Calendar, Truck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function Calendario() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [, setLocation] = useLocation();
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { data: events = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -162,13 +170,22 @@ export default function Calendario() {
                 const date = new Date(year, month, day);
                 const eventsForDay = getEventsForDate(date);
                 const isToday = date.toDateString() === new Date().toDateString();
+                const hasEvents = eventsForDay.length > 0;
 
                 return (
                   <div
                     key={day}
+                    onClick={() => {
+                      if (hasEvents) {
+                        setSelectedDate(date);
+                        setIsDialogOpen(true);
+                      }
+                    }}
                     className={cn(
                       "min-h-[120px] p-2 border rounded-md transition-all",
-                      isToday ? "border-primary border-2 bg-primary/5" : "border-border hover:border-primary/50 hover:shadow-sm"
+                      isToday && "border-primary border-2 bg-primary/5",
+                      !isToday && !hasEvents && "border-border",
+                      !isToday && hasEvents && "border-border hover:border-primary/50 hover:shadow-sm cursor-pointer"
                     )}
                     data-testid={`calendar-day-${day}`}
                   >
@@ -189,35 +206,42 @@ export default function Calendario() {
                         )}
                       </div>
                       
-                      <div className="flex-1 flex flex-col gap-1.5 overflow-auto">
-                        {eventsForDay.slice(0, 5).map((eventData) => {
-                          const { color, textColor, borderColor } = getEventStatus(eventData);
+                      <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+                        {eventsForDay.slice(0, 3).map((eventData) => {
+                          const { color, borderColor } = getEventStatus(eventData);
                           const isStart = eventData.type === 'start';
                           const Icon = isStart ? Calendar : Truck;
+                          const time = isStart 
+                            ? new Date(eventData.startDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                            : new Date(eventData.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                           
                           return (
                             <div
                               key={`${eventData.id}-${eventData.type}`}
-                              onClick={() => setLocation(`/eventos/${eventData.id}`)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLocation(`/eventos/${eventData.id}`);
+                              }}
                               className={cn(
-                                "flex items-center gap-1.5 p-1.5 rounded-md text-xs cursor-pointer transition-all hover-elevate border-l-2",
+                                "flex items-start gap-1 px-1.5 py-1 rounded text-[10px] cursor-pointer transition-all hover-elevate border-l-2",
                                 color,
                                 borderColor,
                                 "bg-opacity-20 hover:bg-opacity-30"
                               )}
-                              title={`${isStart ? '📅 Início' : '🚚 Saída'}: ${eventData.name}`}
+                              title={`${isStart ? '📅 Início' : '🚚 Saída'}: ${eventData.name} - ${time}`}
                               data-testid={`event-${eventData.id}-${eventData.type}`}
                             >
-                              <Icon className={cn("h-3 w-3 shrink-0", textColor)} />
-                              <span className={cn("truncate font-medium leading-tight", textColor)}>
-                                {eventData.name}
-                              </span>
+                              <Icon className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium leading-tight truncate">{time}</div>
+                                <div className="leading-tight truncate opacity-90">{eventData.name}</div>
+                              </div>
                             </div>
                           );
                         })}
-                        {eventsForDay.length > 5 && (
-                          <div className="text-xs text-muted-foreground text-center py-1">
-                            +{eventsForDay.length - 5} mais
+                        {eventsForDay.length > 3 && (
+                          <div className="text-[10px] text-muted-foreground text-center py-0.5">
+                            +{eventsForDay.length - 3}
                           </div>
                         )}
                       </div>
@@ -279,6 +303,92 @@ export default function Calendario() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal de Eventos do Dia */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Eventos de {selectedDate?.toLocaleDateString('pt-BR', { 
+                weekday: 'long', 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+              })}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {selectedDate && getEventsForDate(selectedDate).map((eventData) => {
+              const { color, textColor, borderColor, label } = getEventStatus(eventData);
+              const isStart = eventData.type === 'start';
+              const Icon = isStart ? Calendar : Truck;
+              const dateTime = isStart 
+                ? new Date(eventData.startDate)
+                : new Date(eventData.truckDepartureDate);
+              
+              return (
+                <div
+                  key={`${eventData.id}-${eventData.type}`}
+                  onClick={() => {
+                    setIsDialogOpen(false);
+                    setLocation(`/eventos/${eventData.id}`);
+                  }}
+                  className={cn(
+                    "flex items-start gap-3 p-4 rounded-lg cursor-pointer transition-all hover-elevate border-l-4",
+                    color,
+                    borderColor,
+                    "bg-opacity-10 hover:bg-opacity-20"
+                  )}
+                  data-testid={`dialog-event-${eventData.id}-${eventData.type}`}
+                >
+                  <div className={cn("p-2 rounded-md", color, "bg-opacity-20")}>
+                    <Icon className={cn("h-5 w-5", textColor)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-base">{eventData.name}</h3>
+                      <Badge 
+                        className={cn(
+                          "shrink-0",
+                          color,
+                          textColor,
+                          "bg-opacity-20"
+                        )}
+                      >
+                        {label}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 space-y-1 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        {isStart ? (
+                          <>
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>Início do evento: {dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Truck className="h-3.5 w-3.5" />
+                            <span>Saída do caminhão: {dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-xs">
+                        Período: {new Date(eventData.startDate).toLocaleDateString('pt-BR')} até {new Date(eventData.truckDepartureDate).toLocaleDateString('pt-BR')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {selectedDate && getEventsForDate(selectedDate).length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum evento neste dia
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {events.filter(event => {
         const departure = new Date(event.truckDepartureDate);

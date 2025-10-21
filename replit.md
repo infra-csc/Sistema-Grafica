@@ -69,6 +69,8 @@ The system features a professional light mode theme with a clean white backgroun
 Dashboard principal com visão geral simplificada:
 - 6 cards de estatísticas (Total, Solicitados, Liberados, Em Produção, Produzidos, Entregues)
 - Tabela completa com todos os itens
+- **🆕 Indicadores de Urgência**: Items urgentes destacados com border vermelho quando evento tem <48h até saída do caminhão
+- **🆕 Filtros Avançados**: Material e Acabamento (botão toggle com reset)
 - Filtros por evento, status e busca por texto
 - Foco em operação do dia-a-dia
 
@@ -82,6 +84,8 @@ Tela dedicada a métricas avançadas e visualizações:
 
 ### 3. Eventos (/eventos)
 Gerenciamento de eventos com cards visuais
+- **🆕 Badges de Urgência**: Eventos com <48h até saída do caminhão exibem badge vermelho com countdown
+- Cards com status colorido e informações-chave
 
 ### 4. Arte (/arte)
 Módulo de aprovação de arte
@@ -99,6 +103,14 @@ Visão temporal com alertas de datas críticas
 Timeline de atividades com filtro por evento
 
 ## Recursos Implementados
+
+### 🆕 Sistema de Perfis de Usuário (Fase 1)
+- ✅ **AuthContext**: Gerenciamento de usuário atual com localStorage
+- ✅ **ProfileSelector**: Dropdown no header para trocar perfis
+- ✅ **4 Perfis**: Admin, Solicitação, Arte, Gráfica
+- ✅ **Permissões**: Função `hasPermission()` para controle de acesso
+- 🔜 **Autenticação Real**: Backend com login/senha (Fase 2)
+- 🔜 **Enforcement**: Ocultar módulos baseado em permissões (Fase 2)
 
 ### Backend Pronto (Componentes Criados)
 - ✅ **Sistema de Comentários**: Backend + componente CommentsSection

@@ -106,11 +106,8 @@ export default function Arte() {
         <CardHeader>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle>
                 {viewMode === "pending" ? "Itens Pendentes de Aprovação" : "Histórico de Liberações"}
-                {viewMode === "pending" && pendingCount > 0 && (
-                  <Badge variant="destructive">{pendingCount}</Badge>
-                )}
               </CardTitle>
               <Select value={eventFilter} onValueChange={setEventFilter}>
                 <SelectTrigger className="w-full sm:w-64" data-testid="select-event-filter">

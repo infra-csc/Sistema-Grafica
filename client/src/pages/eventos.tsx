@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Plus, Calendar, Truck, AlertCircle, Search, Clock } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";

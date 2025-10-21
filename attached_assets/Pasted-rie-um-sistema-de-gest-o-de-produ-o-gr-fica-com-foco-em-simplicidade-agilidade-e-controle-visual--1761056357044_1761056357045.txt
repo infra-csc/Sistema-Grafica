@@ -1,0 +1,230 @@
+rie um sistema de gestão de produção gráfica com foco em simplicidade, agilidade e controle visual.
+O sistema deve substituir uma planilha, mantendo o mesmo fluxo entre Solicitação, Arte e Gráfica, mas com interface moderna e intuitiva.
+
+⚙️ Objetivo geral
+
+O sistema deve permitir o cadastro e acompanhamento completo de eventos e seus itens gráficos, com controle de status, notificações, alertas visuais e painel de status geral para todos os usuários.
+
+O fluxo principal segue esta ordem:
+Solicitação → Arte → Gráfica → Entrega
+
+🗂️ Módulos principais
+
+Eventos
+
+Itens
+
+Arte
+
+Gráfica
+
+Modelos de Evento
+
+Calendário
+
+Painel de Status Geral
+
+🧩 1. Eventos
+
+Permitir cadastrar evento informando:
+
+Nome do evento
+
+Data de início
+
+Data de saída do caminhão
+
+Após criar o evento:
+
+Itens não podem ser modificados, apenas adicionados.
+
+Caso algo precise ser alterado, deve haver notificação automática para Arte e Gráfica e confirmação manual antes da mudança.
+
+Possibilitar criar novo evento a partir de um modelo anterior, reaproveitando itens padrão (ex: patrocinadores, medidas).
+
+Exibir status visual do evento:
+
+🟩 Verde → evento finalizado
+
+🟨 Amarelo → evento criado
+
+🟥 Vermelho → faltam menos de 48h para o caminhão sair
+
+Enviar alertas automáticos para Arte e Gráfica quando faltar 48h, 24h e 12h para a saída do caminhão.
+
+📦 2. Itens
+
+Os campos devem seguir a planilha atual (exceto o código do evento).
+
+Campos obrigatórios: 2x1, rolo, palco, entre outros.
+
+Permitir cadastrar itens padrão com medidas fixas ou variáveis.
+
+Ao selecionar um tipo de item (ex: “2x1”):
+
+Exibir campos de acabamento e material (selecionáveis).
+
+Preencher automaticamente área e visual padrão.
+
+Calcular m² = quantidade × área × visual automaticamente.
+
+O campo medida do arquivo deve vir igual à área e visual, mas poder ser editado.
+
+Permitir incluir novos itens em um evento já criado, gerando notificação automática para Arte e Gráfica.
+
+🎨 3. Arte
+
+Recebe notificações quando:
+
+Um evento é criado.
+
+Novos itens são incluídos.
+
+Função principal: liberar arquivos para impressão.
+
+Quando liberar, a Gráfica é notificada e o item passa a aparecer na tela de produção.
+
+Deve poder visualizar status, datas e observações de cada item.
+
+🏭 4. Gráfica
+
+Visualiza em tempo real todos os itens liberados pela Arte.
+
+Permitir:
+
+Registrar quem entregou o arquivo.
+
+Anexar foto da produção.
+
+Informar quantidade produzida (parcial ou total).
+
+Filtrar por evento, status (pendente/feito) e tipo de item.
+
+🧰 5. Modelos e Itens Padrão
+
+Cadastrar modelos de eventos para reaproveitar estrutura de anos anteriores.
+
+Cadastrar itens padrão como “2x1” ou “Rolo de gradil” com:
+
+Medidas fixas ou variáveis
+
+Materiais e acabamentos disponíveis
+
+Área e visual padrão
+
+📅 6. Calendário
+
+Exibir todos os eventos com o dia da saída do caminhão.
+
+Cores indicam status:
+
+🟩 Finalizado
+
+🟨 Criado
+
+🟥 Faltam menos de 48h
+
+Enviar alertas visuais automáticos para 12h, 24h e 48h antes da saída.
+
+📊 7. Painel de Status Geral
+
+Tela acessível para todos (Solicitação, Arte e Gráfica).
+
+Exibir em tempo real o status de todos os itens de todos os eventos.
+
+Cada linha deve mostrar:
+
+Evento
+
+Item
+
+Quantidade
+
+Área / Visual
+
+Responsável
+
+Status (Solicitado / Liberado pela Arte / Em Produção / Produzido / Entregue)
+
+Data prevista de envio
+
+Última atualização
+
+Cores de status:
+
+🟨 Aguardando liberação
+
+🔵 Liberado pela arte
+
+🟧 Em produção
+
+🟩 Produzido e entregue
+
+🟥 Atraso ou pendência
+
+Permitir filtros por evento, status, data e responsável.
+Atualização automática para exibição em tela de acompanhamento da gráfica.
+
+🔔 8. Notificações e Alertas
+
+Devem ocorrer apenas para:
+
+Criação de evento
+
+Inclusão de novos itens
+
+Liberação de arte
+
+Prazos de envio
+
+Notificações devem ser claras, visíveis e sem excesso, priorizando as etapas críticas.
+
+🌈 9. Destaque de Alterações
+
+Itens alterados recentemente devem ter destaque visual:
+
+🟨 Alteração recente
+
+🟩 Confirmado
+
+🟥 Pendente ou atraso
+
+💡 10. Melhorias e Recursos Extras
+
+Sugestão automática de campos: ao digitar o nome do item, sugerir opções já usadas.
+
+Duplicar evento anterior: criar novo evento com base em outro, alterando só o necessário.
+
+Atualização rápida de status: alterar status com um clique, sem abrir modais.
+
+Histórico de alterações: mostrar quem alterou e quando.
+
+Filtros inteligentes e busca dinâmica por nome, status, data ou área.
+
+Resumo visual no topo: contadores como “5 itens prontos / 2 em produção / 1 pendente”.
+
+Alertas inteligentes: evitar notificações repetitivas.
+
+Confirmação final do evento antes de marcar como concluído.
+
+Perfis de acesso:
+
+Admin: acesso total.
+
+Solicitação: cria eventos e itens.
+
+Arte: libera arquivos.
+
+Gráfica: atualiza produção e anexa imagens.
+
+🎯 Meta do sistema
+
+Substituir totalmente a planilha, mantendo a agilidade atual.
+
+Reduzir erros e retrabalhos.
+
+Garantir comunicação fluida entre áreas.
+
+Acompanhar o progresso dos eventos de forma visual e atualizada.
+
+Ser tão fácil de usar quanto preencher uma planilha, mas com controle total do processo gráfico.

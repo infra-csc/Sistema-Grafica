@@ -38,9 +38,11 @@ export default function Grafica() {
     mutationFn: async ({ itemId, data }: { itemId: string; data: any }) => {
       return await apiRequest("PATCH", `/api/items/${itemId}/start-production`, data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/items/approved"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
       setModalType(null);
       setProductionData({ quantityProduced: 0 });
@@ -62,9 +64,11 @@ export default function Grafica() {
     mutationFn: async ({ itemId, data }: { itemId: string; data: any }) => {
       return await apiRequest("PATCH", `/api/items/${itemId}/deliver`, data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/items/approved"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
       setModalType(null);
       setDeliveryData({ photoUrl: "", receivedBy: "" });
@@ -90,7 +94,8 @@ export default function Grafica() {
     total: items.length,
     approved: items.filter(i => i.status === 'approved').length,
     inProduction: items.filter(i => i.status === 'inProduction').length,
-    completed: items.filter(i => ['produced', 'delivered'].includes(i.status)).length,
+    produced: items.filter(i => i.status === 'produced').length,
+    delivered: items.filter(i => i.status === 'delivered').length,
   };
 
   const handleSubmitProduction = (e: React.FormEvent) => {
@@ -142,6 +147,9 @@ export default function Grafica() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-status-inProgress" data-testid="stat-approved">{stats.approved}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Aguardando produção
+            </p>
           </CardContent>
         </Card>
 
@@ -152,6 +160,9 @@ export default function Grafica() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-status-production" data-testid="stat-production">{stats.inProduction}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Produção parcial
+            </p>
           </CardContent>
         </Card>
 
@@ -161,7 +172,10 @@ export default function Grafica() {
             <CheckCircle className="h-4 w-4 text-status-completed" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-status-completed" data-testid="stat-completed">{stats.completed}</div>
+            <div className="text-2xl font-bold text-status-completed" data-testid="stat-produced">{stats.produced}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Não entregue
+            </p>
           </CardContent>
         </Card>
       </div>

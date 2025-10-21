@@ -20,9 +20,47 @@ export default function Calendario() {
     const departure = new Date(event.truckDepartureDate);
     const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    if (event.status === 'completed') return { status: 'completed', color: 'bg-status-completed', textColor: 'text-status-completed', label: 'Finalizado' };
-    if (hoursUntilDeparture < 48) return { status: 'urgent', color: 'bg-status-urgent', textColor: 'text-status-urgent', label: 'Urgente' };
-    return { status: 'created', color: 'bg-status-pending', textColor: 'text-status-pending', label: 'Criado' };
+    // Verde: Evento finalizado ou já passou
+    if (event.status === 'completed' || hoursUntilDeparture < 0) {
+      return { 
+        status: 'completed', 
+        color: 'bg-status-completed', 
+        textColor: 'text-status-completed', 
+        borderColor: 'border-status-completed',
+        label: hoursUntilDeparture < 0 ? 'Concluído' : 'Finalizado' 
+      };
+    }
+    
+    // Vermelho: Menos de 24h para saída
+    if (hoursUntilDeparture < 24) {
+      return { 
+        status: 'critical', 
+        color: 'bg-status-urgent', 
+        textColor: 'text-status-urgent',
+        borderColor: 'border-status-urgent',
+        label: 'Crítico (< 24h)' 
+      };
+    }
+    
+    // Amarelo: Entre 24h e 48h para saída
+    if (hoursUntilDeparture < 48) {
+      return { 
+        status: 'warning', 
+        color: 'bg-status-pending', 
+        textColor: 'text-status-pending',
+        borderColor: 'border-status-pending',
+        label: 'Atenção (< 48h)' 
+      };
+    }
+    
+    // Azul: Mais de 48h, em andamento normal
+    return { 
+      status: 'normal', 
+      color: 'bg-status-approved', 
+      textColor: 'text-status-approved',
+      borderColor: 'border-status-approved',
+      label: 'Em andamento' 
+    };
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -153,7 +191,7 @@ export default function Calendario() {
                       
                       <div className="flex-1 flex flex-col gap-1.5 overflow-auto">
                         {eventsForDay.slice(0, 5).map((eventData) => {
-                          const { color, textColor } = getEventStatus(eventData);
+                          const { color, textColor, borderColor } = getEventStatus(eventData);
                           const isStart = eventData.type === 'start';
                           const Icon = isStart ? Calendar : Truck;
                           
@@ -162,8 +200,9 @@ export default function Calendario() {
                               key={`${eventData.id}-${eventData.type}`}
                               onClick={() => setLocation(`/eventos/${eventData.id}`)}
                               className={cn(
-                                "flex items-center gap-1.5 p-1.5 rounded-md text-xs cursor-pointer transition-all hover-elevate",
+                                "flex items-center gap-1.5 p-1.5 rounded-md text-xs cursor-pointer transition-all hover-elevate border-l-2",
                                 color,
+                                borderColor,
                                 "bg-opacity-20 hover:bg-opacity-30"
                               )}
                               title={`${isStart ? '📅 Início' : '🚚 Saída'}: ${eventData.name}`}
@@ -212,21 +251,29 @@ export default function Calendario() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Legenda - Status</CardTitle>
+            <CardTitle className="text-base">Legenda - Status por Prazo</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-completed shrink-0" />
-                <span className="text-sm">Finalizado</span>
+                <span className="text-sm font-medium text-status-completed">Verde:</span>
+                <span className="text-sm">Evento finalizado ou já passou</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-4 h-4 rounded bg-status-approved shrink-0" />
+                <span className="text-sm font-medium text-status-approved">Azul:</span>
+                <span className="text-sm">Mais de 48h para saída</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-pending shrink-0" />
-                <span className="text-sm">Criado / Em andamento</span>
+                <span className="text-sm font-medium text-status-pending">Amarelo:</span>
+                <span className="text-sm">Faltam entre 24h e 48h</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded bg-status-urgent shrink-0" />
-                <span className="text-sm">Urgente (&lt; 48h para saída)</span>
+                <span className="text-sm font-medium text-status-urgent">Vermelho:</span>
+                <span className="text-sm">Crítico - Menos de 24h!</span>
               </div>
             </div>
           </CardContent>

@@ -33,7 +33,7 @@ export default function Calendario() {
     if (event.status === 'completed' || hoursUntilStart < 0) {
       return { 
         status: 'completed', 
-        color: 'bg-status-completed/30', 
+        color: 'bg-status-completed/60', 
         textColor: 'text-status-completed', 
         borderColor: 'border-status-completed',
         label: hoursUntilStart < 0 ? 'Realizado' : 'Finalizado' 
@@ -44,7 +44,7 @@ export default function Calendario() {
     if (hoursUntilStart < 24) {
       return { 
         status: 'critical', 
-        color: 'bg-status-urgent/35', 
+        color: 'bg-status-urgent/60', 
         textColor: 'text-status-urgent',
         borderColor: 'border-status-urgent',
         label: 'Início em menos de 24h' 
@@ -55,7 +55,7 @@ export default function Calendario() {
     if (hoursUntilStart < 48) {
       return { 
         status: 'warning', 
-        color: 'bg-status-pending/35', 
+        color: 'bg-status-pending/60', 
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
         label: 'Início em menos de 48h' 
@@ -65,7 +65,7 @@ export default function Calendario() {
     // Azul: Mais de 48h para início
     return { 
       status: 'normal', 
-      color: 'bg-status-approved/35', 
+      color: 'bg-status-approved/60', 
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
       label: 'Início em mais de 48h' 
@@ -82,7 +82,7 @@ export default function Calendario() {
     if (event.status === 'completed' || hoursUntilDeparture < 0) {
       return { 
         status: 'completed', 
-        color: 'bg-status-completed/30', 
+        color: 'bg-status-completed/60', 
         textColor: 'text-status-completed', 
         borderColor: 'border-status-completed',
         label: hoursUntilDeparture < 0 ? 'Concluído' : 'Finalizado' 
@@ -93,7 +93,7 @@ export default function Calendario() {
     if (hoursUntilDeparture < 24) {
       return { 
         status: 'critical', 
-        color: 'bg-status-urgent/35', 
+        color: 'bg-status-urgent/60', 
         textColor: 'text-status-urgent',
         borderColor: 'border-status-urgent',
         label: 'Saída em menos de 24h' 
@@ -104,7 +104,7 @@ export default function Calendario() {
     if (hoursUntilDeparture < 48) {
       return { 
         status: 'warning', 
-        color: 'bg-status-pending/35', 
+        color: 'bg-status-pending/60', 
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
         label: 'Saída em menos de 48h' 
@@ -114,7 +114,7 @@ export default function Calendario() {
     // Azul: Mais de 48h para saída
     return { 
       status: 'normal', 
-      color: 'bg-status-approved/35', 
+      color: 'bg-status-approved/60', 
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
       label: 'Saída em mais de 48h' 
@@ -278,7 +278,7 @@ export default function Calendario() {
                                 setLocation(`/eventos/${eventData.id}`);
                               }}
                               className={cn(
-                                "flex items-start gap-1 px-1.5 py-1 rounded text-[10px] font-medium cursor-pointer transition-all hover-elevate border-l-2",
+                                "flex items-start gap-1 px-1.5 py-1 rounded text-[10px] font-semibold cursor-pointer transition-all hover-elevate border-l-3",
                                 borderColor,
                                 color
                               )}

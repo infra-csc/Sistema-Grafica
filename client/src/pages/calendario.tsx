@@ -278,17 +278,23 @@ export default function Calendario() {
                                 setLocation(`/eventos/${eventData.id}`);
                               }}
                               className={cn(
-                                "flex items-start gap-1 px-2 py-1.5 rounded-md text-[11px] font-semibold cursor-pointer transition-all hover-elevate border-2",
-                                borderColor,
-                                color
+                                "relative flex items-center gap-2 px-2 py-2 rounded-lg text-[11px] cursor-pointer transition-all hover:shadow-md bg-card border border-border overflow-hidden",
                               )}
                               title={`${isStart ? '📅 Início' : '🚚 Saída'}: ${eventData.name} - ${time}`}
                               data-testid={`event-${eventData.id}-${eventData.type}`}
                             >
-                              <Icon className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                              {/* Barra lateral colorida grossa */}
+                              <div className={cn("absolute left-0 top-0 bottom-0 w-1", color)} />
+                              
+                              {/* Ícone com fundo colorido */}
+                              <div className={cn("flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center", color)}>
+                                <Icon className="h-4 w-4 text-white" />
+                              </div>
+                              
+                              {/* Conteúdo */}
                               <div className="flex-1 min-w-0">
-                                <div className="font-medium leading-tight truncate">{time}</div>
-                                <div className="leading-tight truncate opacity-90">{eventData.name}</div>
+                                <div className="font-semibold leading-tight truncate text-foreground">{time}</div>
+                                <div className="text-[10px] leading-tight truncate text-muted-foreground">{eventData.name}</div>
                               </div>
                             </div>
                           );

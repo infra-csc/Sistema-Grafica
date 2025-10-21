@@ -29,6 +29,7 @@ interface TimelineEvent {
   quantity?: number;
   quantityProduced?: number;
   receivedBy?: string;
+  userName?: string; // Nome de quem fez a ação
 }
 
 export default function Historico() {
@@ -43,17 +44,30 @@ export default function Historico() {
     queryKey: ["/api/items"],
   });
 
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
+  });
+
+  // Criar mapa de audit logs por entityId e action para lookup rápido
+  const auditLogMap = new Map<string, any>();
+  auditLogs.forEach(log => {
+    const key = `${log.entityId}-${log.action}`;
+    auditLogMap.set(key, log);
+  });
+
   // Construir timeline a partir de eventos e itens
   const timeline: TimelineEvent[] = [];
 
   // Adicionar eventos criados
   events.forEach(event => {
+    const auditLog = auditLogMap.get(`${event.id}-created`);
     timeline.push({
       id: `event-${event.id}`,
       type: 'event_created',
       timestamp: new Date(event.createdAt),
       eventName: event.name,
       eventId: event.id,
+      userName: auditLog?.userName,
     });
   });
 
@@ -63,6 +77,7 @@ export default function Historico() {
     const eventName = event?.name || 'Evento desconhecido';
 
     // Item criado
+    const itemCreatedLog = auditLogMap.get(`${item.id}-created`);
     timeline.push({
       id: `item-created-${item.id}`,
       type: 'item_created',
@@ -72,10 +87,12 @@ export default function Historico() {
       itemType: item.type,
       itemId: item.id,
       quantity: item.quantity,
+      userName: itemCreatedLog?.userName,
     });
 
     // Item aprovado (se status >= approved)
     if (['approved', 'inProduction', 'produced', 'delivered'].includes(item.status)) {
+      const itemApprovedLog = auditLogMap.get(`${item.id}-approved`);
       timeline.push({
         id: `item-approved-${item.id}`,
         type: 'item_approved',
@@ -86,6 +103,7 @@ export default function Historico() {
         itemType: item.type,
         itemId: item.id,
         quantity: item.quantity,
+        userName: itemApprovedLog?.userName,
       });
     }
 
@@ -107,6 +125,7 @@ export default function Historico() {
 
     // Item entregue
     if (item.status === 'delivered' && item.deliveredAt) {
+      const itemDeliveredLog = auditLogMap.get(`${item.id}-delivered`);
       timeline.push({
         id: `delivered-${item.id}`,
         type: 'item_delivered',
@@ -116,6 +135,7 @@ export default function Historico() {
         itemType: item.type,
         itemId: item.id,
         receivedBy: item.receivedBy,
+        userName: itemDeliveredLog?.userName,
       });
     }
   });
@@ -312,11 +332,16 @@ export default function Historico() {
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <Badge variant="outline" className={cn("text-xs", config.color)}>
                                 {config.label}
                               </Badge>
-                              <span className="text-xs text-muted-foreground">{timeAgo}</span>
+                              {event.userName && (
+                                <span className="text-xs font-medium text-foreground">
+                                  por {event.userName}
+                                </span>
+                              )}
+                              <span className="text-xs text-muted-foreground">• {timeAgo}</span>
                             </div>
                             <p className="text-sm text-foreground leading-relaxed">
                               {getEventDescription(event)}

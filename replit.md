@@ -126,6 +126,10 @@ Timeline de atividades com filtro por evento
   - Tipo de entidade (event, item)
   - ID da entidade
   - Detalhes da mudança
+- ✅ **Visualização no Histórico**: 
+  - Cada ação mostra "por [Nome do Usuário] • [tempo relativo]"
+  - Data e hora completa no canto direito
+  - Informação visível apenas em ações importantes (criação, aprovação, entrega)
 
 ### Backend Pronto (Componentes Criados)
 - ✅ **Sistema de Comentários**: Backend + componente CommentsSection

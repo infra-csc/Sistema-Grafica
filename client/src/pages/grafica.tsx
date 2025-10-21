@@ -20,7 +20,11 @@ import { useToast } from "@/hooks/use-toast";
 export default function Grafica() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [modalType, setModalType] = useState<"production" | "delivery" | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [productionData, setProductionData] = useState({
+    quantityProduced: 0,
+  });
   const [deliveryData, setDeliveryData] = useState({
     photoUrl: "",
     receivedBy: "",
@@ -28,6 +32,30 @@ export default function Grafica() {
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items/approved"],
+  });
+
+  const startProductionMutation = useMutation({
+    mutationFn: async ({ itemId, data }: { itemId: string; data: any }) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}/start-production`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItem(null);
+      setModalType(null);
+      setProductionData({ quantityProduced: 0 });
+      toast({
+        title: "Produção iniciada",
+        description: "A produção foi registrada com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao iniciar produção",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const markDeliveredMutation = useMutation({
@@ -38,6 +66,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
+      setModalType(null);
       setDeliveryData({ photoUrl: "", receivedBy: "" });
       toast({
         title: "Entrega confirmada",
@@ -62,6 +91,16 @@ export default function Grafica() {
     approved: items.filter(i => i.status === 'approved').length,
     inProduction: items.filter(i => i.status === 'inProduction').length,
     completed: items.filter(i => ['produced', 'delivered'].includes(i.status)).length,
+  };
+
+  const handleSubmitProduction = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedItem) return;
+    
+    startProductionMutation.mutate({
+      itemId: selectedItem.id,
+      data: productionData,
+    });
   };
 
   const handleSubmitDelivery = (e: React.FormEvent) => {
@@ -204,17 +243,33 @@ export default function Grafica() {
                         <StatusBadge status={item.status} />
                       </td>
                       <td className="py-3 px-4">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setDeliveryData({ photoUrl: "", receivedBy: "" });
-                          }}
-                          data-testid={`button-deliver-${item.id}`}
-                        >
-                          <Truck className="h-4 w-4 mr-1" />
-                          Marcar Entregue
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setModalType("production");
+                              setProductionData({ quantityProduced: item.quantity });
+                            }}
+                            data-testid={`button-production-${item.id}`}
+                          >
+                            <Package className="h-4 w-4 mr-1" />
+                            Iniciar Produção
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setModalType("delivery");
+                              setDeliveryData({ photoUrl: "", receivedBy: "" });
+                            }}
+                            data-testid={`button-deliver-${item.id}`}
+                          >
+                            <Truck className="h-4 w-4 mr-1" />
+                            Marcar Entregue
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -225,15 +280,88 @@ export default function Grafica() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+      <Dialog open={!!selectedItem && !!modalType} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedItem(null);
+          setModalType(null);
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirmar Entrega</DialogTitle>
+            <DialogTitle>
+              {modalType === "production" ? "Iniciar Produção" : "Confirmar Entrega"}
+            </DialogTitle>
             <DialogDescription>
-              Registre a entrega do material produzido
+              {modalType === "production" 
+                ? "Registre a quantidade produzida do material"
+                : "Registre a entrega do material produzido"}
             </DialogDescription>
           </DialogHeader>
-          {selectedItem && (
+          {selectedItem && modalType === "production" && (
+            <form onSubmit={handleSubmitProduction} className="space-y-4">
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">Item:</span>
+                  <span className="text-sm">{selectedItem.type}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">Evento:</span>
+                  <span className="text-sm">{selectedItem.event?.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">Quantidade Total:</span>
+                  <span className="text-sm">{selectedItem.quantity} unidades</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quantityProduced">Quantidade Produzida *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="quantityProduced"
+                    type="number"
+                    min="1"
+                    max={selectedItem.quantity}
+                    value={productionData.quantityProduced}
+                    onChange={(e) => setProductionData({ quantityProduced: parseInt(e.target.value) || 0 })}
+                    required
+                    data-testid="input-quantity-produced"
+                    className="flex-1"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    onClick={() => setProductionData({ quantityProduced: selectedItem.quantity })}
+                    data-testid="button-set-total"
+                  >
+                    Total ({selectedItem.quantity})
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Informe quantas unidades foram produzidas (parcial ou total)
+                </p>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={() => {
+                  setSelectedItem(null);
+                  setModalType(null);
+                }}>
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={startProductionMutation.isPending || productionData.quantityProduced === 0}
+                  className="bg-status-production hover:bg-status-production/90"
+                  data-testid="button-confirm-production"
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  {startProductionMutation.isPending ? "Salvando..." : "Confirmar Produção"}
+                </Button>
+              </div>
+            </form>
+          )}
+          {selectedItem && modalType === "delivery" && (
             <form onSubmit={handleSubmitDelivery} className="space-y-4">
               <div className="p-4 bg-muted/50 rounded-lg space-y-2">
                 <div className="flex justify-between">
@@ -281,7 +409,10 @@ export default function Grafica() {
               </div>
 
               <div className="flex gap-2 justify-end pt-2">
-                <Button type="button" variant="outline" onClick={() => setSelectedItem(null)}>
+                <Button type="button" variant="outline" onClick={() => {
+                  setSelectedItem(null);
+                  setModalType(null);
+                }}>
                   Cancelar
                 </Button>
                 <Button 

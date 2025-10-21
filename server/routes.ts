@@ -298,6 +298,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Start production (Gráfica module)
+  app.patch("/api/items/:id/start-production", async (req, res) => {
+    try {
+      const { quantityProduced } = req.body;
+      
+      if (!quantityProduced || quantityProduced <= 0) {
+        return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
+      }
+      
+      const item = await storage.startProduction(req.params.id, quantityProduced);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      
+      // Create notification
+      await storage.createNotification({
+        type: "productionStarted",
+        message: `Produção iniciada: ${item.type} - ${quantityProduced}/${item.quantity} unidades - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+      });
+      
+      broadcast({ type: "production_started", item });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Mark item as delivered (Gráfica module)
   app.patch("/api/items/:id/deliver", async (req, res) => {
     try {

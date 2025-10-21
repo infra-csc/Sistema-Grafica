@@ -37,6 +37,7 @@ export interface IStorage {
   createBulkItems(items: InsertItem[]): Promise<Item[]>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
   approveItem(id: string): Promise<Item | undefined>;
+  startProduction(id: string, quantityProduced: number): Promise<Item | undefined>;
   markItemAsDelivered(id: string, receivedBy: string, photoUrl?: string): Promise<Item | undefined>;
   deleteItem(id: string): Promise<boolean>;
   
@@ -200,6 +201,28 @@ export class DatabaseStorage implements IStorage {
       .where(eq(items.id, id))
       .returning();
     return item || undefined;
+  }
+
+  async startProduction(id: string, quantityProduced: number): Promise<Item | undefined> {
+    const item = await this.getItem(id);
+    if (!item) return undefined;
+    
+    // Determine status based on quantity
+    let newStatus = 'inProduction';
+    if (quantityProduced >= parseInt(item.quantity.toString())) {
+      newStatus = 'produced';
+    }
+    
+    const [updatedItem] = await db
+      .update(items)
+      .set({ 
+        status: newStatus,
+        quantityProduced,
+        updatedAt: new Date() 
+      })
+      .where(eq(items.id, id))
+      .returning();
+    return updatedItem || undefined;
   }
 
   async markItemAsDelivered(id: string, receivedBy: string, photoUrl?: string): Promise<Item | undefined> {

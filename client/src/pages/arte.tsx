@@ -20,9 +20,10 @@ export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"pending" | "approved">("pending");
 
-  const { data: items = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/items/pending"],
+  const { data: allItems = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/items"],
   });
 
   const { data: events = [] } = useQuery<any[]>({
@@ -51,13 +52,16 @@ export default function Arte() {
     },
   });
 
-  const filteredItems = items.filter(item => {
+  const filteredItems = allItems.filter(item => {
     const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-    return matchesEvent;
+    const matchesView = viewMode === "pending" 
+      ? item.status === 'requested'
+      : item.status === 'approved' || item.status === 'inProduction' || item.status === 'produced' || item.status === 'delivered';
+    return matchesEvent && matchesView;
   });
 
-  const pendingItems = filteredItems.filter(item => item.status === 'requested');
-  const approvedItems = filteredItems.filter(item => item.status !== 'requested');
+  const pendingCount = allItems.filter(item => item.status === 'requested').length;
+  const approvedCount = allItems.filter(item => item.status !== 'requested').length;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -70,7 +74,7 @@ export default function Arte() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
@@ -78,61 +82,71 @@ export default function Arte() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-status-pending" data-testid="stat-pending">
-              {pendingItems.length}
+              {pendingCount}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">Aguardando aprovação</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aprovados Hoje</CardTitle>
-            <CheckCircle className="h-4 w-4 text-status-completed" />
+            <CardTitle className="text-sm font-medium">Liberados</CardTitle>
+            <CheckCircle className="h-4 w-4 text-status-approved" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-status-completed" data-testid="stat-approved">
-              {approvedItems.filter(item => {
-                const today = new Date().toDateString();
-                return new Date(item.updatedAt).toDateString() === today;
-              }).length}
+            <div className="text-2xl font-bold text-status-approved" data-testid="stat-approved">
+              {approvedCount}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total</CardTitle>
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="stat-total">
-              {items.length}
-            </div>
+            <p className="text-xs text-muted-foreground mt-1">Aprovados para produção</p>
           </CardContent>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle className="flex items-center gap-2">
-              Itens Pendentes de Aprovação
-              {pendingItems.length > 0 && (
-                <Badge variant="destructive">{pendingItems.length}</Badge>
-              )}
-            </CardTitle>
-            <Select value={eventFilter} onValueChange={setEventFilter}>
-              <SelectTrigger className="w-full sm:w-64" data-testid="select-event-filter">
-                <SelectValue placeholder="Filtrar por evento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os eventos</SelectItem>
-                {events.map((event) => (
-                  <SelectItem key={event.id} value={event.id}>
-                    {event.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <CardTitle className="flex items-center gap-2">
+                {viewMode === "pending" ? "Itens Pendentes de Aprovação" : "Histórico de Liberações"}
+                {viewMode === "pending" && pendingCount > 0 && (
+                  <Badge variant="destructive">{pendingCount}</Badge>
+                )}
+              </CardTitle>
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger className="w-full sm:w-64" data-testid="select-event-filter">
+                  <SelectValue placeholder="Filtrar por evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os eventos</SelectItem>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                variant={viewMode === "pending" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("pending")}
+                data-testid="button-view-pending"
+              >
+                <AlertCircle className="h-4 w-4 mr-2" />
+                Pendentes ({pendingCount})
+              </Button>
+              <Button
+                variant={viewMode === "approved" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("approved")}
+                data-testid="button-view-approved"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Liberados ({approvedCount})
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -140,11 +154,21 @@ export default function Arte() {
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : pendingItems.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div className="text-center py-12">
-              <CheckCircle className="h-12 w-12 text-status-completed mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Tudo aprovado!</h3>
-              <p className="text-muted-foreground">Não há itens pendentes no momento</p>
+              {viewMode === "pending" ? (
+                <>
+                  <CheckCircle className="h-12 w-12 text-status-completed mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Tudo aprovado!</h3>
+                  <p className="text-muted-foreground">Não há itens pendentes no momento</p>
+                </>
+              ) : (
+                <>
+                  <Eye className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Nenhum item liberado</h3>
+                  <p className="text-muted-foreground">Histórico vazio. Libere itens para vê-los aqui</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -157,11 +181,14 @@ export default function Arte() {
                     <th className="text-left py-3 px-4 font-medium">Medida</th>
                     <th className="text-left py-3 px-4 font-medium">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
+                    {viewMode === "approved" && (
+                      <th className="text-left py-3 px-4 font-medium">Status</th>
+                    )}
                     <th className="text-left py-3 px-4 font-medium">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingItems.map((item, index) => (
+                  {filteredItems.map((item, index) => (
                     <tr
                       key={item.id}
                       className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
@@ -186,6 +213,11 @@ export default function Arte() {
                         <div>{item.material}</div>
                         <div className="text-xs text-muted-foreground">{item.finish}</div>
                       </td>
+                      {viewMode === "approved" && (
+                        <td className="py-3 px-4">
+                          <StatusBadge status={item.status} />
+                        </td>
+                      )}
                       <td className="py-3 px-4">
                         <div className="flex gap-2">
                           <Button
@@ -197,15 +229,17 @@ export default function Arte() {
                             <Eye className="h-4 w-4 mr-1" />
                             Ver
                           </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => approveItemMutation.mutate(item.id)}
-                            disabled={approveItemMutation.isPending}
-                            data-testid={`button-approve-${item.id}`}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Liberar
-                          </Button>
+                          {viewMode === "pending" && (
+                            <Button
+                              size="sm"
+                              onClick={() => approveItemMutation.mutate(item.id)}
+                              disabled={approveItemMutation.isPending}
+                              data-testid={`button-approve-${item.id}`}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Liberar
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -216,46 +250,6 @@ export default function Arte() {
           )}
         </CardContent>
       </Card>
-
-      {approvedItems.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Itens Aprovados</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted/50 text-xs uppercase tracking-wide">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium">Evento</th>
-                    <th className="text-left py-3 px-4 font-medium">Item</th>
-                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                    <th className="text-left py-3 px-4 font-medium">Aprovado em</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {approvedItems.map((item, index) => (
-                    <tr
-                      key={item.id}
-                      className={`border-b border-border ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
-                      data-testid={`row-approved-item-${item.id}`}
-                    >
-                      <td className="py-3 px-4 text-sm">{item.event?.name || 'N/A'}</td>
-                      <td className="py-3 px-4 text-sm font-medium">{item.type}</td>
-                      <td className="py-3 px-4">
-                        <StatusBadge status={item.status} />
-                      </td>
-                      <td className="py-3 px-4 text-sm text-muted-foreground">
-                        {new Date(item.updatedAt).toLocaleString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
         <DialogContent>
@@ -303,15 +297,17 @@ export default function Arte() {
                 <Button variant="outline" onClick={() => setSelectedItem(null)}>
                   Fechar
                 </Button>
-                <Button
-                  onClick={() => {
-                    approveItemMutation.mutate(selectedItem.id);
-                  }}
-                  disabled={approveItemMutation.isPending}
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Liberar para Produção
-                </Button>
+                {selectedItem.status === 'requested' && (
+                  <Button
+                    onClick={() => {
+                      approveItemMutation.mutate(selectedItem.id);
+                    }}
+                    disabled={approveItemMutation.isPending}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Liberar para Produção
+                  </Button>
+                )}
               </div>
             </div>
           )}

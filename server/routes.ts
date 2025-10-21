@@ -229,6 +229,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create multiple items at once (bulk)
+  app.post("/api/items/bulk", async (req, res) => {
+    try {
+      const { items: itemsData } = req.body;
+      
+      if (!Array.isArray(itemsData) || itemsData.length === 0) {
+        return res.status(400).json({ error: "Items array is required and cannot be empty" });
+      }
+      
+      // Validate all items
+      const validatedItems = itemsData.map((item, index) => {
+        try {
+          return insertItemSchema.parse(item);
+        } catch (error: any) {
+          throw new Error(`Validation error at item ${index + 1}: ${error.message}`);
+        }
+      });
+      
+      // Create all items in bulk
+      const createdItems = await storage.createBulkItems(validatedItems);
+      
+      // Get event for notification
+      const firstItem = createdItems[0];
+      const event = firstItem ? await storage.getEvent(firstItem.eventId) : null;
+      
+      // Create notification for bulk addition
+      if (event) {
+        await storage.createNotification({
+          type: "itemAdded",
+          message: `${createdItems.length} itens adicionados - Evento: ${event.name}`,
+          eventId: event.id,
+        });
+      }
+      
+      // Broadcast update
+      broadcast({ type: "items_bulk_created", items: createdItems, eventId: firstItem?.eventId });
+      
+      res.status(201).json(createdItems);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Approve item (Arte module)
   app.patch("/api/items/:id/approve", async (req, res) => {
     try {

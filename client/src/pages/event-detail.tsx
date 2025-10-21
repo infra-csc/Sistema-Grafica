@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { BulkItemEntry } from "@/components/bulk-item-entry";
 
 const itemTypes = ["2x1", "Rolo", "Palco", "Banner", "Faixa", "Adesivo", "Backdrop"];
 const materials = ["Lona", "Tecido", "Adesivo", "Vinílico", "Banner"];
@@ -28,6 +29,7 @@ export default function EventDetail() {
   const [, params] = useRoute("/eventos/:id");
   const eventId = params?.id;
   const [open, setOpen] = useState(false);
+  const [bulkMode, setBulkMode] = useState(true);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -91,6 +93,28 @@ export default function EventDetail() {
     },
   });
 
+  const createBulkItemsMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      return await apiRequest("POST", "/api/items/bulk", { items });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      setOpen(false);
+      setBulkMode(false);
+      toast({
+        title: "Itens adicionados",
+        description: `${data.length} itens foram adicionados ao evento`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao adicionar itens",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createItemMutation.mutate(formData);
@@ -147,22 +171,60 @@ export default function EventDetail() {
               </div>
             </div>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-item">
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Item
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Adicionar Item ao Evento</DialogTitle>
-                <DialogDescription>
-                  Preencha as informações do item gráfico
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+          <div className="flex gap-2">
+            <Dialog open={open} onOpenChange={(isOpen) => {
+              setOpen(isOpen);
+              if (!isOpen) setBulkMode(false);
+            }}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-add-item">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Item
+                </Button>
+              </DialogTrigger>
+              <DialogContent className={bulkMode ? "max-w-[95vw] max-h-[90vh] overflow-y-auto" : "sm:max-w-lg max-h-[90vh] overflow-y-auto"}>
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <DialogTitle>{bulkMode ? "Entrada Rápida - Múltiplos Itens" : "Adicionar Item ao Evento"}</DialogTitle>
+                      <DialogDescription>
+                        {bulkMode ? "Adicione vários itens de uma vez usando a tabela" : "Preencha as informações do item gráfico"}
+                      </DialogDescription>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBulkMode(!bulkMode)}
+                      data-testid="button-toggle-mode"
+                    >
+                      {bulkMode ? (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Modo Simples
+                        </>
+                      ) : (
+                        <>
+                          <List className="h-4 w-4 mr-2" />
+                          Entrada Rápida
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </DialogHeader>
+                
+                {bulkMode ? (
+                  <BulkItemEntry
+                    eventId={eventId!}
+                    onSubmit={(items) => createBulkItemsMutation.mutate(items)}
+                    onCancel={() => {
+                      setBulkMode(false);
+                      setOpen(false);
+                    }}
+                    isPending={createBulkItemsMutation.isPending}
+                  />
+                ) : (
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 space-y-2">
                     <Label htmlFor="type">Tipo de Item</Label>
                     <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })} required>
@@ -268,8 +330,10 @@ export default function EventDetail() {
                   </Button>
                 </div>
               </form>
-            </DialogContent>
-          </Dialog>
+                )}
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
 

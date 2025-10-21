@@ -34,6 +34,7 @@ export interface IStorage {
   getPendingItems(): Promise<Item[]>;
   getApprovedItems(): Promise<Item[]>;
   createItem(item: InsertItem): Promise<Item>;
+  createBulkItems(items: InsertItem[]): Promise<Item[]>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
   approveItem(id: string): Promise<Item | undefined>;
   deleteItem(id: string): Promise<boolean>;
@@ -141,15 +142,51 @@ export class DatabaseStorage implements IStorage {
   async createItem(insertItem: InsertItem): Promise<Item> {
     const [item] = await db
       .insert(items)
-      .values(insertItem)
+      .values({
+        ...insertItem,
+        area: String(insertItem.area),
+        visual: String(insertItem.visual),
+        calculatedM2: String(insertItem.calculatedM2),
+      })
       .returning();
     return item;
   }
 
+  async createBulkItems(insertItems: InsertItem[]): Promise<Item[]> {
+    if (insertItems.length === 0) {
+      return [];
+    }
+    
+    const normalizedItems = insertItems.map(item => ({
+      ...item,
+      area: String(item.area),
+      visual: String(item.visual),
+      calculatedM2: String(item.calculatedM2),
+    }));
+    
+    const createdItems = await db
+      .insert(items)
+      .values(normalizedItems)
+      .returning();
+    return createdItems;
+  }
+
   async updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined> {
+    const updateData: any = { ...data };
+    if (data.area !== undefined) {
+      updateData.area = String(data.area);
+    }
+    if (data.visual !== undefined) {
+      updateData.visual = String(data.visual);
+    }
+    if (data.calculatedM2 !== undefined) {
+      updateData.calculatedM2 = String(data.calculatedM2);
+    }
+    updateData.updatedAt = new Date();
+
     const [item] = await db
       .update(items)
-      .set({ ...data, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(items.id, id))
       .returning();
     return item || undefined;
@@ -180,9 +217,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createStandardItem(insertItem: InsertStandardItem): Promise<StandardItem> {
+    const values: any = { ...insertItem };
+    if (insertItem.area !== undefined && insertItem.area !== null) {
+      values.area = String(insertItem.area);
+    }
+    if (insertItem.visual !== undefined && insertItem.visual !== null) {
+      values.visual = String(insertItem.visual);
+    }
+    
     const [item] = await db
       .insert(standardItems)
-      .values(insertItem)
+      .values(values)
       .returning();
     return item;
   }

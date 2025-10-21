@@ -51,6 +51,19 @@ export function useWebSocket() {
             });
             break;
             
+          case 'items_bulk_created':
+            // Invalidate all items queries when bulk items are created
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
+            if (data.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
+            }
+            toast({
+              title: 'Itens adicionados',
+              description: `${data.items?.length || 0} itens adicionados ao evento`,
+            });
+            break;
+            
           case 'item_approved':
             // Invalidate items queries
             queryClient.invalidateQueries({ queryKey: ['/api/items'] });

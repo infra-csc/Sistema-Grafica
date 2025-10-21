@@ -7,30 +7,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { AlertCircle, Package, CheckCircle, Upload, Image as ImageIcon, Truck, Check } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Image as ImageIcon, Truck, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Grafica() {
   const { toast } = useToast();
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<string>("production");
-  const [updateData, setUpdateData] = useState({
-    deliveredBy: "",
-    quantityProduced: 0,
-    photoUrl: "",
-    markAsDelivered: false,
-  });
+  const [updateData, setUpdateData] = useState<Record<string, {
+    deliveredBy: string;
+    quantityProduced: number;
+    photoUrl: string;
+    markAsDelivered: boolean;
+  }>>({});
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items/approved"],
@@ -40,11 +33,15 @@ export default function Grafica() {
     mutationFn: async ({ itemId, data }: { itemId: string; data: any }) => {
       return await apiRequest("POST", `/api/items/${itemId}/production`, data);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setSelectedItem(null);
-      setUpdateData({ deliveredBy: "", quantityProduced: 0, photoUrl: "", markAsDelivered: false });
+      setExpandedItemId(null);
+      setUpdateData(prev => {
+        const newData = { ...prev };
+        delete newData[variables.itemId];
+        return newData;
+      });
       toast({
         title: "Produção registrada",
         description: "O registro de produção foi salvo com sucesso",
@@ -59,6 +56,22 @@ export default function Grafica() {
     },
   });
 
+  const getItemData = (itemId: string, defaultQuantity: number) => {
+    return updateData[itemId] || {
+      deliveredBy: "",
+      quantityProduced: defaultQuantity,
+      photoUrl: "",
+      markAsDelivered: false,
+    };
+  };
+
+  const setItemData = (itemId: string, data: any) => {
+    setUpdateData(prev => ({
+      ...prev,
+      [itemId]: { ...getItemData(itemId, 0), ...data }
+    }));
+  };
+
   const filteredItems = statusFilter === "all" 
     ? items 
     : items.filter(item => item.status === statusFilter);
@@ -70,13 +83,13 @@ export default function Grafica() {
     completed: items.filter(i => ['produced', 'delivered'].includes(i.status)).length,
   };
 
-  const handleSubmitUpdate = (e: React.FormEvent) => {
+  const handleSubmitUpdate = (e: React.FormEvent, itemId: string) => {
     e.preventDefault();
-    if (!selectedItem) return;
+    const data = getItemData(itemId, 0);
     
     updateProductionMutation.mutate({
-      itemId: selectedItem.id,
-      data: updateData,
+      itemId,
+      data,
     });
   };
 
@@ -167,287 +180,197 @@ export default function Grafica() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted/50 text-xs uppercase tracking-wide">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium">Evento</th>
-                    <th className="text-left py-3 px-4 font-medium">Item</th>
-                    <th className="text-left py-3 px-4 font-medium">Qtd</th>
-                    <th className="text-left py-3 px-4 font-medium">m²</th>
-                    <th className="text-left py-3 px-4 font-medium">Material</th>
-                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                    <th className="text-left py-3 px-4 font-medium">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item, index) => (
-                    <tr
-                      key={item.id}
-                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
-                      data-testid={`row-item-${item.id}`}
+            <div className="space-y-3">
+              {filteredItems.map((item) => {
+                const isExpanded = expandedItemId === item.id;
+                const itemData = getItemData(item.id, item.quantity);
+                
+                return (
+                  <Card key={item.id} className={isExpanded ? 'border-primary' : ''} data-testid={`card-item-${item.id}`}>
+                    {/* Header - sempre visível */}
+                    <div 
+                      className="p-4 cursor-pointer hover-elevate active-elevate-2"
+                      onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
+                      data-testid={`button-expand-${item.id}`}
                     >
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-4">
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-1">Evento</div>
+                            <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-1">Item</div>
+                            <div className="text-sm font-semibold">{item.type}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-1">Quantidade</div>
+                            <div className="text-sm font-medium tabular-nums">{item.quantity} un.</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-1">Área (m²)</div>
+                            <div className="text-sm font-medium tabular-nums">{item.calculatedM2}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-1">Material</div>
+                            <div className="text-sm">{item.material}</div>
+                            <div className="text-xs text-muted-foreground">{item.finish}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-muted-foreground mb-1">Status</div>
+                            <StatusBadge status={item.status} />
+                          </div>
                         </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm font-medium">{item.type}</div>
-                      </td>
-                      <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
-                      <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
-                      <td className="py-3 px-4 text-sm">
-                        <div>{item.material}</div>
-                        <div className="text-xs text-muted-foreground">{item.finish}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <StatusBadge status={item.status} />
-                      </td>
-                      <td className="py-3 px-4">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setActiveTab("production");
-                            setUpdateData({
-                              deliveredBy: "",
-                              quantityProduced: item.quantity,
-                              photoUrl: "",
-                              markAsDelivered: false,
-                            });
-                          }}
-                          data-testid={`button-update-${item.id}`}
-                        >
-                          <Package className="h-4 w-4 mr-1" />
-                          Atualizar
+                        <Button variant="ghost" size="icon" type="button">
+                          {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                         </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+
+                    {/* Formulários de Produção - mostrado quando expandido */}
+                    {isExpanded && (
+                      <div className="border-t bg-muted/30">
+                        <div className="p-4">
+                          <Tabs value={activeTab} onValueChange={setActiveTab}>
+                            <TabsList className="grid w-full grid-cols-2 mb-4">
+                              <TabsTrigger value="production" data-testid="tab-production">
+                                <Package className="h-4 w-4 mr-2" />
+                                Registrar Produção
+                              </TabsTrigger>
+                              <TabsTrigger value="delivery" data-testid="tab-delivery">
+                                <Truck className="h-4 w-4 mr-2" />
+                                Marcar Entregue
+                              </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="production">
+                              <form onSubmit={(e) => handleSubmitUpdate(e, item.id)} className="space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`deliveredBy-${item.id}`}>
+                                      Quem entregou o arquivo?
+                                    </Label>
+                                    <Input
+                                      id={`deliveredBy-${item.id}`}
+                                      value={itemData.deliveredBy}
+                                      onChange={(e) => setItemData(item.id, { deliveredBy: e.target.value })}
+                                      placeholder="Ex: João Silva"
+                                      data-testid={`input-delivered-by-${item.id}`}
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`photoUrl-${item.id}`}>
+                                      Foto do material (opcional)
+                                    </Label>
+                                    <Input
+                                      id={`photoUrl-${item.id}`}
+                                      type="url"
+                                      value={itemData.photoUrl}
+                                      onChange={(e) => setItemData(item.id, { photoUrl: e.target.value })}
+                                      placeholder="https://exemplo.com/foto.jpg"
+                                      data-testid={`input-photo-url-${item.id}`}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor={`quantityProduced-${item.id}`}>
+                                    Quantidade produzida
+                                  </Label>
+                                  <div className="flex gap-3">
+                                    <Input
+                                      id={`quantityProduced-${item.id}`}
+                                      type="number"
+                                      min="1"
+                                      max={item.quantity}
+                                      value={itemData.quantityProduced}
+                                      onChange={(e) => setItemData(item.id, { quantityProduced: parseInt(e.target.value) || 0 })}
+                                      required
+                                      data-testid={`input-quantity-${item.id}`}
+                                      className="flex-1"
+                                    />
+                                    <Button 
+                                      type="button" 
+                                      variant="outline"
+                                      onClick={() => setItemData(item.id, { quantityProduced: item.quantity })}
+                                      data-testid={`button-set-full-${item.id}`}
+                                    >
+                                      Total ({item.quantity})
+                                    </Button>
+                                  </div>
+                                  <div className="flex items-center justify-between text-xs mt-1">
+                                    <span className="text-muted-foreground">Produção parcial ou total</span>
+                                    <span className="font-medium">{itemData.quantityProduced} de {item.quantity}</span>
+                                  </div>
+                                  <Progress 
+                                    value={(itemData.quantityProduced / item.quantity) * 100} 
+                                    className="h-2 mt-2"
+                                  />
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-2">
+                                  <Button 
+                                    type="submit" 
+                                    disabled={updateProductionMutation.isPending || itemData.quantityProduced === 0}
+                                    data-testid={`button-submit-production-${item.id}`}
+                                  >
+                                    <Package className="h-4 w-4 mr-2" />
+                                    {updateProductionMutation.isPending ? "Salvando..." : "Registrar Produção"}
+                                  </Button>
+                                </div>
+                              </form>
+                            </TabsContent>
+
+                            <TabsContent value="delivery">
+                              <form onSubmit={(e) => {
+                                e.preventDefault();
+                                updateProductionMutation.mutate({
+                                  itemId: item.id,
+                                  data: { ...itemData, markAsDelivered: true }
+                                });
+                              }} className="space-y-4">
+                                <div className="p-4 border border-status-completed bg-status-completed/10 rounded-lg">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-status-completed/20 rounded-full">
+                                      <Check className="h-6 w-6 text-status-completed" />
+                                    </div>
+                                    <div>
+                                      <h4 className="font-semibold">Marcar como Entregue</h4>
+                                      <p className="text-sm text-muted-foreground">
+                                        Confirme que o material foi entregue e está pronto para uso
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end gap-2">
+                                  <Button 
+                                    type="submit" 
+                                    disabled={updateProductionMutation.isPending}
+                                    className="bg-status-completed hover:bg-status-completed/90"
+                                    data-testid={`button-mark-delivered-${item.id}`}
+                                  >
+                                    <Truck className="h-4 w-4 mr-2" />
+                                    {updateProductionMutation.isPending ? "Processando..." : "Confirmar Entrega"}
+                                  </Button>
+                                </div>
+                              </form>
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Controle de Produção</DialogTitle>
-            <DialogDescription>
-              Registre a produção e entrega de materiais
-            </DialogDescription>
-          </DialogHeader>
-          {selectedItem && (
-            <div className="space-y-4">
-              {/* Informações do Item */}
-              <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold text-base">{selectedItem.type}</h3>
-                    <p className="text-sm text-muted-foreground">{selectedItem.event?.name}</p>
-                  </div>
-                  <StatusBadge status={selectedItem.status} />
-                </div>
-                <Separator />
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Quantidade Total</span>
-                    <p className="font-semibold">{selectedItem.quantity} un.</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Material</span>
-                    <p className="font-semibold">{selectedItem.material}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Acabamento</span>
-                    <p className="font-semibold">{selectedItem.finish}</p>
-                  </div>
-                </div>
-              </div>
-
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="production" data-testid="tab-production">
-                    <Package className="h-4 w-4 mr-2" />
-                    Registrar Produção
-                  </TabsTrigger>
-                  <TabsTrigger value="delivery" data-testid="tab-delivery">
-                    <Truck className="h-4 w-4 mr-2" />
-                    Marcar Entregue
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="production" className="space-y-4 mt-4">
-                  <form onSubmit={handleSubmitUpdate} className="space-y-4">
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="deliveredBy" className="text-base font-semibold">
-                          1. Quem entregou o arquivo?
-                        </Label>
-                        <Input
-                          id="deliveredBy"
-                          value={updateData.deliveredBy}
-                          onChange={(e) => setUpdateData({ ...updateData, deliveredBy: e.target.value })}
-                          placeholder="Ex: João Silva, Maria Souza..."
-                          data-testid="input-delivered-by"
-                          className="text-base"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Nome da pessoa que entregou o material para impressão
-                        </p>
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-2">
-                        <Label htmlFor="quantityProduced" className="text-base font-semibold">
-                          2. Quantidade produzida
-                        </Label>
-                        <div className="flex gap-3 items-end">
-                          <div className="flex-1">
-                            <Input
-                              id="quantityProduced"
-                              type="number"
-                              min="1"
-                              max={selectedItem.quantity}
-                              value={updateData.quantityProduced}
-                              onChange={(e) => setUpdateData({ ...updateData, quantityProduced: parseInt(e.target.value) })}
-                              required
-                              data-testid="input-quantity-produced"
-                              className="text-base"
-                            />
-                          </div>
-                          <Button 
-                            type="button" 
-                            variant="outline"
-                            onClick={() => setUpdateData({ ...updateData, quantityProduced: selectedItem.quantity })}
-                            data-testid="button-set-full-quantity"
-                          >
-                            Total ({selectedItem.quantity})
-                          </Button>
-                        </div>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">
-                            Produção parcial ou total
-                          </span>
-                          <span className="font-medium">
-                            {updateData.quantityProduced} de {selectedItem.quantity} unidades
-                          </span>
-                        </div>
-                        <Progress 
-                          value={(updateData.quantityProduced / selectedItem.quantity) * 100} 
-                          className="h-2"
-                        />
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-2">
-                        <Label htmlFor="photoUrl" className="text-base font-semibold">
-                          3. Anexar foto do material (opcional)
-                        </Label>
-                        <Input
-                          id="photoUrl"
-                          type="url"
-                          value={updateData.photoUrl}
-                          onChange={(e) => setUpdateData({ ...updateData, photoUrl: e.target.value })}
-                          placeholder="https://exemplo.com/foto.jpg"
-                          data-testid="input-photo-url"
-                          className="text-base"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          URL da foto do material produzido (pode enviar depois)
-                        </p>
-                        {updateData.photoUrl && (
-                          <div className="mt-2 p-3 border rounded-md bg-card">
-                            <div className="flex items-center gap-2">
-                              <ImageIcon className="h-5 w-5 text-primary" />
-                              <span className="text-sm font-medium">Foto anexada</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 justify-end pt-4">
-                      <Button type="button" variant="outline" onClick={() => setSelectedItem(null)}>
-                        Cancelar
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        disabled={updateProductionMutation.isPending || updateData.quantityProduced === 0} 
-                        data-testid="button-submit-production"
-                      >
-                        {updateProductionMutation.isPending ? "Salvando..." : "Registrar Produção"}
-                      </Button>
-                    </div>
-                  </form>
-                </TabsContent>
-
-                <TabsContent value="delivery" className="space-y-4 mt-4">
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    updateProductionMutation.mutate({
-                      itemId: selectedItem.id,
-                      data: { ...updateData, markAsDelivered: true }
-                    });
-                  }} className="space-y-4">
-                    <div className="p-4 border border-status-completed bg-status-completed/10 rounded-lg space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-status-completed/20 rounded-full">
-                          <Check className="h-6 w-6 text-status-completed" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold">Marcar como Entregue</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Confirme que o material foi entregue e está pronto para uso no evento
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-base font-semibold">Confirmar informações:</Label>
-                      <div className="p-3 bg-muted/50 rounded-md space-y-1 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Item:</span>
-                          <span className="font-medium">{selectedItem.type}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Quantidade:</span>
-                          <span className="font-medium">{selectedItem.quantity} unidades</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Evento:</span>
-                          <span className="font-medium">{selectedItem.event?.name}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 justify-end pt-4">
-                      <Button type="button" variant="outline" onClick={() => setSelectedItem(null)}>
-                        Cancelar
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        disabled={updateProductionMutation.isPending}
-                        className="bg-status-completed hover:bg-status-completed/90"
-                        data-testid="button-mark-delivered"
-                      >
-                        {updateProductionMutation.isPending ? "Processando..." : "Confirmar Entrega"}
-                      </Button>
-                    </div>
-                  </form>
-                </TabsContent>
-              </Tabs>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

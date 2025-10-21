@@ -1,0 +1,318 @@
+# Sistema de Gestão de Produção Gráfica
+
+## Visão Geral
+
+Sistema completo de gestão de produção gráfica desenvolvido para substituir planilhas Excel, mantendo a agilidade do processo atual mas com controle total, rastreabilidade e notificações automáticas.
+
+O sistema gerencia o fluxo completo: **Solicitação → Arte → Gráfica → Entrega**
+
+## Arquitetura
+
+### Stack Tecnológica
+- **Frontend**: React + TypeScript + Tailwind CSS + Shadcn UI
+- **Backend**: Express.js + TypeScript
+- **Database**: PostgreSQL (Neon)
+- **Real-time**: WebSockets para notificações e atualizações
+- **Validação**: Zod schemas
+- **ORM**: Drizzle ORM
+
+### Estrutura de Pastas
+```
+client/
+  src/
+    components/       # Componentes reutilizáveis
+      ui/            # Componentes Shadcn
+      app-sidebar.tsx
+      notification-bell.tsx
+      status-badge.tsx
+    pages/           # Páginas da aplicação
+      painel-geral.tsx    # Dashboard com status geral
+      eventos.tsx         # Lista de eventos
+      event-detail.tsx    # Detalhes e itens de um evento
+      arte.tsx           # Módulo de aprovação
+      grafica.tsx        # Módulo de produção
+      modelos.tsx        # Templates reutilizáveis
+      calendario.tsx     # Calendário de eventos
+server/
+  routes.ts          # API endpoints
+  storage.ts         # Interface de dados
+  db.ts             # Conexão PostgreSQL
+shared/
+  schema.ts         # Schemas Drizzle e tipos TypeScript
+```
+
+## Módulos Principais
+
+### 1. Painel Geral (Dashboard)
+- **Rota**: `/`
+- **Funcionalidade**: Visualização em tempo real de todos os itens de todos os eventos
+- **Features**:
+  - Cards de estatísticas (Total, Solicitados, Liberados, Em Produção, Finalizados)
+  - Tabela completa com filtros por status e busca
+  - Cores de status para identificação visual rápida
+  - Atualização em tempo real via WebSocket
+
+### 2. Eventos
+- **Rota**: `/eventos`
+- **Funcionalidade**: Gerenciamento de eventos
+- **Features**:
+  - Listagem de eventos em cards visuais
+  - Criação de novos eventos (nome, data início, data saída caminhão)
+  - Status visual por cores:
+    - 🟩 Verde = Finalizado
+    - 🟨 Amarelo = Criado
+    - 🟥 Vermelho = Urgente (<48h)
+  - Detalhamento de eventos com lista de itens
+
+### 3. Itens (Event Detail)
+- **Rota**: `/eventos/:id`
+- **Funcionalidade**: Gerenciamento de itens gráficos por evento
+- **Features**:
+  - Adição de itens com tipo, quantidade, área, visual, material, acabamento
+  - Cálculo automático de m² = quantidade × área × visual
+  - Observações por item
+  - Não pode modificar itens, apenas adicionar (conforme especificação)
+
+### 4. Arte
+- **Rota**: `/arte`
+- **Funcionalidade**: Liberação de arquivos para impressão
+- **Features**:
+  - Visualização de itens pendentes de aprovação
+  - Detalhes completos de cada item
+  - Botão de liberação que:
+    - Muda status para "approved"
+    - Notifica a Gráfica automaticamente
+    - Torna item visível no módulo de produção
+  - Histórico de itens aprovados
+
+### 5. Gráfica
+- **Rota**: `/grafica`
+- **Funcionalidade**: Controle de produção
+- **Features**:
+  - Visualização de itens liberados pela Arte
+  - Registro de:
+    - Quem entregou o arquivo
+    - Quantidade produzida (parcial ou total)
+    - Foto da produção (URL)
+  - Filtros por status
+  - Atualização de status da produção
+
+### 6. Modelos
+- **Rota**: `/modelos`
+- **Funcionalidade**: Templates de itens reutilizáveis
+- **Features**:
+  - Criação de modelos padrão (ex: "2x1", "Rolo de gradil")
+  - Medidas fixas ou variáveis
+  - Materiais e acabamentos disponíveis
+  - Reutilização em eventos futuros
+
+### 7. Calendário
+- **Rota**: `/calendario`
+- **Funcionalidade**: Visualização temporal de eventos
+- **Features**:
+  - Grade mensal com indicadores de eventos
+  - Cores por status
+  - Alertas visuais para eventos com <48h
+  - Legenda explicativa
+  - Cards de alerta com contagem regressiva
+
+## Sistema de Status
+
+### Status de Eventos
+- `created` - Evento criado (🟨 Amarelo)
+- `completed` - Evento finalizado (🟩 Verde)
+- `urgent` - Menos de 48h para saída do caminhão (🟥 Vermelho)
+
+### Status de Itens
+- `requested` - Item solicitado, aguardando aprovação (🟨 Amarelo)
+- `approved` - Liberado pela Arte (🔵 Azul)
+- `inProduction` - Em produção na Gráfica (🟧 Laranja)
+- `produced` - Produzido (🟩 Verde)
+- `delivered` - Entregue (🟩 Verde)
+
+## Modelo de Dados
+
+### Events
+```typescript
+{
+  id: varchar (UUID)
+  name: text
+  startDate: timestamp
+  truckDepartureDate: timestamp
+  status: text (created/completed/urgent)
+  createdAt: timestamp
+  updatedAt: timestamp
+}
+```
+
+### Items
+```typescript
+{
+  id: varchar (UUID)
+  eventId: varchar (FK)
+  type: text
+  quantity: integer
+  area: decimal
+  visual: decimal
+  material: text
+  finish: text
+  measurement: text
+  calculatedM2: decimal
+  status: text
+  observations: text
+  createdAt: timestamp
+  updatedAt: timestamp
+}
+```
+
+### StandardItems
+```typescript
+{
+  id: varchar (UUID)
+  name: text
+  type: text
+  area: decimal (nullable)
+  visual: decimal (nullable)
+  materials: text[] (array)
+  finishes: text[] (array)
+  hasVariableMeasurement: boolean
+  createdAt: timestamp
+}
+```
+
+### Notifications
+```typescript
+{
+  id: varchar (UUID)
+  type: text
+  message: text
+  eventId: varchar (FK, nullable)
+  itemId: varchar (FK, nullable)
+  isRead: boolean
+  createdAt: timestamp
+}
+```
+
+### ProductionUpdates
+```typescript
+{
+  id: varchar (UUID)
+  itemId: varchar (FK)
+  deliveredBy: text
+  photoUrl: text
+  quantityProduced: integer
+  createdAt: timestamp
+}
+```
+
+## API Endpoints
+
+### Events
+- `GET /api/events` - Lista todos os eventos
+- `GET /api/events/:id` - Detalhes de um evento
+- `POST /api/events` - Cria novo evento
+- `PATCH /api/events/:id` - Atualiza evento
+
+### Items
+- `GET /api/items` - Lista todos os itens
+- `GET /api/items/:eventId` - Itens de um evento específico
+- `GET /api/items/pending` - Itens pendentes de aprovação (Arte)
+- `GET /api/items/approved` - Itens aprovados (Gráfica)
+- `POST /api/items` - Cria novo item
+- `PATCH /api/items/:id/approve` - Aprova item (Arte)
+- `POST /api/items/:id/production` - Atualiza produção (Gráfica)
+
+### Standard Items
+- `GET /api/standard-items` - Lista modelos
+- `POST /api/standard-items` - Cria modelo
+
+### Notifications
+- `GET /api/notifications` - Lista notificações
+- `PATCH /api/notifications/:id/read` - Marca como lida
+
+## Sistema de Notificações
+
+As notificações são criadas automaticamente em:
+1. Criação de evento → Notifica Arte e Gráfica
+2. Adição de novos itens → Notifica Arte e Gráfica
+3. Liberação de arte → Notifica Gráfica
+4. Alertas de prazo (48h, 24h, 12h antes da saída)
+
+## Sistema de Cores (Design Guidelines)
+
+### Status Colors
+- **Verde** (142 76% 36%): Finalizado, Produzido, Entregue
+- **Amarelo** (45 93% 47%): Criado, Solicitado, Aguardando
+- **Vermelho** (0 84% 60%): Urgente, Atraso
+- **Azul** (217 91% 60%): Liberado, Em Processo
+- **Laranja** (25 95% 53%): Em Produção
+
+### Dark Mode
+O sistema é otimizado para dark mode (padrão):
+- Background: 220 15% 10%
+- Surface: 220 12% 14%
+- Border: 220 10% 25%
+- Text Primary: 0 0% 95%
+
+## Funcionalidades Futuras (Fase 2)
+
+1. **Sistema de perfis de acesso**:
+   - Admin: acesso total
+   - Solicitação: cria eventos e itens
+   - Arte: libera arquivos
+   - Gráfica: atualiza produção
+
+2. **Modelos de eventos**: Criar evento baseado em evento anterior
+
+3. **Histórico de alterações**: Rastreamento completo de quem alterou o quê
+
+4. **Confirmação manual de alterações**: Notificações com aprovação antes de modificar
+
+5. **Relatórios e exportação**: Dados por período, evento ou status
+
+## Configuração e Execução
+
+### Desenvolvimento
+```bash
+npm run dev
+```
+
+### Database
+```bash
+npm run db:push  # Sincroniza schema com banco
+```
+
+### Build
+```bash
+npm run build
+```
+
+## Princípios de Design
+
+1. **Simplicidade**: Interface intuitiva como planilha
+2. **Agilidade**: Entrada e atualização rápida de dados
+3. **Controle Visual**: Status imediatamente identificável por cores
+4. **Notificações Inteligentes**: Alertas apenas quando necessário
+5. **Tempo Real**: Atualizações instantâneas via WebSocket
+
+## Melhorias Implementadas
+
+- ✅ Cálculo automático de m²
+- ✅ Badges de status com ícones e cores
+- ✅ Filtros e busca inteligente
+- ✅ Cards de estatísticas em tempo real
+- ✅ Calendário visual com alertas
+- ✅ Responsividade completa (mobile, tablet, desktop)
+- ✅ Sistema de notificações com contador
+- ✅ Tabelas com zebra striping e hover states
+- ✅ Modais bem formatados para formulários
+- ✅ Design system consistente
+
+## Observações Técnicas
+
+- Usa React Query para cache e sincronização de dados
+- Validação com Zod em frontend e backend
+- TypeScript strict mode para type safety
+- Shadcn UI para componentes consistentes
+- Tailwind CSS para estilização responsiva
+- WebSocket path customizado (`/ws`) para evitar conflito com Vite HMR

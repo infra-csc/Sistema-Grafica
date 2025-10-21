@@ -1,0 +1,190 @@
+import { useQuery } from "@tanstack/react-query";
+import { StatusBadge } from "@/components/status-badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Search, AlertCircle, Clock, Package, CheckCircle } from "lucide-react";
+import { useState } from "react";
+
+export default function PainelGeral() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const { data: items = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/items"],
+  });
+
+  const { data: events = [] } = useQuery<any[]>({
+    queryKey: ["/api/events"],
+  });
+
+  const filteredItems = items.filter((item) => {
+    const matchesSearch = item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const stats = {
+    total: items.length,
+    requested: items.filter(i => i.status === 'requested').length,
+    approved: items.filter(i => i.status === 'approved').length,
+    inProduction: items.filter(i => i.status === 'inProduction').length,
+    completed: items.filter(i => ['produced', 'delivered'].includes(i.status)).length,
+  };
+
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-testid="title-painel-geral">
+          Painel de Status Geral
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Acompanhamento em tempo real de todos os itens
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Itens</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold" data-testid="stat-total">{stats.total}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Solicitados</CardTitle>
+            <Clock className="h-4 w-4 text-status-pending" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-status-pending" data-testid="stat-requested">{stats.requested}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Liberados</CardTitle>
+            <CheckCircle className="h-4 w-4 text-status-inProgress" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-status-inProgress" data-testid="stat-approved">{stats.approved}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Em Produção</CardTitle>
+            <Package className="h-4 w-4 text-status-production" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-status-production" data-testid="stat-production">{stats.inProduction}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Finalizados</CardTitle>
+            <CheckCircle className="h-4 w-4 text-status-completed" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-status-completed" data-testid="stat-completed">{stats.completed}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <CardTitle>Todos os Itens</CardTitle>
+            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              <div className="relative flex-1 sm:flex-initial">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por item ou evento..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 w-full sm:w-64"
+                  data-testid="input-search"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
+                  <SelectValue placeholder="Filtrar por status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="requested">Solicitado</SelectItem>
+                  <SelectItem value="approved">Liberado</SelectItem>
+                  <SelectItem value="inProduction">Em Produção</SelectItem>
+                  <SelectItem value="produced">Produzido</SelectItem>
+                  <SelectItem value="delivered">Entregue</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="text-center py-12">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">Nenhum item encontrado</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted/50 text-xs uppercase tracking-wide">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-medium">Evento</th>
+                    <th className="text-left py-3 px-4 font-medium">Item</th>
+                    <th className="text-left py-3 px-4 font-medium">Quantidade</th>
+                    <th className="text-left py-3 px-4 font-medium">Área × Visual</th>
+                    <th className="text-left py-3 px-4 font-medium">m²</th>
+                    <th className="text-left py-3 px-4 font-medium">Status</th>
+                    <th className="text-left py-3 px-4 font-medium">Atualizado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item, index) => (
+                    <tr 
+                      key={item.id}
+                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-card/50' : ''}`}
+                      data-testid={`row-item-${item.id}`}
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-sm">{item.type}</div>
+                        {item.material && (
+                          <div className="text-xs text-muted-foreground">{item.material}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
+                      <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
+                      <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
+                      <td className="py-3 px-4">
+                        <StatusBadge status={item.status} />
+                      </td>
+                      <td className="py-3 px-4 text-sm text-muted-foreground">
+                        {new Date(item.updatedAt).toLocaleDateString('pt-BR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

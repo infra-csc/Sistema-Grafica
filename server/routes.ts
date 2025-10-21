@@ -151,17 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get items by event
-  app.get("/api/items/:eventId", async (req, res) => {
-    try {
-      const items = await storage.getItemsByEvent(req.params.eventId);
-      res.json(items);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get pending items (for Arte module)
+  // Get pending items (for Arte module) - MUST come BEFORE /:eventId route
   app.get("/api/items/pending", async (req, res) => {
     try {
       const pendingItems = await storage.getPendingItems();
@@ -183,7 +173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get approved items (for Gráfica module)
+  // Get approved items (for Gráfica module) - MUST come BEFORE /:eventId route
   app.get("/api/items/approved", async (req, res) => {
     try {
       const approvedItems = await storage.getApprovedItems();
@@ -200,6 +190,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       res.json(itemsWithEvents);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get items by event - MUST come AFTER specific routes like /pending and /approved
+  app.get("/api/items/:eventId", async (req, res) => {
+    try {
+      const items = await storage.getItemsByEvent(req.params.eventId);
+      res.json(items);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

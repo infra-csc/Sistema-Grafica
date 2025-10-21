@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Calendar, 
   Package, 
@@ -31,6 +33,7 @@ interface TimelineEvent {
 
 export default function Historico() {
   const [, setLocation] = useLocation();
+  const [eventFilter, setEventFilter] = useState<string>("all");
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -71,12 +74,13 @@ export default function Historico() {
       quantity: item.quantity,
     });
 
-    // Item aprovado (se status >= approved E tem approvedAt)
-    if (item.approvedAt) {
+    // Item aprovado (se status >= approved)
+    if (['approved', 'inProduction', 'produced', 'delivered'].includes(item.status)) {
       timeline.push({
         id: `item-approved-${item.id}`,
         type: 'item_approved',
-        timestamp: new Date(item.approvedAt),
+        // Usa approvedAt se existir, senão usa updatedAt como fallback
+        timestamp: new Date(item.approvedAt || item.updatedAt),
         eventName,
         eventId: item.eventId,
         itemType: item.type,
@@ -85,12 +89,13 @@ export default function Historico() {
       });
     }
 
-    // Produção iniciada (se tem productionStartedAt)
-    if (item.productionStartedAt) {
+    // Produção iniciada (se tem quantidade produzida)
+    if (item.quantityProduced && item.quantityProduced > 0) {
       timeline.push({
         id: `production-${item.id}`,
         type: 'production_started',
-        timestamp: new Date(item.productionStartedAt),
+        // Usa productionStartedAt se existir, senão usa updatedAt como fallback
+        timestamp: new Date(item.productionStartedAt || item.updatedAt),
         eventName,
         eventId: item.eventId,
         itemType: item.type,
@@ -119,6 +124,11 @@ export default function Historico() {
   const sortedTimeline = timeline.sort((a, b) => 
     b.timestamp.getTime() - a.timestamp.getTime()
   );
+
+  // Filtrar por evento se necessário
+  const filteredTimeline = eventFilter === "all" 
+    ? sortedTimeline 
+    : sortedTimeline.filter(event => event.eventId === eventFilter);
 
   const getEventConfig = (type: TimelineEvent['type']) => {
     switch (type) {
@@ -225,18 +235,37 @@ export default function Historico() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Atividades Recentes
-          </CardTitle>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Atividades Recentes
+            </CardTitle>
+            <Select value={eventFilter} onValueChange={setEventFilter}>
+              <SelectTrigger className="w-full sm:w-64" data-testid="select-event-filter">
+                <SelectValue placeholder="Filtrar por evento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os eventos</SelectItem>
+                {events.map((event) => (
+                  <SelectItem key={event.id} value={event.id}>
+                    {event.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
-          {sortedTimeline.length === 0 ? (
+          {filteredTimeline.length === 0 ? (
             <div className="text-center py-12">
               <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhuma atividade registrada</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {eventFilter === "all" ? "Nenhuma atividade registrada" : "Nenhuma atividade para este evento"}
+              </h3>
               <p className="text-muted-foreground">
-                As atividades aparecerão aqui conforme você usar o sistema
+                {eventFilter === "all" 
+                  ? "As atividades aparecerão aqui conforme você usar o sistema"
+                  : "Selecione outro evento ou escolha 'Todos os eventos'"}
               </p>
             </div>
           ) : (
@@ -245,7 +274,7 @@ export default function Historico() {
               <div className="absolute left-6 top-0 bottom-0 w-px bg-border" />
 
               <div className="space-y-4">
-                {sortedTimeline.map((event, index) => {
+                {filteredTimeline.map((event, index) => {
                   const config = getEventConfig(event.type);
                   const Icon = config.icon;
                   const timeAgo = formatDistanceToNow(event.timestamp, {

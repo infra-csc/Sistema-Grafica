@@ -143,6 +143,7 @@ shared/
 - **Funcionalidade**: Timeline cronológica de todas as atividades do sistema
 - **Features**:
   - Linha do tempo visual com todas as ações do sistema
+  - **Filtro por evento** - dropdown para visualizar atividades de um evento específico
   - Ordenação cronológica reversa (mais recente primeiro)
   - Tipos de atividades rastreadas:
     - 📅 Evento Criado
@@ -157,6 +158,7 @@ shared/
     - Tempo relativo ("há 2 horas", "há 3 dias")
   - Clique para navegar ao evento/item correspondente
   - Design de timeline vertical com linha conectora
+  - Timestamps específicos por fase (approvedAt, productionStartedAt, deliveredAt)
 
 ## Sistema de Status
 

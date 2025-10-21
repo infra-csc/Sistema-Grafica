@@ -138,7 +138,7 @@ export default function Arte() {
                   {pendingItems.map((item, index) => (
                     <tr
                       key={item.id}
-                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-card/50' : ''}`}
+                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
                       data-testid={`row-pending-item-${item.id}`}
                     >
                       <td className="py-3 px-4">
@@ -211,7 +211,7 @@ export default function Arte() {
                   {approvedItems.map((item, index) => (
                     <tr
                       key={item.id}
-                      className={`border-b border-border ${index % 2 === 0 ? 'bg-card/50' : ''}`}
+                      className={`border-b border-border ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
                       data-testid={`row-approved-item-${item.id}`}
                     >
                       <td className="py-3 px-4 text-sm">{item.event?.name || 'N/A'}</td>

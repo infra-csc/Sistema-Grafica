@@ -179,7 +179,7 @@ export default function Grafica() {
                   {filteredItems.map((item, index) => (
                     <tr
                       key={item.id}
-                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-card/50' : ''}`}
+                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
                       data-testid={`row-item-${item.id}`}
                     >
                       <td className="py-3 px-4">

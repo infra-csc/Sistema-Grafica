@@ -50,9 +50,11 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="h-16 flex items-center px-4 border-b border-sidebar-border">
+      <SidebarHeader className="h-16 flex items-center px-4 border-b border-sidebar-border bg-gradient-to-r from-primary/5 to-primary/10">
         <div className="flex items-center gap-2">
-          <FileText className="h-6 w-6 text-primary" />
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
           <div>
             <h1 className="text-base font-semibold text-sidebar-foreground">Gestão Gráfica</h1>
             <p className="text-xs text-muted-foreground">Produção e Controle</p>

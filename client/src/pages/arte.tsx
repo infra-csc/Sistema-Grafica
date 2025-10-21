@@ -7,13 +7,25 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useState } from "react";
 
 export default function Arte() {
@@ -21,6 +33,8 @@ export default function Arte() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"pending" | "approved">("pending");
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [confirmApprovalItem, setConfirmApprovalItem] = useState<any>(null);
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -38,6 +52,7 @@ export default function Arte() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
+      setConfirmApprovalItem(null);
       toast({
         title: "Item aprovado",
         description: "O item foi liberado para produção",
@@ -46,6 +61,31 @@ export default function Arte() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao aprovar item",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const approveBulkMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      return await Promise.all(
+        itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/approve`, {}))
+      );
+    },
+    onSuccess: (_, itemIds) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItems([]);
+      setConfirmApprovalItem(null);
+      toast({
+        title: "Itens aprovados",
+        description: `${itemIds.length} itens foram liberados para produção`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao aprovar itens",
         description: error.message,
         variant: "destructive",
       });
@@ -62,6 +102,41 @@ export default function Arte() {
 
   const pendingCount = allItems.filter(item => item.status === 'requested').length;
   const approvedCount = allItems.filter(item => item.status !== 'requested').length;
+
+  const pendingItems = filteredItems.filter(item => item.status === 'requested');
+  const allPendingSelected = pendingItems.length > 0 && selectedItems.length === pendingItems.length;
+
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (allPendingSelected) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(pendingItems.map(item => item.id));
+    }
+  };
+
+  const handleBulkApprove = () => {
+    setConfirmApprovalItem({ type: 'bulk', count: selectedItems.length });
+  };
+
+  const handleSingleApprove = (item: any) => {
+    setConfirmApprovalItem({ type: 'single', item });
+  };
+
+  const confirmApproval = () => {
+    if (confirmApprovalItem?.type === 'bulk') {
+      approveBulkMutation.mutate(selectedItems);
+    } else if (confirmApprovalItem?.type === 'single') {
+      approveItemMutation.mutate(confirmApprovalItem.item.id);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -124,25 +199,39 @@ export default function Arte() {
               </Select>
             </div>
             
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === "pending" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("pending")}
-                data-testid="button-view-pending"
-              >
-                <AlertCircle className="h-4 w-4 mr-2" />
-                Pendentes ({pendingCount})
-              </Button>
-              <Button
-                variant={viewMode === "approved" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("approved")}
-                data-testid="button-view-approved"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Liberados ({approvedCount})
-              </Button>
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex gap-2">
+                <Button
+                  variant={viewMode === "pending" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setViewMode("pending")}
+                  data-testid="button-view-pending"
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  Pendentes ({pendingCount})
+                </Button>
+                <Button
+                  variant={viewMode === "approved" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setViewMode("approved")}
+                  data-testid="button-view-approved"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Liberados ({approvedCount})
+                </Button>
+              </div>
+              
+              {viewMode === "pending" && selectedItems.length > 0 && (
+                <Button
+                  size="sm"
+                  onClick={handleBulkApprove}
+                  disabled={approveBulkMutation.isPending}
+                  data-testid="button-bulk-approve"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Liberar Selecionados ({selectedItems.length})
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -172,6 +261,15 @@ export default function Arte() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
+                    {viewMode === "pending" && (
+                      <th className="w-12 py-3 px-4">
+                        <Checkbox
+                          checked={allPendingSelected}
+                          onCheckedChange={toggleSelectAll}
+                          data-testid="checkbox-select-all"
+                        />
+                      </th>
+                    )}
                     <th className="text-left py-3 px-4 font-medium">Evento</th>
                     <th className="text-left py-3 px-4 font-medium">Item</th>
                     <th className="text-left py-3 px-4 font-medium">Qtd</th>
@@ -191,6 +289,15 @@ export default function Arte() {
                       className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
                       data-testid={`row-pending-item-${item.id}`}
                     >
+                      {viewMode === "pending" && (
+                        <td className="py-3 px-4">
+                          <Checkbox
+                            checked={selectedItems.includes(item.id)}
+                            onCheckedChange={() => toggleItemSelection(item.id)}
+                            data-testid={`checkbox-item-${item.id}`}
+                          />
+                        </td>
+                      )}
                       <td className="py-3 px-4">
                         <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
                         <div className="text-xs text-muted-foreground">
@@ -229,7 +336,7 @@ export default function Arte() {
                           {viewMode === "pending" && (
                             <Button
                               size="sm"
-                              onClick={() => approveItemMutation.mutate(item.id)}
+                              onClick={() => handleSingleApprove(item)}
                               disabled={approveItemMutation.isPending}
                               data-testid={`button-approve-${item.id}`}
                             >
@@ -310,6 +417,46 @@ export default function Arte() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!confirmApprovalItem} onOpenChange={(open) => !open && setConfirmApprovalItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Liberação</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmApprovalItem?.type === 'bulk' ? (
+                <>
+                  Você está prestes a liberar <strong>{confirmApprovalItem.count} itens</strong> para produção.
+                  <br /><br />
+                  Esta ação notificará a Gráfica e os itens ficarão disponíveis para impressão.
+                </>
+              ) : confirmApprovalItem?.type === 'single' ? (
+                <>
+                  Você está prestes a liberar o item <strong>{confirmApprovalItem.item?.type}</strong> para produção.
+                  <br /><br />
+                  Evento: <strong>{confirmApprovalItem.item?.event?.name}</strong>
+                  <br />
+                  Quantidade: <strong>{confirmApprovalItem.item?.quantity}</strong>
+                  <br />
+                  Material: <strong>{confirmApprovalItem.item?.material}</strong>
+                  <br /><br />
+                  Esta ação notificará a Gráfica e o item ficará disponível para impressão.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmApproval}
+              disabled={approveItemMutation.isPending || approveBulkMutation.isPending}
+              data-testid="button-confirm-approval"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Confirmar Liberação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

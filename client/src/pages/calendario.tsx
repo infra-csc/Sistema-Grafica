@@ -278,7 +278,7 @@ export default function Calendario() {
                                 setLocation(`/eventos/${eventData.id}`);
                               }}
                               className={cn(
-                                "flex items-start gap-1 px-1.5 py-1 rounded text-[10px] font-semibold cursor-pointer transition-all hover-elevate border-l-3",
+                                "flex items-start gap-1 px-2 py-1.5 rounded-md text-[11px] font-semibold cursor-pointer transition-all hover-elevate border-2",
                                 borderColor,
                                 color
                               )}

@@ -488,17 +488,39 @@ export default function Calendario() {
                 .map(event => {
                   const departure = new Date(event.truckDepartureDate);
                   const now = new Date();
-                  const hoursUntilDeparture = Math.floor((departure.getTime() - now.getTime()) / (1000 * 60 * 60));
+                  const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
+                  const hoursUntilDepartureDisplay = Math.floor(hoursUntilDeparture);
+                  
+                  // Define status e cor baseado no tempo
+                  const isCritical = hoursUntilDeparture < 24;
+                  const bgColor = isCritical ? 'bg-status-urgent/10' : 'bg-status-pending/10';
+                  const iconColor = isCritical ? 'text-status-urgent' : 'text-status-pending';
+                  const badgeVariant = isCritical ? 'destructive' : 'secondary';
+                  const badgeColor = isCritical ? 'bg-status-urgent' : 'bg-status-pending';
 
-                  return (
+                  return {
+                    event,
+                    departure,
+                    hoursUntilDeparture,
+                    hoursUntilDepartureDisplay,
+                    isCritical,
+                    bgColor,
+                    iconColor,
+                    badgeVariant,
+                    badgeColor
+                  };
+                })
+                // Ordena por urgência: menos tempo primeiro
+                .sort((a, b) => a.hoursUntilDeparture - b.hoursUntilDeparture)
+                .map(({ event, departure, hoursUntilDepartureDisplay, bgColor, iconColor, badgeColor }) => (
                     <div
                       key={event.id}
                       onClick={() => setLocation(`/eventos/${event.id}`)}
-                      className="flex items-center justify-between p-3 bg-status-urgent/10 rounded-md cursor-pointer hover-elevate"
+                      className={cn("flex items-center justify-between p-3 rounded-md cursor-pointer hover-elevate", bgColor)}
                       data-testid={`alert-${event.id}`}
                     >
                       <div className="flex items-center gap-3">
-                        <Truck className="h-5 w-5 text-status-urgent shrink-0" />
+                        <Truck className={cn("h-5 w-5 shrink-0", iconColor)} />
                         <div>
                           <p className="font-medium text-sm">{event.name}</p>
                           <p className="text-xs text-muted-foreground">
@@ -506,12 +528,12 @@ export default function Calendario() {
                           </p>
                         </div>
                       </div>
-                      <Badge variant="destructive" className="shrink-0">
-                        {hoursUntilDeparture}h
+                      <Badge className={cn("shrink-0 text-white", badgeColor)}>
+                        {hoursUntilDepartureDisplay}h
                       </Badge>
                     </div>
-                  );
-                })}
+                  )
+                )}
             </div>
           </CardContent>
         </Card>

@@ -11,6 +11,7 @@ import { apiRequest } from "./lib/queryClient";
 import { useWebSocket } from "@/hooks/use-websocket";
 import NotFound from "@/pages/not-found";
 import PainelGeral from "@/pages/painel-geral";
+import DashboardAnalises from "@/pages/dashboard-analises";
 import Eventos from "@/pages/eventos";
 import EventDetail from "@/pages/event-detail";
 import Arte from "@/pages/arte";
@@ -23,6 +24,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={PainelGeral} />
+      <Route path="/analises" component={DashboardAnalises} />
       <Route path="/eventos" component={Eventos} />
       <Route path="/eventos/:id" component={EventDetail} />
       <Route path="/arte" component={Arte} />

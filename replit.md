@@ -63,3 +63,51 @@ The system features a professional light mode theme with a clean white backgroun
 - **Data ORM**: Drizzle ORM.
 - **Validation Library**: Zod.
 - **Real-time Communication**: WebSockets.
+## Páginas do Sistema
+
+### 1. Painel Geral (/)
+Dashboard principal com visão geral simplificada:
+- 6 cards de estatísticas (Total, Solicitados, Liberados, Em Produção, Produzidos, Entregues)
+- Tabela completa com todos os itens
+- Filtros por evento, status e busca por texto
+- Foco em operação do dia-a-dia
+
+### 2. Análises (/analises) **NOVO!**
+Tela dedicada a métricas avançadas e visualizações:
+- **Alertas Urgentes**: Eventos com saída do caminhão em <48h
+- **Gráficos Recharts**: Pizza (distribuição status) e Barras (produção por evento)
+- **Métricas de Desempenho**: Tempo médio aprovação/produção, taxa de entrega
+- **Top 5 Rankings**: Itens mais produzidos
+- **Exportação**: Download de relatório CSV completo
+
+### 3. Eventos (/eventos)
+Gerenciamento de eventos com cards visuais
+
+### 4. Arte (/arte)
+Módulo de aprovação de arte
+
+### 5. Gráfica (/grafica)
+Controle de entrega e produção
+
+### 6. Modelos (/modelos)
+Templates reutilizáveis de itens
+
+### 7. Calendário (/calendario)
+Visão temporal com alertas de datas críticas
+
+### 8. Histórico (/historico)
+Timeline de atividades com filtro por evento
+
+## Recursos Implementados
+
+### Backend Pronto (Componentes Criados)
+- ✅ **Sistema de Comentários**: Backend + componente CommentsSection
+- ✅ **Galeria de Fotos**: Backend + componente DeliveryPhotoGallery
+- ✅ **Tabelas Expandidas**: users, comments, deliveryPhotos, auditLogs
+- 🔜 **Integração na UI**: Próxima fase
+
+### Bibliotecas Principais
+- **Recharts**: Gráficos de pizza e barras
+- **date-fns**: Manipulação de datas e cálculos de tempo
+- **React Query**: Cache e sincronização de dados
+- **WebSocket**: Notificações em tempo real

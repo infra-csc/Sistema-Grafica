@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity } from "lucide-react";
+import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -47,6 +47,11 @@ const menuItems = [
     title: "Histórico",
     url: "/historico",
     icon: Activity,
+  },
+  {
+    title: "Análises",
+    url: "/analises",
+    icon: BarChart3,
   },
 ];
 

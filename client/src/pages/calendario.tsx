@@ -24,6 +24,8 @@ export default function Calendario() {
   });
 
   const getEventStatus = (event: any) => {
+    // IMPORTANTE: Sempre usar horário local do navegador (Brasília)
+    // O banco armazena em UTC mas o JavaScript converte automaticamente
     const now = new Date();
     const departure = new Date(event.truckDepartureDate);
     const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);

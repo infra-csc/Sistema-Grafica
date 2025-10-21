@@ -25,6 +25,7 @@ export interface IStorage {
   getAllEvents(): Promise<Event[]>;
   createEvent(event: InsertEvent): Promise<Event>;
   updateEvent(id: string, data: Partial<InsertEvent>): Promise<Event | undefined>;
+  deleteEvent(id: string): Promise<boolean>;
   
   // Items
   getItem(id: string): Promise<Item | undefined>;
@@ -35,6 +36,7 @@ export interface IStorage {
   createItem(item: InsertItem): Promise<Item>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
   approveItem(id: string): Promise<Item | undefined>;
+  deleteItem(id: string): Promise<boolean>;
   
   // Standard Items
   getStandardItem(id: string): Promise<StandardItem | undefined>;
@@ -65,6 +67,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createEvent(insertEvent: InsertEvent): Promise<Event> {
+    // IMPORTANTE: O PostgreSQL armazena timestamps em UTC
+    // O navegador envia datetime-local que é convertido para UTC automaticamente
+    // Quando retornamos, o JavaScript converte de volta para o timezone local (Brasília)
     const [event] = await db
       .insert(events)
       .values({
@@ -92,6 +97,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(events.id, id))
       .returning();
     return event || undefined;
+  }
+
+  async deleteEvent(id: string): Promise<boolean> {
+    const result = await db.delete(events).where(eq(events.id, id)).returning();
+    return result.length > 0;
   }
 
   // Items
@@ -152,6 +162,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(items.id, id))
       .returning();
     return item || undefined;
+  }
+
+  async deleteItem(id: string): Promise<boolean> {
+    const result = await db.delete(items).where(eq(items.id, id)).returning();
+    return result.length > 0;
   }
 
   // Standard Items

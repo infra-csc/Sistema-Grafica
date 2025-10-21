@@ -334,3 +334,14 @@ npm run build
 - Shadcn UI para componentes consistentes
 - Tailwind CSS para estilização responsiva
 - WebSocket path customizado (`/ws`) para evitar conflito com Vite HMR
+
+### Timezone e Horários (Brasília - UTC-3)
+- **Banco de Dados**: PostgreSQL armazena timestamps em UTC
+- **Entrada de dados**: Input `datetime-local` captura hora local do navegador (Brasília)
+- **Conversão automática**: JavaScript converte automaticamente entre UTC (banco) e timezone local (navegador)
+- **Cálculo de prazos**: Sempre usa `new Date()` que considera o timezone local do navegador
+- **Sistema de alertas**: 
+  - Verde: Evento finalizado ou já passou
+  - Azul: Mais de 48h até saída do caminhão
+  - Amarelo: Entre 24h e 48h até saída
+  - Vermelho: Menos de 24h - CRÍTICO!

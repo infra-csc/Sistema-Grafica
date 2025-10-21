@@ -1,438 +1,65 @@
 # NORTE - Sistema de Gestão de Produção Gráfica
 
-## Visão Geral
+## Overview
 
-Sistema completo de gestão de produção gráfica desenvolvido para **NORTE Marketing Esportivo** para substituir planilhas Excel, mantendo a agilidade do processo atual mas com controle total, rastreabilidade e notificações automáticas.
+NORTE is a comprehensive graphic production management system developed for NORTE Marketing Esportivo. Its primary purpose is to replace Excel spreadsheets, enhancing agility while providing complete control, traceability, and automatic notifications for the entire production workflow: **Request → Art → Printing → Delivery**. The system aims to streamline operations, improve oversight, and ensure timely communication across all stages.
 
-O sistema gerencia o fluxo completo: **Solicitação → Arte → Gráfica → Entrega**
+## User Preferences
 
-## Identidade Visual
+I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.
 
-**Cliente**: NORTE Marketing Esportivo  
-**Logo**: Exibido no header da sidebar  
-**Paleta de Cores**:
-- NORTE Blue (Primária): 210 70% 25% - Azul escuro do logo
-- NORTE Cyan (Accent): 188 100% 42% - Turquesa/Ciano do logo
-- NORTE Magenta: 330 65% 50% - Rosa/Magenta do degradê
-- NORTE Purple: 280 55% 45% - Roxo/Violeta do degradê
+## System Architecture
 
-**Tema**: Light mode profissional com fundo branco limpo, bordas sutis e gradientes de marca no header.
+### UI/UX Decisions
+The system features a professional light mode theme with a clean white background, subtle borders, and brand gradients in the header. The UI prioritizes simplicity, agility, visual control through color-coded statuses, and intelligent notifications. Key visual elements include:
+- **Client Logo**: Displayed in the sidebar header.
+- **Color Palette**:
+    - NORTE Blue (Primary): 210 70% 25% (main buttons, important elements)
+    - NORTE Cyan (Accent): 188 100% 42% (secondary actions, links)
+    - NORTE Magenta: 330 65% 50% (decorative highlights)
+    - NORTE Purple: 280 55% 45% (alternative accent)
+- **Status Colors**: Green (Completed), Yellow (Created/Requested), Red (Urgent/Late), Blue (Approved/In Process), Orange (In Production).
+- **Dashboard**: Features real-time statistics cards, a complete table with filters and search, and visual status indicators. Includes visual graphs (pie for status, bar for items per event), urgent alerts with countdowns, and expanded statistics (average approval/production time, delivery rate, most produced item).
+- **Calendar**: Monthly grid displaying events with status-based coloring for `startDate` and `truckDepartureDate`, visual alerts for critical deadlines, and a discreet legend.
+- **History**: Vertical timeline with chronological activities, filterable by event, showing icons, badges, detailed descriptions, and relative/exact timestamps.
 
-## Arquitetura
+### Technical Implementations
+- **Frontend**: React, TypeScript, Tailwind CSS, Shadcn UI.
+- **Backend**: Express.js, TypeScript.
+- **Database**: PostgreSQL (Neon).
+- **Real-time Communication**: WebSockets for notifications and live updates.
+- **Data Validation**: Zod schemas (used in both frontend and backend).
+- **ORM**: Drizzle ORM.
+- **State Management/Data Fetching**: React Query for data caching and synchronization.
+- **Timezone Handling**: Database stores UTC timestamps; JavaScript handles conversions between UTC and the browser's local timezone (Brasília - UTC-3).
 
-### Stack Tecnológica
-- **Frontend**: React + TypeScript + Tailwind CSS + Shadcn UI
-- **Backend**: Express.js + TypeScript
-- **Database**: PostgreSQL (Neon)
-- **Real-time**: WebSockets para notificações e atualizações
-- **Validação**: Zod schemas
-- **ORM**: Drizzle ORM
+### Feature Specifications
+- **Modules**:
+    - **General Panel (Dashboard)**: Real-time overview of all items, statistics, and a filterable table.
+    - **Events**: Management of events with visual cards, creation forms, and status indicators.
+    - **Items (Event Detail)**: Addition of graphic items to events, automatic m² calculation, observations per item. Items cannot be modified after creation, only added.
+    - **Art**: Approval module for print files with pending/approved views, bulk approval, and notifications.
+    - **Printing**: Control of material delivery, tracking delivered items, and capturing delivery details (recipient, optional photo).
+    - **Templates**: Creation and management of reusable standard item templates.
+    - **Calendar**: Visual temporal overview of events with critical date alerts.
+    - **History**: Chronological timeline of all system activities with event filtering.
+- **Notifications**: Automated for event creation, item additions, art approval, and deadline alerts (48h, 24h, 12h before truck departure).
+- **Item Statuses**: `requested`, `approved`, `inProduction`, `produced`, `delivered`.
+- **Event Statuses**: `created`, `completed`, `urgent`.
+- **Future Features (Phase 2)**: User access profiles (Admin, Request, Art, Printing), integrated comments and delivery photo galleries for items, visible audit logs, event templates, and manual confirmation for significant changes.
 
-### Estrutura de Pastas
-```
-client/
-  src/
-    components/       # Componentes reutilizáveis
-      ui/            # Componentes Shadcn
-      app-sidebar.tsx
-      notification-bell.tsx
-      status-badge.tsx
-    pages/           # Páginas da aplicação
-      painel-geral.tsx    # Dashboard com status geral
-      eventos.tsx         # Lista de eventos
-      event-detail.tsx    # Detalhes e itens de um evento
-      arte.tsx           # Módulo de aprovação
-      grafica.tsx        # Módulo de produção
-      modelos.tsx        # Templates reutilizáveis
-      calendario.tsx     # Calendário de eventos
-server/
-  routes.ts          # API endpoints
-  storage.ts         # Interface de dados
-  db.ts             # Conexão PostgreSQL
-shared/
-  schema.ts         # Schemas Drizzle e tipos TypeScript
-```
+### System Design Choices
+- **Folder Structure**: Clearly separated client, server, and shared directories.
+- **Component-Based**: Reusable UI components for consistency.
+- **API Endpoints**: RESTful API for managing events, items, standard items, and notifications.
+- **Scalability**: Designed with a robust backend and database to support future growth.
+- **Responsiveness**: Full responsiveness for mobile, tablet, and desktop.
 
-## Módulos Principais
+## External Dependencies
 
-### 1. Painel Geral (Dashboard)
-- **Rota**: `/`
-- **Funcionalidade**: Visualização em tempo real de todos os itens de todos os eventos
-- **Features**:
-  - Cards de estatísticas (Total, Solicitados, Liberados, Em Produção, Finalizados)
-  - Tabela completa com filtros por status e busca
-  - Cores de status para identificação visual rápida
-  - Atualização em tempo real via WebSocket
-
-### 2. Eventos
-- **Rota**: `/eventos`
-- **Funcionalidade**: Gerenciamento de eventos
-- **Features**:
-  - Listagem de eventos em cards visuais
-  - Criação de novos eventos (nome, data início, data saída caminhão)
-  - Status visual por cores:
-    - 🟩 Verde = Finalizado
-    - 🟨 Amarelo = Criado
-    - 🟥 Vermelho = Urgente (<48h)
-  - Detalhamento de eventos com lista de itens
-
-### 3. Itens (Event Detail)
-- **Rota**: `/eventos/:id`
-- **Funcionalidade**: Gerenciamento de itens gráficos por evento
-- **Features**:
-  - Adição de itens com tipo, descrição, quantidade, área, visual, material, acabamento
-  - Campo **descrição** opcional para detalhar melhor cada item
-  - Cálculo automático de m² = quantidade × área × visual
-  - Observações por item
-  - Não pode modificar itens, apenas adicionar (conforme especificação)
-
-### 4. Arte
-- **Rota**: `/arte`
-- **Funcionalidade**: Liberação de arquivos para impressão
-- **Features**:
-  - Duas visualizações: **Pendentes** e **Liberados** (histórico)
-  - Seleção múltipla com checkboxes para aprovação em massa
-  - Confirmação obrigatória antes de liberar (individual ou em massa)
-  - Botão "Liberar Selecionados" quando há itens marcados
-  - Detalhes completos de cada item incluindo descrição personalizada
-  - Botão de liberação individual ou em massa que:
-    - Mostra modal de confirmação com detalhes
-    - Muda status para "approved"
-    - Notifica a Gráfica automaticamente
-    - Torna item visível no módulo de produção
-  - Histórico completo de itens aprovados com filtro por evento
-
-### 5. Gráfica
-- **Rota**: `/grafica`
-- **Funcionalidade**: Controle de entrega de materiais
-- **Features**:
-  - Visualização de itens liberados pela Arte em tabela
-  - Colunas: Evento, Item, Qtd Total, Qtd Produzida, Material, Status
-  - Botão "Marcar Entregue" por item
-  - Modal de entrega com:
-    - Quem recebeu o material (obrigatório)
-    - Foto da entrega (opcional)
-  - Filtros por status
-  - Atualização em tempo real
-
-### 6. Modelos
-- **Rota**: `/modelos`
-- **Funcionalidade**: Templates de itens reutilizáveis
-- **Features**:
-  - Criação de modelos padrão (ex: "2x1", "Rolo de gradil")
-  - Medidas fixas ou variáveis
-  - Materiais e acabamentos disponíveis
-  - Reutilização em eventos futuros
-
-### 7. Calendário
-- **Rota**: `/calendario`
-- **Funcionalidade**: Visualização temporal de eventos
-- **Features**:
-  - Grade mensal com indicadores de eventos (semana começa na segunda-feira, domingo no final)
-  - Cores por status **SEPARADAS** para cada tipo de data:
-    - 📅 **Início do Evento** (startDate): status baseado em quanto tempo falta para o evento começar
-    - 🚚 **Saída do Caminhão** (truckDepartureDate): status baseado em quanto tempo falta para o caminhão sair
-  - Cada data exibe sua própria cor: 🟢 Verde (passou/finalizado) 🔵 Azul (>48h) 🟡 Amarelo (24-48h) 🔴 Vermelho (<24h)
-  - Alertas visuais para saída do caminhão com <48h
-  - Legenda explicativa discreta
-  - Modal com detalhes completos ao clicar no dia
-  - Cards de alerta com contagem regressiva
-
-### 8. Histórico
-- **Rota**: `/historico`
-- **Funcionalidade**: Timeline cronológica de todas as atividades do sistema
-- **Features**:
-  - Linha do tempo visual com todas as ações do sistema
-  - **Filtro por evento** - dropdown para visualizar atividades de um evento específico
-  - Ordenação cronológica reversa (mais recente primeiro)
-  - Tipos de atividades rastreadas:
-    - 📅 Evento Criado
-    - ➕ Item Adicionado
-    - ✓ Item Liberado (Arte)
-    - 📦 Em Produção (Gráfica)
-    - 🚚 Item Entregue
-  - Cada atividade mostra:
-    - Ícone e badge colorido por tipo
-    - Descrição detalhada da ação
-    - Data/hora exata
-    - Tempo relativo ("há 2 horas", "há 3 dias")
-  - Clique para navegar ao evento/item correspondente
-  - Design de timeline vertical com linha conectora
-  - Timestamps específicos por fase (approvedAt, productionStartedAt, deliveredAt)
-
-## Sistema de Status
-
-### Status de Eventos
-- `created` - Evento criado (🟨 Amarelo)
-- `completed` - Evento finalizado (🟩 Verde)
-- `urgent` - Menos de 48h para saída do caminhão (🟥 Vermelho)
-
-### Status de Itens
-- `requested` - Item solicitado, aguardando aprovação (🟨 Amarelo)
-- `approved` - Liberado pela Arte (🔵 Azul)
-- `inProduction` - Em produção na Gráfica (🟧 Laranja)
-- `produced` - Produzido (🟩 Verde)
-- `delivered` - Entregue (🟩 Verde)
-
-## Modelo de Dados
-
-### Events
-```typescript
-{
-  id: varchar (UUID)
-  name: text
-  startDate: timestamp
-  truckDepartureDate: timestamp
-  status: text (created/completed/urgent)
-  createdAt: timestamp
-  updatedAt: timestamp
-}
-```
-
-### Items
-```typescript
-{
-  id: varchar (UUID)
-  eventId: varchar (FK)
-  type: text
-  description: text (nullable)  // Descrição personalizada do item
-  quantity: integer
-  area: decimal
-  visual: decimal
-  material: text
-  finish: text
-  measurement: text
-  calculatedM2: decimal
-  status: text
-  observations: text
-  quantityProduced: integer (nullable)
-  receivedBy: text (nullable)
-  deliveryPhotoUrl: text (nullable)
-  approvedAt: timestamp (nullable)  // Timestamp quando foi liberado pela Arte
-  productionStartedAt: timestamp (nullable)  // Timestamp quando produção iniciou
-  deliveredAt: timestamp (nullable)  // Timestamp quando foi entregue
-  createdAt: timestamp
-  updatedAt: timestamp
-}
-```
-
-### StandardItems
-```typescript
-{
-  id: varchar (UUID)
-  name: text
-  type: text
-  area: decimal (nullable)
-  visual: decimal (nullable)
-  materials: text[] (array)
-  finishes: text[] (array)
-  hasVariableMeasurement: boolean
-  createdAt: timestamp
-}
-```
-
-### Notifications
-```typescript
-{
-  id: varchar (UUID)
-  type: text
-  message: text
-  eventId: varchar (FK, nullable)
-  itemId: varchar (FK, nullable)
-  isRead: boolean
-  createdAt: timestamp
-}
-```
-
-### ProductionUpdates
-```typescript
-{
-  id: varchar (UUID)
-  itemId: varchar (FK)
-  deliveredBy: text
-  photoUrl: text
-  quantityProduced: integer
-  createdAt: timestamp
-}
-```
-
-## API Endpoints
-
-### Events
-- `GET /api/events` - Lista todos os eventos
-- `GET /api/events/:id` - Detalhes de um evento
-- `POST /api/events` - Cria novo evento
-- `PATCH /api/events/:id` - Atualiza evento
-
-### Items
-- `GET /api/items` - Lista todos os itens
-- `GET /api/items/:eventId` - Itens de um evento específico
-- `GET /api/items/pending` - Itens pendentes de aprovação (Arte)
-- `GET /api/items/approved` - Itens aprovados (Gráfica)
-- `POST /api/items` - Cria novo item
-- `POST /api/items/bulk` - Cria múltiplos itens (entrada rápida)
-- `PATCH /api/items/:id/approve` - Aprova item (Arte)
-- `PATCH /api/items/:id/deliver` - Marca item como entregue (Gráfica)
-- `POST /api/items/:id/production` - Atualiza produção (Gráfica)
-
-### Standard Items
-- `GET /api/standard-items` - Lista modelos
-- `POST /api/standard-items` - Cria modelo
-
-### Notifications
-- `GET /api/notifications` - Lista notificações
-- `PATCH /api/notifications/:id/read` - Marca como lida
-
-## Sistema de Notificações
-
-As notificações são criadas automaticamente em:
-1. Criação de evento → Notifica Arte e Gráfica
-2. Adição de novos itens → Notifica Arte e Gráfica
-3. Liberação de arte → Notifica Gráfica
-4. Alertas de prazo (48h, 24h, 12h antes da saída)
-
-## Sistema de Cores (Design Guidelines)
-
-### Cores da Marca NORTE
-- **NORTE Blue** (210 70% 25%): Cor primária - botões principais, elementos importantes
-- **NORTE Cyan** (188 100% 42%): Accent - ações secundárias, links
-- **NORTE Magenta** (330 65% 50%): Destaques especiais (decorativo)
-- **NORTE Purple** (280 55% 45%): Accent alternativo (decorativo)
-
-### Status Colors (Sistema de Workflow)
-- **Verde** (142 76% 36%): Finalizado, Produzido, Entregue
-- **Amarelo** (45 93% 47%): Criado, Solicitado, Aguardando
-- **Vermelho** (0 84% 60%): Urgente, Atraso
-- **Azul** (217 91% 60%): Liberado, Em Processo
-- **Laranja** (25 95% 53%): Em Produção
-
-### Light Mode (Padrão)
-O sistema usa tema light profissional:
-- Background: 0 0% 100% (branco puro)
-- Cards: 0 0% 100% (branco)
-- Border: 220 13% 91% (cinza suave)
-- Text Primary: 220 15% 15% (cinza escuro)
-
-## Funcionalidades Futuras (Fase 2)
-
-1. **Sistema de perfis de acesso** (Tabela já criada, falta autenticação):
-   - Admin: acesso total
-   - Solicitação: cria eventos e itens
-   - Arte: libera arquivos
-   - Gráfica: atualiza produção
-   - Login/Logout com sessão
-
-2. **Integrar Comentários e Fotos nas Páginas**:
-   - Adicionar componentes CommentsSection e DeliveryPhotoGallery nas páginas de eventos
-   - Modal expandido de item com todas as informações + comentários + fotos
-
-3. **Logs de Auditoria Visíveis**:
-   - Exibir "Modificado por X em DD/MM/YYYY HH:MM" em todas as telas
-   - Timeline de alterações por item/evento
-   - Filtro por usuário
-
-4. **Modelos de eventos**: Criar evento baseado em evento anterior
-
-5. **Confirmação manual de alterações**: Notificações com aprovação antes de modificar
-
-## Configuração e Execução
-
-### Desenvolvimento
-```bash
-npm run dev
-```
-
-### Database
-```bash
-npm run db:push  # Sincroniza schema com banco
-```
-
-### Build
-```bash
-npm run build
-```
-
-## Princípios de Design
-
-1. **Simplicidade**: Interface intuitiva como planilha
-2. **Agilidade**: Entrada e atualização rápida de dados
-3. **Controle Visual**: Status imediatamente identificável por cores
-4. **Notificações Inteligentes**: Alertas apenas quando necessário
-5. **Tempo Real**: Atualizações instantâneas via WebSocket
-
-## Melhorias Implementadas
-
-### Funcionalidades Core
-- ✅ Cálculo automático de m²
-- ✅ Badges de status com ícones e cores (sem quebra de linha)
-- ✅ Filtros e busca inteligente
-- ✅ Cards de estatísticas em tempo real
-- ✅ Calendário visual com alertas
-- ✅ Responsividade completa (mobile, tablet, desktop)
-- ✅ Sistema de notificações com contador
-- ✅ Tabelas com zebra striping e hover states
-- ✅ Modais bem formatados para formulários
-- ✅ Design system consistente
-- ✅ Entrada rápida de itens (bulk entry) como modo padrão
-- ✅ Campo de descrição opcional para itens
-- ✅ Gráfica simplificada focada em entrega com campos específicos
-- ✅ Botões dinâmicos (Iniciar/Continuar Produção)
-- ✅ Histórico completo com timeline visual e filtro por evento
-- ✅ Legendas discretas no calendário
-
-### Dashboard Avançado (Novo!)
-- ✅ **Gráficos Visuais**:
-  - Gráfico de pizza: distribuição por status
-  - Gráfico de barras: itens por evento (total vs entregues)
-- ✅ **Alertas de Prazo**:
-  - Cards destacados para eventos urgentes (<48h até saída do caminhão)
-  - Contador regressivo em tempo real (horas e minutos)
-  - Código de cores: 🔴 Vermelho (<24h) | 🟠 Laranja (24-48h)
-- ✅ **Estatísticas Expandidas**:
-  - Tempo médio de aprovação (Solicitação → Arte)
-  - Tempo médio de produção (Arte → Entrega)
-  - Taxa de entrega (% de eventos finalizados)
-  - Item mais produzido com contagem
-- ✅ **Exportação de Relatórios**:
-  - Botão "Exportar CSV" com todos os dados filtrados
-  - Inclui todos os campos: evento, item, quantidades, medidas, status
-
-### Sistema de Colaboração (Backend Pronto)
-- ✅ **Sistema de Comentários**:
-  - Comentários por item com timestamp
-  - Nome do usuário (mock - sem autenticação por enquanto)
-  - Notificações em tempo real via WebSocket
-  - Componente reutilizável CommentsSection
-- ✅ **Galeria de Fotos de Entrega**:
-  - Múltiplas fotos por item
-  - Upload via base64 (aceita arquivos de imagem)
-  - Modal com zoom para visualização
-  - Identificação de quem enviou cada foto
-  - Componente reutilizável DeliveryPhotoGallery
-
-### Arquitetura do Banco de Dados Expandida
-- ✅ Tabela `users`: preparação para autenticação futura
-- ✅ Tabela `comments`: sistema de comentários
-- ✅ Tabela `deliveryPhotos`: galeria de fotos de entrega
-- ✅ Tabela `auditLogs`: preparação para logs de auditoria
-- ✅ Relações e schemas Zod completos
-
-## Observações Técnicas
-
-- Usa React Query para cache e sincronização de dados
-- Validação com Zod em frontend e backend
-- TypeScript strict mode para type safety
-- Shadcn UI para componentes consistentes
-- Tailwind CSS para estilização responsiva
-- WebSocket path customizado (`/ws`) para evitar conflito com Vite HMR
-
-### Timezone e Horários (Brasília - UTC-3)
-- **Banco de Dados**: PostgreSQL armazena timestamps em UTC
-- **Entrada de dados**: Input `datetime-local` captura hora local do navegador (Brasília)
-- **Conversão automática**: JavaScript converte automaticamente entre UTC (banco) e timezone local (navegador)
-- **Cálculo de prazos**: Sempre usa `new Date()` que considera o timezone local do navegador
-- **Sistema de alertas**: 
-  - Verde: Evento finalizado ou já passou
-  - Azul: Mais de 48h até saída do caminhão
-  - Amarelo: Entre 24h e 48h até saída
-  - Vermelho: Menos de 24h - CRÍTICO!
+- **Database**: PostgreSQL (managed by Neon).
+- **Frontend Libraries**: React, Tailwind CSS, Shadcn UI.
+- **Backend Framework**: Express.js.
+- **Data ORM**: Drizzle ORM.
+- **Validation Library**: Zod.
+- **Real-time Communication**: WebSockets.

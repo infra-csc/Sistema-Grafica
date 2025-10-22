@@ -417,13 +417,28 @@ export default function Eventos() {
                     </div>
                   </CardHeader>
                   <CardFooter className="border-t pt-2 pb-3 flex-row gap-2">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Package className="h-3.5 w-3.5" />
-                      <span className="font-medium">
-                        {itemCount} {itemCount === 1 ? 'item' : 'itens'}
-                      </span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <Package className="h-3.5 w-3.5" />
+                        <span className="font-medium">
+                          {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+                        </span>
+                      </div>
+                      {itemCount > 0 && (
+                        <>
+                          <div className="h-3 w-px bg-border" />
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-status-completed">
+                              {event.items?.filter((item: any) => item.status === 'delivered').length || 0} entregues
+                            </span>
+                            <span className="text-muted-foreground">
+                              ({Math.round(((event.items?.filter((item: any) => item.status === 'delivered').length || 0) / itemCount) * 100)}%)
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1 ml-auto">
+                    <div className="flex items-center gap-1">
                       {hasPermission("admin") && (
                         <>
                           <Button 

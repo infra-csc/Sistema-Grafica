@@ -364,8 +364,16 @@ export default function Arte() {
                             </td>
                           )}
                           <td className="py-3 px-4 min-w-[180px] max-w-[240px]">
-                            <div className="font-medium text-sm" style={{ wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
-                              {item.event?.name.replace(/\s*-\s*(\d{4})/, '\u00A0-\u00A0$1') || 'N/A'}
+                            <div className="font-medium text-sm break-words">
+                              {item.event?.name ? (
+                                <>
+                                  {item.event.name.split(/(\s*-\s*\d{4})/).map((part, i) => 
+                                    part.match(/\s*-\s*\d{4}/) ? (
+                                      <span key={i} className="whitespace-nowrap">{part}</span>
+                                    ) : part
+                                  )}
+                                </>
+                              ) : 'N/A'}
                             </div>
                             <div className="text-xs text-muted-foreground whitespace-nowrap">
                               Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}

@@ -287,10 +287,7 @@ export default function Eventos() {
               <Link key={event.id} href={`/eventos/${event.id}`}>
                 <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-event-${event.id}`}>
                   <CardHeader>
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-base">{event.name}</CardTitle>
-                      <StatusBadge status={event.status} />
-                    </div>
+                    <CardTitle className="text-base">{event.name}</CardTitle>
                     <CardDescription className="flex flex-col gap-1 mt-2">
                       <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-3.5 w-3.5" />

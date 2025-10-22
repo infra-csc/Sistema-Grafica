@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Clock, FileCheck, CheckCircle, Package, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -632,50 +632,69 @@ export default function EventDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item, index) => (
-                    <tr
-                      key={item.id}
-                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
-                      data-testid={`row-item-${item.id}`}
-                    >
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-sm">{item.type}</div>
-                        {item.observations && (
-                          <div className="text-xs text-muted-foreground">{item.observations}</div>
+                  {items.map((item, index) => {
+                    const prevItem = index > 0 ? items[index - 1] : null;
+                    const showTypeHeader = !prevItem || prevItem.type !== item.type;
+                    
+                    return (
+                      <Fragment key={item.id}>
+                        {showTypeHeader && (
+                          <tr key={`group-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
+                            <td colSpan={hasPermission("admin") ? 8 : 7} className="py-2 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-5 w-1 bg-primary rounded-full"></div>
+                                <div className="text-sm font-bold text-foreground">
+                                  {item.type}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
-                      <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
-                      <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
-                      <td className="py-3 px-4 text-sm">{item.material}</td>
-                      <td className="py-3 px-4 text-sm">{item.finish}</td>
-                      <td className="py-3 px-4">
-                        <StatusBadge status={item.status} />
-                      </td>
-                      {hasPermission("admin") && (
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleEditItem(item)}
-                              data-testid={`button-edit-item-${item.id}`}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => handleDeleteItem(item.id)}
-                              data-testid={`button-delete-item-${item.id}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </Button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
+                        <tr
+                          key={item.id}
+                          className="border-b border-border hover-elevate"
+                          data-testid={`row-item-${item.id}`}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-sm">{item.type}</div>
+                            {item.observations && (
+                              <div className="text-xs text-muted-foreground">{item.observations}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
+                          <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
+                          <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
+                          <td className="py-3 px-4 text-sm">{item.material}</td>
+                          <td className="py-3 px-4 text-sm">{item.finish}</td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={item.status} />
+                          </td>
+                          {hasPermission("admin") && (
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleEditItem(item)}
+                                  data-testid={`button-edit-item-${item.id}`}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  data-testid={`button-delete-item-${item.id}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

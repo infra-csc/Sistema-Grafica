@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertCircle, Package, CheckCircle, Truck } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -274,71 +274,98 @@ export default function Grafica() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map((item, index) => (
-                    <tr
-                      key={item.id}
-                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
-                      data-testid={`row-item-${item.id}`}
-                    >
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm font-medium">{item.type}</div>
-                      </td>
-                      <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm font-semibold tabular-nums text-status-production">
-                          {item.quantityProduced || '-'}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        <div>{item.material}</div>
-                        <div className="text-xs text-muted-foreground">{item.finish}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <StatusBadge status={item.status} />
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex gap-2">
-                          {item.status !== 'produced' && item.status !== 'delivered' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setModalType("production");
-                                setProductionData({ quantityProduced: item.quantity });
-                              }}
-                              data-testid={`button-production-${item.id}`}
-                            >
-                              <Package className="h-4 w-4 mr-1" />
-                              {item.quantityProduced && item.quantityProduced > 0 
-                                ? "Continuar Produção" 
-                                : "Iniciar Produção"}
-                            </Button>
-                          )}
-                          {item.status !== 'delivered' && (
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setModalType("delivery");
-                                setDeliveryData({ photoUrl: "", receivedBy: "" });
-                              }}
-                              data-testid={`button-deliver-${item.id}`}
-                            >
-                              <Truck className="h-4 w-4 mr-1" />
-                              Marcar Entregue
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredItems.map((item, index) => {
+                    const prevItem = index > 0 ? filteredItems[index - 1] : null;
+                    const showEventHeader = !prevItem || prevItem.event?.name !== item.event?.name;
+                    const showTypeHeader = !prevItem || prevItem.event?.name !== item.event?.name || prevItem.type !== item.type;
+                    
+                    return (
+                      <Fragment key={item.id}>
+                        {showTypeHeader && (
+                          <tr key={`group-${item.eventId}-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
+                            <td colSpan={7} className="py-2 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-5 w-1 bg-primary rounded-full"></div>
+                                <div>
+                                  {showEventHeader && (
+                                    <div className="text-xs font-semibold text-primary uppercase tracking-wider">
+                                      {item.event?.name || 'Sem Evento'}
+                                    </div>
+                                  )}
+                                  <div className="text-sm font-bold text-foreground">
+                                    {item.type}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        <tr
+                          key={item.id}
+                          className="border-b border-border hover-elevate"
+                          data-testid={`row-item-${item.id}`}
+                        >
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm font-medium">{item.type}</div>
+                          </td>
+                          <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm font-semibold tabular-nums text-status-production">
+                              {item.quantityProduced || '-'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm">
+                            <div>{item.material}</div>
+                            <div className="text-xs text-muted-foreground">{item.finish}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={item.status} />
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex gap-2">
+                              {item.status !== 'produced' && item.status !== 'delivered' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedItem(item);
+                                    setModalType("production");
+                                    setProductionData({ quantityProduced: item.quantity });
+                                  }}
+                                  data-testid={`button-production-${item.id}`}
+                                >
+                                  <Package className="h-4 w-4 mr-1" />
+                                  {item.quantityProduced && item.quantityProduced > 0 
+                                    ? "Continuar Produção" 
+                                    : "Iniciar Produção"}
+                                </Button>
+                              )}
+                              {item.status !== 'delivered' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedItem(item);
+                                    setModalType("delivery");
+                                    setDeliveryData({ photoUrl: "", receivedBy: "" });
+                                  }}
+                                  data-testid={`button-deliver-${item.id}`}
+                                >
+                                  <Truck className="h-4 w-4 mr-1" />
+                                  Marcar Entregue
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

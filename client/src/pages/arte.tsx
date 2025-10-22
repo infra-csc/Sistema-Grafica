@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 export default function Arte() {
   const { toast } = useToast();
@@ -294,71 +294,98 @@ export default function Arte() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map((item, index) => (
-                    <tr
-                      key={item.id}
-                      className={`border-b border-border hover-elevate ${index % 2 === 0 ? 'bg-muted/30' : ''}`}
-                      data-testid={`row-pending-item-${item.id}`}
-                    >
-                      {viewMode === "pending" && (
-                        <td className="py-3 px-4">
-                          <Checkbox
-                            checked={selectedItems.includes(item.id)}
-                            onCheckedChange={() => toggleItemSelection(item.id)}
-                            data-testid={`checkbox-item-${item.id}`}
-                          />
-                        </td>
-                      )}
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm font-medium">{item.type}</div>
-                        {item.observations && (
-                          <div className="text-xs text-muted-foreground">{item.observations}</div>
+                  {filteredItems.map((item, index) => {
+                    const prevItem = index > 0 ? filteredItems[index - 1] : null;
+                    const showEventHeader = !prevItem || prevItem.event?.name !== item.event?.name;
+                    const showTypeHeader = !prevItem || prevItem.event?.name !== item.event?.name || prevItem.type !== item.type;
+                    
+                    return (
+                      <Fragment key={item.id}>
+                        {showTypeHeader && (
+                          <tr key={`group-${item.eventId}-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
+                            <td colSpan={viewMode === "pending" ? 8 : 9} className="py-2 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-5 w-1 bg-primary rounded-full"></div>
+                                <div>
+                                  {showEventHeader && (
+                                    <div className="text-xs font-semibold text-primary uppercase tracking-wider">
+                                      {item.event?.name || 'Sem Evento'}
+                                    </div>
+                                  )}
+                                  <div className="text-sm font-bold text-foreground">
+                                    {item.type}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
-                      <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
-                      <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
-                      <td className="py-3 px-4 text-sm">
-                        <div>{item.material}</div>
-                        <div className="text-xs text-muted-foreground">{item.finish}</div>
-                      </td>
-                      {viewMode === "approved" && (
-                        <td className="py-3 px-4">
-                          <StatusBadge status={item.status} />
-                        </td>
-                      )}
-                      <td className="py-3 px-4">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedItem(item)}
-                            data-testid={`button-view-${item.id}`}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Ver
-                          </Button>
+                        <tr
+                          key={item.id}
+                          className="border-b border-border hover-elevate"
+                          data-testid={`row-pending-item-${item.id}`}
+                        >
                           {viewMode === "pending" && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleSingleApprove(item)}
-                              disabled={approveItemMutation.isPending}
-                              data-testid={`button-approve-${item.id}`}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Liberar
-                            </Button>
+                            <td className="py-3 px-4">
+                              <Checkbox
+                                checked={selectedItems.includes(item.id)}
+                                onCheckedChange={() => toggleItemSelection(item.id)}
+                                data-testid={`checkbox-item-${item.id}`}
+                              />
+                            </td>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm font-medium">{item.type}</div>
+                            {item.observations && (
+                              <div className="text-xs text-muted-foreground">{item.observations}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
+                          <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
+                          <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
+                          <td className="py-3 px-4 text-sm">
+                            <div>{item.material}</div>
+                            <div className="text-xs text-muted-foreground">{item.finish}</div>
+                          </td>
+                          {viewMode === "approved" && (
+                            <td className="py-3 px-4">
+                              <StatusBadge status={item.status} />
+                            </td>
+                          )}
+                          <td className="py-3 px-4">
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedItem(item)}
+                                data-testid={`button-view-${item.id}`}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Ver
+                              </Button>
+                              {viewMode === "pending" && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSingleApprove(item)}
+                                  disabled={approveItemMutation.isPending}
+                                  data-testid={`button-approve-${item.id}`}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Liberar
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

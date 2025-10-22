@@ -35,15 +35,26 @@ export default function PainelGeral() {
     auditLogMap.set(key, log);
   });
 
-  const filteredItems = items.filter((item) => {
-    const matchesSearch = item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-    const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
-    const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
-    return matchesSearch && matchesStatus && matchesEvent && matchesMaterial && matchesFinish;
-  });
+  const filteredItems = items
+    .filter((item) => {
+      const matchesSearch = item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+      const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+      const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
+      const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
+      return matchesSearch && matchesStatus && matchesEvent && matchesMaterial && matchesFinish;
+    })
+    .sort((a, b) => {
+      // Primeiro ordenar por evento
+      const eventA = a.event?.name || '';
+      const eventB = b.event?.name || '';
+      if (eventA !== eventB) {
+        return eventA.localeCompare(eventB);
+      }
+      // Depois ordenar por tipo
+      return a.type.localeCompare(b.type);
+    });
 
   const stats = {
     total: items.length,

@@ -91,11 +91,22 @@ export default function Grafica() {
     },
   });
 
-  const filteredItems = items.filter(item => {
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-    return matchesStatus && matchesEvent;
-  });
+  const filteredItems = items
+    .filter(item => {
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+      const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+      return matchesStatus && matchesEvent;
+    })
+    .sort((a, b) => {
+      // Primeiro ordenar por evento
+      const eventA = a.event?.name || '';
+      const eventB = b.event?.name || '';
+      if (eventA !== eventB) {
+        return eventA.localeCompare(eventB);
+      }
+      // Depois ordenar por tipo
+      return a.type.localeCompare(b.type);
+    });
 
   const stats = {
     total: items.length,

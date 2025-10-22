@@ -66,10 +66,13 @@ export default function EventDetail() {
     enabled: !!eventId,
   });
 
-  const { data: items = [], isLoading: loadingItems } = useQuery<any[]>({
+  const { data: rawItems = [], isLoading: loadingItems } = useQuery<any[]>({
     queryKey: ["/api/items", eventId],
     enabled: !!eventId,
   });
+
+  // Ordenar itens por tipo
+  const items = [...rawItems].sort((a, b) => a.type.localeCompare(b.type));
 
   const { data: auditLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/audit-logs"],

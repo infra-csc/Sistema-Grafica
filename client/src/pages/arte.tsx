@@ -92,13 +92,24 @@ export default function Arte() {
     },
   });
 
-  const filteredItems = allItems.filter(item => {
-    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-    const matchesView = viewMode === "pending" 
-      ? item.status === 'requested'
-      : item.status === 'approved' || item.status === 'inProduction' || item.status === 'produced' || item.status === 'delivered';
-    return matchesEvent && matchesView;
-  });
+  const filteredItems = allItems
+    .filter(item => {
+      const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+      const matchesView = viewMode === "pending" 
+        ? item.status === 'requested'
+        : item.status === 'approved' || item.status === 'inProduction' || item.status === 'produced' || item.status === 'delivered';
+      return matchesEvent && matchesView;
+    })
+    .sort((a, b) => {
+      // Primeiro ordenar por evento
+      const eventA = a.event?.name || '';
+      const eventB = b.event?.name || '';
+      if (eventA !== eventB) {
+        return eventA.localeCompare(eventB);
+      }
+      // Depois ordenar por tipo
+      return a.type.localeCompare(b.type);
+    });
 
   const pendingCount = allItems.filter(item => item.status === 'requested').length;
   const approvedCount = allItems.filter(item => item.status !== 'requested').length;

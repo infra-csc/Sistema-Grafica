@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -35,6 +35,10 @@ export default function Arte() {
   const [viewMode, setViewMode] = useState<"pending" | "approved">("pending");
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [confirmApprovalItem, setConfirmApprovalItem] = useState<any>(null);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [materialFilter, setMaterialFilter] = useState<string>("all");
+  const [finishFilter, setFinishFilter] = useState<string>("all");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -92,13 +96,21 @@ export default function Arte() {
     },
   });
 
+  // Obter tipos, materiais e acabamentos únicos
+  const uniqueTypes = Array.from(new Set(allItems.map(item => item.type))).sort();
+  const uniqueMaterials = Array.from(new Set(allItems.map(item => item.material).filter(Boolean))).sort();
+  const uniqueFinishes = Array.from(new Set(allItems.map(item => item.finish).filter(Boolean))).sort();
+
   const filteredItems = allItems
     .filter(item => {
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
       const matchesView = viewMode === "pending" 
         ? item.status === 'requested'
         : item.status === 'approved' || item.status === 'inProduction' || item.status === 'produced' || item.status === 'delivered';
-      return matchesEvent && matchesView;
+      const matchesType = typeFilter === "all" || item.type === typeFilter;
+      const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
+      const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
+      return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish;
     })
     .sort((a, b) => {
       // Primeiro ordenar por evento
@@ -210,7 +222,7 @@ export default function Arte() {
               </Select>
             </div>
             
-            <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2 items-start sm:items-center">
               <div className="flex gap-2">
                 <Button
                   variant={viewMode === "pending" ? "default" : "outline"}
@@ -231,6 +243,17 @@ export default function Arte() {
                   Liberados ({approvedCount})
                 </Button>
               </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={showAdvancedFilters ? "bg-muted" : ""}
+                data-testid="button-toggle-advanced-filters"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filtros Avançados
+              </Button>
               
               {viewMode === "pending" && selectedItems.length > 0 && (
                 <Button
@@ -244,6 +267,70 @@ export default function Arte() {
                 </Button>
               )}
             </div>
+
+            {showAdvancedFilters && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t">
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-full" data-testid="select-type-filter">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    {uniqueTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={materialFilter} onValueChange={setMaterialFilter}>
+                  <SelectTrigger className="w-full" data-testid="select-material-filter">
+                    <SelectValue placeholder="Material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os materiais</SelectItem>
+                    {uniqueMaterials.map((material) => (
+                      <SelectItem key={material} value={material}>
+                        {material}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={finishFilter} onValueChange={setFinishFilter}>
+                  <SelectTrigger className="w-full" data-testid="select-finish-filter">
+                    <SelectValue placeholder="Acabamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os acabamentos</SelectItem>
+                    {uniqueFinishes.map((finish) => (
+                      <SelectItem key={finish} value={finish}>
+                        {finish}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {(typeFilter !== "all" || materialFilter !== "all" || finishFilter !== "all") && (
+                  <div className="sm:col-span-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTypeFilter("all");
+                        setMaterialFilter("all");
+                        setFinishFilter("all");
+                      }}
+                      className="text-xs"
+                      data-testid="button-reset-advanced-filters"
+                    >
+                      Limpar filtros avançados
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>

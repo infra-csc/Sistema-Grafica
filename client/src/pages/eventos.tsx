@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import {
@@ -285,50 +285,83 @@ export default function Eventos() {
             
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
-                <Card className="hover-elevate cursor-pointer transition-all" data-testid={`card-event-${event.id}`}>
-                  <CardHeader>
-                    <CardTitle className="text-base">{event.name}</CardTitle>
-                    <CardDescription className="flex flex-col gap-1 mt-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>Início: {new Date(event.startDate).toLocaleDateString('pt-BR')}</span>
+                <Card className="hover-elevate cursor-pointer transition-all border-l-4 border-l-primary" data-testid={`card-event-${event.id}`}>
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-bold text-primary mb-3">{event.name}</CardTitle>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+                        <Calendar className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Início do Evento</span>
+                          <span className="text-sm font-semibold text-foreground">
+                            {new Date(event.startDate).toLocaleDateString('pt-BR', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(event.startDate).toLocaleTimeString('pt-BR', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Truck className="h-3.5 w-3.5" />
-                        <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR')}</span>
+                      <div className="flex items-start gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                        <Truck className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-xs font-medium text-primary uppercase tracking-wide">Saída do Caminhão</span>
+                          <span className="text-sm font-bold text-foreground">
+                            {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </span>
+                        </div>
                       </div>
-                    </CardDescription>
+                    </div>
                   </CardHeader>
-                  <CardFooter className="border-t pt-4">
-                    <div className="flex items-center justify-between w-full gap-2">
-                      <span className="text-sm text-muted-foreground">
+                  <CardFooter className="border-t pt-4 flex-col sm:flex-row gap-3">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Package className="h-4 w-4" />
+                      <span className="font-medium">
                         {itemCount} {itemCount === 1 ? 'item' : 'itens'}
                       </span>
-                      <div className="flex items-center gap-2">
-                        {hasPermission("admin") && (
-                          <>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={(e) => handleEdit(event, e)}
-                              data-testid={`button-edit-event-${event.id}`}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={(e) => handleDelete(event.id, e)}
-                              data-testid={`button-delete-event-${event.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </>
-                        )}
-                        <Button variant="ghost" size="sm">
-                          Ver detalhes
-                        </Button>
-                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                      {hasPermission("admin") && (
+                        <>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={(e) => handleEdit(event, e)}
+                            data-testid={`button-edit-event-${event.id}`}
+                            className="hover:bg-primary/10"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={(e) => handleDelete(event.id, e)}
+                            data-testid={`button-delete-event-${event.id}`}
+                            className="hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
+                      <Button variant="default" size="sm">
+                        Ver detalhes
+                      </Button>
                     </div>
                   </CardFooter>
                 </Card>

@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Clock, FileCheck, CheckCircle, Package } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Clock, FileCheck, CheckCircle, Package, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -13,6 +13,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,16 +34,20 @@ import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 const itemTypes = ["2x1", "Rolo", "Palco", "Banner", "Faixa", "Adesivo", "Backdrop"];
 const materials = ["Lona", "Tecido", "Adesivo", "Vinílico", "Banner"];
 const finishes = ["Ilhós", "Soldado", "Bastão", "Sem acabamento"];
 
 export default function EventDetail() {
+  const { hasPermission } = useAuth();
   const [, params] = useRoute("/eventos/:id");
   const eventId = params?.id;
   const [open, setOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(true);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -123,9 +137,100 @@ export default function EventDetail() {
     },
   });
 
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const area = parseFloat(data.area);
+      const visual = parseFloat(data.visual);
+      const calculatedM2 = (data.quantity * area * visual).toFixed(2);
+      
+      return await apiRequest("PATCH", `/api/items/${id}`, {
+        ...data,
+        calculatedM2,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      setEditingItem(null);
+      setOpen(false);
+      setBulkMode(false);
+      toast({
+        title: "Item atualizado",
+        description: "O item foi atualizado com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar item",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/items/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      setDeletingItemId(null);
+      toast({
+        title: "Item excluído",
+        description: "O item foi excluído com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao excluir item",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createItemMutation.mutate(formData);
+    if (editingItem) {
+      updateItemMutation.mutate({ id: editingItem.id, data: formData });
+    } else {
+      createItemMutation.mutate(formData);
+    }
+  };
+
+  const handleEditItem = (item: any) => {
+    setEditingItem(item);
+    setBulkMode(false);
+    setFormData({
+      type: item.type || "",
+      quantity: item.quantity || 1,
+      area: item.area || "",
+      visual: item.visual || "",
+      material: item.material || "",
+      finish: item.finish || "",
+      measurement: item.measurement || "",
+      observations: item.observations || "",
+    });
+    setOpen(true);
+  };
+
+  const handleDeleteItem = (id: string) => {
+    setDeletingItemId(id);
+  };
+
+  const handleCloseDialog = () => {
+    setOpen(false);
+    setEditingItem(null);
+    setBulkMode(true);
+    setFormData({
+      type: "",
+      quantity: 1,
+      area: "",
+      visual: "",
+      material: "",
+      finish: "",
+      measurement: "",
+      observations: "",
+    });
   };
 
   if (loadingEvent || loadingItems) {
@@ -256,8 +361,8 @@ export default function EventDetail() {
           </div>
           <div className="flex gap-2">
             <Dialog open={open} onOpenChange={(isOpen) => {
-              setOpen(isOpen);
-              if (!isOpen) setBulkMode(false);
+              if (isOpen) setOpen(true);
+              else handleCloseDialog();
             }}>
               <DialogTrigger asChild>
                 <Button data-testid="button-add-item">
@@ -265,13 +370,21 @@ export default function EventDetail() {
                   Adicionar Item
                 </Button>
               </DialogTrigger>
-              <DialogContent className={bulkMode ? "max-w-[95vw] max-h-[90vh] overflow-y-auto" : "sm:max-w-lg max-h-[90vh] overflow-y-auto"}>
+              <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh] overflow-y-auto" : "sm:max-w-lg max-h-[90vh] overflow-y-auto"}>
                 <DialogHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <DialogTitle>{bulkMode ? "Entrada Rápida - Múltiplos Itens" : "Adicionar Item ao Evento"}</DialogTitle>
+                      <DialogTitle>
+                        {editingItem 
+                          ? "Editar Item" 
+                          : (bulkMode ? "Entrada Rápida - Múltiplos Itens" : "Adicionar Item ao Evento")
+                        }
+                      </DialogTitle>
                       <DialogDescription>
-                        {bulkMode ? "Adicione vários itens de uma vez usando a tabela" : "Preencha as informações do item gráfico"}
+                        {editingItem
+                          ? "Atualize as informações do item"
+                          : (bulkMode ? "Adicione vários itens de uma vez usando a tabela" : "Preencha as informações do item gráfico")
+                        }
                       </DialogDescription>
                     </div>
                     <Button
@@ -405,11 +518,18 @@ export default function EventDetail() {
                   </div>
                 )}
                 <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  <Button type="button" variant="outline" onClick={handleCloseDialog}>
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={createItemMutation.isPending} data-testid="button-submit-item">
-                    {createItemMutation.isPending ? "Adicionando..." : "Adicionar Item"}
+                  <Button 
+                    type="submit" 
+                    disabled={createItemMutation.isPending || updateItemMutation.isPending} 
+                    data-testid="button-submit-item"
+                  >
+                    {editingItem
+                      ? (updateItemMutation.isPending ? "Salvando..." : "Salvar Alterações")
+                      : (createItemMutation.isPending ? "Adicionando..." : "Adicionar Item")
+                    }
                   </Button>
                 </div>
               </form>
@@ -503,6 +623,9 @@ export default function EventDetail() {
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     <th className="text-left py-3 px-4 font-medium">Acabamento</th>
                     <th className="text-left py-3 px-4 font-medium">Status</th>
+                    {hasPermission("admin") && (
+                      <th className="text-left py-3 px-4 font-medium">Ações</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -526,6 +649,28 @@ export default function EventDetail() {
                       <td className="py-3 px-4">
                         <StatusBadge status={item.status} />
                       </td>
+                      {hasPermission("admin") && (
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleEditItem(item)}
+                              data-testid={`button-edit-item-${item.id}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleDeleteItem(item.id)}
+                              data-testid={`button-delete-item-${item.id}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -534,6 +679,27 @@ export default function EventDetail() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deletingItemId} onOpenChange={() => setDeletingItemId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingItemId && deleteItemMutation.mutate(deletingItemId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-item"
+            >
+              {deleteItemMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

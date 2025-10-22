@@ -135,6 +135,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Event not found" });
       }
       
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'event',
+        event.id,
+        `Evento "${event.name}" atualizado`
+      );
+      
       broadcast({ type: "event_updated", event });
       
       res.json(event);
@@ -146,6 +155,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete event
   app.delete("/api/events/:id", async (req, res) => {
     try {
+      const event = await storage.getEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+      
       // Delete all items associated with this event first
       const items = await storage.getItemsByEvent(req.params.id);
       for (const item of items) {
@@ -157,6 +171,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!success) {
         return res.status(404).json({ error: "Event not found" });
       }
+      
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'deleted',
+        'event',
+        req.params.id,
+        `Evento "${event.name}" excluído`
+      );
       
       broadcast({ type: "event_deleted", eventId: req.params.id });
       
@@ -317,6 +340,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(createdItems);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update item
+  app.patch("/api/items/:id", async (req, res) => {
+    try {
+      const item = await storage.updateItem(req.params.id, req.body);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'item',
+        item.id,
+        `Item "${item.type}" atualizado`
+      );
+      
+      broadcast({ type: "item_updated", item });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete item
+  app.delete("/api/items/:id", async (req, res) => {
+    try {
+      const item = await storage.getItem(req.params.id);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const success = await storage.deleteItem(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'deleted',
+        'item',
+        req.params.id,
+        `Item "${item.type}" excluído`
+      );
+      
+      broadcast({ type: "item_deleted", itemId: req.params.id, eventId: item.eventId });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

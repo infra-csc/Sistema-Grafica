@@ -108,6 +108,7 @@ Timeline de atividades com filtro por evento
 - ✅ **4 Perfis**: Admin, Solicitação, Arte, Gráfica
 - ✅ **Permissões**: Função `hasPermission()` para controle de acesso
 - ✅ **Audit Logs**: Registro automático de todas ações com nome e horário
+- ✅ **Editar/Deletar (Admin)**: Botões exclusivos para Admin gerenciar eventos e itens
 - 🔜 **Autenticação Real**: Backend com login/senha (Fase 2)
 - 🔜 **Enforcement**: Ocultar módulos baseado em permissões (Fase 2)
 
@@ -141,6 +142,26 @@ Timeline de atividades com filtro por evento
   - "Aprovado por [Nome]" visível em itens aprovados
   - "Entregue por [Nome]" visível em itens entregues
   - Informação discreta mas sempre visível no Painel Geral
+
+### ✅ Edição e Exclusão (Admin)
+- **Rotas Backend**:
+  - PATCH /api/events/:id - Atualizar evento
+  - DELETE /api/events/:id - Deletar evento (e todos itens associados)
+  - PATCH /api/items/:id - Atualizar item
+  - DELETE /api/items/:id - Deletar item
+  - Todas com audit logs automáticos
+- **Frontend - Eventos** (/eventos):
+  - Botões editar/deletar em cada card (apenas Admin)
+  - Dialog reutilizado para criar/editar
+  - AlertDialog de confirmação antes de excluir
+  - Avisos sobre exclusão de itens associados
+- **Frontend - Itens** (detalhes do evento):
+  - Coluna "Ações" na tabela (apenas Admin)
+  - Botões editar/deletar por item
+  - Dialog reutilizado para criar/editar
+  - AlertDialog de confirmação antes de excluir
+- **Segurança**: Verificação hasPermission("admin") em todos os botões
+- **Feedback**: Toasts informativos e loading states em todas operações
 
 ### Backend Pronto (Componentes Criados)
 - ✅ **Sistema de Comentários**: Backend + componente CommentsSection

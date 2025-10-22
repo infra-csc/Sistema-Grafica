@@ -12,6 +12,7 @@ export default function PainelGeral() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -35,15 +36,19 @@ export default function PainelGeral() {
     auditLogMap.set(key, log);
   });
 
+  // Obter tipos únicos para o filtro
+  const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
+
   const filteredItems = items
     .filter((item) => {
       const matchesSearch = item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+      const matchesType = typeFilter === "all" || item.type === typeFilter;
       const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
       const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
-      return matchesSearch && matchesStatus && matchesEvent && matchesMaterial && matchesFinish;
+      return matchesSearch && matchesStatus && matchesEvent && matchesType && matchesMaterial && matchesFinish;
     })
     .sort((a, b) => {
       // Primeiro ordenar por evento
@@ -204,9 +209,22 @@ export default function PainelGeral() {
             
             {showAdvancedFilters && (
               <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px]" data-testid="select-type-filter">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    {uniqueTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Select value={materialFilter} onValueChange={setMaterialFilter}>
-                  <SelectTrigger className="w-full sm:w-48" data-testid="select-material-filter">
-                    <SelectValue placeholder="Filtrar por material" />
+                  <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px]" data-testid="select-material-filter">
+                    <SelectValue placeholder="Material" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os materiais</SelectItem>
@@ -218,11 +236,11 @@ export default function PainelGeral() {
                   </SelectContent>
                 </Select>
                 <Select value={finishFilter} onValueChange={setFinishFilter}>
-                  <SelectTrigger className="w-full sm:w-48" data-testid="select-finish-filter">
-                    <SelectValue placeholder="Filtrar por acabamento" />
+                  <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px]" data-testid="select-finish-filter">
+                    <SelectValue placeholder="Acabamento" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os acabamentos</SelectItem>
+                    <SelectItem value="all">Todos acabamentos</SelectItem>
                     <SelectItem value="Ilhós">Ilhós</SelectItem>
                     <SelectItem value="Soldado">Soldado</SelectItem>
                     <SelectItem value="Bastão">Bastão</SelectItem>
@@ -233,6 +251,7 @@ export default function PainelGeral() {
                   variant="ghost" 
                   size="sm"
                   onClick={() => {
+                    setTypeFilter("all");
                     setMaterialFilter("all");
                     setFinishFilter("all");
                   }}

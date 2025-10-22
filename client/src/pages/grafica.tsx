@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Filter } from "lucide-react";
 import { Fragment, useState } from "react";
 import {
   Dialog,
@@ -23,6 +23,10 @@ export default function Grafica() {
   const [modalType, setModalType] = useState<"production" | "delivery" | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [materialFilter, setMaterialFilter] = useState<string>("all");
+  const [finishFilter, setFinishFilter] = useState<string>("all");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [productionData, setProductionData] = useState({
     quantityProduced: 0,
   });
@@ -91,11 +95,19 @@ export default function Grafica() {
     },
   });
 
+  // Obter tipos, materiais e acabamentos únicos
+  const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
+  const uniqueMaterials = Array.from(new Set(items.map(item => item.material).filter(Boolean))).sort();
+  const uniqueFinishes = Array.from(new Set(items.map(item => item.finish).filter(Boolean))).sort();
+
   const filteredItems = items
     .filter(item => {
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-      return matchesStatus && matchesEvent;
+      const matchesType = typeFilter === "all" || item.type === typeFilter;
+      const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
+      const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
+      return matchesStatus && matchesEvent && matchesType && matchesMaterial && matchesFinish;
     })
     .sort((a, b) => {
       // Primeiro ordenar por evento
@@ -213,35 +225,114 @@ export default function Grafica() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle>Itens para Produção</CardTitle>
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
-                  <SelectValue placeholder="Filtrar por evento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os eventos</SelectItem>
-                  {events.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="approved">Liberados</SelectItem>
-                  <SelectItem value="inProduction">Em Produção</SelectItem>
-                  <SelectItem value="produced">Produzidos</SelectItem>
-                  <SelectItem value="delivered">Entregues</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <CardTitle>Itens para Produção</CardTitle>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Select value={eventFilter} onValueChange={setEventFilter}>
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
+                    <SelectValue placeholder="Filtrar por evento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os eventos</SelectItem>
+                    {events.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
+                    <SelectValue placeholder="Filtrar por status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="approved">Liberados</SelectItem>
+                    <SelectItem value="inProduction">Em Produção</SelectItem>
+                    <SelectItem value="produced">Produzidos</SelectItem>
+                    <SelectItem value="delivered">Entregues</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={showAdvancedFilters ? "bg-muted" : ""}
+                data-testid="button-toggle-advanced-filters"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filtros Avançados
+              </Button>
+            </div>
+
+            {showAdvancedFilters && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t">
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-full" data-testid="select-type-filter">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    {uniqueTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={materialFilter} onValueChange={setMaterialFilter}>
+                  <SelectTrigger className="w-full" data-testid="select-material-filter">
+                    <SelectValue placeholder="Material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os materiais</SelectItem>
+                    {uniqueMaterials.map((material) => (
+                      <SelectItem key={material} value={material}>
+                        {material}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={finishFilter} onValueChange={setFinishFilter}>
+                  <SelectTrigger className="w-full" data-testid="select-finish-filter">
+                    <SelectValue placeholder="Acabamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os acabamentos</SelectItem>
+                    {uniqueFinishes.map((finish) => (
+                      <SelectItem key={finish} value={finish}>
+                        {finish}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {(typeFilter !== "all" || materialFilter !== "all" || finishFilter !== "all") && (
+                  <div className="sm:col-span-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTypeFilter("all");
+                        setMaterialFilter("all");
+                        setFinishFilter("all");
+                      }}
+                      className="text-xs"
+                      data-testid="button-reset-advanced-filters"
+                    >
+                      Limpar filtros avançados
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>

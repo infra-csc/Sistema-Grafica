@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertCircle, Clock, Package, CheckCircle, Filter } from "lucide-react";
+import { Search, AlertCircle, Clock, Package, CheckCircle, Filter, Calendar, Truck } from "lucide-react";
 import { Fragment, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -275,22 +275,51 @@ export default function PainelGeral() {
                     const showEventHeader = !prevItem || prevItem.event?.name !== item.event?.name;
                     const showTypeHeader = !prevItem || prevItem.event?.name !== item.event?.name || prevItem.type !== item.type;
                     
+                    // Calcular índice do evento para cores alternadas
+                    let eventIndex = 0;
+                    if (item.event) {
+                      const uniqueEvents = Array.from(new Set(filteredItems.map(i => i.event?.id).filter(Boolean)));
+                      eventIndex = uniqueEvents.indexOf(item.event.id);
+                    }
+                    const isEvenEvent = eventIndex % 2 === 0;
+                    
                     return (
                       <Fragment key={item.id}>
-                        {showTypeHeader && (
-                          <tr key={`group-${item.eventId}-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
-                            <td colSpan={8} className="py-2 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="h-5 w-1 bg-primary rounded-full"></div>
-                                <div>
-                                  {showEventHeader && (
-                                    <div className="text-xs font-semibold text-primary uppercase tracking-wider">
+                        {showEventHeader && (
+                          <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
+                            <td colSpan={8} className="py-3 px-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-6 w-1.5 bg-primary rounded-full"></div>
+                                  <div>
+                                    <div className="text-sm font-bold text-primary uppercase tracking-wider">
                                       {item.event?.name || 'Sem Evento'}
                                     </div>
-                                  )}
-                                  <div className="text-sm font-bold text-foreground">
-                                    {item.type}
                                   </div>
+                                </div>
+                                {item.event && (
+                                  <div className="flex items-center gap-4 text-xs">
+                                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                                      <Calendar className="h-3.5 w-3.5" />
+                                      <span>Início: <strong className="text-foreground">{new Date(item.event.startDate).toLocaleDateString('pt-BR')}</strong></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                                      <Truck className="h-3.5 w-3.5" />
+                                      <span>Saída Caminhão: <strong className="text-foreground">{new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')}</strong></span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {showTypeHeader && (
+                          <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
+                            <td colSpan={8} className="py-1.5 px-4">
+                              <div className="flex items-center gap-2">
+                                <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
+                                <div className="text-sm font-bold text-foreground">
+                                  {item.type}
                                 </div>
                               </div>
                             </td>
@@ -298,7 +327,7 @@ export default function PainelGeral() {
                         )}
                         <tr 
                           key={item.id}
-                          className="border-b border-border hover-elevate"
+                          className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
                           data-testid={`row-item-${item.id}`}
                         >
                           <td className="py-3 px-4">

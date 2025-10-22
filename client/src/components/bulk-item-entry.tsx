@@ -29,8 +29,8 @@ interface StandardItem {
   type: string;
   area: number;
   visual: number;
-  materials: string[];
-  finishes: string[];
+  materials?: string[] | null;
+  finishes?: string[] | null;
 }
 
 interface BulkItemEntryProps {
@@ -82,9 +82,9 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
             updated.type = value; // Manter o nome do modelo como tipo
             updated.area = standardItem.area.toString();
             updated.visual = standardItem.visual.toString();
-            // Usar primeiro material e acabamento do array
-            updated.material = standardItem.materials[0] || "";
-            updated.finish = standardItem.finishes[0] || "";
+            // Usar primeiro material e acabamento do array (se existir)
+            updated.material = (standardItem.materials && standardItem.materials[0]) || "";
+            updated.finish = (standardItem.finishes && standardItem.finishes[0]) || "";
             updated.measurement = `${standardItem.area} × ${standardItem.visual}`;
             updated.calculatedM2 = calculateM2(updated.quantity, updated.area, updated.visual);
           }

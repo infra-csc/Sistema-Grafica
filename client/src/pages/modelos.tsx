@@ -104,7 +104,7 @@ export default function Modelos() {
               Novo Modelo
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Criar Novo Modelo</DialogTitle>
               <DialogDescription>

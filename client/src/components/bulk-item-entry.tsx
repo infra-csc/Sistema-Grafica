@@ -25,11 +25,12 @@ interface BulkItemRow {
 
 interface StandardItem {
   id: string;
+  name: string;
   type: string;
   area: number;
   visual: number;
-  material: string;
-  finish: string;
+  materials: string[];
+  finishes: string[];
 }
 
 interface BulkItemEntryProps {
@@ -75,13 +76,15 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         
         // Se mudou o tipo, verificar se é um modelo padrão
         if (field === 'type') {
-          const standardItem = standardItems.find(s => s.type === value);
+          const standardItem = standardItems.find(s => s.name === value || s.type === value);
           if (standardItem) {
             // Preencher com dados do modelo
+            updated.type = value; // Manter o nome do modelo como tipo
             updated.area = standardItem.area.toString();
             updated.visual = standardItem.visual.toString();
-            updated.material = standardItem.material;
-            updated.finish = standardItem.finish;
+            // Usar primeiro material e acabamento do array
+            updated.material = standardItem.materials[0] || "";
+            updated.finish = standardItem.finishes[0] || "";
             updated.measurement = `${standardItem.area} × ${standardItem.visual}`;
             updated.calculatedM2 = calculateM2(updated.quantity, updated.area, updated.visual);
           }
@@ -215,8 +218,8 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                             Modelos
                           </div>
                           {standardItems.map(item => (
-                            <SelectItem key={item.id} value={item.type}>
-                              {item.type}
+                            <SelectItem key={item.id} value={item.name}>
+                              {item.name}
                             </SelectItem>
                           ))}
                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">

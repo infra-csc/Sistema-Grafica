@@ -14,8 +14,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
+const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
+const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
 export default function Modelos() {
   const [open, setOpen] = useState(false);
@@ -117,13 +122,21 @@ export default function Modelos() {
               
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo</Label>
-                <Input
-                  id="type"
+                <Select
                   value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  placeholder="Ex: 2x1"
-                  required
-                />
+                  onValueChange={(value) => setFormData({ ...formData, type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {itemTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex gap-2 justify-end">

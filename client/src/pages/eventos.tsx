@@ -304,14 +304,57 @@ export default function Eventos() {
           {filteredEvents.map((event) => {
             const itemCount = event.items?.length || 0;
             
+            // Lógica de status baseada na saída do caminhão (mais crítico)
+            const getTruckStatus = () => {
+              const now = new Date();
+              const departure = new Date(event.truckDepartureDate);
+              const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+              // Verde: Caminhão já saiu ou evento finalizado
+              if (event.status === 'completed' || hoursUntilDeparture < 0) {
+                return { 
+                  borderColor: 'border-l-status-completed',
+                  bgAccent: 'bg-status-completed/5',
+                  textColor: 'text-status-completed'
+                };
+              }
+              
+              // Vermelho: Menos de 24h para saída - URGENTE!
+              if (hoursUntilDeparture < 24) {
+                return { 
+                  borderColor: 'border-l-status-urgent',
+                  bgAccent: 'bg-status-urgent/5',
+                  textColor: 'text-status-urgent'
+                };
+              }
+              
+              // Amarelo: Entre 24h e 48h para saída - ATENÇÃO
+              if (hoursUntilDeparture < 48) {
+                return { 
+                  borderColor: 'border-l-status-pending',
+                  bgAccent: 'bg-status-pending/5',
+                  textColor: 'text-status-pending'
+                };
+              }
+              
+              // Azul: Mais de 48h para saída - NORMAL
+              return { 
+                borderColor: 'border-l-primary',
+                bgAccent: 'bg-primary/5',
+                textColor: 'text-primary'
+              };
+            };
+
+            const statusColors = getTruckStatus();
+            
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
-                <Card className="hover-elevate cursor-pointer transition-all border-l-4 border-l-primary" data-testid={`card-event-${event.id}`}>
+                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${statusColors.borderColor} ${statusColors.bgAccent}`} data-testid={`card-event-${event.id}`}>
                   <CardHeader className="pb-3 pt-4">
-                    <CardTitle className="text-base font-bold text-primary mb-2">{event.name}</CardTitle>
+                    <CardTitle className={`text-base font-bold mb-2 ${statusColors.textColor}`}>{event.name}</CardTitle>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                        <Calendar className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${statusColors.textColor}`} />
                         <div className="flex flex-col gap-0 min-w-0">
                           <span className="text-[10px] font-medium text-muted-foreground uppercase">Início</span>
                           <span className="text-xs font-semibold text-foreground whitespace-nowrap">
@@ -325,10 +368,10 @@ export default function Eventos() {
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 p-2 bg-primary/5 rounded border border-primary/20">
-                        <Truck className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                      <div className={`flex items-center gap-2 p-2 rounded border ${statusColors.bgAccent} ${statusColors.borderColor.replace('border-l-', 'border-')}`}>
+                        <Truck className={`h-3.5 w-3.5 flex-shrink-0 ${statusColors.textColor}`} />
                         <div className="flex flex-col gap-0 min-w-0">
-                          <span className="text-[10px] font-medium text-primary uppercase">Saída</span>
+                          <span className={`text-[10px] font-medium uppercase ${statusColors.textColor}`}>Saída</span>
                           <span className="text-xs font-bold text-foreground whitespace-nowrap">
                             {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { 
                               day: '2-digit', 

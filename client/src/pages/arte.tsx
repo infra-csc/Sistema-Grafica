@@ -207,20 +207,23 @@ export default function Arte() {
               <CardTitle>
                 {viewMode === "pending" ? "Itens Pendentes de Aprovação" : "Histórico de Liberações"}
               </CardTitle>
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger className="w-48" data-testid="select-event-filter">
+                  <SelectValue placeholder="Todos os eventos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os eventos</SelectItem>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex flex-wrap gap-2">
-                <Select value={eventFilter} onValueChange={setEventFilter}>
-                  <SelectTrigger className="w-48" data-testid="select-event-filter">
-                    <SelectValue placeholder="Todos os eventos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os eventos</SelectItem>
-                    {events.map((event) => (
-                      <SelectItem key={event.id} value={event.id}>
-                        {event.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <Button
                   variant={viewMode === "pending" ? "default" : "outline"}
                   size="sm"
@@ -239,16 +242,6 @@ export default function Arte() {
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Liberados ({approvedCount})
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className={showAdvancedFilters ? "bg-muted" : ""}
-                  data-testid="button-toggle-advanced-filters"
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filtros Avançados
-                </Button>
                 {viewMode === "pending" && selectedItems.length > 0 && (
                   <Button
                     size="sm"
@@ -261,6 +254,16 @@ export default function Arte() {
                   </Button>
                 )}
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={showAdvancedFilters ? "bg-muted" : ""}
+                data-testid="button-toggle-advanced-filters"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filtros Avançados
+              </Button>
             </div>
 
             {showAdvancedFilters && (

@@ -288,23 +288,21 @@ export default function PainelGeral() {
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
                             <td colSpan={8} className="py-3 px-4">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className="h-6 w-1.5 bg-primary rounded-full"></div>
-                                  <div>
-                                    <div className="text-sm font-bold text-primary uppercase tracking-wider">
-                                      {item.event?.name || 'Sem Evento'}
-                                    </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
+                                  <div className="text-sm font-bold text-primary uppercase tracking-wider whitespace-nowrap">
+                                    {item.event?.name || 'Sem Evento'}
                                   </div>
                                 </div>
                                 {item.event && (
-                                  <div className="flex items-center gap-4 text-xs">
-                                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                                      <Calendar className="h-3.5 w-3.5" />
+                                  <div className="flex items-center gap-4 text-xs flex-shrink-0">
+                                    <div className="flex items-center gap-1.5 text-muted-foreground whitespace-nowrap">
+                                      <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
                                       <span>Início: <strong className="text-foreground">{new Date(item.event.startDate).toLocaleDateString('pt-BR')}</strong></span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                                      <Truck className="h-3.5 w-3.5" />
+                                    <div className="flex items-center gap-1.5 text-muted-foreground whitespace-nowrap">
+                                      <Truck className="h-3.5 w-3.5 flex-shrink-0" />
                                       <span>Saída Caminhão: <strong className="text-foreground">{new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')}</strong></span>
                                     </div>
                                   </div>

@@ -304,18 +304,39 @@ export default function Eventos() {
           {filteredEvents.map((event) => {
             const itemCount = event.items?.length || 0;
             
-            // Lógica de status baseada na saída do caminhão (mais crítico)
+            // Status para INÍCIO DO EVENTO
+            const getEventStartStatus = () => {
+              const now = new Date();
+              const start = new Date(event.startDate);
+              const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+              if (hoursUntilStart < 0) {
+                return { bg: 'bg-status-completed/10', border: 'border-status-completed/20', icon: 'text-status-completed' };
+              }
+              if (hoursUntilStart < 24) {
+                return { bg: 'bg-status-urgent/10', border: 'border-status-urgent/20', icon: 'text-status-urgent' };
+              }
+              if (hoursUntilStart < 48) {
+                return { bg: 'bg-status-pending/10', border: 'border-status-pending/20', icon: 'text-status-pending' };
+              }
+              return { bg: 'bg-primary/10', border: 'border-primary/20', icon: 'text-primary' };
+            };
+
+            // Status para SAÍDA DO CAMINHÃO (define título e card)
             const getTruckStatus = () => {
               const now = new Date();
               const departure = new Date(event.truckDepartureDate);
               const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-              // Verde: Caminhão já saiu ou evento finalizado
-              if (event.status === 'completed' || hoursUntilDeparture < 0) {
+              // Verde: Caminhão já saiu
+              if (hoursUntilDeparture < 0) {
                 return { 
                   borderColor: 'border-l-status-completed',
-                  bgAccent: 'bg-status-completed/5',
-                  textColor: 'text-status-completed'
+                  bgCard: 'bg-status-completed/5',
+                  titleColor: 'text-status-completed',
+                  bg: 'bg-status-completed/10',
+                  border: 'border-status-completed/20',
+                  icon: 'text-status-completed'
                 };
               }
               
@@ -323,8 +344,11 @@ export default function Eventos() {
               if (hoursUntilDeparture < 24) {
                 return { 
                   borderColor: 'border-l-status-urgent',
-                  bgAccent: 'bg-status-urgent/5',
-                  textColor: 'text-status-urgent'
+                  bgCard: 'bg-status-urgent/5',
+                  titleColor: 'text-status-urgent',
+                  bg: 'bg-status-urgent/10',
+                  border: 'border-status-urgent/20',
+                  icon: 'text-status-urgent'
                 };
               }
               
@@ -332,31 +356,38 @@ export default function Eventos() {
               if (hoursUntilDeparture < 48) {
                 return { 
                   borderColor: 'border-l-status-pending',
-                  bgAccent: 'bg-status-pending/5',
-                  textColor: 'text-status-pending'
+                  bgCard: 'bg-status-pending/5',
+                  titleColor: 'text-status-pending',
+                  bg: 'bg-status-pending/10',
+                  border: 'border-status-pending/20',
+                  icon: 'text-status-pending'
                 };
               }
               
               // Azul: Mais de 48h para saída - NORMAL
               return { 
                 borderColor: 'border-l-primary',
-                bgAccent: 'bg-primary/5',
-                textColor: 'text-primary'
+                bgCard: 'bg-primary/5',
+                titleColor: 'text-primary',
+                bg: 'bg-primary/10',
+                border: 'border-primary/20',
+                icon: 'text-primary'
               };
             };
 
-            const statusColors = getTruckStatus();
+            const eventStartColors = getEventStartStatus();
+            const truckColors = getTruckStatus();
             
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
-                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${statusColors.borderColor} ${statusColors.bgAccent}`} data-testid={`card-event-${event.id}`}>
+                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${truckColors.borderColor} ${truckColors.bgCard}`} data-testid={`card-event-${event.id}`}>
                   <CardHeader className="pb-3 pt-4">
-                    <CardTitle className={`text-base font-bold mb-2 ${statusColors.textColor}`}>{event.name}</CardTitle>
+                    <CardTitle className={`text-base font-bold mb-2 ${truckColors.titleColor}`}>{event.name}</CardTitle>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="flex items-center gap-2 p-2 bg-muted/30 rounded">
-                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${statusColors.textColor}`} />
+                      <div className={`flex items-center gap-2 p-2 rounded border ${eventStartColors.bg} ${eventStartColors.border}`}>
+                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${eventStartColors.icon}`} />
                         <div className="flex flex-col gap-0 min-w-0">
-                          <span className="text-[10px] font-medium text-muted-foreground uppercase">Início</span>
+                          <span className={`text-[10px] font-medium uppercase ${eventStartColors.icon}`}>Início</span>
                           <span className="text-xs font-semibold text-foreground whitespace-nowrap">
                             {new Date(event.startDate).toLocaleDateString('pt-BR', { 
                               day: '2-digit', 
@@ -368,10 +399,10 @@ export default function Eventos() {
                           </span>
                         </div>
                       </div>
-                      <div className={`flex items-center gap-2 p-2 rounded border ${statusColors.bgAccent} ${statusColors.borderColor.replace('border-l-', 'border-')}`}>
-                        <Truck className={`h-3.5 w-3.5 flex-shrink-0 ${statusColors.textColor}`} />
+                      <div className={`flex items-center gap-2 p-2 rounded border ${truckColors.bg} ${truckColors.border}`}>
+                        <Truck className={`h-3.5 w-3.5 flex-shrink-0 ${truckColors.icon}`} />
                         <div className="flex flex-col gap-0 min-w-0">
-                          <span className={`text-[10px] font-medium uppercase ${statusColors.textColor}`}>Saída</span>
+                          <span className={`text-[10px] font-medium uppercase ${truckColors.icon}`}>Saída</span>
                           <span className="text-xs font-bold text-foreground whitespace-nowrap">
                             {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { 
                               day: '2-digit', 

@@ -416,29 +416,28 @@ export default function Eventos() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardFooter className="border-t pt-2 pb-3 flex-row gap-2">
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <Package className="h-3.5 w-3.5" />
-                        <span className="font-medium">
-                          {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+                  <CardFooter className="border-t pt-2 pb-3 flex-row items-center gap-3">
+                    <div className="flex flex-col gap-1 flex-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground font-medium">
+                          {event.items?.filter((item: any) => item.status === 'delivered').length || 0}/{itemCount} concluídos
+                        </span>
+                        <span className="text-muted-foreground font-semibold">
+                          {itemCount > 0 ? Math.round(((event.items?.filter((item: any) => item.status === 'delivered').length || 0) / itemCount) * 100) : 0}%
                         </span>
                       </div>
                       {itemCount > 0 && (
-                        <>
-                          <div className="h-3 w-px bg-border" />
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-medium text-status-completed">
-                              {event.items?.filter((item: any) => item.status === 'delivered').length || 0} entregues
-                            </span>
-                            <span className="text-muted-foreground">
-                              ({Math.round(((event.items?.filter((item: any) => item.status === 'delivered').length || 0) / itemCount) * 100)}%)
-                            </span>
-                          </div>
-                        </>
+                        <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className="h-full bg-status-completed transition-all"
+                            style={{ 
+                              width: `${Math.round(((event.items?.filter((item: any) => item.status === 'delivered').length || 0) / itemCount) * 100)}%` 
+                            }}
+                          />
+                        </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 ml-2">
                       {hasPermission("admin") && (
                         <>
                           <Button 

@@ -5,9 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Copy, Trash2, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const itemTypes = ["2x1", "Rolo", "Palco", "Banner", "Faixa", "Adesivo", "Backdrop"];
-const materials = ["Lona", "Tecido", "Adesivo", "Vinílico", "Banner"];
-const finishes = ["Ilhós", "Soldado", "Bastão", "Sem acabamento"];
+const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
+const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
+const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
 interface BulkItemRow {
   id: string;

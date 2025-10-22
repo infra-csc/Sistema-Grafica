@@ -36,9 +36,9 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
-const itemTypes = ["2x1", "Rolo", "Palco", "Banner", "Faixa", "Adesivo", "Backdrop"];
-const materials = ["Lona", "Tecido", "Adesivo", "Vinílico", "Banner"];
-const finishes = ["Ilhós", "Soldado", "Bastão", "Sem acabamento"];
+const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
+const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
+const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
 export default function EventDetail() {
   const { hasPermission } = useAuth();

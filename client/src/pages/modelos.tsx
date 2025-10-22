@@ -18,7 +18,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-const itemTypes = ["2x1", "Rolo", "Palco", "Banner", "Faixa", "Adesivo", "Backdrop"];
+const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
+const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
+const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
 export default function Modelos() {
   const [open, setOpen] = useState(false);
@@ -190,7 +192,7 @@ export default function Modelos() {
               <div className="space-y-2">
                 <Label>Materiais Disponíveis</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {["Lona", "Tecido", "Adesivo", "Vinílico", "Banner"].map((material) => (
+                  {materials.map((material) => (
                     <div key={material} className="flex items-center space-x-2">
                       <Checkbox
                         id={`material-${material}`}
@@ -208,7 +210,7 @@ export default function Modelos() {
               <div className="space-y-2">
                 <Label>Acabamentos Disponíveis</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  {["Ilhós", "Soldado", "Bastão", "Sem acabamento"].map((finish) => (
+                  {finishes.map((finish) => (
                     <div key={finish} className="flex items-center space-x-2">
                       <Checkbox
                         id={`finish-${finish}`}

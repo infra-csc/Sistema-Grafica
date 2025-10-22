@@ -74,6 +74,10 @@ export default function EventDetail() {
   // Ordenar itens por tipo
   const items = [...rawItems].sort((a, b) => a.type.localeCompare(b.type));
 
+  const { data: standardItems = [] } = useQuery<any[]>({
+    queryKey: ["/api/standard-items"],
+  });
+
   const { data: auditLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/audit-logs"],
   });
@@ -414,6 +418,7 @@ export default function EventDetail() {
                 {bulkMode ? (
                   <BulkItemEntry
                     eventId={eventId!}
+                    standardItems={standardItems}
                     onSubmit={(items) => createBulkItemsMutation.mutate(items)}
                     onCancel={() => {
                       setBulkMode(false);

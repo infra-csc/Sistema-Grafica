@@ -23,14 +23,24 @@ interface BulkItemRow {
   calculatedM2: number;
 }
 
+interface StandardItem {
+  id: string;
+  type: string;
+  area: number;
+  visual: number;
+  material: string;
+  finish: string;
+}
+
 interface BulkItemEntryProps {
   eventId: string;
+  standardItems?: StandardItem[];
   onSubmit: (items: any[]) => void;
   onCancel: () => void;
   isPending?: boolean;
 }
 
-export function BulkItemEntry({ eventId, onSubmit, onCancel, isPending }: BulkItemEntryProps) {
+export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
 
   function createEmptyRow(): BulkItemRow {
@@ -62,6 +72,20 @@ export function BulkItemEntry({ eventId, onSubmit, onCancel, isPending }: BulkIt
         if (row.id !== id) return row;
         
         const updated = { ...row, [field]: value };
+        
+        // Se mudou o tipo, verificar se é um modelo padrão
+        if (field === 'type') {
+          const standardItem = standardItems.find(s => s.type === value);
+          if (standardItem) {
+            // Preencher com dados do modelo
+            updated.area = standardItem.area.toString();
+            updated.visual = standardItem.visual.toString();
+            updated.material = standardItem.material;
+            updated.finish = standardItem.finish;
+            updated.measurement = `${standardItem.area} × ${standardItem.visual}`;
+            updated.calculatedM2 = calculateM2(updated.quantity, updated.area, updated.visual);
+          }
+        }
         
         // Recalcular m² se alterou quantidade, área ou visual
         if (field === 'quantity' || field === 'area' || field === 'visual') {
@@ -185,6 +209,21 @@ export function BulkItemEntry({ eventId, onSubmit, onCancel, isPending }: BulkIt
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
+                      {standardItems.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                            Modelos
+                          </div>
+                          {standardItems.map(item => (
+                            <SelectItem key={item.id} value={item.type}>
+                              {item.type}
+                            </SelectItem>
+                          ))}
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">
+                            Outros Tipos
+                          </div>
+                        </>
+                      )}
                       {itemTypes.map(type => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}

@@ -146,9 +146,30 @@ export default function Eventos() {
     setFormData({ name: "", startDate: "", truckDepartureDate: "" });
   };
 
-  const filteredEvents = events.filter((event) =>
-    event.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEvents = events
+    .filter((event) =>
+      event.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      const now = new Date();
+      const dateA = new Date(a.startDate);
+      const dateB = new Date(b.startDate);
+      
+      const isPastA = dateA < now;
+      const isPastB = dateB < now;
+      
+      // Se um é passado e outro futuro, futuro vem primeiro
+      if (isPastA && !isPastB) return 1;
+      if (!isPastA && isPastB) return -1;
+      
+      // Se ambos são futuros, o mais próximo vem primeiro
+      if (!isPastA && !isPastB) {
+        return dateA.getTime() - dateB.getTime();
+      }
+      
+      // Se ambos são passados, o mais recente vem primeiro
+      return dateB.getTime() - dateA.getTime();
+    });
 
   return (
     <div className="flex flex-col gap-6 p-6">

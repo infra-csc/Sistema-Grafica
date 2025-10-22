@@ -73,6 +73,8 @@ export default function Modelos() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log("Form submitted with data:", formData);
+    
     // Preparar dados convertendo strings vazias para null
     const dataToSubmit: any = {
       ...formData,
@@ -81,6 +83,8 @@ export default function Modelos() {
       area: formData.area || null,
       visual: formData.visual || null,
     };
+    
+    console.log("Sending to API:", dataToSubmit);
     
     createStandardItemMutation.mutate(dataToSubmit);
   };

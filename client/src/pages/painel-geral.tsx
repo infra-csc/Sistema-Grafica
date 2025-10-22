@@ -62,12 +62,12 @@ export default function PainelGeral() {
     });
 
   const stats = {
-    total: items.length,
-    requested: items.filter(i => i.status === 'requested').length,
-    approved: items.filter(i => i.status === 'approved').length,
-    inProduction: items.filter(i => i.status === 'inProduction').length,
-    produced: items.filter(i => i.status === 'produced').length,
-    delivered: items.filter(i => i.status === 'delivered').length,
+    total: filteredItems.length,
+    requested: filteredItems.filter(i => i.status === 'requested').length,
+    approved: filteredItems.filter(i => i.status === 'approved').length,
+    inProduction: filteredItems.filter(i => i.status === 'inProduction').length,
+    produced: filteredItems.filter(i => i.status === 'produced').length,
+    delivered: filteredItems.filter(i => i.status === 'delivered').length,
   };
 
   return (

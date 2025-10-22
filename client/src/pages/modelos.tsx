@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -139,6 +140,24 @@ export default function Modelos() {
                 </Select>
               </div>
 
+              <div className="flex items-center space-x-2 p-3 bg-muted/50 rounded-md">
+                <Checkbox
+                  id="hasVariableMeasurement"
+                  checked={formData.hasVariableMeasurement}
+                  onCheckedChange={(checked) => 
+                    setFormData({ 
+                      ...formData, 
+                      hasVariableMeasurement: checked as boolean,
+                      area: checked ? "" : formData.area,
+                      visual: checked ? "" : formData.visual,
+                    })
+                  }
+                />
+                <Label htmlFor="hasVariableMeasurement" className="cursor-pointer font-normal">
+                  Medida variável (preencher por item)
+                </Label>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="area">Área (m)</Label>
@@ -167,7 +186,20 @@ export default function Modelos() {
               </div>
 
               <div className="space-y-2">
-                <Label>Material (opcional)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Material (opcional)</Label>
+                  {formData.material && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, material: "" })}
+                      className="h-auto py-1 px-2 text-xs"
+                    >
+                      Limpar
+                    </Button>
+                  )}
+                </div>
                 <Select
                   value={formData.material}
                   onValueChange={(value) => setFormData({ ...formData, material: value })}
@@ -186,7 +218,20 @@ export default function Modelos() {
               </div>
 
               <div className="space-y-2">
-                <Label>Acabamento (opcional)</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Acabamento (opcional)</Label>
+                  {formData.finish && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, finish: "" })}
+                      className="h-auto py-1 px-2 text-xs"
+                    >
+                      Limpar
+                    </Button>
+                  )}
+                </div>
                 <Select
                   value={formData.finish}
                   onValueChange={(value) => setFormData({ ...formData, finish: value })}

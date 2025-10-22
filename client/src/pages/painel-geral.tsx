@@ -288,10 +288,10 @@ export default function PainelGeral() {
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
                             <td colSpan={8} className="py-3 px-4">
-                              <div className="flex items-center justify-between gap-4 min-w-0">
+                              <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
-                                  <div className="text-sm font-bold text-primary uppercase tracking-wider truncate">
+                                  <div className="text-sm font-bold text-primary uppercase tracking-wider break-words">
                                     {item.event?.name || 'Sem Evento'}
                                   </div>
                                 </div>

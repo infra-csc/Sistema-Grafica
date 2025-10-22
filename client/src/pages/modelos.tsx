@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, AlertCircle, Layers } from "lucide-react";
+import { Plus, Layers } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -14,14 +14,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
-const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
-const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
-const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
 export default function Modelos() {
   const [open, setOpen] = useState(false);
@@ -73,7 +67,6 @@ export default function Modelos() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Preparar dados convertendo strings vazias para null
     const dataToSubmit: any = {
       ...formData,
       material: formData.material || null,
@@ -85,12 +78,11 @@ export default function Modelos() {
     createStandardItemMutation.mutate(dataToSubmit);
   };
 
-
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-testid="title-modelos">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Modelos de Itens
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -99,7 +91,7 @@ export default function Modelos() {
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-create-model">
+            <Button>
               <Plus className="h-4 w-4 mr-2" />
               Novo Modelo
             </Button>
@@ -120,106 +112,25 @@ export default function Modelos() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ex: Banner 2x1 Padrão"
                   required
-                  data-testid="input-model-name"
                 />
               </div>
-
+              
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo</Label>
-                <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
-                  <SelectTrigger data-testid="select-model-type">
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {itemTypes.map(type => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="hasVariableMeasurement"
-                  checked={formData.hasVariableMeasurement}
-                  onCheckedChange={(checked) => setFormData({ ...formData, hasVariableMeasurement: checked as boolean })}
-                  data-testid="checkbox-variable-measurement"
+                <Input
+                  id="type"
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  placeholder="Ex: 2x1"
+                  required
                 />
-                <Label htmlFor="hasVariableMeasurement" className="cursor-pointer">
-                  Medidas variáveis (deixar em branco para medidas fixas)
-                </Label>
-              </div>
-
-              {!formData.hasVariableMeasurement && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="area">Área (m)</Label>
-                    <Input
-                      id="area"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.area}
-                      onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                      data-testid="input-model-area"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="visual">Visual (m)</Label>
-                    <Input
-                      id="visual"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.visual}
-                      onChange={(e) => setFormData({ ...formData, visual: e.target.value })}
-                      data-testid="input-model-visual"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="material">Material (Opcional)</Label>
-                <Select
-                  value={formData.material}
-                  onValueChange={(value) => setFormData({ ...formData, material: value })}
-                >
-                  <SelectTrigger id="material" data-testid="select-model-material">
-                    <SelectValue placeholder="Selecione um material" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
-                    {materials.map((material) => (
-                      <SelectItem key={material} value={material}>{material}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="finish">Acabamento (Opcional)</Label>
-                <Select
-                  value={formData.finish}
-                  onValueChange={(value) => setFormData({ ...formData, finish: value })}
-                >
-                  <SelectTrigger id="finish" data-testid="select-model-finish">
-                    <SelectValue placeholder="Selecione um acabamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
-                    {finishes.map((finish) => (
-                      <SelectItem key={finish} value={finish}>{finish}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="flex gap-2 justify-end">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={createStandardItemMutation.isPending} data-testid="button-submit-model">
+                <Button type="submit" disabled={createStandardItemMutation.isPending}>
                   {createStandardItemMutation.isPending ? "Criando..." : "Criar Modelo"}
                 </Button>
               </div>
@@ -249,7 +160,7 @@ export default function Modelos() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {standardItems.map((item) => (
-            <Card key={item.id} className="hover-elevate" data-testid={`card-model-${item.id}`}>
+            <Card key={item.id} className="hover-elevate">
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div>

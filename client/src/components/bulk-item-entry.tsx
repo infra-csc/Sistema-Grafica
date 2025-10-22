@@ -80,13 +80,16 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
           if (standardItem) {
             // Preencher com dados do modelo
             updated.type = value; // Manter o nome do modelo como tipo
-            updated.area = standardItem.area.toString();
-            updated.visual = standardItem.visual.toString();
+            // Converter Decimal para string
+            const area = standardItem.area ? String(standardItem.area) : "";
+            const visual = standardItem.visual ? String(standardItem.visual) : "";
+            updated.area = area;
+            updated.visual = visual;
             // Usar material e acabamento do modelo (se existir)
             updated.material = standardItem.material || "";
             updated.finish = standardItem.finish || "";
-            updated.measurement = `${standardItem.area} × ${standardItem.visual}`;
-            updated.calculatedM2 = calculateM2(updated.quantity, updated.area, updated.visual);
+            updated.measurement = area && visual ? `${area} × ${visual}` : "";
+            updated.calculatedM2 = calculateM2(updated.quantity, area, visual);
           }
         }
         

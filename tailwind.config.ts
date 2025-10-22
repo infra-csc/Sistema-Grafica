@@ -63,8 +63,15 @@ export default {
           completed: "hsl(142 76% 36% / <alpha-value>)",
           pending: "hsl(45 93% 47% / <alpha-value>)",
           urgent: "hsl(0 84% 60% / <alpha-value>)",
+          approved: "hsl(217 91% 60% / <alpha-value>)",
           inProgress: "hsl(217 91% 60% / <alpha-value>)",
           production: "hsl(25 95% 53% / <alpha-value>)",
+        },
+        presence: {
+          online: "rgb(34 197 94)",
+          away: "rgb(245 158 11)",
+          busy: "rgb(239 68 68)",
+          offline: "rgb(156 163 175)",
         },
         sidebar: {
           ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
@@ -81,12 +88,6 @@ export default {
           DEFAULT: "hsl(var(--sidebar-accent) / <alpha-value>)",
           foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
           border: "var(--sidebar-accent-border)"
-        },
-        status: {
-          online: "rgb(34 197 94)",
-          away: "rgb(245 158 11)",
-          busy: "rgb(239 68 68)",
-          offline: "rgb(156 163 175)",
         },
       },
       fontFamily: {

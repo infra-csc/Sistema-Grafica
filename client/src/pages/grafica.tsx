@@ -228,10 +228,10 @@ export default function Grafica() {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <CardTitle>Itens para Produção</CardTitle>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap gap-2">
                 <Select value={eventFilter} onValueChange={setEventFilter}>
-                  <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
-                    <SelectValue placeholder="Filtrar por evento" />
+                  <SelectTrigger className="w-48" data-testid="select-event-filter">
+                    <SelectValue placeholder="Todos os eventos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os eventos</SelectItem>
@@ -243,31 +243,28 @@ export default function Grafica() {
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-48" data-testid="select-status-filter">
-                    <SelectValue placeholder="Filtrar por status" />
+                  <SelectTrigger className="w-48" data-testid="select-status-filter">
+                    <SelectValue placeholder="Todos os status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="all">Todos os status</SelectItem>
                     <SelectItem value="approved">Liberados</SelectItem>
                     <SelectItem value="inProduction">Em Produção</SelectItem>
                     <SelectItem value="produced">Produzidos</SelectItem>
                     <SelectItem value="delivered">Entregues</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={showAdvancedFilters ? "bg-muted" : ""}
+                  data-testid="button-toggle-advanced-filters"
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filtros Avançados
+                </Button>
               </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className={showAdvancedFilters ? "bg-muted" : ""}
-                data-testid="button-toggle-advanced-filters"
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                Filtros Avançados
-              </Button>
             </div>
 
             {showAdvancedFilters && (

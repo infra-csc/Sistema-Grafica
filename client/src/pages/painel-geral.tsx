@@ -330,8 +330,8 @@ export default function PainelGeral() {
                           className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
                           data-testid={`row-item-${item.id}`}
                         >
-                          <td className="py-3 px-4">
-                            <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
+                          <td className="py-3 px-4 max-w-[200px]">
+                            <div className="font-medium text-sm break-words">{item.event?.name || 'N/A'}</div>
                           </td>
                           <td className="py-3 px-4">
                             <div className="text-sm">{item.type}</div>

@@ -363,9 +363,9 @@ export default function Arte() {
                               />
                             </td>
                           )}
-                          <td className="py-3 px-4">
-                            <div className="font-medium text-sm">{item.event?.name || 'N/A'}</div>
-                            <div className="text-xs text-muted-foreground">
+                          <td className="py-3 px-4 max-w-[200px]">
+                            <div className="font-medium text-sm break-words">{item.event?.name || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground whitespace-nowrap">
                               Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
                             </div>
                           </td>

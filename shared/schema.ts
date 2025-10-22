@@ -47,8 +47,8 @@ export const standardItems = pgTable("standard_items", {
   type: text("type").notNull(),
   area: decimal("area", { precision: 10, scale: 2 }),
   visual: decimal("visual", { precision: 10, scale: 2 }),
-  materials: text("materials").array(), // Array of available materials (opcional)
-  finishes: text("finishes").array(), // Array of available finishes (opcional)
+  material: text("material"), // Material único (opcional)
+  finish: text("finish"), // Acabamento único (opcional)
   hasVariableMeasurement: boolean("has_variable_measurement").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });

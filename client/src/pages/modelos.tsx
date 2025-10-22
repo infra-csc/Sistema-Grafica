@@ -31,8 +31,8 @@ export default function Modelos() {
     type: "",
     area: "",
     visual: "",
-    materials: [] as string[],
-    finishes: [] as string[],
+    material: "",
+    finish: "",
     hasVariableMeasurement: false,
   });
 
@@ -52,8 +52,8 @@ export default function Modelos() {
         type: "",
         area: "",
         visual: "",
-        materials: [],
-        finishes: [],
+        material: "",
+        finish: "",
         hasVariableMeasurement: false,
       });
       toast({
@@ -75,23 +75,6 @@ export default function Modelos() {
     createStandardItemMutation.mutate(formData);
   };
 
-  const handleMaterialToggle = (material: string) => {
-    setFormData(prev => ({
-      ...prev,
-      materials: prev.materials.includes(material)
-        ? prev.materials.filter(m => m !== material)
-        : [...prev.materials, material]
-    }));
-  };
-
-  const handleFinishToggle = (finish: string) => {
-    setFormData(prev => ({
-      ...prev,
-      finishes: prev.finishes.includes(finish)
-        ? prev.finishes.filter(f => f !== finish)
-        : [...prev.finishes, finish]
-    }));
-  };
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -187,39 +170,39 @@ export default function Modelos() {
               )}
 
               <div className="space-y-2">
-                <Label>Materiais Disponíveis</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {materials.map((material) => (
-                    <div key={material} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`material-${material}`}
-                        checked={formData.materials.includes(material)}
-                        onCheckedChange={() => handleMaterialToggle(material)}
-                      />
-                      <Label htmlFor={`material-${material}`} className="cursor-pointer text-sm">
-                        {material}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+                <Label htmlFor="material">Material (Opcional)</Label>
+                <Select
+                  value={formData.material}
+                  onValueChange={(value) => setFormData({ ...formData, material: value })}
+                >
+                  <SelectTrigger id="material" data-testid="select-model-material">
+                    <SelectValue placeholder="Selecione um material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum</SelectItem>
+                    {materials.map((material) => (
+                      <SelectItem key={material} value={material}>{material}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Acabamentos Disponíveis</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {finishes.map((finish) => (
-                    <div key={finish} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`finish-${finish}`}
-                        checked={formData.finishes.includes(finish)}
-                        onCheckedChange={() => handleFinishToggle(finish)}
-                      />
-                      <Label htmlFor={`finish-${finish}`} className="cursor-pointer text-sm">
-                        {finish}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+                <Label htmlFor="finish">Acabamento (Opcional)</Label>
+                <Select
+                  value={formData.finish}
+                  onValueChange={(value) => setFormData({ ...formData, finish: value })}
+                >
+                  <SelectTrigger id="finish" data-testid="select-model-finish">
+                    <SelectValue placeholder="Selecione um acabamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum</SelectItem>
+                    {finishes.map((finish) => (
+                      <SelectItem key={finish} value={finish}>{finish}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex gap-2 justify-end">
@@ -280,33 +263,25 @@ export default function Modelos() {
                   </div>
                 )}
                 
-                {item.materials && item.materials.length > 0 && (
+                {item.material && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                      Materiais
+                      Material
                     </p>
-                    <div className="flex flex-wrap gap-1">
-                      {item.materials.map((material: string) => (
-                        <Badge key={material} variant="outline" className="text-xs">
-                          {material}
-                        </Badge>
-                      ))}
-                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {item.material}
+                    </Badge>
                   </div>
                 )}
 
-                {item.finishes && item.finishes.length > 0 && (
+                {item.finish && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                      Acabamentos
+                      Acabamento
                     </p>
-                    <div className="flex flex-wrap gap-1">
-                      {item.finishes.map((finish: string) => (
-                        <Badge key={finish} variant="outline" className="text-xs">
-                          {finish}
-                        </Badge>
-                      ))}
-                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {item.finish}
+                    </Badge>
                   </div>
                 )}
               </CardContent>

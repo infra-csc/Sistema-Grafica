@@ -139,6 +139,71 @@ export default function Modelos() {
                 </Select>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="area">Área (m)</Label>
+                  <Input
+                    id="area"
+                    type="number"
+                    step="0.01"
+                    value={formData.area}
+                    onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+                    placeholder="2.00"
+                    disabled={formData.hasVariableMeasurement}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="visual">Visual (m)</Label>
+                  <Input
+                    id="visual"
+                    type="number"
+                    step="0.01"
+                    value={formData.visual}
+                    onChange={(e) => setFormData({ ...formData, visual: e.target.value })}
+                    placeholder="1.00"
+                    disabled={formData.hasVariableMeasurement}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Material (opcional)</Label>
+                <Select
+                  value={formData.material}
+                  onValueChange={(value) => setFormData({ ...formData, material: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {materials.map((material) => (
+                      <SelectItem key={material} value={material}>
+                        {material}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Acabamento (opcional)</Label>
+                <Select
+                  value={formData.finish}
+                  onValueChange={(value) => setFormData({ ...formData, finish: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o acabamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {finishes.map((finish) => (
+                      <SelectItem key={finish} value={finish}>
+                        {finish}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="flex gap-2 justify-end">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancelar

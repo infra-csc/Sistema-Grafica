@@ -384,7 +384,7 @@ export default function Eventos() {
                   <CardHeader className="pb-3 pt-4">
                     <CardTitle className={`text-base font-bold mb-2 ${truckColors.titleColor}`}>{event.name}</CardTitle>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className={`flex items-center gap-2 p-2 rounded border ${eventStartColors.bg} ${eventStartColors.border}`}>
+                      <div className="flex items-center gap-2 p-2 rounded bg-card border">
                         <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${eventStartColors.icon}`} />
                         <div className="flex flex-col gap-0 min-w-0">
                           <span className={`text-[10px] font-medium uppercase ${eventStartColors.icon}`}>Início</span>
@@ -399,7 +399,7 @@ export default function Eventos() {
                           </span>
                         </div>
                       </div>
-                      <div className={`flex items-center gap-2 p-2 rounded border ${truckColors.bg} ${truckColors.border}`}>
+                      <div className="flex items-center gap-2 p-2 rounded bg-card border">
                         <Truck className={`h-3.5 w-3.5 flex-shrink-0 ${truckColors.icon}`} />
                         <div className="flex flex-col gap-0 min-w-0">
                           <span className={`text-[10px] font-medium uppercase ${truckColors.icon}`}>Saída</span>

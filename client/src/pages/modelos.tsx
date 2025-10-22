@@ -72,7 +72,17 @@ export default function Modelos() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createStandardItemMutation.mutate(formData);
+    
+    // Preparar dados convertendo strings vazias para null
+    const dataToSubmit: any = {
+      ...formData,
+      material: formData.material || null,
+      finish: formData.finish || null,
+      area: formData.area || null,
+      visual: formData.visual || null,
+    };
+    
+    createStandardItemMutation.mutate(dataToSubmit);
   };
 
 

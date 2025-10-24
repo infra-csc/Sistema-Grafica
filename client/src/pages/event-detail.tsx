@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Clock, FileCheck, CheckCircle, Package, Pencil, Trash2 } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2 } from "lucide-react";
 import { Fragment, useState } from "react";
 import {
   Dialog,
@@ -31,9 +31,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { BulkItemEntry } from "@/components/bulk-item-entry";
 import { Badge } from "@/components/ui/badge";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
@@ -76,10 +73,6 @@ export default function EventDetail() {
 
   const { data: standardItems = [] } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
-  });
-
-  const { data: auditLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs"],
   });
 
   const createItemMutation = useMutation({
@@ -263,81 +256,6 @@ export default function EventDetail() {
     );
   }
 
-  // Criar mapa de audit logs
-  const auditLogMap = new Map<string, any>();
-  auditLogs.forEach(log => {
-    const key = `${log.entityId}-${log.action}`;
-    auditLogMap.set(key, log);
-  });
-
-  // Construir timeline apenas para este evento
-  const eventTimeline: any[] = [];
-
-  // Evento criado
-  const eventCreatedLog = auditLogMap.get(`${event.id}-created`);
-  if (eventCreatedLog) {
-    eventTimeline.push({
-      type: 'event_created',
-      timestamp: new Date(event.createdAt),
-      userName: eventCreatedLog.userName,
-      icon: Calendar,
-      color: 'text-primary',
-      label: 'Evento Criado',
-    });
-  }
-
-  // Ações dos itens
-  items.forEach((item: any) => {
-    const itemCreatedLog = auditLogMap.get(`${item.id}-created`);
-    if (itemCreatedLog) {
-      eventTimeline.push({
-        type: 'item_created',
-        timestamp: new Date(item.createdAt),
-        userName: itemCreatedLog.userName,
-        itemType: item.type,
-        icon: Plus,
-        color: 'text-status-pending',
-        label: `${item.type} adicionado`,
-      });
-    }
-
-    if (['approved', 'inProduction', 'produced', 'delivered'].includes(item.status)) {
-      const itemApprovedLog = auditLogMap.get(`${item.id}-approved`);
-      if (itemApprovedLog) {
-        eventTimeline.push({
-          type: 'item_approved',
-          timestamp: new Date(item.approvedAt || item.updatedAt),
-          userName: itemApprovedLog.userName,
-          itemType: item.type,
-          icon: FileCheck,
-          color: 'text-status-inProgress',
-          label: `${item.type} aprovado`,
-        });
-      }
-    }
-
-    if (item.status === 'delivered' && item.deliveredAt) {
-      const itemDeliveredLog = auditLogMap.get(`${item.id}-delivered`);
-      if (itemDeliveredLog) {
-        eventTimeline.push({
-          type: 'item_delivered',
-          timestamp: new Date(item.deliveredAt),
-          userName: itemDeliveredLog.userName,
-          itemType: item.type,
-          receivedBy: item.receivedBy,
-          icon: CheckCircle,
-          color: 'text-status-completed',
-          label: `${item.type} entregue`,
-        });
-      }
-    }
-  });
-
-  // Ordenar por data (mais recente primeiro)
-  const sortedEventTimeline = eventTimeline.sort((a, b) => 
-    b.timestamp.getTime() - a.timestamp.getTime()
-  );
-
   return (
     <div className="flex flex-col gap-6 p-6">
       <div>
@@ -353,16 +271,19 @@ export default function EventDetail() {
               <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-testid="title-event-name">
                 {event.name}
               </h1>
-              <StatusBadge status={event.status} />
             </div>
             <div className="flex flex-col gap-1 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <Calendar className="h-3.5 w-3.5" />
-                <span>Início: {new Date(event.startDate).toLocaleDateString('pt-BR')}</span>
+                <span>Início: {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.startDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Truck className="h-3.5 w-3.5" />
-                <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR')}</span>
+                <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Package className="h-3.5 w-3.5" />
+                <span>Criado em: {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>
           </div>
@@ -547,62 +468,6 @@ export default function EventDetail() {
           </div>
         </div>
       </div>
-
-      {/* Mini-Timeline de Atividades */}
-      {sortedEventTimeline.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Atividades Recentes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {sortedEventTimeline.slice(0, 5).map((activity, index) => {
-                const Icon = activity.icon;
-                const timeAgo = formatDistanceToNow(activity.timestamp, {
-                  addSuffix: true,
-                  locale: ptBR,
-                });
-
-                return (
-                  <div
-                    key={index}
-                    className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0"
-                  >
-                    <div className={cn("mt-0.5", activity.color)}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium">{activity.label}</span>
-                        {activity.userName && (
-                          <span className="text-xs text-muted-foreground">
-                            por {activity.userName}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-muted-foreground">{timeAgo}</span>
-                        <span className="text-xs text-muted-foreground">•</span>
-                        <span className="text-xs text-muted-foreground">
-                          {activity.timestamp.toLocaleDateString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>

@@ -42,6 +42,8 @@ export default function Grafica() {
     receivedBy: "",
   });
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string>("");
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>("");
+  const [isPhotoUploaded, setIsPhotoUploaded] = useState(false);
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items/approved"],
@@ -157,7 +159,7 @@ export default function Grafica() {
     });
   };
 
-  const handleSubmitDelivery = (e: React.FormEvent) => {
+  const handleSubmitDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
     
@@ -169,6 +171,25 @@ export default function Grafica() {
         variant: "destructive",
       });
       return;
+    }
+    
+    // Salvar foto no banco antes de marcar como entregue (se houver)
+    if (uploadedPhotoUrl) {
+      try {
+        await apiRequest("POST", "/api/delivery-photos", {
+          itemId: selectedItem.id,
+          photoUrl: uploadedPhotoUrl,
+          uploadedBy: (window as any).userName || "Sistema",
+        });
+      } catch (error) {
+        console.error("Error saving photo:", error);
+        toast({
+          title: "Erro ao salvar foto",
+          description: "A foto não foi salva. Deseja continuar?",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     
     markDeliveredMutation.mutate({
@@ -514,6 +535,9 @@ export default function Grafica() {
                                   onClick={() => {
                                     setSelectedItem(item);
                                     setModalType("delivery");
+                                    setUploadedPhotoUrl("");
+                                    setPhotoPreviewUrl("");
+                                    setIsPhotoUploaded(false);
                                     setDeliveryData({ photoUrl: "", receivedBy: "" });
                                   }}
                                   data-testid={`button-deliver-${item.id}`}
@@ -793,6 +817,10 @@ export default function Grafica() {
                     <ObjectUploader
                       maxFileSize={10485760}
                       buttonVariant="outline"
+                      onFileSelect={(file, previewUrl) => {
+                        // Mostrar preview local IMEDIATAMENTE
+                        setPhotoPreviewUrl(previewUrl);
+                      }}
                       onGetUploadParameters={async () => {
                         const response = await fetch("/api/objects/upload", { method: "POST" });
                         const data = await response.json();
@@ -804,29 +832,16 @@ export default function Grafica() {
                       onComplete={async (result) => {
                         const photoUrl = result.url;
                         setUploadedPhotoUrl(photoUrl);
+                        setIsPhotoUploaded(true);
                         
-                        // Salvar foto no banco de dados
-                        try {
-                          await apiRequest("POST", "/api/delivery-photos", {
-                            itemId: selectedItem.id,
-                            photoUrl,
-                            uploadedBy: (window as any).userName || "Sistema",
-                          });
-                          
-                          toast({
-                            title: "Foto carregada",
-                            description: "Foto de entrega anexada com sucesso",
-                          });
-                        } catch (error) {
-                          console.error("Error saving photo:", error);
-                          toast({
-                            title: "Erro ao salvar foto",
-                            description: "A foto foi carregada mas não foi salva no sistema",
-                            variant: "destructive",
-                          });
-                        }
+                        toast({
+                          title: "Foto carregada",
+                          description: "Foto anexada com sucesso",
+                        });
                       }}
                       onError={(error) => {
+                        // Limpar preview se houver erro
+                        setPhotoPreviewUrl("");
                         toast({
                           title: "Erro no upload",
                           description: error.message,
@@ -835,26 +850,28 @@ export default function Grafica() {
                       }}
                     >
                       <Camera className="h-4 w-4 mr-2" />
-                      {uploadedPhotoUrl ? "Trocar Foto" : "Anexar Foto"}
+                      {photoPreviewUrl ? "Trocar Foto" : "Anexar Foto"}
                     </ObjectUploader>
                     <p className="text-xs text-muted-foreground">
                       Faça upload de uma foto do material entregue (opcional)
                     </p>
                   </div>
-                  {uploadedPhotoUrl && (
+                  {photoPreviewUrl && (
                     <div className="flex-shrink-0">
                       <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted">
                         <img
-                          src={uploadedPhotoUrl}
+                          src={photoPreviewUrl}
                           alt="Preview da foto"
                           className="w-full h-full object-cover"
                           data-testid="photo-preview"
                         />
-                        <div className="absolute top-1 right-1">
-                          <div className="bg-status-completed text-white rounded-full p-1">
-                            <Check className="h-3 w-3" />
+                        {isPhotoUploaded && (
+                          <div className="absolute top-1 right-1">
+                            <div className="bg-status-completed text-white rounded-full p-1">
+                              <Check className="h-3 w-3" />
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   )}

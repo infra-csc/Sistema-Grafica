@@ -14,6 +14,7 @@ interface ObjectUploaderProps {
   }>;
   onComplete?: (result: { url: string }) => void;
   onError?: (error: Error) => void;
+  onFileSelect?: (file: File, previewUrl: string) => void;
   buttonClassName?: string;
   buttonVariant?: "default" | "outline" | "ghost" | "secondary";
   children: ReactNode;
@@ -29,6 +30,7 @@ export function ObjectUploader({
   onGetUploadParameters,
   onComplete,
   onError,
+  onFileSelect,
   buttonClassName,
   buttonVariant = "default",
   children,
@@ -50,6 +52,14 @@ export function ObjectUploader({
       onError?.(new Error(`Arquivo muito grande. Máximo: ${Math.round(maxFileSize / 1024 / 1024)}MB`));
       return;
     }
+
+    // Criar preview local IMEDIATAMENTE
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const previewUrl = e.target?.result as string;
+      onFileSelect?.(file, previewUrl);
+    };
+    reader.readAsDataURL(file);
 
     setIsUploading(true);
 

@@ -360,15 +360,13 @@ export default function PainelGeral() {
                             </div>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="text-sm">
-                              {item.description || item.type}
-                              {item.material && ` ${item.material}`}
-                              {item.finish && ` • ${item.finish}`}
-                            </div>
+                            {item.description ? (
+                              <div className="text-sm text-foreground">{item.description}</div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">—</div>
+                            )}
                             {item.observations && (
-                              <div className="text-xs text-muted-foreground italic mt-0.5">
-                                {item.observations}
-                              </div>
+                              <div className="text-xs text-muted-foreground italic mt-0.5">{item.observations}</div>
                             )}
                           </td>
                           <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>

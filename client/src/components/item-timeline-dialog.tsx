@@ -185,7 +185,7 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="bg-status-approved/10 text-status-approved border-status-approved/20">
-                          Aprovado
+                          Liberado
                         </Badge>
                         {approvedLog && (
                           <>

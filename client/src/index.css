@@ -86,7 +86,7 @@
   --status-completed: 142 76% 36%;    /* Verde - Finalizado */
   --status-pending: 45 93% 47%;        /* Amarelo - Aguardando */
   --status-urgent: 0 84% 60%;          /* Vermelho - Urgente */
-  --status-approved: 217 91% 60%;      /* Azul - Aprovado */
+  --status-approved: 217 91% 60%;      /* Azul - Liberado */
   --status-production: 25 95% 53%;     /* Laranja - Em Produção */
 
   --font-sans: Inter, Open Sans, sans-serif;

@@ -58,13 +58,13 @@ export default function Arte() {
       setSelectedItem(null);
       setConfirmApprovalItem(null);
       toast({
-        title: "Item aprovado",
+        title: "Item liberado",
         description: "O item foi liberado para produção",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao aprovar item",
+        title: "Erro ao liberar item",
         description: error.message,
         variant: "destructive",
       });
@@ -83,13 +83,13 @@ export default function Arte() {
       setSelectedItems([]);
       setConfirmApprovalItem(null);
       toast({
-        title: "Itens aprovados",
+        title: "Itens liberados",
         description: `${itemIds.length} itens foram liberados para produção`,
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao aprovar itens",
+        title: "Erro ao liberar itens",
         description: error.message,
         variant: "destructive",
       });
@@ -182,7 +182,7 @@ export default function Arte() {
             <div className="text-2xl font-bold text-status-pending" data-testid="stat-pending">
               {pendingCount}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Aguardando aprovação</p>
+            <p className="text-xs text-muted-foreground mt-1">Aguardando liberação</p>
           </CardContent>
         </Card>
 
@@ -195,7 +195,7 @@ export default function Arte() {
             <div className="text-2xl font-bold text-status-approved" data-testid="stat-approved">
               {approvedCount}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Aprovados para produção</p>
+            <p className="text-xs text-muted-foreground mt-1">Liberados para produção</p>
           </CardContent>
         </Card>
       </div>
@@ -205,7 +205,7 @@ export default function Arte() {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <CardTitle>
-                {viewMode === "pending" ? "Itens Pendentes de Aprovação" : "Histórico de Liberações"}
+                {viewMode === "pending" ? "Itens Pendentes de Liberação" : "Histórico de Liberações"}
               </CardTitle>
               <Select value={eventFilter} onValueChange={setEventFilter}>
                 <SelectTrigger className="w-48" data-testid="select-event-filter">
@@ -341,7 +341,7 @@ export default function Arte() {
               {viewMode === "pending" ? (
                 <>
                   <CheckCircle className="h-12 w-12 text-status-completed mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Tudo aprovado!</h3>
+                  <h3 className="text-lg font-semibold mb-2">Tudo liberado!</h3>
                   <p className="text-muted-foreground">Não há itens pendentes no momento</p>
                 </>
               ) : (
@@ -528,14 +528,16 @@ export default function Arte() {
                   <p className="text-sm font-medium text-muted-foreground">Tipo</p>
                   <p className="text-sm font-semibold">{selectedItem.type}</p>
                 </div>
+              </div>
+
+              {selectedItem.description && (
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Quantidade</p>
-                  <p className="text-sm font-semibold">{selectedItem.quantity}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Descrição</p>
+                  <p className="text-sm font-semibold">{selectedItem.description}</p>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">m² Total</p>
-                  <p className="text-sm font-semibold">{selectedItem.calculatedM2}</p>
-                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Material</p>
                   <p className="text-sm font-semibold">{selectedItem.material}</p>
@@ -544,7 +546,32 @@ export default function Arte() {
                   <p className="text-sm font-medium text-muted-foreground">Acabamento</p>
                   <p className="text-sm font-semibold">{selectedItem.finish}</p>
                 </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Quantidade</p>
+                  <p className="text-sm font-semibold">{selectedItem.quantity}</p>
+                </div>
+                {selectedItem.quantityProduced !== null && selectedItem.quantityProduced > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Quantidade Produzida</p>
+                    <p className="text-sm font-semibold text-status-production">{selectedItem.quantityProduced}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Área × Visual</p>
+                  <p className="text-sm font-semibold">{selectedItem.area} × {selectedItem.visual}</p>
+                </div>
+                {selectedItem.measurement && selectedItem.measurement !== `${selectedItem.area} × ${selectedItem.visual}` && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Medida</p>
+                    <p className="text-sm font-semibold">{selectedItem.measurement}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">m² Total</p>
+                  <p className="text-sm font-semibold">{selectedItem.calculatedM2}</p>
+                </div>
               </div>
+
               {selectedItem.observations && (
                 <div>
                   <p className="text-sm font-medium text-muted-foreground mb-1">Observações</p>

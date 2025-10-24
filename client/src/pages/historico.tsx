@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Calendar, 
@@ -11,7 +12,8 @@ import {
   Truck,
   FileCheck,
   Plus,
-  Activity
+  Activity,
+  Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
@@ -36,6 +38,7 @@ export default function Historico() {
   const [, setLocation] = useLocation();
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [actionFilter, setActionFilter] = useState<string>("all");
+  const [recipientFilter, setRecipientFilter] = useState<string>("");
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -156,6 +159,13 @@ export default function Historico() {
     filteredTimeline = filteredTimeline.filter(event => event.type === actionFilter);
   }
 
+  // Filtrar por nome de quem recebeu (busca parcial, case-insensitive)
+  if (recipientFilter.trim()) {
+    filteredTimeline = filteredTimeline.filter(event => 
+      event.receivedBy?.toLowerCase().includes(recipientFilter.toLowerCase())
+    );
+  }
+
   const getEventConfig = (type: TimelineEvent['type']) => {
     switch (type) {
       case 'event_created':
@@ -263,38 +273,50 @@ export default function Historico() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Atividades Recentes
-            </CardTitle>
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Select value={actionFilter} onValueChange={setActionFilter}>
-                <SelectTrigger className="w-full sm:w-48" data-testid="select-action-filter">
-                  <SelectValue placeholder="Tipo de ação" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as ações</SelectItem>
-                  <SelectItem value="event_created">Criações de eventos</SelectItem>
-                  <SelectItem value="item_created">Adições de itens</SelectItem>
-                  <SelectItem value="item_approved">Aprovações</SelectItem>
-                  <SelectItem value="production_started">Em produção</SelectItem>
-                  <SelectItem value="item_delivered">Entregas</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
-                  <SelectValue placeholder="Filtrar por evento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os eventos</SelectItem>
-                  {events.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Atividades Recentes
+              </CardTitle>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Select value={actionFilter} onValueChange={setActionFilter}>
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-action-filter">
+                    <SelectValue placeholder="Tipo de ação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as ações</SelectItem>
+                    <SelectItem value="event_created">Criações de eventos</SelectItem>
+                    <SelectItem value="item_created">Adições de itens</SelectItem>
+                    <SelectItem value="item_approved">Aprovações</SelectItem>
+                    <SelectItem value="production_started">Em produção</SelectItem>
+                    <SelectItem value="item_delivered">Entregas</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={eventFilter} onValueChange={setEventFilter}>
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
+                    <SelectValue placeholder="Filtrar por evento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os eventos</SelectItem>
+                    {events.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por quem recebeu..."
+                value={recipientFilter}
+                onChange={(e) => setRecipientFilter(e.target.value)}
+                className="pl-9"
+                data-testid="input-recipient-filter"
+              />
             </div>
           </div>
         </CardHeader>

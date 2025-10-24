@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Filter, Eye } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Filter, Eye, Check, ChevronsUpDown } from "lucide-react";
 import { Fragment, useState } from "react";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +31,7 @@ export default function Grafica() {
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [openRecipientCombobox, setOpenRecipientCombobox] = useState(false);
   const [productionData, setProductionData] = useState({
     quantityProduced: 0,
   });
@@ -100,6 +104,11 @@ export default function Grafica() {
   const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
   const uniqueMaterials = Array.from(new Set(items.map(item => item.material).filter(Boolean))).sort();
   const uniqueFinishes = Array.from(new Set(items.map(item => item.finish).filter(Boolean))).sort();
+  
+  // Obter nomes únicos de destinatários (quem recebeu entregas anteriores)
+  const uniqueRecipients = Array.from(
+    new Set(items.map(item => item.receivedBy).filter(Boolean))
+  ).sort();
 
   const filteredItems = items
     .filter(item => {
@@ -147,6 +156,16 @@ export default function Grafica() {
   const handleSubmitDelivery = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
+    
+    // Validar que o campo "Quem recebeu" está preenchido
+    if (!deliveryData.receivedBy || !deliveryData.receivedBy.trim()) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Por favor, informe quem recebeu o material",
+        variant: "destructive",
+      });
+      return;
+    }
     
     markDeliveredMutation.mutate({
       itemId: selectedItem.id,
@@ -707,17 +726,63 @@ export default function Grafica() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="receivedBy">Quem recebeu o material? *</Label>
-                <Input
-                  id="receivedBy"
-                  value={deliveryData.receivedBy}
-                  onChange={(e) => setDeliveryData({ ...deliveryData, receivedBy: e.target.value })}
-                  placeholder="Nome de quem recebeu"
-                  required
-                  data-testid="input-received-by"
-                />
+                <Label>Quem recebeu o material? *</Label>
+                <Popover open={openRecipientCombobox} onOpenChange={setOpenRecipientCombobox}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openRecipientCombobox}
+                      className="w-full justify-between"
+                      data-testid="button-recipient-combobox"
+                    >
+                      {deliveryData.receivedBy || "Selecione ou digite o nome..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput 
+                        placeholder="Digite o nome..." 
+                        value={deliveryData.receivedBy}
+                        onValueChange={(value) => setDeliveryData({ ...deliveryData, receivedBy: value })}
+                      />
+                      <CommandList>
+                        {uniqueRecipients.length === 0 ? (
+                          <CommandEmpty>Digite o nome de quem recebeu</CommandEmpty>
+                        ) : (
+                          <>
+                            <CommandEmpty>
+                              {deliveryData.receivedBy ? `Usar "${deliveryData.receivedBy}"` : "Digite o nome de quem recebeu"}
+                            </CommandEmpty>
+                            <CommandGroup heading="Destinatários anteriores">
+                              {uniqueRecipients.map((recipient) => (
+                                <CommandItem
+                                  key={recipient}
+                                  value={recipient}
+                                  onSelect={(currentValue) => {
+                                    setDeliveryData({ ...deliveryData, receivedBy: currentValue });
+                                    setOpenRecipientCombobox(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      deliveryData.receivedBy === recipient ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {recipient}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <p className="text-xs text-muted-foreground">
-                  Nome da pessoa que recebeu o material no local do evento
+                  Selecione de entregas anteriores ou digite um novo nome
                 </p>
               </div>
 

@@ -200,10 +200,18 @@ export default function Eventos() {
         return orderA - orderB;
       }
       
-      // Se têm a mesma urgência, ordena por data de saída do caminhão
-      const dateA = new Date(a.truckDepartureDate);
-      const dateB = new Date(b.truckDepartureDate);
-      return dateA.getTime() - dateB.getTime();
+      // Se têm a mesma urgência, ordena primeiro por data de início do evento
+      const startDateA = new Date(a.startDate);
+      const startDateB = new Date(b.startDate);
+      
+      if (startDateA.getTime() !== startDateB.getTime()) {
+        return startDateA.getTime() - startDateB.getTime();
+      }
+      
+      // Se a data de início for igual, ordena por data de saída do caminhão
+      const truckDateA = new Date(a.truckDepartureDate);
+      const truckDateB = new Date(b.truckDepartureDate);
+      return truckDateA.getTime() - truckDateB.getTime();
     });
 
   const urgencyConfig = {

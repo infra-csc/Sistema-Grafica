@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import {
@@ -30,10 +31,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 
+type UrgencyLevel = 'urgent' | 'attention' | 'normal' | 'completed';
+
 export default function Eventos() {
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUrgencies, setSelectedUrgencies] = useState<UrgencyLevel[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     startDate: "",
@@ -146,30 +150,68 @@ export default function Eventos() {
     setFormData({ name: "", startDate: "", truckDepartureDate: "" });
   };
 
+  // Função para calcular urgência baseado na saída do caminhão
+  const getEventUrgency = (event: any): UrgencyLevel => {
+    const now = new Date();
+    const departure = new Date(event.truckDepartureDate);
+    const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (hoursUntilDeparture < 0) return 'completed';
+    if (hoursUntilDeparture < 24) return 'urgent';
+    if (hoursUntilDeparture < 48) return 'attention';
+    return 'normal';
+  };
+
+  const toggleUrgency = (urgency: UrgencyLevel) => {
+    setSelectedUrgencies(prev => 
+      prev.includes(urgency) 
+        ? prev.filter(u => u !== urgency)
+        : [...prev, urgency]
+    );
+  };
+
   const filteredEvents = events
-    .filter((event) =>
-      event.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    .filter((event) => {
+      // Filtro de busca por nome
+      const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Filtro de urgência
+      const matchesUrgency = selectedUrgencies.length === 0 || 
+        selectedUrgencies.includes(getEventUrgency(event));
+      
+      return matchesSearch && matchesUrgency;
+    })
     .sort((a, b) => {
-      const now = new Date();
-      const dateA = new Date(a.startDate);
-      const dateB = new Date(b.startDate);
+      const urgencyOrder: Record<UrgencyLevel, number> = {
+        urgent: 0,      // Vermelho - primeiro
+        attention: 1,   // Amarelo - segundo
+        normal: 2,      // Azul - terceiro
+        completed: 3    // Verde - último
+      };
+
+      const urgencyA = getEventUrgency(a);
+      const urgencyB = getEventUrgency(b);
       
-      const isPastA = dateA < now;
-      const isPastB = dateB < now;
+      const orderA = urgencyOrder[urgencyA];
+      const orderB = urgencyOrder[urgencyB];
       
-      // Se um é passado e outro futuro, futuro vem primeiro
-      if (isPastA && !isPastB) return 1;
-      if (!isPastA && isPastB) return -1;
-      
-      // Se ambos são futuros, o mais próximo vem primeiro
-      if (!isPastA && !isPastB) {
-        return dateA.getTime() - dateB.getTime();
+      // Se têm urgências diferentes, ordena por prioridade
+      if (orderA !== orderB) {
+        return orderA - orderB;
       }
       
-      // Se ambos são passados, o mais recente vem primeiro
-      return dateB.getTime() - dateA.getTime();
+      // Se têm a mesma urgência, ordena por data de saída do caminhão
+      const dateA = new Date(a.truckDepartureDate);
+      const dateB = new Date(b.truckDepartureDate);
+      return dateA.getTime() - dateB.getTime();
     });
+
+  const urgencyConfig = {
+    urgent: { label: 'Urgente', color: 'bg-status-urgent text-white', count: events.filter(e => getEventUrgency(e) === 'urgent').length },
+    attention: { label: 'Atenção', color: 'bg-status-pending text-foreground', count: events.filter(e => getEventUrgency(e) === 'attention').length },
+    normal: { label: 'Normal', color: 'bg-primary text-white', count: events.filter(e => getEventUrgency(e) === 'normal').length },
+    completed: { label: 'Concluído', color: 'bg-status-completed text-white', count: events.filter(e => getEventUrgency(e) === 'completed').length },
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -268,6 +310,42 @@ export default function Eventos() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
+      </div>
+
+      {/* Filtros de Urgência */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Filtrar por urgência:</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(Object.entries(urgencyConfig) as [UrgencyLevel, typeof urgencyConfig.urgent][]).map(([urgency, config]) => (
+            <Badge
+              key={urgency}
+              variant={selectedUrgencies.includes(urgency) ? "default" : "outline"}
+              className={`cursor-pointer transition-all ${
+                selectedUrgencies.includes(urgency) 
+                  ? config.color 
+                  : 'hover-elevate'
+              }`}
+              onClick={() => toggleUrgency(urgency)}
+              data-testid={`filter-urgency-${urgency}`}
+            >
+              {config.label} ({config.count})
+            </Badge>
+          ))}
+          {selectedUrgencies.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedUrgencies([])}
+              className="h-auto py-1 px-2 text-xs"
+              data-testid="button-clear-filters"
+            >
+              Limpar filtros
+            </Button>
+          )}
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2 } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2, Check, ChevronsUpDown } from "lucide-react";
 import { Fragment, useState } from "react";
 import {
   Dialog,
@@ -26,12 +26,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { BulkItemEntry } from "@/components/bulk-item-entry";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
+import { cn } from "@/lib/utils";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
@@ -45,6 +48,7 @@ export default function EventDetail() {
   const [bulkMode, setBulkMode] = useState(true);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -353,16 +357,80 @@ export default function EventDetail() {
                     <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 space-y-2">
                     <Label htmlFor="type">Tipo de Item</Label>
-                    <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })} required>
-                      <SelectTrigger id="type" data-testid="select-item-type">
-                        <SelectValue placeholder="Selecione o tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {itemTypes.map((type) => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={typePopoverOpen}
+                          className="w-full justify-between font-normal"
+                          data-testid="select-item-type"
+                        >
+                          <span className="truncate">
+                            {formData.type || "Selecione o tipo"}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Buscar tipo..." />
+                          <CommandList>
+                            <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
+                            {standardItems.length > 0 && (
+                              <CommandGroup heading="Modelos">
+                                {standardItems.map((item: any) => (
+                                  <CommandItem
+                                    key={item.id}
+                                    value={item.name}
+                                    onSelect={() => {
+                                      setFormData({
+                                        ...formData,
+                                        type: item.name,
+                                        area: item.area ? String(item.area) : "",
+                                        visual: item.visual ? String(item.visual) : "",
+                                        material: item.material || "",
+                                        finish: item.finish || "",
+                                        measurement: item.area && item.visual ? `${item.area} × ${item.visual}` : "",
+                                      });
+                                      setTypePopoverOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.type === item.name ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {item.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                            <CommandGroup heading="Outros Tipos">
+                              {itemTypes.map((type) => (
+                                <CommandItem
+                                  key={type}
+                                  value={type}
+                                  onSelect={() => {
+                                    setFormData({ ...formData, type });
+                                    setTypePopoverOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      formData.type === type ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {type}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="quantity">Quantidade</Label>

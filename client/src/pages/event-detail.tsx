@@ -267,10 +267,15 @@ export default function EventDetail() {
         </Link>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mb-1">
               <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-testid="title-event-name">
                 {event.name}
               </h1>
+            </div>
+            <div className="mb-3">
+              <span className="text-xs text-muted-foreground/70">
+                Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
             </div>
             <div className="flex flex-col gap-1 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
@@ -280,10 +285,6 @@ export default function EventDetail() {
               <div className="flex items-center gap-2">
                 <Truck className="h-3.5 w-3.5" />
                 <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Package className="h-3.5 w-3.5" />
-                <span>Criado em: {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>
           </div>

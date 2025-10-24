@@ -352,7 +352,7 @@ export default function Eventos() {
         <div className="flex items-center gap-4 text-xs text-muted-foreground/60 mt-2">
           <span className="flex items-center gap-1.5">
             <div className="h-2 w-2 rounded-full bg-status-urgent"></div>
-            <span>Urgente (&lt;24h para saída)</span>
+            <span>Urgente (&lt;24h)</span>
           </span>
           <span className="flex items-center gap-1.5">
             <div className="h-2 w-2 rounded-full bg-status-pending"></div>

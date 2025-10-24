@@ -371,15 +371,15 @@ export default function Arte() {
                         />
                       </th>
                     )}
-                    <th className="text-left py-3 px-4 font-medium">Descrição</th>
-                    <th className="text-center py-3 px-4 font-medium">Qtd</th>
-                    <th className="text-left py-3 px-4 font-medium">Medida</th>
-                    <th className="text-center py-3 px-4 font-medium">m²</th>
-                    <th className="text-left py-3 px-4 font-medium">Material</th>
+                    <th className="text-left py-3 px-4 font-medium min-w-[200px]">Descrição</th>
+                    <th className="text-center py-3 px-2 font-medium whitespace-nowrap">Qtd</th>
+                    <th className="text-left py-3 px-2 font-medium whitespace-nowrap">Medida</th>
+                    <th className="text-center py-3 px-2 font-medium whitespace-nowrap">m²</th>
+                    <th className="text-left py-3 px-4 font-medium min-w-[120px]">Material</th>
                     {viewMode === "approved" && (
-                      <th className="text-left py-3 px-4 font-medium">Status</th>
+                      <th className="text-left py-3 px-3 font-medium whitespace-nowrap">Status</th>
                     )}
-                    <th className="text-right py-3 px-4 font-medium">Ações</th>
+                    <th className="text-right py-3 px-2 font-medium whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -452,7 +452,7 @@ export default function Arte() {
                               />
                             </td>
                           )}
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 min-w-[200px]">
                             {item.description ? (
                               <div className="text-sm text-foreground">{item.description}</div>
                             ) : (
@@ -462,25 +462,25 @@ export default function Arte() {
                               <div className="text-xs text-muted-foreground italic mt-0.5">{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-2 text-center whitespace-nowrap">
                             <div className="text-sm tabular-nums">{item.quantity}</div>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-2 whitespace-nowrap">
                             <div className="text-sm tabular-nums">{item.area} × {item.visual}</div>
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-2 text-center whitespace-nowrap">
                             <div className="text-sm font-medium tabular-nums">{item.calculatedM2}</div>
                           </td>
-                          <td className="py-3 px-4 text-sm">
+                          <td className="py-3 px-4 text-sm min-w-[120px]">
                             <div>{item.material}</div>
                             <div className="text-xs text-muted-foreground">{item.finish}</div>
                           </td>
                           {viewMode === "approved" && (
-                            <td className="py-3 px-4">
+                            <td className="py-3 px-3 whitespace-nowrap">
                               <StatusBadge status={item.status} />
                             </td>
                           )}
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-2 whitespace-nowrap">
                             <div className="flex gap-1 justify-end">
                               <Button
                                 size="icon"

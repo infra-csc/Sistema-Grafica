@@ -287,6 +287,7 @@ export default function PainelGeral() {
                     <th className="text-left py-3 px-4 font-medium">Qtd Produzida</th>
                     <th className="text-left py-3 px-4 font-medium">Área × Visual</th>
                     <th className="text-left py-3 px-4 font-medium">m²</th>
+                    <th className="text-left py-3 px-4 font-medium">Material</th>
                     <th className="text-left py-3 px-4 font-medium">Status</th>
                     <th className="text-left py-3 px-4 font-medium">Atualizado</th>
                     <th className="text-center py-3 px-4 font-medium w-16"></th>
@@ -310,7 +311,7 @@ export default function PainelGeral() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={8} className="py-3 px-4">
+                            <td colSpan={9} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
@@ -338,7 +339,7 @@ export default function PainelGeral() {
                         )}
                         {showTypeHeader && (
                           <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={8} className="py-1.5 px-4">
+                            <td colSpan={9} className="py-1.5 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -375,6 +376,10 @@ export default function PainelGeral() {
                           </td>
                           <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
                           <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
+                          <td className="py-3 px-4 text-sm">
+                            <div>{item.material}</div>
+                            <div className="text-xs text-muted-foreground">{item.finish}</div>
+                          </td>
                           <td className="py-3 px-4">
                             <StatusBadge status={item.status} />
                           </td>

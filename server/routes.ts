@@ -707,6 +707,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ OBJECT STORAGE (PHOTO UPLOADS) ============
+  // Reference: blueprint:javascript_object_storage
+  
+  const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
+  
+  // Get upload URL for a new photo
+  app.post("/api/objects/upload", async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } catch (error: any) {
+      console.error("Error getting upload URL:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Serve uploaded objects (photos)
+  app.get("/objects/:objectPath(*)", async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      await objectStorageService.downloadObject(objectFile, res);
+    } catch (error: any) {
+      console.error("Error serving object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
+    }
+  });
+
+  // Save delivery photo info to database
+  app.post("/api/delivery-photos", async (req, res) => {
+    try {
+      const validatedData = insertDeliveryPhotoSchema.parse(req.body);
+      
+      // Normalize the photo URL to object path
+      const objectStorageService = new ObjectStorageService();
+      const photoPath = objectStorageService.normalizeObjectEntityPath(validatedData.photoUrl);
+      
+      const photo = await storage.addDeliveryPhoto({
+        ...validatedData,
+        photoUrl: photoPath,
+      });
+      
+      res.status(201).json(photo);
+    } catch (error: any) {
+      console.error("Error saving delivery photo:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get photos for an item
+  app.get("/api/items/:itemId/photos", async (req, res) => {
+    try {
+      const photos = await storage.getDeliveryPhotos(req.params.itemId);
+      res.json(photos);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============ DEADLINE ALERTS ============
   // Background job to check for upcoming deadlines
   setInterval(async () => {

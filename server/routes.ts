@@ -16,6 +16,15 @@ import {
 import { db } from "./db";
 import { events } from "@shared/schema";
 
+// Extend Express Request type to include userName
+declare global {
+  namespace Express {
+    interface Request {
+      userName?: string;
+    }
+  }
+}
+
 // WebSocket clients set
 const wsClients = new Set<WebSocket>();
 

@@ -588,12 +588,6 @@ export default function Grafica() {
                   <p className="text-sm font-medium text-muted-foreground">Área × Visual</p>
                   <p className="text-sm font-semibold">{viewDetailsItem.area} × {viewDetailsItem.visual}</p>
                 </div>
-                {viewDetailsItem.measurement && viewDetailsItem.measurement !== `${viewDetailsItem.area} × ${viewDetailsItem.visual}` && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Medida</p>
-                    <p className="text-sm font-semibold">{viewDetailsItem.measurement}</p>
-                  </div>
-                )}
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">m² Total</p>
                   <p className="text-sm font-semibold">{viewDetailsItem.calculatedM2}</p>

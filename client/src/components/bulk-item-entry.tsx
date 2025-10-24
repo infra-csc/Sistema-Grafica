@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Copy, Trash2, Save } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Plus, Copy, Trash2, Save, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
@@ -43,6 +45,7 @@ interface BulkItemEntryProps {
 
 export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
+  const [openPopovers, setOpenPopovers] = useState<Record<string, boolean>>({});
 
   function createEmptyRow(): BulkItemRow {
     return {
@@ -207,34 +210,75 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                 
                 {/* Tipo */}
                 <td className="p-2">
-                  <Select 
-                    value={row.type} 
-                    onValueChange={(value) => updateRow(row.id, 'type', value)}
+                  <Popover 
+                    open={openPopovers[row.id]} 
+                    onOpenChange={(open) => setOpenPopovers(prev => ({ ...prev, [row.id]: open }))}
                   >
-                    <SelectTrigger className="h-8" data-testid={`select-type-${index}`}>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {standardItems.length > 0 && (
-                        <>
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                            Modelos
-                          </div>
-                          {standardItems.map(item => (
-                            <SelectItem key={item.id} value={item.name}>
-                              {item.name}
-                            </SelectItem>
-                          ))}
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">
-                            Outros Tipos
-                          </div>
-                        </>
-                      )}
-                      {itemTypes.map(type => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openPopovers[row.id]}
+                        className="h-8 w-full justify-between font-normal"
+                        data-testid={`select-type-${index}`}
+                      >
+                        <span className="truncate">
+                          {row.type || "Selecione"}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[200px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar tipo..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
+                          {standardItems.length > 0 && (
+                            <CommandGroup heading="Modelos">
+                              {standardItems.map(item => (
+                                <CommandItem
+                                  key={item.id}
+                                  value={item.name}
+                                  onSelect={() => {
+                                    updateRow(row.id, 'type', item.name);
+                                    setOpenPopovers(prev => ({ ...prev, [row.id]: false }));
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      row.type === item.name ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {item.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )}
+                          <CommandGroup heading="Outros Tipos">
+                            {itemTypes.map(type => (
+                              <CommandItem
+                                key={type}
+                                value={type}
+                                onSelect={() => {
+                                  updateRow(row.id, 'type', type);
+                                  setOpenPopovers(prev => ({ ...prev, [row.id]: false }));
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    row.type === type ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {type}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </td>
 
                 {/* Descrição */}

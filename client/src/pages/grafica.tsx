@@ -381,7 +381,7 @@ export default function Grafica() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium">Item</th>
+                    <th className="text-left py-3 px-4 font-medium">Obs</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Prod.</th>
                     <th className="text-left py-3 px-4 font-medium">Medida</th>
@@ -453,7 +453,11 @@ export default function Grafica() {
                           data-testid={`row-item-${item.id}`}
                         >
                           <td className="py-3 px-4">
-                            <div className="text-sm font-medium">{item.type}</div>
+                            {item.observations ? (
+                              <div className="text-xs text-muted-foreground truncate max-w-xs">{item.observations}</div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">—</div>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
                           <td className="py-3 px-4 text-center">

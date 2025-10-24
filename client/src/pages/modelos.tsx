@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Layers } from "lucide-react";
+import { Plus, Layers, Search, Check, ChevronsUpDown } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -16,8 +16,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
@@ -25,6 +28,8 @@ const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
 export default function Modelos() {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: "",
@@ -84,6 +89,11 @@ export default function Modelos() {
     createStandardItemMutation.mutate(dataToSubmit);
   };
 
+  // Filtrar modelos por nome
+  const filteredItems = standardItems.filter((item) =>
+    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -95,7 +105,17 @@ export default function Modelos() {
             Gerencie modelos padrão de itens gráficos
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar modelos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 w-full sm:w-64"
+            />
+          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -123,21 +143,49 @@ export default function Modelos() {
               
               <div className="space-y-2">
                 <Label htmlFor="type">Tipo</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={(value) => setFormData({ ...formData, type: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {itemTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={typePopoverOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      <span className="truncate">
+                        {formData.type || "Selecione o tipo"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar tipo..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {itemTypes.map((type) => (
+                            <CommandItem
+                              key={type}
+                              value={type}
+                              onSelect={() => {
+                                setFormData({ ...formData, type });
+                                setTypePopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  formData.type === type ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {type}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="flex items-center space-x-2 p-3 bg-muted/50 rounded-md">
@@ -259,7 +307,8 @@ export default function Modelos() {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading ? (
@@ -280,27 +329,40 @@ export default function Modelos() {
             </div>
           </CardContent>
         </Card>
+      ) : filteredItems.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum modelo encontrado</h3>
+              <p className="text-muted-foreground mb-4">Tente buscar com outro termo</p>
+              <Button variant="outline" onClick={() => setSearchTerm("")}>
+                Limpar busca
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {standardItems.map((item) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredItems.map((item) => (
             <Card key={item.id} className="hover-elevate">
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base">{item.name}</CardTitle>
-                    <CardDescription className="mt-1">
+                  <div className="min-w-0">
+                    <CardTitle className="text-sm truncate">{item.name}</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">
                       Tipo: {item.type}
                     </CardDescription>
                   </div>
                   {item.hasVariableMeasurement && (
-                    <Badge variant="secondary">Variável</Badge>
+                    <Badge variant="secondary" className="text-xs shrink-0">Variável</Badge>
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3 pt-0">
                 {!item.hasVariableMeasurement && item.area && item.visual && (
-                  <div className="p-3 bg-muted/50 rounded-md">
-                    <p className="text-sm font-medium">Medidas Fixas</p>
+                  <div className="p-2 bg-muted/50 rounded-md">
+                    <p className="text-xs font-medium">Medidas Fixas</p>
                     <p className="text-xs text-muted-foreground">
                       {item.area} × {item.visual} m
                     </p>
@@ -309,7 +371,7 @@ export default function Modelos() {
                 
                 {item.material && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                       Material
                     </p>
                     <Badge variant="outline" className="text-xs">
@@ -320,7 +382,7 @@ export default function Modelos() {
 
                 {item.finish && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                       Acabamento
                     </p>
                     <Badge variant="outline" className="text-xs">

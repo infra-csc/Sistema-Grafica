@@ -301,6 +301,28 @@ export class DatabaseStorage implements IStorage {
     return item;
   }
 
+  async updateStandardItem(id: string, updates: Partial<InsertStandardItem>): Promise<StandardItem | undefined> {
+    const values: any = { ...updates, updatedAt: new Date() };
+    if (updates.area !== undefined) {
+      values.area = updates.area !== null ? String(updates.area) : null;
+    }
+    if (updates.visual !== undefined) {
+      values.visual = updates.visual !== null ? String(updates.visual) : null;
+    }
+    
+    const [item] = await db
+      .update(standardItems)
+      .set(values)
+      .where(eq(standardItems.id, id))
+      .returning();
+    return item || undefined;
+  }
+
+  async deleteStandardItem(id: string): Promise<boolean> {
+    const result = await db.delete(standardItems).where(eq(standardItems.id, id)).returning();
+    return result.length > 0;
+  }
+
   // Notifications
   async getNotification(id: string): Promise<Notification | undefined> {
     const [notification] = await db.select().from(notifications).where(eq(notifications.id, id));

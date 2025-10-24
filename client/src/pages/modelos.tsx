@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Layers, Search, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Layers, Search, Check, ChevronsUpDown, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -11,6 +11,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -21,16 +31,20 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
 const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
 export default function Modelos() {
+  const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const { toast } = useToast();
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -47,11 +61,15 @@ export default function Modelos() {
 
   const createStandardItemMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      if (editingItem) {
+        return await apiRequest("PATCH", `/api/standard-items/${editingItem.id}`, data);
+      }
       return await apiRequest("POST", "/api/standard-items", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
       setOpen(false);
+      setEditingItem(null);
       setFormData({
         name: "",
         type: "",
@@ -62,13 +80,34 @@ export default function Modelos() {
         hasVariableMeasurement: false,
       });
       toast({
-        title: "Modelo criado",
-        description: "O modelo foi criado com sucesso",
+        title: editingItem ? "Modelo atualizado" : "Modelo criado",
+        description: editingItem ? "O modelo foi atualizado com sucesso" : "O modelo foi criado com sucesso",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao criar modelo",
+        title: editingItem ? "Erro ao atualizar modelo" : "Erro ao criar modelo",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteStandardItemMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/standard-items/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
+      setDeleteConfirm(null);
+      toast({
+        title: "Modelo excluído",
+        description: "O modelo foi excluído com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao excluir modelo",
         description: error.message,
         variant: "destructive",
       });
@@ -87,6 +126,44 @@ export default function Modelos() {
     };
     
     createStandardItemMutation.mutate(dataToSubmit);
+  };
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item);
+    setFormData({
+      name: item.name,
+      type: item.type,
+      area: item.area || "",
+      visual: item.visual || "",
+      material: item.material || "",
+      finish: item.finish || "",
+      hasVariableMeasurement: item.hasVariableMeasurement || false,
+    });
+    setOpen(true);
+  };
+
+  const handleDelete = (item: any) => {
+    setDeleteConfirm(item);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm) {
+      deleteStandardItemMutation.mutate(deleteConfirm.id);
+    }
+  };
+
+  const handleCloseDialog = () => {
+    setOpen(false);
+    setEditingItem(null);
+    setFormData({
+      name: "",
+      type: "",
+      area: "",
+      visual: "",
+      material: "",
+      finish: "",
+      hasVariableMeasurement: false,
+    });
   };
 
   // Filtrar modelos por nome
@@ -115,18 +192,18 @@ export default function Modelos() {
               className="pl-9 w-full sm:w-64"
             />
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCloseDialog()}>
           <DialogTrigger asChild>
-            <Button>
+            <Button data-testid="button-new-model">
               <Plus className="h-4 w-4 mr-2" />
               Novo Modelo
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Criar Novo Modelo</DialogTitle>
+              <DialogTitle>{editingItem ? "Editar Modelo" : "Criar Novo Modelo"}</DialogTitle>
               <DialogDescription>
-                Configure um modelo reutilizável de item gráfico
+                {editingItem ? "Atualize as informações do modelo" : "Configure um modelo reutilizável de item gráfico"}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -298,11 +375,14 @@ export default function Modelos() {
               </div>
 
               <div className="flex gap-2 justify-end">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                <Button type="button" variant="outline" onClick={handleCloseDialog}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={createStandardItemMutation.isPending}>
-                  {createStandardItemMutation.isPending ? "Criando..." : "Criar Modelo"}
+                <Button type="submit" disabled={createStandardItemMutation.isPending} data-testid="button-submit-model">
+                  {createStandardItemMutation.isPending 
+                    ? (editingItem ? "Atualizando..." : "Criando...") 
+                    : (editingItem ? "Atualizar Modelo" : "Criar Modelo")
+                  }
                 </Button>
               </div>
             </form>
@@ -348,15 +428,39 @@ export default function Modelos() {
             <Card key={item.id} className="hover-elevate">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <CardTitle className="text-sm truncate">{item.name}</CardTitle>
                     <CardDescription className="text-xs mt-0.5">
                       Tipo: {item.type}
                     </CardDescription>
                   </div>
-                  {item.hasVariableMeasurement && (
-                    <Badge variant="secondary" className="text-xs shrink-0">Variável</Badge>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {item.hasVariableMeasurement && (
+                      <Badge variant="secondary" className="text-xs">Variável</Badge>
+                    )}
+                    {hasPermission("admin") && (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleEdit(item)}
+                          className="h-7 w-7"
+                          data-testid={`button-edit-model-${item.id}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleDelete(item)}
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          data-testid={`button-delete-model-${item.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 pt-0">
@@ -395,6 +499,31 @@ export default function Modelos() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o modelo <strong>{deleteConfirm?.name}</strong>?
+              <br /><br />
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleteStandardItemMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-model"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

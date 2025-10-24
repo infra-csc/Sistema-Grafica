@@ -572,6 +572,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update standard item
+  app.patch("/api/standard-items/:id", async (req, res) => {
+    try {
+      const validatedData = insertStandardItemSchema.partial().parse(req.body);
+      const item = await storage.updateStandardItem(req.params.id, validatedData);
+      
+      if (!item) {
+        return res.status(404).json({ error: "Modelo não encontrado" });
+      }
+      
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'standardItem',
+        req.params.id,
+        `Modelo "${item.name}" atualizado`
+      );
+      
+      broadcast({ type: "standard_item_updated", item });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete standard item
+  app.delete("/api/standard-items/:id", async (req, res) => {
+    try {
+      const item = await storage.getStandardItem(req.params.id);
+      if (!item) {
+        return res.status(404).json({ error: "Modelo não encontrado" });
+      }
+      
+      await storage.deleteStandardItem(req.params.id);
+      
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'deleted',
+        'standardItem',
+        req.params.id,
+        `Modelo "${item.name}" excluído`
+      );
+      
+      broadcast({ type: "standard_item_deleted", itemId: req.params.id });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============ NOTIFICATIONS ============
 
   app.get("/api/notifications", async (req, res) => {

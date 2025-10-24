@@ -53,6 +53,7 @@ export default function EventDetail() {
 
   const [formData, setFormData] = useState({
     type: "",
+    description: "",
     quantity: 1,
     area: "",
     visual: "",
@@ -97,6 +98,7 @@ export default function EventDetail() {
       setOpen(false);
       setFormData({
         type: "",
+        description: "",
         quantity: 1,
         area: "",
         visual: "",
@@ -206,6 +208,7 @@ export default function EventDetail() {
     setBulkMode(false);
     setFormData({
       type: item.type || "",
+      description: item.description || "",
       quantity: item.quantity || 1,
       area: item.area || "",
       visual: item.visual || "",
@@ -227,6 +230,7 @@ export default function EventDetail() {
     setBulkMode(true);
     setFormData({
       type: "",
+      description: "",
       quantity: 1,
       area: "",
       visual: "",
@@ -431,6 +435,16 @@ export default function EventDetail() {
                         </Command>
                       </PopoverContent>
                     </Popover>
+                  </div>
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="description">Descrição (opcional)</Label>
+                    <Input
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Descrição personalizada do item"
+                      data-testid="input-description"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="quantity">Quantidade</Label>

@@ -837,6 +837,13 @@ export default function Grafica() {
                         }
                       }
                     }}
+                    onError={(error) => {
+                      toast({
+                        title: "Erro no upload",
+                        description: error.message,
+                        variant: "destructive",
+                      });
+                    }}
                   >
                     <Camera className="h-4 w-4 mr-2" />
                     {uploadedPhotoUrl ? "Trocar Foto" : "Anexar Foto"}

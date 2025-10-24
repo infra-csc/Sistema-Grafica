@@ -18,6 +18,7 @@ interface ObjectUploaderProps {
   onComplete?: (
     result: UploadResult<Record<string, unknown>, Record<string, unknown>>
   ) => void;
+  onError?: (error: Error) => void;
   buttonClassName?: string;
   buttonVariant?: "default" | "outline" | "ghost" | "secondary";
   children: ReactNode;
@@ -41,6 +42,7 @@ export function ObjectUploader({
   maxFileSize = 10485760, // 10MB default
   onGetUploadParameters,
   onComplete,
+  onError,
   buttonClassName,
   buttonVariant = "default",
   children,
@@ -62,6 +64,12 @@ export function ObjectUploader({
       .on("complete", (result) => {
         onComplete?.(result);
         setShowModal(false);
+      })
+      .on("upload-error", (file, error) => {
+        onError?.(new Error(`Erro no upload: ${error.message}`));
+      })
+      .on("restriction-failed", (file, error) => {
+        onError?.(new Error(`Arquivo não permitido: ${error.message}`));
       })
   );
 

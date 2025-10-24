@@ -371,16 +371,15 @@ export default function Arte() {
                         />
                       </th>
                     )}
-                    <th className="text-left py-3 px-4 font-medium">Evento</th>
                     <th className="text-left py-3 px-4 font-medium">Item</th>
-                    <th className="text-left py-3 px-4 font-medium">Qtd</th>
+                    <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Medida</th>
-                    <th className="text-left py-3 px-4 font-medium">m²</th>
+                    <th className="text-left py-3 px-4 font-medium w-16">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     {viewMode === "approved" && (
-                      <th className="text-left py-3 px-4 font-medium">Status</th>
+                      <th className="text-left py-3 px-4 font-medium w-24">Status</th>
                     )}
-                    <th className="text-left py-3 px-4 font-medium">Ações</th>
+                    <th className="text-right py-3 px-4 font-medium w-24">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -401,7 +400,7 @@ export default function Arte() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={viewMode === "pending" ? 8 : 9} className="py-3 px-4">
+                            <td colSpan={viewMode === "pending" ? 7 : 7} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
@@ -429,7 +428,7 @@ export default function Arte() {
                         )}
                         {showTypeHeader && (
                           <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={viewMode === "pending" ? 8 : 9} className="py-1.5 px-4">
+                            <td colSpan={viewMode === "pending" ? 7 : 7} className="py-1.5 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -453,23 +452,15 @@ export default function Arte() {
                               />
                             </td>
                           )}
-                          <td className="py-3 px-4 min-w-[200px]">
-                            <div className="font-medium text-sm whitespace-nowrap overflow-hidden text-ellipsis">
-                              {item.event?.name || 'N/A'}
-                            </div>
-                            <div className="text-xs text-muted-foreground whitespace-nowrap">
-                              Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
-                            </div>
-                          </td>
                           <td className="py-3 px-4">
                             <div className="text-sm font-medium">{item.type}</div>
                             {item.observations && (
-                              <div className="text-xs text-muted-foreground">{item.observations}</div>
+                              <div className="text-xs text-muted-foreground truncate max-w-xs">{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
-                          <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
-                          <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
+                          <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">{item.area} × {item.visual}</td>
+                          <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">{item.calculatedM2}</td>
                           <td className="py-3 px-4 text-sm">
                             <div>{item.material}</div>
                             <div className="text-xs text-muted-foreground">{item.finish}</div>
@@ -480,25 +471,26 @@ export default function Arte() {
                             </td>
                           )}
                           <td className="py-3 px-4">
-                            <div className="flex gap-2">
+                            <div className="flex gap-1 justify-end">
                               <Button
-                                size="sm"
-                                variant="outline"
+                                size="icon"
+                                variant="ghost"
                                 onClick={() => setSelectedItem(item)}
                                 data-testid={`button-view-${item.id}`}
+                                title="Ver detalhes"
                               >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Ver
+                                <Eye className="h-4 w-4" />
                               </Button>
                               {viewMode === "pending" && (
                                 <Button
-                                  size="sm"
+                                  size="icon"
                                   onClick={() => handleSingleApprove(item)}
                                   disabled={approveItemMutation.isPending}
                                   data-testid={`button-approve-${item.id}`}
+                                  title="Liberar para Produção"
+                                  className="bg-status-approved hover:bg-status-approved/90"
                                 >
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Liberar
+                                  <CheckCircle className="h-4 w-4" />
                                 </Button>
                               )}
                             </div>

@@ -21,6 +21,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import type { UploadResult } from "@uppy/core";
+import { DeliveryPhotoGallery } from "@/components/DeliveryPhotoGallery";
 
 export default function Grafica() {
   const { toast } = useToast();
@@ -613,6 +614,10 @@ export default function Grafica() {
                   <p className="text-sm font-medium text-muted-foreground mb-1">Observações</p>
                   <p className="text-sm">{viewDetailsItem.observations}</p>
                 </div>
+              )}
+
+              {viewDetailsItem.status === "delivered" && (
+                <DeliveryPhotoGallery itemId={viewDetailsItem.id} />
               )}
 
               <div className="flex gap-2 justify-end">

@@ -453,11 +453,9 @@ export default function Arte() {
                             </td>
                           )}
                           <td className="py-3 px-4">
-                            {item.observations ? (
-                              <div className="text-xs text-muted-foreground truncate max-w-xs">{item.observations}</div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground">—</div>
-                            )}
+                            <div className="text-xs text-muted-foreground truncate max-w-xs">
+                              {item.observations || item.description || "—"}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
                           <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">{item.area} × {item.visual}</td>

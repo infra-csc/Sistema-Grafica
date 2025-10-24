@@ -372,9 +372,9 @@ export default function Arte() {
                       </th>
                     )}
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
-                    <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
+                    <th className="text-center py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Medida</th>
-                    <th className="text-left py-3 px-4 font-medium w-16">m²</th>
+                    <th className="text-center py-3 px-4 font-medium w-20">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     {viewMode === "approved" && (
                       <th className="text-left py-3 px-4 font-medium w-24">Status</th>
@@ -454,17 +454,23 @@ export default function Arte() {
                           )}
                           <td className="py-3 px-4">
                             {item.description ? (
-                              <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>
+                              <div className="text-sm text-foreground">{item.description}</div>
                             ) : (
-                              <div className="text-xs text-muted-foreground">—</div>
+                              <div className="text-sm text-muted-foreground">—</div>
                             )}
                             {item.observations && (
-                              <div className="text-xs text-muted-foreground italic truncate max-w-xs">{item.observations}</div>
+                              <div className="text-xs text-muted-foreground italic mt-0.5">{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
-                          <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">{item.area} × {item.visual}</td>
-                          <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">{item.calculatedM2}</td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="text-sm tabular-nums">{item.quantity}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="text-sm tabular-nums">{item.area} × {item.visual}</div>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="text-sm font-medium tabular-nums">{item.calculatedM2}</div>
+                          </td>
                           <td className="py-3 px-4 text-sm">
                             <div>{item.material}</div>
                             <div className="text-xs text-muted-foreground">{item.finish}</div>

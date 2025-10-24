@@ -225,7 +225,7 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                 </div>
               )}
 
-              {(item.status === 'produced' || item.status === 'delivered') && (item.producedAt || item.deliveredAt) && (
+              {((item.quantityProduced !== null && item.quantityProduced > 0) || item.status === 'produced' || item.status === 'delivered') && (
                 <div className="relative">
                   <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-production flex items-center justify-center">
                     <CheckCircle2 className="h-3 w-3 text-white" />
@@ -246,17 +246,19 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                           </>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span>
-                          {producedLog 
-                            ? formatDateTime(producedLog.createdAt) 
-                            : item.producedAt 
-                              ? formatDateTime(new Date(item.producedAt).toISOString())
-                              : formatDateTime(new Date(item.deliveredAt!).toISOString())
-                          }
-                        </span>
-                      </div>
+                      {(producedLog || item.producedAt || item.deliveredAt) && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          <span>
+                            {producedLog 
+                              ? formatDateTime(producedLog.createdAt) 
+                              : item.producedAt 
+                                ? formatDateTime(new Date(item.producedAt).toISOString())
+                                : formatDateTime(new Date(item.deliveredAt!).toISOString())
+                            }
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -365,14 +365,12 @@ export default function PainelGeral() {
                           </td>
                           <td className="py-3 px-4 text-center">
                             <div className="text-sm tabular-nums">
+                              <span>{item.quantity}</span>
+                              <span className="text-muted-foreground mx-1">/</span>
                               {item.quantityProduced ? (
-                                <>
-                                  <span>{item.quantity}</span>
-                                  <span className="text-muted-foreground mx-1">/</span>
-                                  <span className="font-semibold text-status-production">{item.quantityProduced}</span>
-                                </>
+                                <span className="font-semibold text-status-production">{item.quantityProduced}</span>
                               ) : (
-                                <span>{item.quantity} unid.</span>
+                                <span className="text-muted-foreground">-</span>
                               )}
                             </div>
                           </td>

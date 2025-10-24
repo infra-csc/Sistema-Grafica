@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertCircle, Clock, Package, CheckCircle, Filter, Calendar, Truck } from "lucide-react";
+import { Search, AlertCircle, Clock, Package, CheckCircle, Filter, Calendar, Truck, Info } from "lucide-react";
 import { Fragment, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ItemTimelineDialog } from "@/components/item-timeline-dialog";
+import type { Item } from "@shared/schema";
 
 export default function PainelGeral() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -16,6 +18,8 @@ export default function PainelGeral() {
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -286,6 +290,7 @@ export default function PainelGeral() {
                     <th className="text-left py-3 px-4 font-medium">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Status</th>
                     <th className="text-left py-3 px-4 font-medium">Atualizado</th>
+                    <th className="text-center py-3 px-4 font-medium w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -306,7 +311,7 @@ export default function PainelGeral() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={8} className="py-3 px-4">
+                            <td colSpan={9} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
@@ -334,7 +339,7 @@ export default function PainelGeral() {
                         )}
                         {showTypeHeader && (
                           <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={8} className="py-1.5 px-4">
+                            <td colSpan={9} className="py-1.5 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -373,28 +378,24 @@ export default function PainelGeral() {
                           <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
                           <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
                           <td className="py-3 px-4">
-                            <div className="flex flex-col gap-1">
-                              <StatusBadge status={item.status} />
-                              {item.status === 'approved' || item.status === 'inProduction' || item.status === 'produced' || item.status === 'delivered' ? (
-                                <div className="text-xs text-muted-foreground">
-                                  {(() => {
-                                    const approvedLog = auditLogMap.get(`${item.id}-approved`);
-                                    return approvedLog ? `Aprovado por ${approvedLog.userName.split(' ')[0]}` : null;
-                                  })()}
-                                </div>
-                              ) : null}
-                              {item.status === 'delivered' ? (
-                                <div className="text-xs text-muted-foreground">
-                                  {(() => {
-                                    const deliveredLog = auditLogMap.get(`${item.id}-delivered`);
-                                    return deliveredLog ? `Entregue por ${deliveredLog.userName.split(' ')[0]}` : null;
-                                  })()}
-                                </div>
-                              ) : null}
-                            </div>
+                            <StatusBadge status={item.status} />
                           </td>
                           <td className="py-3 px-4 text-sm text-muted-foreground">
                             {new Date(item.updatedAt).toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setSelectedItem(item);
+                                setTimelineDialogOpen(true);
+                              }}
+                              data-testid={`button-timeline-${item.id}`}
+                            >
+                              <Info className="h-4 w-4 text-muted-foreground" />
+                            </Button>
                           </td>
                         </tr>
                       </Fragment>
@@ -406,6 +407,13 @@ export default function PainelGeral() {
           )}
         </CardContent>
       </Card>
+
+      <ItemTimelineDialog
+        item={selectedItem}
+        auditLogs={auditLogs}
+        open={timelineDialogOpen}
+        onOpenChange={setTimelineDialogOpen}
+      />
     </div>
   );
 }

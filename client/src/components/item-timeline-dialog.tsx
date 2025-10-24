@@ -227,13 +227,13 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
 
               {(producedLog || item.producedAt) && (
                 <div className="relative">
-                  <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-orange-500 flex items-center justify-center">
+                  <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-production flex items-center justify-center">
                     <CheckCircle2 className="h-3 w-3 text-white" />
                   </div>
                   <div className="bg-card border border-border rounded-lg p-3 space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
+                        <Badge variant="outline" className="bg-status-production/10 text-status-production border-status-production/20">
                           Produzido
                         </Badge>
                         {producedLog && (

@@ -20,7 +20,6 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
-import type { UploadResult } from "@uppy/core";
 import { DeliveryPhotoGallery } from "@/components/DeliveryPhotoGallery";
 
 export default function Grafica() {
@@ -799,7 +798,6 @@ export default function Grafica() {
                 <Label>Foto da entrega (opcional)</Label>
                 <div className="flex items-center gap-2">
                   <ObjectUploader
-                    maxNumberOfFiles={1}
                     maxFileSize={10485760}
                     buttonVariant="outline"
                     onGetUploadParameters={async () => {
@@ -810,31 +808,29 @@ export default function Grafica() {
                         url: data.uploadURL,
                       };
                     }}
-                    onComplete={async (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
-                      if (result.successful && result.successful[0]) {
-                        const photoUrl = result.successful[0].uploadURL;
-                        setUploadedPhotoUrl(photoUrl);
+                    onComplete={async (result) => {
+                      const photoUrl = result.url;
+                      setUploadedPhotoUrl(photoUrl);
+                      
+                      // Salvar foto no banco de dados
+                      try {
+                        await apiRequest("POST", "/api/delivery-photos", {
+                          itemId: selectedItem.id,
+                          photoUrl,
+                          uploadedBy: (window as any).userName || "Sistema",
+                        });
                         
-                        // Salvar foto no banco de dados
-                        try {
-                          await apiRequest("POST", "/api/delivery-photos", {
-                            itemId: selectedItem.id,
-                            photoUrl,
-                            uploadedBy: (window as any).userName || "Sistema",
-                          });
-                          
-                          toast({
-                            title: "Foto carregada",
-                            description: "Foto de entrega anexada com sucesso",
-                          });
-                        } catch (error) {
-                          console.error("Error saving photo:", error);
-                          toast({
-                            title: "Erro ao salvar foto",
-                            description: "A foto foi carregada mas não foi salva no sistema",
-                            variant: "destructive",
-                          });
-                        }
+                        toast({
+                          title: "Foto carregada",
+                          description: "Foto de entrega anexada com sucesso",
+                        });
+                      } catch (error) {
+                        console.error("Error saving photo:", error);
+                        toast({
+                          title: "Erro ao salvar foto",
+                          description: "A foto foi carregada mas não foi salva no sistema",
+                          variant: "destructive",
+                        });
                       }
                     }}
                     onError={(error) => {

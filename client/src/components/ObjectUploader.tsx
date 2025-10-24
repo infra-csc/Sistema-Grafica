@@ -1,12 +1,9 @@
 // Replit Object Storage Uploader Component
 // Reference: blueprint:javascript_object_storage
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
-import Uppy from "@uppy/core";
-import { DashboardModal } from "@uppy/react";
-import AwsS3 from "@uppy/aws-s3";
-import type { UploadResult } from "@uppy/core";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface ObjectUploaderProps {
   maxNumberOfFiles?: number;
@@ -15,9 +12,7 @@ interface ObjectUploaderProps {
     method: "PUT";
     url: string;
   }>;
-  onComplete?: (
-    result: UploadResult<Record<string, unknown>, Record<string, unknown>>
-  ) => void;
+  onComplete?: (result: { url: string }) => void;
   onError?: (error: Error) => void;
   buttonClassName?: string;
   buttonVariant?: "default" | "outline" | "ghost" | "secondary";
@@ -27,18 +22,9 @@ interface ObjectUploaderProps {
 /**
  * Componente de upload de arquivos para o Replit Object Storage
  * 
- * Funcionalidades:
- * - Botão que abre modal de upload
- * - Interface modal com:
- *   - Seleção de arquivos
- *   - Preview de imagens
- *   - Barra de progresso
- *   - Status do upload
- * 
- * Usa Uppy para gerenciar todo o processo de upload.
+ * Upload simplificado via input file com upload automático ao selecionar arquivo
  */
 export function ObjectUploader({
-  maxNumberOfFiles = 1,
   maxFileSize = 10485760, // 10MB default
   onGetUploadParameters,
   onComplete,
@@ -47,50 +33,85 @@ export function ObjectUploader({
   buttonVariant = "default",
   children,
 }: ObjectUploaderProps) {
-  const [showModal, setShowModal] = useState(false);
-  const [uppy] = useState(() =>
-    new Uppy({
-      restrictions: {
-        maxNumberOfFiles,
-        maxFileSize,
-        allowedFileTypes: ['image/*'], // Apenas imagens
-      },
-      autoProceed: false,
-    })
-      .use(AwsS3, {
-        shouldUseMultipart: false,
-        getUploadParameters: onGetUploadParameters,
-      })
-      .on("complete", (result) => {
-        onComplete?.(result);
-        setShowModal(false);
-      })
-      .on("upload-error", (file, error) => {
-        onError?.(new Error(`Erro no upload: ${error.message}`));
-      })
-      .on("restriction-failed", (file, error) => {
-        onError?.(new Error(`Arquivo não permitido: ${error.message}`));
-      })
-  );
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validações
+    if (!file.type.startsWith('image/')) {
+      onError?.(new Error('Apenas imagens são permitidas'));
+      return;
+    }
+
+    if (file.size > maxFileSize) {
+      onError?.(new Error(`Arquivo muito grande. Máximo: ${Math.round(maxFileSize / 1024 / 1024)}MB`));
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Obter URL de upload
+      const { url } = await onGetUploadParameters();
+
+      // Fazer upload do arquivo
+      const uploadResponse = await fetch(url, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type,
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Erro ao fazer upload do arquivo');
+      }
+
+      // Extrair a URL final do objeto (remover query params)
+      const objectUrl = url.split('?')[0];
+      
+      onComplete?.({ url: objectUrl });
+    } catch (error) {
+      onError?.(error instanceof Error ? error : new Error('Erro no upload'));
+    } finally {
+      setIsUploading(false);
+      // Limpar input para permitir selecionar o mesmo arquivo novamente
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   return (
     <div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        className="hidden"
+        data-testid="input-file-upload"
+      />
       <Button 
-        onClick={() => setShowModal(true)} 
+        onClick={() => fileInputRef.current?.click()} 
         className={buttonClassName}
         variant={buttonVariant}
         type="button"
+        disabled={isUploading}
         data-testid="button-upload-photo"
       >
-        {children}
+        {isUploading ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Enviando...
+          </>
+        ) : (
+          children
+        )}
       </Button>
-
-      <DashboardModal
-        uppy={uppy}
-        open={showModal}
-        onRequestClose={() => setShowModal(false)}
-        proudlyDisplayPoweredByUppy={false}
-      />
     </div>
   );
 }

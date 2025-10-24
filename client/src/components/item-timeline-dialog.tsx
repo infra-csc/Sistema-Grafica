@@ -148,13 +148,13 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
 
               {(createdLog || item.createdAt) && (
                 <div className="relative">
-                  <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-requested flex items-center justify-center">
+                  <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-pending flex items-center justify-center">
                     <Clock className="h-3 w-3 text-white" />
                   </div>
                   <div className="bg-card border border-border rounded-lg p-3 space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-status-requested/10 text-status-requested border-status-requested/20">
+                        <Badge variant="outline" className="bg-status-pending/10 text-status-pending border-status-pending/20">
                           Criado
                         </Badge>
                         {createdLog && (
@@ -225,7 +225,7 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                 </div>
               )}
 
-              {(producedLog || item.producedAt) && (
+              {(item.status === 'produced' || item.status === 'delivered') && (item.producedAt || item.deliveredAt) && (
                 <div className="relative">
                   <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-production flex items-center justify-center">
                     <CheckCircle2 className="h-3 w-3 text-white" />
@@ -248,7 +248,14 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
-                        <span>{producedLog ? formatDateTime(producedLog.createdAt) : formatDateTime(new Date(item.producedAt!).toISOString())}</span>
+                        <span>
+                          {producedLog 
+                            ? formatDateTime(producedLog.createdAt) 
+                            : item.producedAt 
+                              ? formatDateTime(new Date(item.producedAt).toISOString())
+                              : formatDateTime(new Date(item.deliveredAt!).toISOString())
+                          }
+                        </span>
                       </div>
                     </div>
                   </div>

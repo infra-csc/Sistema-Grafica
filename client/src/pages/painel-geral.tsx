@@ -289,6 +289,7 @@ export default function PainelGeral() {
                     <th className="text-left py-3 px-4 font-medium">Área × Visual</th>
                     <th className="text-left py-3 px-4 font-medium">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Status</th>
+                    <th className="text-left py-3 px-4 font-medium">Arte/Gráfica</th>
                     <th className="text-left py-3 px-4 font-medium">Atualizado</th>
                     <th className="text-center py-3 px-4 font-medium w-16"></th>
                   </tr>
@@ -311,7 +312,7 @@ export default function PainelGeral() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={9} className="py-3 px-4">
+                            <td colSpan={10} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>

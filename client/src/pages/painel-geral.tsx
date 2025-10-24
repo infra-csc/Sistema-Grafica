@@ -362,7 +362,9 @@ export default function PainelGeral() {
                           <td className="py-3 px-4">
                             <div className="text-sm">{item.type}</div>
                             {item.material && (
-                              <div className="text-xs text-muted-foreground">{item.material}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {item.material}{item.finish && ` • ${item.finish}`}
+                              </div>
                             )}
                           </td>
                           <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>

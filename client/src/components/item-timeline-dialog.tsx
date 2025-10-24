@@ -68,19 +68,23 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
         </DialogHeader>
 
         <div className="space-y-6">
-          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+          <div className="bg-muted/50 p-4 rounded-lg space-y-3">
             <div className="flex items-start justify-between gap-4">
-              <div>
+              <div className="flex-1">
                 <h3 className="font-semibold text-lg">{item.type}</h3>
+                {item.description && (
+                  <p className="text-sm text-muted-foreground mt-0.5">{item.description}</p>
+                )}
                 {item.material && (
-                  <p className="text-sm text-muted-foreground">{item.material} {item.finish && `• ${item.finish}`}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{item.material} {item.finish && `• ${item.finish}`}</p>
                 )}
               </div>
-              <Badge className={`${getStatusColor(item.status)} text-white`}>
+              <Badge className={`${getStatusColor(item.status)} text-white flex-shrink-0`}>
                 {getStatusLabel(item.status)}
               </Badge>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <div>
                 <span className="text-muted-foreground">Quantidade:</span>{" "}
                 <span className="font-medium">{item.quantity}</span>
@@ -89,6 +93,12 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                 <span className="text-muted-foreground">Área:</span>{" "}
                 <span className="font-medium">{item.area} × {item.visual}</span>
               </div>
+              {item.measurement && item.measurement !== `${item.area} × ${item.visual}` && (
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">Medida:</span>{" "}
+                  <span className="font-medium">{item.measurement}</span>
+                </div>
+              )}
               <div>
                 <span className="text-muted-foreground">m²:</span>{" "}
                 <span className="font-medium">{item.calculatedM2}</span>
@@ -100,10 +110,29 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                 </div>
               )}
             </div>
+
             {item.observations && (
               <div className="pt-2 border-t border-border/50">
                 <p className="text-xs text-muted-foreground">Observações:</p>
                 <p className="text-sm">{item.observations}</p>
+              </div>
+            )}
+
+            {item.receivedBy && (
+              <div className="pt-2 border-t border-border/50">
+                <p className="text-xs text-muted-foreground">Recebido por:</p>
+                <p className="text-sm font-medium">{item.receivedBy}</p>
+              </div>
+            )}
+
+            {item.deliveryPhotoUrl && (
+              <div className="pt-2 border-t border-border/50">
+                <p className="text-xs text-muted-foreground mb-2">Foto da Entrega:</p>
+                <img 
+                  src={item.deliveryPhotoUrl} 
+                  alt="Foto de entrega" 
+                  className="rounded-lg max-h-48 w-auto border border-border"
+                />
               </div>
             )}
           </div>
@@ -116,7 +145,7 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
             <div className="relative space-y-4 pl-6">
               <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-border"></div>
 
-              {createdLog && (
+              {(createdLog || item.createdAt) && (
                 <div className="relative">
                   <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-requested flex items-center justify-center">
                     <Clock className="h-3 w-3 text-white" />
@@ -127,22 +156,26 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                         <Badge variant="outline" className="bg-status-requested/10 text-status-requested border-status-requested/20">
                           Criado
                         </Badge>
-                        <span className="text-xs text-muted-foreground">•</span>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>{createdLog.userName}</span>
-                        </div>
+                        {createdLog && (
+                          <>
+                            <span className="text-xs text-muted-foreground">•</span>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              <span>{createdLog.userName}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
-                        <span>{formatDateTime(createdLog.createdAt)}</span>
+                        <span>{createdLog ? formatDateTime(createdLog.createdAt) : formatDateTime(new Date(item.createdAt).toISOString())}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {approvedLog && (
+              {(approvedLog || item.approvedAt) && (
                 <div className="relative">
                   <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-approved flex items-center justify-center">
                     <CheckCircle2 className="h-3 w-3 text-white" />
@@ -153,22 +186,26 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                         <Badge variant="outline" className="bg-status-approved/10 text-status-approved border-status-approved/20">
                           Aprovado
                         </Badge>
-                        <span className="text-xs text-muted-foreground">•</span>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>{approvedLog.userName}</span>
-                        </div>
+                        {approvedLog && (
+                          <>
+                            <span className="text-xs text-muted-foreground">•</span>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              <span>{approvedLog.userName}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
-                        <span>{formatDateTime(approvedLog.createdAt)}</span>
+                        <span>{approvedLog ? formatDateTime(approvedLog.createdAt) : formatDateTime(new Date(item.approvedAt!).toISOString())}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {item.status === 'inProduction' && (
+              {(item.status === 'inProduction' || item.status === 'produced' || (item.status === 'delivered' && item.productionStartedAt)) && item.productionStartedAt && (
                 <div className="relative">
                   <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-production flex items-center justify-center">
                     <Package className="h-3 w-3 text-white" />
@@ -176,14 +213,18 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                   <div className="bg-card border border-border rounded-lg p-3 space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <Badge variant="outline" className="bg-status-production/10 text-status-production border-status-production/20">
-                        Em Produção
+                        Produção Iniciada
                       </Badge>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDateTime(new Date(item.productionStartedAt).toISOString())}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {deliveredLog && (
+              {(deliveredLog || item.deliveredAt) && (
                 <div className="relative">
                   <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-status-completed flex items-center justify-center">
                     <Truck className="h-3 w-3 text-white" />
@@ -194,34 +235,42 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                         <Badge variant="outline" className="bg-status-completed/10 text-status-completed border-status-completed/20">
                           Entregue
                         </Badge>
-                        <span className="text-xs text-muted-foreground">•</span>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span>{deliveredLog.userName}</span>
-                        </div>
+                        {deliveredLog && (
+                          <>
+                            <span className="text-xs text-muted-foreground">•</span>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              <span>{deliveredLog.userName}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
-                        <span>{formatDateTime(deliveredLog.createdAt)}</span>
+                        <span>{deliveredLog ? formatDateTime(deliveredLog.createdAt) : formatDateTime(new Date(item.deliveredAt!).toISOString())}</span>
                       </div>
                     </div>
-                    {deliveredLog.details && (() => {
-                      try {
-                        const details = JSON.parse(deliveredLog.details);
-                        return (
-                          <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border/50">
-                            {details.recipientName && (
-                              <div className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                <span>Recebido por: <strong className="text-foreground">{details.recipientName}</strong></span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      } catch {
-                        return null;
-                      }
-                    })()}
+                    {((deliveredLog?.details) || item.receivedBy) && (
+                      <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border/50">
+                        {(() => {
+                          let recipientName = item.receivedBy;
+                          if (deliveredLog?.details) {
+                            try {
+                              const details = JSON.parse(deliveredLog.details);
+                              if (details.recipientName) {
+                                recipientName = details.recipientName;
+                              }
+                            } catch {}
+                          }
+                          return recipientName ? (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              <span>Recebido por: <strong className="text-foreground">{recipientName}</strong></span>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

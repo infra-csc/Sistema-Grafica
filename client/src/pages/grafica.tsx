@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Filter } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Filter, Eye } from "lucide-react";
 import { Fragment, useState } from "react";
 import {
   Dialog,
@@ -21,6 +21,7 @@ export default function Grafica() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalType, setModalType] = useState<"production" | "delivery" | null>(null);
+  const [viewDetailsItem, setViewDetailsItem] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -461,6 +462,15 @@ export default function Grafica() {
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setViewDetailsItem(item)}
+                                data-testid={`button-view-${item.id}`}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Ver
+                              </Button>
                               {item.status !== 'produced' && item.status !== 'delivered' && (
                                 <Button
                                   size="sm"
@@ -504,6 +514,93 @@ export default function Grafica() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog de Detalhes do Item */}
+      <Dialog open={!!viewDetailsItem} onOpenChange={(open) => !open && setViewDetailsItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Detalhes do Item</DialogTitle>
+            <DialogDescription>
+              Informações completas do item
+            </DialogDescription>
+          </DialogHeader>
+          {viewDetailsItem && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Evento</p>
+                  <p className="text-sm font-semibold">{viewDetailsItem.event?.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Tipo</p>
+                  <p className="text-sm font-semibold">{viewDetailsItem.type}</p>
+                </div>
+              </div>
+
+              {viewDetailsItem.description && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Descrição</p>
+                  <p className="text-sm font-semibold">{viewDetailsItem.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Material</p>
+                  <p className="text-sm font-semibold">{viewDetailsItem.material}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Acabamento</p>
+                  <p className="text-sm font-semibold">{viewDetailsItem.finish}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Quantidade</p>
+                  <p className="text-sm font-semibold">{viewDetailsItem.quantity}</p>
+                </div>
+                {viewDetailsItem.quantityProduced !== null && viewDetailsItem.quantityProduced > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Quantidade Produzida</p>
+                    <p className="text-sm font-semibold text-status-production">{viewDetailsItem.quantityProduced}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Área × Visual</p>
+                  <p className="text-sm font-semibold">{viewDetailsItem.area} × {viewDetailsItem.visual}</p>
+                </div>
+                {viewDetailsItem.measurement && viewDetailsItem.measurement !== `${viewDetailsItem.area} × ${viewDetailsItem.visual}` && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Medida</p>
+                    <p className="text-sm font-semibold">{viewDetailsItem.measurement}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">m² Total</p>
+                  <p className="text-sm font-semibold">{viewDetailsItem.calculatedM2}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Status</p>
+                  <div className="pt-1">
+                    <StatusBadge status={viewDetailsItem.status} />
+                  </div>
+                </div>
+              </div>
+
+              {viewDetailsItem.observations && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Observações</p>
+                  <p className="text-sm">{viewDetailsItem.observations}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setViewDetailsItem(null)}>
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={(open) => {
         if (!open) {

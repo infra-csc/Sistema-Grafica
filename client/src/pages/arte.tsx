@@ -615,12 +615,21 @@ export default function Arte() {
                 <>
                   Você está prestes a liberar o item <strong>{confirmApprovalItem.item?.type}</strong> para produção.
                   <br /><br />
-                  Evento: <strong>{confirmApprovalItem.item?.event?.name}</strong>
+                  <div className="space-y-1 text-sm">
+                    <div><span className="text-muted-foreground">Evento:</span> <strong>{confirmApprovalItem.item?.event?.name}</strong></div>
+                    {confirmApprovalItem.item?.description && (
+                      <div><span className="text-muted-foreground">Descrição:</span> <strong>{confirmApprovalItem.item.description}</strong></div>
+                    )}
+                    {confirmApprovalItem.item?.observations && (
+                      <div><span className="text-muted-foreground">Observações:</span> <strong className="italic">{confirmApprovalItem.item.observations}</strong></div>
+                    )}
+                    <div><span className="text-muted-foreground">Quantidade:</span> <strong>{confirmApprovalItem.item?.quantity}</strong></div>
+                    <div><span className="text-muted-foreground">Medida:</span> <strong>{confirmApprovalItem.item?.area} × {confirmApprovalItem.item?.visual}</strong></div>
+                    <div><span className="text-muted-foreground">m² Total:</span> <strong>{confirmApprovalItem.item?.calculatedM2}</strong></div>
+                    <div><span className="text-muted-foreground">Material:</span> <strong>{confirmApprovalItem.item?.material}</strong></div>
+                    <div><span className="text-muted-foreground">Acabamento:</span> <strong>{confirmApprovalItem.item?.finishing}</strong></div>
+                  </div>
                   <br />
-                  Quantidade: <strong>{confirmApprovalItem.item?.quantity}</strong>
-                  <br />
-                  Material: <strong>{confirmApprovalItem.item?.material}</strong>
-                  <br /><br />
                   Esta ação notificará a Gráfica e o item ficará disponível para impressão.
                 </>
               ) : null}

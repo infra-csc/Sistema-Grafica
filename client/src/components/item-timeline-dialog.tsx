@@ -29,6 +29,7 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
 
   const createdLog = itemLogs.find(log => log.action === 'create_item');
   const approvedLog = itemLogs.find(log => log.action === 'approve_item');
+  const producedLog = itemLogs.find(log => log.action === 'produce_item');
   const deliveredLog = itemLogs.find(log => log.action === 'deliver_item');
 
   const formatDateTime = (dateString: string) => {
@@ -218,6 +219,36 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
                         <span>{formatDateTime(new Date(item.productionStartedAt).toISOString())}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(producedLog || item.producedAt) && (
+                <div className="relative">
+                  <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full bg-orange-500 flex items-center justify-center">
+                    <CheckCircle2 className="h-3 w-3 text-white" />
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-3 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20">
+                          Produzido
+                        </Badge>
+                        {producedLog && (
+                          <>
+                            <span className="text-xs text-muted-foreground">•</span>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              <span>{producedLog.userName}</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{producedLog ? formatDateTime(producedLog.createdAt) : formatDateTime(new Date(item.producedAt!).toISOString())}</span>
                       </div>
                     </div>
                   </div>

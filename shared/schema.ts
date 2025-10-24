@@ -35,6 +35,7 @@ export const items = pgTable("items", {
   deliveryPhotoUrl: text("delivery_photo_url"),
   approvedAt: timestamp("approved_at"), // Timestamp quando foi liberado pela Arte
   productionStartedAt: timestamp("production_started_at"), // Timestamp quando produção iniciou
+  producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),

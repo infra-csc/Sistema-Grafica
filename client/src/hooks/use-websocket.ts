@@ -31,9 +31,14 @@ export function useWebSocket() {
             
           case 'event_created':
           case 'event_updated':
+          case 'event_deleted':
           case 'event_urgent':
             // Invalidate events queries
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            if (data.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
+            }
             if (data.type === 'event_created') {
               toast({
                 title: 'Novo evento criado',
@@ -49,6 +54,26 @@ export function useWebSocket() {
               title: 'Novo item adicionado',
               description: `Item ${data.item?.type} adicionado`,
             });
+            break;
+            
+          case 'item_updated':
+            // Invalidate all items queries when an item is updated
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            if (data.item?.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
+              queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            break;
+            
+          case 'item_deleted':
+            // Invalidate all items queries when an item is deleted
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            if (data.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
+              queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             break;
             
           case 'items_bulk_created':
@@ -69,6 +94,11 @@ export function useWebSocket() {
             queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
+            if (data.item?.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
+              queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             toast({
               title: 'Item liberado',
               description: `${data.item?.type} aprovado para produção`,
@@ -80,6 +110,11 @@ export function useWebSocket() {
             // Invalidate items queries
             queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
+            if (data.item?.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
+              queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             toast({
               title: data.type === 'production_started' ? 'Produção iniciada' : 'Produção atualizada',
               description: `Item ${data.item?.type} atualizado`,

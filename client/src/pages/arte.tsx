@@ -371,7 +371,7 @@ export default function Arte() {
                         />
                       </th>
                     )}
-                    <th className="text-left py-3 px-4 font-medium">Obs</th>
+                    <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Medida</th>
                     <th className="text-left py-3 px-4 font-medium w-16">m²</th>
@@ -453,9 +453,14 @@ export default function Arte() {
                             </td>
                           )}
                           <td className="py-3 px-4">
-                            <div className="text-xs text-muted-foreground truncate max-w-xs">
-                              {item.observations || item.description || "—"}
-                            </div>
+                            {item.description ? (
+                              <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">—</div>
+                            )}
+                            {item.observations && (
+                              <div className="text-xs text-muted-foreground italic truncate max-w-xs">{item.observations}</div>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
                           <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">{item.area} × {item.visual}</td>

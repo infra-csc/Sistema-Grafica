@@ -627,7 +627,9 @@ export default function Arte() {
                     <div><span className="text-muted-foreground">Medida:</span> <strong>{confirmApprovalItem.item?.area} × {confirmApprovalItem.item?.visual}</strong></div>
                     <div><span className="text-muted-foreground">m² Total:</span> <strong>{confirmApprovalItem.item?.calculatedM2}</strong></div>
                     <div><span className="text-muted-foreground">Material:</span> <strong>{confirmApprovalItem.item?.material}</strong></div>
-                    <div><span className="text-muted-foreground">Acabamento:</span> <strong>{confirmApprovalItem.item?.finishing}</strong></div>
+                    {confirmApprovalItem.item?.finish && (
+                      <div><span className="text-muted-foreground">Acabamento:</span> <strong>{confirmApprovalItem.item.finish}</strong></div>
+                    )}
                   </div>
                   <br />
                   Esta ação notificará a Gráfica e o item ficará disponível para impressão.

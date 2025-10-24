@@ -367,9 +367,9 @@ export default function PainelGeral() {
                             <div className="text-sm tabular-nums">
                               {item.quantityProduced ? (
                                 <>
-                                  <span className="font-semibold text-status-production">{item.quantityProduced}</span>
-                                  <span className="text-muted-foreground mx-1">/</span>
                                   <span>{item.quantity}</span>
+                                  <span className="text-muted-foreground mx-1">/</span>
+                                  <span className="font-semibold text-status-production">{item.quantityProduced}</span>
                                 </>
                               ) : (
                                 <span>{item.quantity} unid.</span>

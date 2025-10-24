@@ -123,8 +123,13 @@ export default function Arte() {
       return a.type.localeCompare(b.type);
     });
 
-  const pendingCount = allItems.filter(item => item.status === 'requested').length;
-  const approvedCount = allItems.filter(item => item.status !== 'requested').length;
+  // Filtrar por evento antes de contar
+  const itemsForEvent = eventFilter === "all" 
+    ? allItems 
+    : allItems.filter(item => item.eventId === eventFilter);
+  
+  const pendingCount = itemsForEvent.filter(item => item.status === 'requested').length;
+  const approvedCount = itemsForEvent.filter(item => item.status !== 'requested').length;
 
   const pendingItems = filteredItems.filter(item => item.status === 'requested');
   const allPendingSelected = pendingItems.length > 0 && selectedItems.length === pendingItems.length;

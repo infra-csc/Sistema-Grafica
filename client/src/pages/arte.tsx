@@ -359,21 +359,11 @@ export default function Arte() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full table-fixed">
-                <colgroup>
-                  {viewMode === "pending" && <col className="w-12" />}
-                  <col className="w-auto" />
-                  <col className="w-16" />
-                  <col className="w-28" />
-                  <col className="w-20" />
-                  <col className="w-36" />
-                  {viewMode === "approved" && <col className="w-32" />}
-                  <col className="w-24" />
-                </colgroup>
+              <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
                     {viewMode === "pending" && (
-                      <th className="py-3 px-4">
+                      <th className="w-12 py-3 px-4">
                         <Checkbox
                           checked={allPendingSelected}
                           onCheckedChange={toggleSelectAll}
@@ -382,14 +372,14 @@ export default function Arte() {
                       </th>
                     )}
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
-                    <th className="text-center py-3 px-2 font-medium">Qtd</th>
-                    <th className="text-left py-3 px-2 font-medium">Medida</th>
-                    <th className="text-center py-3 px-2 font-medium">m²</th>
+                    <th className="text-center py-3 px-4 font-medium">Qtd</th>
+                    <th className="text-left py-3 px-4 font-medium">Medida</th>
+                    <th className="text-center py-3 px-4 font-medium">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     {viewMode === "approved" && (
-                      <th className="text-left py-3 px-3 font-medium">Status</th>
+                      <th className="text-left py-3 px-4 font-medium">Status</th>
                     )}
-                    <th className="text-right py-3 px-2 font-medium">Ações</th>
+                    <th className="text-right py-3 px-4 font-medium">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -464,33 +454,33 @@ export default function Arte() {
                           )}
                           <td className="py-3 px-4">
                             {item.description ? (
-                              <div className="text-sm text-foreground truncate">{item.description}</div>
+                              <div className="text-sm text-foreground">{item.description}</div>
                             ) : (
                               <div className="text-sm text-muted-foreground">—</div>
                             )}
                             {item.observations && (
-                              <div className="text-xs text-muted-foreground italic mt-0.5 truncate">{item.observations}</div>
+                              <div className="text-xs text-muted-foreground italic mt-0.5">{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-3 px-2 text-center">
+                          <td className="py-3 px-4 text-center">
                             <div className="text-sm tabular-nums">{item.quantity}</div>
                           </td>
-                          <td className="py-3 px-2">
+                          <td className="py-3 px-4">
                             <div className="text-sm tabular-nums">{item.area} × {item.visual}</div>
                           </td>
-                          <td className="py-3 px-2 text-center">
+                          <td className="py-3 px-4 text-center">
                             <div className="text-sm font-medium tabular-nums">{item.calculatedM2}</div>
                           </td>
                           <td className="py-3 px-4 text-sm">
-                            <div className="truncate">{item.material}</div>
-                            <div className="text-xs text-muted-foreground truncate">{item.finish}</div>
+                            <div>{item.material}</div>
+                            <div className="text-xs text-muted-foreground">{item.finish}</div>
                           </td>
                           {viewMode === "approved" && (
-                            <td className="py-3 px-3">
+                            <td className="py-3 px-4">
                               <StatusBadge status={item.status} />
                             </td>
                           )}
-                          <td className="py-3 px-2">
+                          <td className="py-3 px-4">
                             <div className="flex gap-1 justify-end">
                               <Button
                                 size="icon"

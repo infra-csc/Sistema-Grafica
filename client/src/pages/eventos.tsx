@@ -347,6 +347,26 @@ export default function Eventos() {
             </Button>
           )}
         </div>
+        
+        {/* Legenda discreta */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground/60 mt-2">
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-status-urgent"></div>
+            <span>Urgente (&lt;24h para saída)</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-status-pending"></div>
+            <span>Atenção (24-48h)</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-primary"></div>
+            <span>Normal (&gt;48h)</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-status-completed"></div>
+            <span>Concluído</span>
+          </span>
+        </div>
       </div>
 
       {isLoading ? (

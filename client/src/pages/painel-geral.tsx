@@ -342,7 +342,7 @@ export default function PainelGeral() {
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
-                                  {item.description || item.type}
+                                  {item.type}
                                 </div>
                               </div>
                             </td>

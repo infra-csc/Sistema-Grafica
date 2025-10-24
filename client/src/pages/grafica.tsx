@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Filter, Eye, Check, ChevronsUpDown } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Filter, Eye, Check, ChevronsUpDown, Camera } from "lucide-react";
 import { Fragment, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ObjectUploader } from "@/components/ObjectUploader";
+import type { UploadResult } from "@uppy/core";
 
 export default function Grafica() {
   const { toast } = useToast();
@@ -39,6 +41,7 @@ export default function Grafica() {
     photoUrl: "",
     receivedBy: "",
   });
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string>("");
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items/approved"],
@@ -86,6 +89,7 @@ export default function Grafica() {
       setSelectedItem(null);
       setModalType(null);
       setDeliveryData({ photoUrl: "", receivedBy: "" });
+      setUploadedPhotoUrl("");
       toast({
         title: "Entrega confirmada",
         description: "O item foi marcado como entregue com sucesso",
@@ -787,17 +791,57 @@ export default function Grafica() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="photoUrl">Foto da entrega (opcional)</Label>
-                <Input
-                  id="photoUrl"
-                  type="url"
-                  value={deliveryData.photoUrl}
-                  onChange={(e) => setDeliveryData({ ...deliveryData, photoUrl: e.target.value })}
-                  placeholder="https://exemplo.com/foto.jpg"
-                  data-testid="input-delivery-photo"
-                />
+                <Label>Foto da entrega (opcional)</Label>
+                <div className="flex items-center gap-2">
+                  <ObjectUploader
+                    maxNumberOfFiles={1}
+                    maxFileSize={10485760}
+                    buttonVariant="outline"
+                    onGetUploadParameters={async () => {
+                      const response = await fetch("/api/objects/upload", { method: "POST" });
+                      const data = await response.json();
+                      return {
+                        method: "PUT" as const,
+                        url: data.uploadURL,
+                      };
+                    }}
+                    onComplete={async (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+                      if (result.successful && result.successful[0]) {
+                        const photoUrl = result.successful[0].uploadURL;
+                        setUploadedPhotoUrl(photoUrl);
+                        
+                        // Salvar foto no banco de dados
+                        try {
+                          await apiRequest("POST", "/api/delivery-photos", {
+                            itemId: selectedItem.id,
+                            photoUrl,
+                            uploadedBy: (window as any).userName || "Sistema",
+                          });
+                          
+                          toast({
+                            title: "Foto carregada",
+                            description: "Foto de entrega anexada com sucesso",
+                          });
+                        } catch (error) {
+                          console.error("Error saving photo:", error);
+                          toast({
+                            title: "Erro ao salvar foto",
+                            description: "A foto foi carregada mas não foi salva no sistema",
+                            variant: "destructive",
+                          });
+                        }
+                      }
+                    }}
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    {uploadedPhotoUrl ? "Trocar Foto" : "Anexar Foto"}
+                  </ObjectUploader>
+                  {uploadedPhotoUrl && (
+                    <span className="text-sm text-muted-foreground">✓ Foto anexada</span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  URL da foto do material entregue (opcional)
+                  Faça upload de uma foto do material entregue (opcional)
                 </p>
               </div>
 

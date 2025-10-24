@@ -796,61 +796,77 @@ export default function Grafica() {
 
               <div className="space-y-2">
                 <Label>Foto da entrega (opcional)</Label>
-                <div className="flex items-center gap-2">
-                  <ObjectUploader
-                    maxFileSize={10485760}
-                    buttonVariant="outline"
-                    onGetUploadParameters={async () => {
-                      const response = await fetch("/api/objects/upload", { method: "POST" });
-                      const data = await response.json();
-                      return {
-                        method: "PUT" as const,
-                        url: data.uploadURL,
-                      };
-                    }}
-                    onComplete={async (result) => {
-                      const photoUrl = result.url;
-                      setUploadedPhotoUrl(photoUrl);
-                      
-                      // Salvar foto no banco de dados
-                      try {
-                        await apiRequest("POST", "/api/delivery-photos", {
-                          itemId: selectedItem.id,
-                          photoUrl,
-                          uploadedBy: (window as any).userName || "Sistema",
-                        });
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 space-y-2">
+                    <ObjectUploader
+                      maxFileSize={10485760}
+                      buttonVariant="outline"
+                      onGetUploadParameters={async () => {
+                        const response = await fetch("/api/objects/upload", { method: "POST" });
+                        const data = await response.json();
+                        return {
+                          method: "PUT" as const,
+                          url: data.uploadURL,
+                        };
+                      }}
+                      onComplete={async (result) => {
+                        const photoUrl = result.url;
+                        setUploadedPhotoUrl(photoUrl);
                         
+                        // Salvar foto no banco de dados
+                        try {
+                          await apiRequest("POST", "/api/delivery-photos", {
+                            itemId: selectedItem.id,
+                            photoUrl,
+                            uploadedBy: (window as any).userName || "Sistema",
+                          });
+                          
+                          toast({
+                            title: "Foto carregada",
+                            description: "Foto de entrega anexada com sucesso",
+                          });
+                        } catch (error) {
+                          console.error("Error saving photo:", error);
+                          toast({
+                            title: "Erro ao salvar foto",
+                            description: "A foto foi carregada mas não foi salva no sistema",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      onError={(error) => {
                         toast({
-                          title: "Foto carregada",
-                          description: "Foto de entrega anexada com sucesso",
-                        });
-                      } catch (error) {
-                        console.error("Error saving photo:", error);
-                        toast({
-                          title: "Erro ao salvar foto",
-                          description: "A foto foi carregada mas não foi salva no sistema",
+                          title: "Erro no upload",
+                          description: error.message,
                           variant: "destructive",
                         });
-                      }
-                    }}
-                    onError={(error) => {
-                      toast({
-                        title: "Erro no upload",
-                        description: error.message,
-                        variant: "destructive",
-                      });
-                    }}
-                  >
-                    <Camera className="h-4 w-4 mr-2" />
-                    {uploadedPhotoUrl ? "Trocar Foto" : "Anexar Foto"}
-                  </ObjectUploader>
+                      }}
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      {uploadedPhotoUrl ? "Trocar Foto" : "Anexar Foto"}
+                    </ObjectUploader>
+                    <p className="text-xs text-muted-foreground">
+                      Faça upload de uma foto do material entregue (opcional)
+                    </p>
+                  </div>
                   {uploadedPhotoUrl && (
-                    <span className="text-sm text-muted-foreground">✓ Foto anexada</span>
+                    <div className="flex-shrink-0">
+                      <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border bg-muted">
+                        <img
+                          src={uploadedPhotoUrl}
+                          alt="Preview da foto"
+                          className="w-full h-full object-cover"
+                          data-testid="photo-preview"
+                        />
+                        <div className="absolute top-1 right-1">
+                          <div className="bg-status-completed text-white rounded-full p-1">
+                            <Check className="h-3 w-3" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Faça upload de uma foto do material entregue (opcional)
-                </p>
               </div>
 
               <div className="flex gap-2 justify-end pt-2">

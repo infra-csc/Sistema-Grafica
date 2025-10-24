@@ -558,15 +558,15 @@ export default function EventDetail() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium">Tipo</th>
-                    <th className="text-left py-3 px-4 font-medium">Qtd</th>
+                    <th className="text-left py-3 px-4 font-medium">Descrição</th>
+                    <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Área × Visual</th>
-                    <th className="text-left py-3 px-4 font-medium">m²</th>
+                    <th className="text-left py-3 px-4 font-medium w-16">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     <th className="text-left py-3 px-4 font-medium">Acabamento</th>
-                    <th className="text-left py-3 px-4 font-medium">Status</th>
+                    <th className="text-left py-3 px-4 font-medium w-24">Status</th>
                     {hasPermission("admin") && (
-                      <th className="text-left py-3 px-4 font-medium">Ações</th>
+                      <th className="text-left py-3 px-4 font-medium w-32">Ações</th>
                     )}
                   </tr>
                 </thead>
@@ -595,14 +595,18 @@ export default function EventDetail() {
                           data-testid={`row-item-${item.id}`}
                         >
                           <td className="py-3 px-4">
-                            <div className="font-medium text-sm">{item.type}</div>
+                            {item.description ? (
+                              <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">—</div>
+                            )}
                             {item.observations && (
-                              <div className="text-xs text-muted-foreground">{item.observations}</div>
+                              <div className="text-xs text-muted-foreground italic truncate max-w-xs">{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
-                          <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
-                          <td className="py-3 px-4 text-sm font-medium tabular-nums">{item.calculatedM2}</td>
+                          <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
+                          <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">{item.area} × {item.visual}</td>
+                          <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">{item.calculatedM2}</td>
                           <td className="py-3 px-4 text-sm">{item.material}</td>
                           <td className="py-3 px-4 text-sm">{item.finish}</td>
                           <td className="py-3 px-4">

@@ -230,13 +230,15 @@ export default function Historico() {
       case 'production_started':
         return (
           <>
-            Produção de <span className="font-medium">{event.itemType}</span>: {event.quantityProduced}/{event.quantity} un. concluídas
+            Produção de <span className="font-medium">{event.itemType}</span> do evento{" "}
+            <span className="font-medium">{event.eventName}</span>: {event.quantityProduced}/{event.quantity} un. concluídas
           </>
         );
       case 'item_delivered':
         return (
           <>
-            <span className="font-medium">{event.itemType}</span> foi entregue
+            <span className="font-medium">{event.itemType}</span> do evento{" "}
+            <span className="font-medium">{event.eventName}</span> foi entregue
             {event.receivedBy && ` para ${event.receivedBy}`}
           </>
         );

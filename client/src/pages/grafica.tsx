@@ -381,15 +381,14 @@ export default function Grafica() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium">Evento</th>
                     <th className="text-left py-3 px-4 font-medium">Item</th>
-                    <th className="text-left py-3 px-4 font-medium">Qtd Total</th>
-                    <th className="text-left py-3 px-4 font-medium">Qtd Produzida</th>
+                    <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
+                    <th className="text-left py-3 px-4 font-medium w-20">Prod.</th>
                     <th className="text-left py-3 px-4 font-medium">Medida</th>
-                    <th className="text-left py-3 px-4 font-medium">m²</th>
+                    <th className="text-left py-3 px-4 font-medium w-16">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
-                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                    <th className="text-left py-3 px-4 font-medium">Ações</th>
+                    <th className="text-left py-3 px-4 font-medium w-24">Status</th>
+                    <th className="text-right py-3 px-4 font-medium w-32">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -410,7 +409,7 @@ export default function Grafica() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={9} className="py-3 px-4">
+                            <td colSpan={8} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
@@ -438,7 +437,7 @@ export default function Grafica() {
                         )}
                         {showTypeHeader && (
                           <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={9} className="py-1.5 px-4">
+                            <td colSpan={8} className="py-1.5 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -453,27 +452,19 @@ export default function Grafica() {
                           className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
                           data-testid={`row-item-${item.id}`}
                         >
-                          <td className="py-3 px-4 min-w-[200px]">
-                            <div className="font-medium text-sm whitespace-nowrap overflow-hidden text-ellipsis">
-                              {item.event?.name || 'N/A'}
-                            </div>
-                            <div className="text-xs text-muted-foreground whitespace-nowrap">
-                              Saída: {new Date(item.event?.truckDepartureDate).toLocaleDateString('pt-BR')}
-                            </div>
-                          </td>
                           <td className="py-3 px-4">
                             <div className="text-sm font-medium">{item.type}</div>
                           </td>
-                          <td className="py-3 px-4 text-sm tabular-nums">{item.quantity}</td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
+                          <td className="py-3 px-4 text-center">
                             <div className="text-sm font-semibold tabular-nums text-status-production">
                               {item.quantityProduced || '-'}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-sm text-muted-foreground">
+                          <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
                             {item.area} × {item.visual}
                           </td>
-                          <td className="py-3 px-4 text-sm font-medium tabular-nums">
+                          <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">
                             {item.calculatedM2}
                           </td>
                           <td className="py-3 px-4 text-sm">
@@ -484,19 +475,19 @@ export default function Grafica() {
                             <StatusBadge status={item.status} />
                           </td>
                           <td className="py-3 px-4">
-                            <div className="flex gap-2">
+                            <div className="flex gap-1 justify-end">
                               <Button
-                                size="sm"
+                                size="icon"
                                 variant="ghost"
                                 onClick={() => setViewDetailsItem(item)}
                                 data-testid={`button-view-${item.id}`}
+                                title="Ver detalhes"
                               >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Ver
+                                <Eye className="h-4 w-4" />
                               </Button>
                               {item.status !== 'produced' && item.status !== 'delivered' && (
                                 <Button
-                                  size="sm"
+                                  size="icon"
                                   variant="outline"
                                   onClick={() => {
                                     setSelectedItem(item);
@@ -504,25 +495,25 @@ export default function Grafica() {
                                     setProductionData({ quantityProduced: item.quantity });
                                   }}
                                   data-testid={`button-production-${item.id}`}
+                                  title={item.quantityProduced && item.quantityProduced > 0 ? "Continuar Produção" : "Iniciar Produção"}
+                                  className="bg-status-production/10 hover:bg-status-production/20 border-status-production/30"
                                 >
-                                  <Package className="h-4 w-4 mr-1" />
-                                  {item.quantityProduced && item.quantityProduced > 0 
-                                    ? "Continuar Produção" 
-                                    : "Iniciar Produção"}
+                                  <Package className="h-4 w-4 text-status-production" />
                                 </Button>
                               )}
                               {item.status !== 'delivered' && (
                                 <Button
-                                  size="sm"
+                                  size="icon"
                                   onClick={() => {
                                     setSelectedItem(item);
                                     setModalType("delivery");
                                     setDeliveryData({ photoUrl: "", receivedBy: "" });
                                   }}
                                   data-testid={`button-deliver-${item.id}`}
+                                  title="Marcar Entrega"
+                                  className="bg-primary hover:bg-primary/90"
                                 >
-                                  <Truck className="h-4 w-4 mr-1" />
-                                  Marcar Entregue
+                                  <Truck className="h-4 w-4" />
                                 </Button>
                               )}
                             </div>

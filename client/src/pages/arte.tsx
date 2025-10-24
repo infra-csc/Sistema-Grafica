@@ -371,15 +371,15 @@ export default function Arte() {
                         />
                       </th>
                     )}
-                    <th className="text-left py-3 px-4 font-medium">Descrição</th>
-                    <th className="text-center py-3 px-4 font-medium w-20">Qtd</th>
-                    <th className="text-left py-3 px-4 font-medium">Medida</th>
+                    <th className="text-left py-3 px-4 font-medium w-48">Descrição</th>
+                    <th className="text-center py-3 px-4 font-medium w-16">Qtd</th>
+                    <th className="text-left py-3 px-4 font-medium w-32">Medida</th>
                     <th className="text-center py-3 px-4 font-medium w-20">m²</th>
-                    <th className="text-left py-3 px-4 font-medium">Material</th>
+                    <th className="text-left py-3 px-4 font-medium w-32">Material</th>
                     {viewMode === "approved" && (
-                      <th className="text-left py-3 px-4 font-medium w-24">Status</th>
+                      <th className="text-left py-3 px-4 font-medium w-32">Status</th>
                     )}
-                    <th className="text-right py-3 px-4 font-medium w-24">Ações</th>
+                    <th className="text-right py-3 px-4 font-medium w-28">Ações</th>
                   </tr>
                 </thead>
                 <tbody>

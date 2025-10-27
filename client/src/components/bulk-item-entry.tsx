@@ -16,8 +16,6 @@ interface BulkItemRow {
   type: string;
   description: string;
   quantity: string;
-  area: string;
-  visual: string;
   visualWidth: string;
   visualHeight: string;
   fileWidth: string;
@@ -33,8 +31,10 @@ interface StandardItem {
   id: string;
   name: string;
   type: string;
-  area: number;
-  visual: number;
+  visualWidth?: number | null;
+  visualHeight?: number | null;
+  fileWidth?: number | null;
+  fileHeight?: number | null;
   material?: string | null;
   finish?: string | null;
 }
@@ -57,8 +57,6 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
       type: "",
       description: "",
       quantity: "1",
-      area: "",
-      visual: "",
       visualWidth: "",
       visualHeight: "",
       fileWidth: "",
@@ -71,11 +69,11 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
     };
   }
 
-  function calculateM2(quantity: string, area: string, visual: string): number {
+  function calculateM2(quantity: string, visualWidth: string, visualHeight: string): number {
     const q = parseFloat(quantity) || 0;
-    const a = parseFloat(area) || 0;
-    const v = parseFloat(visual) || 0;
-    return q * a * v;
+    const w = parseFloat(visualWidth) || 0;
+    const h = parseFloat(visualHeight) || 0;
+    return q * w * h;
   }
 
   function updateRow(id: string, field: keyof BulkItemRow, value: string) {
@@ -91,25 +89,29 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
           if (standardItem) {
             // Preencher com dados do modelo
             updated.type = value; // Manter o nome do modelo como tipo
-            // Converter Decimal para string
-            const area = standardItem.area ? String(standardItem.area) : "";
-            const visual = standardItem.visual ? String(standardItem.visual) : "";
-            updated.area = area;
-            updated.visual = visual;
+            // Converter Decimal para string para visualWidth e visualHeight
+            const vw = standardItem.visualWidth ? String(standardItem.visualWidth) : "";
+            const vh = standardItem.visualHeight ? String(standardItem.visualHeight) : "";
+            const fw = standardItem.fileWidth ? String(standardItem.fileWidth) : "";
+            const fh = standardItem.fileHeight ? String(standardItem.fileHeight) : "";
+            updated.visualWidth = vw;
+            updated.visualHeight = vh;
+            updated.fileWidth = fw;
+            updated.fileHeight = fh;
             // Usar material e acabamento do modelo (se existir)
             updated.material = standardItem.material || "";
             updated.finish = standardItem.finish || "";
-            updated.measurement = area && visual ? `${area} × ${visual}` : "";
-            updated.calculatedM2 = calculateM2(updated.quantity, area, visual);
+            updated.measurement = vw && vh ? `${vw} × ${vh}` : "";
+            updated.calculatedM2 = calculateM2(updated.quantity, vw, vh);
           }
         }
         
-        // Recalcular m² se alterou quantidade, área ou visual
-        if (field === 'quantity' || field === 'area' || field === 'visual') {
-          updated.calculatedM2 = calculateM2(updated.quantity, updated.area, updated.visual);
+        // Recalcular m² se alterou quantidade, visualWidth ou visualHeight
+        if (field === 'quantity' || field === 'visualWidth' || field === 'visualHeight') {
+          updated.calculatedM2 = calculateM2(updated.quantity, updated.visualWidth, updated.visualHeight);
           // Atualizar medida automaticamente se não foi editada manualmente
-          if (!updated.measurement || updated.measurement === `${row.area} × ${row.visual}`) {
-            updated.measurement = `${updated.area} × ${updated.visual}`;
+          if (!updated.measurement || updated.measurement === `${row.visualWidth} × ${row.visualHeight}`) {
+            updated.measurement = `${updated.visualWidth} × ${updated.visualHeight}`;
           }
         }
         
@@ -143,8 +145,8 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
       .filter(row => 
         row.type && 
         parseFloat(row.quantity) > 0 && 
-        parseFloat(row.area) > 0 && 
-        parseFloat(row.visual) > 0 && 
+        parseFloat(row.visualWidth) > 0 && 
+        parseFloat(row.visualHeight) > 0 && 
         row.material && 
         row.finish
       )
@@ -153,11 +155,13 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         type: row.type,
         description: row.description || "",
         quantity: parseInt(row.quantity),
-        area: parseFloat(row.area),
-        visual: parseFloat(row.visual),
+        visualWidth: parseFloat(row.visualWidth),
+        visualHeight: parseFloat(row.visualHeight),
+        fileWidth: row.fileWidth ? parseInt(row.fileWidth) : null,
+        fileHeight: row.fileHeight ? parseInt(row.fileHeight) : null,
         material: row.material,
         finish: row.finish,
-        measurement: row.measurement || `${row.area} × ${row.visual}`,
+        measurement: row.measurement || `${row.visualWidth} × ${row.visualHeight}`,
         observations: row.observations || "",
         calculatedM2: row.calculatedM2,
         status: "requested",
@@ -173,7 +177,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
 
   const totalM2 = rows.reduce((sum, row) => sum + row.calculatedM2, 0);
   const validRowsCount = rows.filter(row => 
-    row.type && parseFloat(row.quantity) > 0 && parseFloat(row.area) > 0 && parseFloat(row.visual) > 0 && row.material && row.finish
+    row.type && parseFloat(row.quantity) > 0 && parseFloat(row.visualWidth) > 0 && parseFloat(row.visualHeight) > 0 && row.material && row.finish
   ).length;
 
   return (
@@ -202,10 +206,8 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
               <th className="p-2 text-left font-medium whitespace-nowrap min-w-[120px]">Tipo*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap min-w-[150px]">Descrição</th>
               <th className="p-2 text-left font-medium whitespace-nowrap w-[80px]">Qtd*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap w-[80px]">Área*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap w-[80px]">Visual*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap w-[90px]" colSpan={2}>Área Visual</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap w-[100px]" colSpan={2}>Medida do arquivo</th>
+              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Área Visual*</th>
+              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Medida do arquivo</th>
               <th className="p-2 text-left font-medium whitespace-nowrap min-w-[120px]">Material*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap min-w-[120px]">Acabamento*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap w-[100px]">m² (auto)</th>
@@ -217,12 +219,10 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
               <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2 text-left text-xs font-normal">Largura</th>
-              <th className="p-2 text-left text-xs font-normal">Altura</th>
-              <th className="p-2 text-left text-xs font-normal">Largura</th>
-              <th className="p-2 text-left text-xs font-normal">Altura</th>
+              <th className="p-2 text-left text-xs font-normal text-muted-foreground w-[100px]">Largura</th>
+              <th className="p-2 text-left text-xs font-normal text-muted-foreground w-[100px]">Altura</th>
+              <th className="p-2 text-left text-xs font-normal text-muted-foreground w-[100px]">Largura</th>
+              <th className="p-2 text-left text-xs font-normal text-muted-foreground w-[100px]">Altura</th>
               <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
@@ -329,34 +329,6 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                     onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
                     className="h-8"
                     data-testid={`input-quantity-${index}`}
-                  />
-                </td>
-
-                {/* Área */}
-                <td className="p-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={row.area}
-                    onChange={(e) => updateRow(row.id, 'area', e.target.value)}
-                    className="h-8"
-                    placeholder="0.00"
-                    data-testid={`input-area-${index}`}
-                  />
-                </td>
-
-                {/* Visual */}
-                <td className="p-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={row.visual}
-                    onChange={(e) => updateRow(row.id, 'visual', e.target.value)}
-                    className="h-8"
-                    placeholder="0.00"
-                    data-testid={`input-visual-${index}`}
                   />
                 </td>
 

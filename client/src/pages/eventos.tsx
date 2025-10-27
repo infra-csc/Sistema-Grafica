@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
 import { useState } from "react";
 import {
@@ -38,6 +39,8 @@ export default function Eventos() {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUrgencies, setSelectedUrgencies] = useState<UrgencyLevel[]>([]);
+  const [next10DaysFilter, setNext10DaysFilter] = useState(false);
+  const [monthFilter, setMonthFilter] = useState<string>("all");
   const [formData, setFormData] = useState({
     name: "",
     startDate: "",
@@ -170,6 +173,23 @@ export default function Eventos() {
     );
   };
 
+  // Meses do ano
+  const months = [
+    { value: "all", label: "Todos os meses" },
+    { value: "1", label: "Janeiro" },
+    { value: "2", label: "Fevereiro" },
+    { value: "3", label: "Março" },
+    { value: "4", label: "Abril" },
+    { value: "5", label: "Maio" },
+    { value: "6", label: "Junho" },
+    { value: "7", label: "Julho" },
+    { value: "8", label: "Agosto" },
+    { value: "9", label: "Setembro" },
+    { value: "10", label: "Outubro" },
+    { value: "11", label: "Novembro" },
+    { value: "12", label: "Dezembro" },
+  ];
+
   const filteredEvents = events
     .filter((event) => {
       // Filtro de busca por nome
@@ -179,7 +199,26 @@ export default function Eventos() {
       const matchesUrgency = selectedUrgencies.length === 0 || 
         selectedUrgencies.includes(getEventUrgency(event));
       
-      return matchesSearch && matchesUrgency;
+      // Filtro de próximos 10 dias
+      let matchesNext10Days = true;
+      if (next10DaysFilter && event.truckDepartureDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tenDaysFromNow = new Date(today);
+        tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+        const departureDate = new Date(event.truckDepartureDate);
+        matchesNext10Days = departureDate >= today && departureDate <= tenDaysFromNow;
+      }
+      
+      // Filtro por mês
+      let matchesMonth = true;
+      if (monthFilter !== "all" && event.truckDepartureDate) {
+        const departureDate = new Date(event.truckDepartureDate);
+        const month = departureDate.getMonth() + 1;
+        matchesMonth = month.toString() === monthFilter;
+      }
+      
+      return matchesSearch && matchesUrgency && matchesNext10Days && matchesMonth;
     })
     .sort((a, b) => {
       const urgencyOrder: Record<UrgencyLevel, number> = {
@@ -374,6 +413,53 @@ export default function Eventos() {
             <div className="h-2 w-2 rounded-full bg-status-completed"></div>
             <span>Concluído</span>
           </span>
+        </div>
+      </div>
+
+      {/* Filtros de Data */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Filtros de data:</span>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Select value={monthFilter} onValueChange={setMonthFilter}>
+            <SelectTrigger className="w-[200px]" data-testid="select-month-filter">
+              <SelectValue placeholder="Mês de saída" />
+            </SelectTrigger>
+            <SelectContent>
+              {months.map((month) => (
+                <SelectItem key={month.value} value={month.value}>
+                  {month.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant={next10DaysFilter ? "default" : "outline"}
+            size="sm"
+            onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+            data-testid="button-next-10-days-filter"
+          >
+            <Truck className="h-4 w-4 mr-2" />
+            {next10DaysFilter ? "Próximos 10 dias ✓" : "Próximos 10 dias"}
+          </Button>
+
+          {(monthFilter !== "all" || next10DaysFilter) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setMonthFilter("all");
+                setNext10DaysFilter(false);
+              }}
+              className="text-xs"
+              data-testid="button-clear-date-filters"
+            >
+              Limpar filtros de data
+            </Button>
+          )}
         </div>
       </div>
 

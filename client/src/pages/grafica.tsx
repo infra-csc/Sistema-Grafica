@@ -33,6 +33,8 @@ export default function Grafica() {
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [next10DaysFilter, setNext10DaysFilter] = useState(false);
+  const [monthFilter, setMonthFilter] = useState<string>("all");
   const [openRecipientCombobox, setOpenRecipientCombobox] = useState(false);
   const [productionData, setProductionData] = useState({
     quantityProduced: 0,
@@ -116,6 +118,23 @@ export default function Grafica() {
     new Set(items.map(item => item.receivedBy).filter(Boolean))
   ).sort();
 
+  // Meses do ano
+  const months = [
+    { value: "all", label: "Todos os meses" },
+    { value: "1", label: "Janeiro" },
+    { value: "2", label: "Fevereiro" },
+    { value: "3", label: "Março" },
+    { value: "4", label: "Abril" },
+    { value: "5", label: "Maio" },
+    { value: "6", label: "Junho" },
+    { value: "7", label: "Julho" },
+    { value: "8", label: "Agosto" },
+    { value: "9", label: "Setembro" },
+    { value: "10", label: "Outubro" },
+    { value: "11", label: "Novembro" },
+    { value: "12", label: "Dezembro" },
+  ];
+
   const filteredItems = items
     .filter(item => {
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
@@ -123,7 +142,27 @@ export default function Grafica() {
       const matchesType = typeFilter === "all" || item.type === typeFilter;
       const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
       const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
-      return matchesStatus && matchesEvent && matchesType && matchesMaterial && matchesFinish;
+      
+      // Filtro de próximos 10 dias
+      let matchesNext10Days = true;
+      if (next10DaysFilter && item.event?.truckDepartureDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tenDaysFromNow = new Date(today);
+        tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+        const departureDate = new Date(item.event.truckDepartureDate);
+        matchesNext10Days = departureDate >= today && departureDate <= tenDaysFromNow;
+      }
+      
+      // Filtro por mês
+      let matchesMonth = true;
+      if (monthFilter !== "all" && item.event?.truckDepartureDate) {
+        const departureDate = new Date(item.event.truckDepartureDate);
+        const month = departureDate.getMonth() + 1;
+        matchesMonth = month.toString() === monthFilter;
+      }
+      
+      return matchesStatus && matchesEvent && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth;
     })
     .sort((a, b) => {
       // Primeiro ordenar por evento
@@ -380,6 +419,53 @@ export default function Grafica() {
                 )}
               </div>
             )}
+
+            {/* Filtros de Data */}
+            <div className="flex flex-col gap-3 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Filtros de data:</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Select value={monthFilter} onValueChange={setMonthFilter}>
+                  <SelectTrigger className="w-[200px]" data-testid="select-month-filter">
+                    <SelectValue placeholder="Mês de saída" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant={next10DaysFilter ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+                  data-testid="button-next-10-days-filter"
+                >
+                  <Truck className="h-4 w-4 mr-2" />
+                  {next10DaysFilter ? "Próximos 10 dias ✓" : "Próximos 10 dias"}
+                </Button>
+
+                {(monthFilter !== "all" || next10DaysFilter) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMonthFilter("all");
+                      setNext10DaysFilter(false);
+                    }}
+                    className="text-xs"
+                    data-testid="button-clear-date-filters"
+                  >
+                    Limpar filtros de data
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

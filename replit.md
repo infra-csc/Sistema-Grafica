@@ -32,7 +32,9 @@ The system features a professional light mode theme with a clean white backgroun
 - **ORM**: Drizzle ORM.
 - **State Management/Data Fetching**: React Query for data caching and synchronization.
 - **Timezone Handling**: Database stores UTC timestamps; JavaScript handles conversions between UTC and the browser's local timezone (Brasília - UTC-3).
-- **Date Handling**: Events now track only dates (no times) as times are not necessary for the workflow. All event-related inputs use `type="date"` and display dates without time components.
+- **Date Handling**: 
+  - **startDate** (Início do Evento): Apenas data, sem horário. Usa `type="date"` e exibe somente a data (DD/MM/AAAA).
+  - **truckDepartureDate** (Saída do Caminhão): Data e horário completos. Usa `type="datetime-local"` e exibe data e hora (DD/MM/AAAA às HH:MM) em todas as telas.
 
 ### Feature Specifications
 - **Modules**:

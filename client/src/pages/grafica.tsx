@@ -552,20 +552,20 @@ export default function Grafica() {
                               {item.quantityProduced || '-'}
                             </div>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-2 text-xs">
                             {item.visualWidth && item.visualHeight ? (
-                              <div className="text-xs">
+                              <div className="space-y-0.5">
                                 <div className="tabular-nums whitespace-nowrap">
-                                  <span className="text-muted-foreground">V:</span> {item.visualWidth}×{item.visualHeight}
+                                  <span className="text-muted-foreground font-medium">V</span> {item.visualWidth}×{item.visualHeight}
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
                                   <div className="tabular-nums text-muted-foreground whitespace-nowrap">
-                                    <span>A:</span> {item.fileWidth}×{item.fileHeight}
+                                    <span className="font-medium">A</span> {item.fileWidth}×{item.fileHeight}
                                   </div>
                                 )}
                               </div>
                             ) : (
-                              <div className="text-xs text-muted-foreground">—</div>
+                              <div className="text-muted-foreground">—</div>
                             )}
                           </td>
                           <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">

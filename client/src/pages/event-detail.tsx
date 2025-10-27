@@ -674,15 +674,15 @@ export default function EventDetail() {
                             )}
                           </td>
                           <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
-                          <td className="py-3 px-4 text-xs">
+                          <td className="py-3 px-2 text-xs">
                             {(item.visualWidth || item.visualHeight) && (
                               <div className="whitespace-nowrap tabular-nums">
-                                <span className="text-muted-foreground">V:</span> {item.visualWidth || "—"}×{item.visualHeight || "—"}
+                                <span className="text-muted-foreground font-medium">V</span> {item.visualWidth || "—"}×{item.visualHeight || "—"}
                               </div>
                             )}
                             {(item.fileWidth || item.fileHeight) && (
                               <div className="whitespace-nowrap tabular-nums text-muted-foreground">
-                                <span>A:</span> {item.fileWidth || "—"}×{item.fileHeight || "—"}
+                                <span className="font-medium">A</span> {item.fileWidth || "—"}×{item.fileHeight || "—"}
                               </div>
                             )}
                             {!item.visualWidth && !item.visualHeight && !item.fileWidth && !item.fileHeight && (

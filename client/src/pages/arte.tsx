@@ -589,7 +589,7 @@ export default function Arte() {
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
                                   <div className="tabular-nums text-xs text-muted-foreground">
-                                    Arq: {item.fileWidth} × {item.fileHeight}px
+                                    Arquivo: {item.fileWidth} × {item.fileHeight}m
                                   </div>
                                 )}
                               </div>

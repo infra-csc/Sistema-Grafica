@@ -682,7 +682,7 @@ export default function EventDetail() {
                             )}
                             {(item.fileWidth || item.fileHeight) && (
                               <div className="whitespace-nowrap tabular-nums text-muted-foreground">
-                                Arq: {item.fileWidth || "—"} × {item.fileHeight || "—"}px
+                                Arquivo: {item.fileWidth || "—"} × {item.fileHeight || "—"}m
                               </div>
                             )}
                             {!item.visualWidth && !item.visualHeight && !item.fileWidth && !item.fileHeight && (

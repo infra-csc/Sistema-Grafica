@@ -560,7 +560,7 @@ export default function Grafica() {
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
                                   <div className="tabular-nums text-xs text-muted-foreground whitespace-nowrap">
-                                    Arq: {item.fileWidth} × {item.fileHeight}px
+                                    Arquivo: {item.fileWidth} × {item.fileHeight}m
                                   </div>
                                 )}
                               </div>
@@ -690,7 +690,7 @@ export default function Grafica() {
                     <>
                       <p className="text-sm font-semibold">Visual: {viewDetailsItem.visualWidth} × {viewDetailsItem.visualHeight}m</p>
                       {viewDetailsItem.fileWidth && viewDetailsItem.fileHeight && (
-                        <p className="text-sm text-muted-foreground">Arquivo: {viewDetailsItem.fileWidth} × {viewDetailsItem.fileHeight}px</p>
+                        <p className="text-sm text-muted-foreground">Arquivo: {viewDetailsItem.fileWidth} × {viewDetailsItem.fileHeight}m</p>
                       )}
                     </>
                   ) : (

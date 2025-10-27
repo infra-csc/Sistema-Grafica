@@ -641,6 +641,7 @@ export default function EventDetail() {
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Área × Visual</th>
+                    <th className="text-left py-3 px-4 font-medium">Dimensões</th>
                     <th className="text-left py-3 px-4 font-medium w-16">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     <th className="text-left py-3 px-4 font-medium">Acabamento</th>
@@ -659,7 +660,7 @@ export default function EventDetail() {
                       <Fragment key={item.id}>
                         {showTypeHeader && (
                           <tr key={`group-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
-                            <td colSpan={hasPermission("admin") ? 8 : 7} className="py-2 px-4">
+                            <td colSpan={hasPermission("admin") ? 9 : 8} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-primary rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -686,6 +687,21 @@ export default function EventDetail() {
                           </td>
                           <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
                           <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">{item.area} × {item.visual}</td>
+                          <td className="py-3 px-4 text-xs text-muted-foreground">
+                            {(item.visualWidth || item.visualHeight) && (
+                              <div className="whitespace-nowrap">
+                                Visual: {item.visualWidth || "—"} × {item.visualHeight || "—"}m
+                              </div>
+                            )}
+                            {(item.fileWidth || item.fileHeight) && (
+                              <div className="whitespace-nowrap">
+                                Arquivo: {item.fileWidth || "—"} × {item.fileHeight || "—"}px
+                              </div>
+                            )}
+                            {!item.visualWidth && !item.visualHeight && !item.fileWidth && !item.fileHeight && (
+                              <div className="text-muted-foreground/50">—</div>
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">{item.calculatedM2}</td>
                           <td className="py-3 px-4 text-sm">{item.material}</td>
                           <td className="py-3 px-4 text-sm">{item.finish}</td>

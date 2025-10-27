@@ -414,11 +414,13 @@ export default function EventDetail() {
                                       setFormData({
                                         ...formData,
                                         type: item.name,
-                                        area: item.area ? String(item.area) : "",
-                                        visual: item.visual ? String(item.visual) : "",
+                                        visualWidth: item.visualWidth ? String(item.visualWidth) : (item.area ? String(item.area) : ""),
+                                        visualHeight: item.visualHeight ? String(item.visualHeight) : (item.visual ? String(item.visual) : ""),
+                                        fileWidth: item.fileWidth ? String(item.fileWidth) : "",
+                                        fileHeight: item.fileHeight ? String(item.fileHeight) : "",
                                         material: item.material || "",
                                         finish: item.finish || "",
-                                        measurement: item.area && item.visual ? `${item.area} × ${item.visual}` : "",
+                                        measurement: (item.visualWidth && item.visualHeight) ? `${item.visualWidth} × ${item.visualHeight}` : (item.area && item.visual ? `${item.area} × ${item.visual}` : ""),
                                       });
                                       setTypePopoverOpen(false);
                                     }}

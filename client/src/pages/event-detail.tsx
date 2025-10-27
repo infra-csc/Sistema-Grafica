@@ -56,8 +56,6 @@ export default function EventDetail() {
     type: "",
     description: "",
     quantity: 1,
-    area: "",
-    visual: "",
     visualWidth: "",
     visualHeight: "",
     fileWidth: "",
@@ -87,24 +85,22 @@ export default function EventDetail() {
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      const area = parseFloat(data.area);
-      const visual = parseFloat(data.visual);
-      const fileWidth = data.fileWidth ? parseInt(data.fileWidth) : null;
-      const fileHeight = data.fileHeight ? parseInt(data.fileHeight) : null;
+      const visualWidth = parseFloat(data.visualWidth);
+      const visualHeight = parseFloat(data.visualHeight);
       
       const calculatedM2 = calculateM2(
         data.quantity,
-        fileWidth,
-        fileHeight,
-        area,
-        visual
+        visualWidth,
+        visualHeight
       ).toFixed(2);
       
       return await apiRequest("POST", "/api/items", {
         ...data,
         eventId,
+        area: visualWidth,  // Usar visualWidth como area para compatibilidade com backend
+        visual: visualHeight,  // Usar visualHeight como visual para compatibilidade com backend
         calculatedM2,
-        measurement: data.measurement || `${area} × ${visual}`,
+        measurement: data.measurement || `${visualWidth} × ${visualHeight}`,
       });
     },
     onSuccess: () => {
@@ -114,8 +110,6 @@ export default function EventDetail() {
         type: "",
         description: "",
         quantity: 1,
-        area: "",
-        visual: "",
         visualWidth: "",
         visualHeight: "",
         fileWidth: "",
@@ -163,21 +157,19 @@ export default function EventDetail() {
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const area = parseFloat(data.area);
-      const visual = parseFloat(data.visual);
-      const fileWidth = data.fileWidth ? parseInt(data.fileWidth) : null;
-      const fileHeight = data.fileHeight ? parseInt(data.fileHeight) : null;
+      const visualWidth = parseFloat(data.visualWidth);
+      const visualHeight = parseFloat(data.visualHeight);
       
       const calculatedM2 = calculateM2(
         data.quantity,
-        fileWidth,
-        fileHeight,
-        area,
-        visual
+        visualWidth,
+        visualHeight
       ).toFixed(2);
       
       return await apiRequest("PATCH", `/api/items/${id}`, {
         ...data,
+        area: visualWidth,  // Usar visualWidth como area para compatibilidade com backend
+        visual: visualHeight,  // Usar visualHeight como visual para compatibilidade com backend
         calculatedM2,
       });
     },
@@ -237,10 +229,8 @@ export default function EventDetail() {
       type: item.type || "",
       description: item.description || "",
       quantity: item.quantity || 1,
-      area: item.area || "",
-      visual: item.visual || "",
-      visualWidth: item.visualWidth || "",
-      visualHeight: item.visualHeight || "",
+      visualWidth: item.visualWidth || item.area || "",  // Usar visualWidth ou fallback para area (compatibilidade)
+      visualHeight: item.visualHeight || item.visual || "",  // Usar visualHeight ou fallback para visual (compatibilidade)
       fileWidth: item.fileWidth || "",
       fileHeight: item.fileHeight || "",
       material: item.material || "",
@@ -263,8 +253,6 @@ export default function EventDetail() {
       type: "",
       description: "",
       quantity: 1,
-      area: "",
-      visual: "",
       visualWidth: "",
       visualHeight: "",
       fileWidth: "",
@@ -494,33 +482,7 @@ export default function EventDetail() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="area">Área (m)</Label>
-                    <Input
-                      id="area"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.area}
-                      onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                      required
-                      data-testid="input-area"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="visual">Visual (m)</Label>
-                    <Input
-                      id="visual"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.visual}
-                      onChange={(e) => setFormData({ ...formData, visual: e.target.value })}
-                      required
-                      data-testid="input-visual"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="visualWidth">Largura Visual (m)</Label>
+                    <Label htmlFor="visualWidth">Largura Visual (m)*</Label>
                     <Input
                       id="visualWidth"
                       type="number"
@@ -529,11 +491,12 @@ export default function EventDetail() {
                       value={formData.visualWidth}
                       onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
                       placeholder="Ex: 2.00"
+                      required
                       data-testid="input-visual-width"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="visualHeight">Altura Visual (m)</Label>
+                    <Label htmlFor="visualHeight">Altura Visual (m)*</Label>
                     <Input
                       id="visualHeight"
                       type="number"
@@ -542,6 +505,7 @@ export default function EventDetail() {
                       value={formData.visualHeight}
                       onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
                       placeholder="Ex: 1.00"
+                      required
                       data-testid="input-visual-height"
                     />
                   </div>
@@ -607,10 +571,10 @@ export default function EventDetail() {
                     />
                   </div>
                 </div>
-                {formData.area && formData.visual && formData.quantity && (
+                {formData.visualWidth && formData.visualHeight && formData.quantity && (
                   <div className="p-4 bg-muted/50 rounded-md">
                     <p className="text-sm font-medium">
-                      m² Total: {(formData.quantity * parseFloat(formData.area || "0") * parseFloat(formData.visual || "0")).toFixed(2)}
+                      m² Total: {(formData.quantity * parseFloat(formData.visualWidth || "0") * parseFloat(formData.visualHeight || "0")).toFixed(2)}
                     </p>
                   </div>
                 )}

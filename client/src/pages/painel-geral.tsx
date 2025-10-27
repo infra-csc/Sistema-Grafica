@@ -376,18 +376,18 @@ export default function PainelGeral() {
                           </td>
                           <td className="py-3 px-4">
                             {item.visualWidth && item.visualHeight ? (
-                              <div className="text-sm">
-                                <div className="tabular-nums">
-                                  <span className="text-muted-foreground text-xs">Visual:</span> {item.visualWidth} × {item.visualHeight}m
+                              <div className="text-xs">
+                                <div className="tabular-nums whitespace-nowrap">
+                                  {item.visualWidth}×{item.visualHeight}
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
-                                  <div className="tabular-nums text-xs text-muted-foreground">
-                                    Arquivo: {item.fileWidth} × {item.fileHeight}m
+                                  <div className="tabular-nums text-muted-foreground whitespace-nowrap">
+                                    {item.fileWidth}×{item.fileHeight}
                                   </div>
                                 )}
                               </div>
                             ) : (
-                              <div className="text-sm text-muted-foreground">—</div>
+                              <div className="text-xs text-muted-foreground">—</div>
                             )}
                           </td>
                           <td className="py-3 px-4 text-center text-sm font-medium tabular-nums">{item.calculatedM2}</td>

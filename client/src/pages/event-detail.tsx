@@ -677,12 +677,12 @@ export default function EventDetail() {
                           <td className="py-3 px-4 text-xs">
                             {(item.visualWidth || item.visualHeight) && (
                               <div className="whitespace-nowrap tabular-nums">
-                                <span className="text-muted-foreground">Visual:</span> {item.visualWidth || "—"} × {item.visualHeight || "—"}m
+                                {item.visualWidth || "—"}×{item.visualHeight || "—"}
                               </div>
                             )}
                             {(item.fileWidth || item.fileHeight) && (
                               <div className="whitespace-nowrap tabular-nums text-muted-foreground">
-                                Arquivo: {item.fileWidth || "—"} × {item.fileHeight || "—"}m
+                                {item.fileWidth || "—"}×{item.fileHeight || "—"}
                               </div>
                             )}
                             {!item.visualWidth && !item.visualHeight && !item.fileWidth && !item.fileHeight && (

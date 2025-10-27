@@ -554,18 +554,18 @@ export default function Grafica() {
                           </td>
                           <td className="py-3 px-4">
                             {item.visualWidth && item.visualHeight ? (
-                              <div className="text-sm">
+                              <div className="text-xs">
                                 <div className="tabular-nums whitespace-nowrap">
-                                  <span className="text-muted-foreground text-xs">Visual:</span> {item.visualWidth} × {item.visualHeight}m
+                                  {item.visualWidth}×{item.visualHeight}
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
-                                  <div className="tabular-nums text-xs text-muted-foreground whitespace-nowrap">
-                                    Arquivo: {item.fileWidth} × {item.fileHeight}m
+                                  <div className="tabular-nums text-muted-foreground whitespace-nowrap">
+                                    {item.fileWidth}×{item.fileHeight}
                                   </div>
                                 )}
                               </div>
                             ) : (
-                              <div className="text-sm text-muted-foreground">—</div>
+                              <div className="text-xs text-muted-foreground">—</div>
                             )}
                           </td>
                           <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">
@@ -688,9 +688,9 @@ export default function Grafica() {
                   <p className="text-sm font-medium text-muted-foreground mb-1">Dimensões</p>
                   {viewDetailsItem.visualWidth && viewDetailsItem.visualHeight ? (
                     <>
-                      <p className="text-sm font-semibold">Visual: {viewDetailsItem.visualWidth} × {viewDetailsItem.visualHeight}m</p>
+                      <p className="text-sm font-semibold tabular-nums">{viewDetailsItem.visualWidth}×{viewDetailsItem.visualHeight}m</p>
                       {viewDetailsItem.fileWidth && viewDetailsItem.fileHeight && (
-                        <p className="text-sm text-muted-foreground">Arquivo: {viewDetailsItem.fileWidth} × {viewDetailsItem.fileHeight}m</p>
+                        <p className="text-sm text-muted-foreground tabular-nums">{viewDetailsItem.fileWidth}×{viewDetailsItem.fileHeight}m</p>
                       )}
                     </>
                   ) : (

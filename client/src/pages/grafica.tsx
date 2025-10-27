@@ -556,11 +556,11 @@ export default function Grafica() {
                             {item.visualWidth && item.visualHeight ? (
                               <div className="text-xs">
                                 <div className="tabular-nums whitespace-nowrap">
-                                  {item.visualWidth}×{item.visualHeight}
+                                  <span className="text-muted-foreground">V:</span> {item.visualWidth}×{item.visualHeight}
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
                                   <div className="tabular-nums text-muted-foreground whitespace-nowrap">
-                                    {item.fileWidth}×{item.fileHeight}
+                                    <span>A:</span> {item.fileWidth}×{item.fileHeight}
                                   </div>
                                 )}
                               </div>
@@ -688,9 +688,13 @@ export default function Grafica() {
                   <p className="text-sm font-medium text-muted-foreground mb-1">Dimensões</p>
                   {viewDetailsItem.visualWidth && viewDetailsItem.visualHeight ? (
                     <>
-                      <p className="text-sm font-semibold tabular-nums">{viewDetailsItem.visualWidth}×{viewDetailsItem.visualHeight}m</p>
+                      <p className="text-sm font-semibold tabular-nums">
+                        <span className="text-muted-foreground font-normal">V:</span> {viewDetailsItem.visualWidth}×{viewDetailsItem.visualHeight}m
+                      </p>
                       {viewDetailsItem.fileWidth && viewDetailsItem.fileHeight && (
-                        <p className="text-sm text-muted-foreground tabular-nums">{viewDetailsItem.fileWidth}×{viewDetailsItem.fileHeight}m</p>
+                        <p className="text-sm text-muted-foreground tabular-nums">
+                          <span>A:</span> {viewDetailsItem.fileWidth}×{viewDetailsItem.fileHeight}m
+                        </p>
                       )}
                     </>
                   ) : (

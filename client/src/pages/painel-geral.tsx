@@ -378,11 +378,11 @@ export default function PainelGeral() {
                             {item.visualWidth && item.visualHeight ? (
                               <div className="text-xs">
                                 <div className="tabular-nums whitespace-nowrap">
-                                  {item.visualWidth}×{item.visualHeight}
+                                  <span className="text-muted-foreground">V:</span> {item.visualWidth}×{item.visualHeight}
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
                                   <div className="tabular-nums text-muted-foreground whitespace-nowrap">
-                                    {item.fileWidth}×{item.fileHeight}
+                                    <span>A:</span> {item.fileWidth}×{item.fileHeight}
                                   </div>
                                 )}
                               </div>

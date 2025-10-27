@@ -32,6 +32,7 @@ The system features a professional light mode theme with a clean white backgroun
 - **ORM**: Drizzle ORM.
 - **State Management/Data Fetching**: React Query for data caching and synchronization.
 - **Timezone Handling**: Database stores UTC timestamps; JavaScript handles conversions between UTC and the browser's local timezone (Brasília - UTC-3).
+- **Date Handling**: Events now track only dates (no times) as times are not necessary for the workflow. All event-related inputs use `type="date"` and display dates without time components.
 
 ### Feature Specifications
 - **Modules**:
@@ -87,6 +88,9 @@ Gerenciamento de eventos com cards visuais
 
 ### 4. Arte (/arte)
 Módulo de aprovação de arte
+- **🆕 Filtro Pesquisável de Eventos**: Combobox com busca para filtrar itens por evento
+- **🆕 Filtro "Próximos 10 dias"**: Toggle para exibir apenas eventos com saída do caminhão nos próximos 10 dias
+- **🆕 Filtro por Mês**: Seleção de mês para filtrar datas de saída do caminhão
 
 ### 5. Gráfica (/grafica)
 Controle de entrega e produção

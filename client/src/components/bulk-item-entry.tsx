@@ -75,8 +75,19 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
     };
   }
 
-  function calculateM2(quantity: string, area: string, visual: string): number {
+  function calculateM2(quantity: string, fileWidth: string, fileHeight: string, area: string, visual: string): number {
     const q = parseFloat(quantity) || 0;
+    const fw = parseFloat(fileWidth) || 0;
+    const fh = parseFloat(fileHeight) || 0;
+    
+    // Prioridade: usar fileWidth × fileHeight se disponíveis
+    if (fw > 0 && fh > 0) {
+      // fileWidth e fileHeight multiplicados diretamente
+      // Nota: Assumindo conversão de pixels para m² via divisão por 1.000.000
+      return q * (fw * fh) / 1000000;
+    }
+    
+    // Fallback: area × visual (em metros)
     const a = parseFloat(area) || 0;
     const v = parseFloat(visual) || 0;
     return q * a * v;
@@ -110,13 +121,13 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
             updated.material = standardItem.material || "";
             updated.finish = standardItem.finish || "";
             updated.measurement = area && visual ? `${area} × ${visual}` : "";
-            updated.calculatedM2 = calculateM2(updated.quantity, area, visual);
+            updated.calculatedM2 = calculateM2(updated.quantity, fw, fh, area, visual);
           }
         }
         
-        // Recalcular m² se alterou quantidade, area ou visual
-        if (field === 'quantity' || field === 'area' || field === 'visual') {
-          updated.calculatedM2 = calculateM2(updated.quantity, updated.area, updated.visual);
+        // Recalcular m² se alterou quantidade, fileWidth, fileHeight, area ou visual
+        if (field === 'quantity' || field === 'area' || field === 'visual' || field === 'fileWidth' || field === 'fileHeight') {
+          updated.calculatedM2 = calculateM2(updated.quantity, updated.fileWidth, updated.fileHeight, updated.area, updated.visual);
           if (!updated.measurement || updated.measurement === `${row.area} × ${row.visual}`) {
             updated.measurement = `${updated.area} × ${updated.visual}`;
           }

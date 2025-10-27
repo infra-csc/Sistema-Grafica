@@ -251,69 +251,112 @@ export default function Arte() {
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <CardTitle>
-                {viewMode === "pending" ? "Itens Pendentes de Liberação" : "Histórico de Liberações"}
-              </CardTitle>
-              <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openEventCombobox}
-                    className="w-[280px] justify-between"
-                    data-testid="button-event-filter"
-                  >
-                    {eventFilter === "all" 
-                      ? "Todos os eventos" 
-                      : events.find((event) => event.id === eventFilter)?.name || "Selecione um evento"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[280px] p-0">
-                  <Command>
-                    <CommandInput placeholder="Buscar evento..." />
-                    <CommandList>
-                      <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="all"
-                          onSelect={() => {
-                            setEventFilter("all");
-                            setOpenEventCombobox(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              eventFilter === "all" ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          Todos os eventos
-                        </CommandItem>
-                        {events.map((event) => (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <CardTitle>
+                  {viewMode === "pending" ? "Itens Pendentes de Liberação" : "Histórico de Liberações"}
+                </CardTitle>
+                <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openEventCombobox}
+                      className="w-[280px] justify-between"
+                      data-testid="button-event-filter"
+                    >
+                      {eventFilter === "all" 
+                        ? "Todos os eventos" 
+                        : events.find((event) => event.id === eventFilter)?.name || "Selecione um evento"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar evento..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                        <CommandGroup>
                           <CommandItem
-                            key={event.id}
-                            value={event.name}
+                            value="all"
                             onSelect={() => {
-                              setEventFilter(event.id);
+                              setEventFilter("all");
                               setOpenEventCombobox(false);
                             }}
                           >
                             <Check
                               className={cn(
                                 "mr-2 h-4 w-4",
-                                eventFilter === event.id ? "opacity-100" : "opacity-0"
+                                eventFilter === "all" ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            {event.name}
+                            Todos os eventos
                           </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                          {events.map((event) => (
+                            <CommandItem
+                              key={event.id}
+                              value={event.name}
+                              onSelect={() => {
+                                setEventFilter(event.id);
+                                setOpenEventCombobox(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  eventFilter === event.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {event.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Filtros de Data - próximos ao filtro de eventos */}
+              <div className="flex flex-wrap gap-2">
+                <Select value={monthFilter} onValueChange={setMonthFilter}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-month-filter">
+                    <SelectValue placeholder="Mês de saída" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant={next10DaysFilter ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+                  data-testid="button-next-10-days-filter"
+                >
+                  <Truck className="h-4 w-4 mr-2" />
+                  Próximos 10 dias
+                </Button>
+
+                {(monthFilter !== "all" || next10DaysFilter) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMonthFilter("all");
+                      setNext10DaysFilter(false);
+                    }}
+                    className="text-xs"
+                    data-testid="button-clear-date-filters"
+                  >
+                    Limpar datas
+                  </Button>
+                )}
+              </div>
             </div>
             
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -404,31 +447,6 @@ export default function Arte() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Select value={monthFilter} onValueChange={setMonthFilter}>
-                    <SelectTrigger className="w-full" data-testid="select-month-filter">
-                      <SelectValue placeholder="Mês de saída" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {months.map((month) => (
-                        <SelectItem key={month.value} value={month.value}>
-                          {month.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Button
-                    variant={next10DaysFilter ? "default" : "outline"}
-                    onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-                    className="w-full"
-                    data-testid="button-next-10-days-filter"
-                  >
-                    <Truck className="h-4 w-4 mr-2" />
-                    {next10DaysFilter ? "Próximos 10 dias ✓" : "Próximos 10 dias"}
-                  </Button>
                 </div>
 
                 {(typeFilter !== "all" || materialFilter !== "all" || finishFilter !== "all") && (

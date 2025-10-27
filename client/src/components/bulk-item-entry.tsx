@@ -349,7 +349,8 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                     min="1"
                     value={row.quantity}
                     onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
-                    className="h-8"
+                    className="h-8 w-20"
+                    placeholder="1"
                     data-testid={`input-quantity-${index}`}
                   />
                 </td>
@@ -362,7 +363,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                     min="0"
                     value={row.visualWidth}
                     onChange={(e) => updateRow(row.id, 'visualWidth', e.target.value)}
-                    className="h-8"
+                    className="h-8 w-24"
                     placeholder="0.00"
                     data-testid={`input-visual-width-${index}`}
                   />
@@ -376,7 +377,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                     min="0"
                     value={row.visualHeight}
                     onChange={(e) => updateRow(row.id, 'visualHeight', e.target.value)}
-                    className="h-8"
+                    className="h-8 w-24"
                     placeholder="0.00"
                     data-testid={`input-visual-height-${index}`}
                   />
@@ -390,7 +391,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                     min="0"
                     value={row.fileWidth}
                     onChange={(e) => updateRow(row.id, 'fileWidth', e.target.value)}
-                    className="h-8"
+                    className="h-8 w-24"
                     placeholder="0.00"
                     data-testid={`input-file-width-${index}`}
                   />
@@ -404,7 +405,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                     min="0"
                     value={row.fileHeight}
                     onChange={(e) => updateRow(row.id, 'fileHeight', e.target.value)}
-                    className="h-8"
+                    className="h-8 w-24"
                     placeholder="0.00"
                     data-testid={`input-file-height-${index}`}
                   />

@@ -200,29 +200,44 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
       {/* Tabela */}
       <div className="border rounded-lg overflow-auto">
         <table className="w-full text-sm">
+          <colgroup>
+            <col style={{ width: '35px' }} />
+            <col style={{ width: '110px' }} />
+            <col style={{ width: '140px' }} />
+            <col style={{ width: '60px' }} />
+            <col style={{ width: '85px' }} />
+            <col style={{ width: '85px' }} />
+            <col style={{ width: '85px' }} />
+            <col style={{ width: '85px' }} />
+            <col style={{ width: '115px' }} />
+            <col style={{ width: '115px' }} />
+            <col style={{ width: '80px' }} />
+            <col style={{ width: '140px' }} />
+            <col style={{ width: '80px' }} />
+          </colgroup>
           <thead className="bg-muted/50 sticky top-0">
             <tr>
-              <th className="p-2 text-left font-medium whitespace-nowrap w-[40px]">#</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap min-w-[120px]">Tipo*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap min-w-[150px]">Descrição</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap w-[80px]">Qtd*</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">#</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">Tipo*</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">Descrição</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">Qtd*</th>
               <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Área Visual*</th>
               <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Medida do arquivo</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap min-w-[120px]">Material*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap min-w-[120px]">Acabamento*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap w-[100px]">m² (auto)</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap min-w-[150px]">Observações</th>
-              <th className="p-2 text-center font-medium whitespace-nowrap w-[100px]">Ações</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">Material*</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">Acabamento*</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">m² (auto)</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">Observações</th>
+              <th className="p-2 text-center font-medium whitespace-nowrap">Ações</th>
             </tr>
             <tr>
               <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
-              <th className="p-2 text-left text-xs font-normal text-muted-foreground min-w-[110px]">Largura</th>
-              <th className="p-2 text-left text-xs font-normal text-muted-foreground min-w-[110px]">Altura</th>
-              <th className="p-2 text-left text-xs font-normal text-muted-foreground min-w-[110px]">Largura</th>
-              <th className="p-2 text-left text-xs font-normal text-muted-foreground min-w-[110px]">Altura</th>
+              <th className="p-2 text-left text-xs font-normal text-muted-foreground">Largura</th>
+              <th className="p-2 text-left text-xs font-normal text-muted-foreground">Altura</th>
+              <th className="p-2 text-left text-xs font-normal text-muted-foreground">Largura</th>
+              <th className="p-2 text-left text-xs font-normal text-muted-foreground">Altura</th>
               <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
@@ -333,54 +348,54 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                 </td>
 
                 {/* Área Visual - Largura */}
-                <td className="p-2 min-w-[110px]">
+                <td className="p-2">
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
                     value={row.visualWidth}
                     onChange={(e) => updateRow(row.id, 'visualWidth', e.target.value)}
-                    className="h-8 w-full"
+                    className="h-8"
                     placeholder="0.00"
                     data-testid={`input-visual-width-${index}`}
                   />
                 </td>
 
                 {/* Área Visual - Altura */}
-                <td className="p-2 min-w-[110px]">
+                <td className="p-2">
                   <Input
                     type="number"
                     step="0.01"
                     min="0"
                     value={row.visualHeight}
                     onChange={(e) => updateRow(row.id, 'visualHeight', e.target.value)}
-                    className="h-8 w-full"
+                    className="h-8"
                     placeholder="0.00"
                     data-testid={`input-visual-height-${index}`}
                   />
                 </td>
 
                 {/* Medida do arquivo - Largura */}
-                <td className="p-2 min-w-[110px]">
+                <td className="p-2">
                   <Input
                     type="number"
                     min="0"
                     value={row.fileWidth}
                     onChange={(e) => updateRow(row.id, 'fileWidth', e.target.value)}
-                    className="h-8 w-full"
+                    className="h-8"
                     placeholder="px"
                     data-testid={`input-file-width-${index}`}
                   />
                 </td>
 
                 {/* Medida do arquivo - Altura */}
-                <td className="p-2 min-w-[110px]">
+                <td className="p-2">
                   <Input
                     type="number"
                     min="0"
                     value={row.fileHeight}
                     onChange={(e) => updateRow(row.id, 'fileHeight', e.target.value)}
-                    className="h-8 w-full"
+                    className="h-8"
                     placeholder="px"
                     data-testid={`input-file-height-${index}`}
                   />

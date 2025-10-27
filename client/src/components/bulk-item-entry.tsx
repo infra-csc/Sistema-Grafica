@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Plus, Copy, Trash2, Save, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { calculateM2FromStrings } from "@/lib/calculateM2";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
@@ -75,22 +76,9 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
     };
   }
 
+  // Usar função compartilhada para cálculo de m²
   function calculateM2(quantity: string, fileWidth: string, fileHeight: string, area: string, visual: string): number {
-    const q = parseFloat(quantity) || 0;
-    const fw = parseFloat(fileWidth) || 0;
-    const fh = parseFloat(fileHeight) || 0;
-    
-    // Prioridade: usar fileWidth × fileHeight se disponíveis
-    if (fw > 0 && fh > 0) {
-      // fileWidth e fileHeight multiplicados diretamente
-      // Nota: Assumindo conversão de pixels para m² via divisão por 1.000.000
-      return q * (fw * fh) / 1000000;
-    }
-    
-    // Fallback: area × visual (em metros)
-    const a = parseFloat(area) || 0;
-    const v = parseFloat(visual) || 0;
-    return q * a * v;
+    return calculateM2FromStrings(quantity, fileWidth, fileHeight, area, visual);
   }
 
   function updateRow(id: string, field: keyof BulkItemRow, value: string) {

@@ -35,6 +35,7 @@ import { BulkItemEntry } from "@/components/bulk-item-entry";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
+import { calculateM2 } from "@/lib/calculateM2";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
@@ -88,7 +89,16 @@ export default function EventDetail() {
     mutationFn: async (data: any) => {
       const area = parseFloat(data.area);
       const visual = parseFloat(data.visual);
-      const calculatedM2 = (data.quantity * area * visual).toFixed(2);
+      const fileWidth = data.fileWidth ? parseInt(data.fileWidth) : null;
+      const fileHeight = data.fileHeight ? parseInt(data.fileHeight) : null;
+      
+      const calculatedM2 = calculateM2(
+        data.quantity,
+        fileWidth,
+        fileHeight,
+        area,
+        visual
+      ).toFixed(2);
       
       return await apiRequest("POST", "/api/items", {
         ...data,
@@ -155,7 +165,16 @@ export default function EventDetail() {
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const area = parseFloat(data.area);
       const visual = parseFloat(data.visual);
-      const calculatedM2 = (data.quantity * area * visual).toFixed(2);
+      const fileWidth = data.fileWidth ? parseInt(data.fileWidth) : null;
+      const fileHeight = data.fileHeight ? parseInt(data.fileHeight) : null;
+      
+      const calculatedM2 = calculateM2(
+        data.quantity,
+        fileWidth,
+        fileHeight,
+        area,
+        visual
+      ).toFixed(2);
       
       return await apiRequest("PATCH", `/api/items/${id}`, {
         ...data,

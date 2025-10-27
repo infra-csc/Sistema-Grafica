@@ -276,7 +276,7 @@ export default function Calendario() {
                             : getTruckDepartureStatus(eventData);
                           const Icon = isStart ? Calendar : Truck;
                           const time = isStart 
-                            ? new Date(eventData.startDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                            ? null
                             : new Date(eventData.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                           
                           return (
@@ -289,7 +289,7 @@ export default function Calendario() {
                               className={cn(
                                 "relative flex items-center gap-2 px-2 py-2 rounded-lg text-[11px] cursor-pointer transition-all hover:shadow-md bg-card border border-border overflow-hidden",
                               )}
-                              title={`${isStart ? '📅 Início' : '🚚 Saída'}: ${eventData.name} - ${time}`}
+                              title={`${isStart ? '📅 Início' : '🚚 Saída'}: ${eventData.name}${time ? ` - ${time}` : ''}`}
                               data-testid={`event-${eventData.id}-${eventData.type}`}
                             >
                               {/* Barra lateral colorida grossa */}
@@ -302,8 +302,8 @@ export default function Calendario() {
                               
                               {/* Conteúdo */}
                               <div className="flex-1 min-w-0">
-                                <div className="font-semibold leading-tight truncate text-foreground">{time}</div>
-                                <div className="text-[10px] leading-tight truncate text-muted-foreground">{eventData.name}</div>
+                                {time && <div className="font-semibold leading-tight truncate text-foreground">{time}</div>}
+                                <div className={cn("leading-tight truncate text-foreground", time ? "text-[10px] text-muted-foreground" : "font-semibold text-[11px]")}>{eventData.name}</div>
                               </div>
                             </div>
                           );

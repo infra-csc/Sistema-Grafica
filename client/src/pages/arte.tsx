@@ -2,12 +2,15 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +42,9 @@ export default function Arte() {
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [openEventCombobox, setOpenEventCombobox] = useState(false);
+  const [next10DaysFilter, setNext10DaysFilter] = useState(false);
+  const [monthFilter, setMonthFilter] = useState<string>("all");
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -101,6 +107,23 @@ export default function Arte() {
   const uniqueMaterials = Array.from(new Set(allItems.map(item => item.material).filter(Boolean))).sort();
   const uniqueFinishes = Array.from(new Set(allItems.map(item => item.finish).filter(Boolean))).sort();
 
+  // Meses do ano
+  const months = [
+    { value: "all", label: "Todos os meses" },
+    { value: "1", label: "Janeiro" },
+    { value: "2", label: "Fevereiro" },
+    { value: "3", label: "Março" },
+    { value: "4", label: "Abril" },
+    { value: "5", label: "Maio" },
+    { value: "6", label: "Junho" },
+    { value: "7", label: "Julho" },
+    { value: "8", label: "Agosto" },
+    { value: "9", label: "Setembro" },
+    { value: "10", label: "Outubro" },
+    { value: "11", label: "Novembro" },
+    { value: "12", label: "Dezembro" },
+  ];
+
   const filteredItems = allItems
     .filter(item => {
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
@@ -110,7 +133,27 @@ export default function Arte() {
       const matchesType = typeFilter === "all" || item.type === typeFilter;
       const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
       const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
-      return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish;
+      
+      // Filtro de próximos 10 dias
+      let matchesNext10Days = true;
+      if (next10DaysFilter && item.event?.truckDepartureDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tenDaysFromNow = new Date(today);
+        tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+        const departureDate = new Date(item.event.truckDepartureDate);
+        matchesNext10Days = departureDate >= today && departureDate <= tenDaysFromNow;
+      }
+      
+      // Filtro por mês
+      let matchesMonth = true;
+      if (monthFilter !== "all" && item.event?.truckDepartureDate) {
+        const departureDate = new Date(item.event.truckDepartureDate);
+        const month = departureDate.getMonth() + 1; // getMonth() retorna 0-11
+        matchesMonth = month.toString() === monthFilter;
+      }
+      
+      return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth;
     })
     .sort((a, b) => {
       // Primeiro ordenar por evento
@@ -212,19 +255,65 @@ export default function Arte() {
               <CardTitle>
                 {viewMode === "pending" ? "Itens Pendentes de Liberação" : "Histórico de Liberações"}
               </CardTitle>
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger className="w-48" data-testid="select-event-filter">
-                  <SelectValue placeholder="Todos os eventos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os eventos</SelectItem>
-                  {events.map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openEventCombobox}
+                    className="w-[280px] justify-between"
+                    data-testid="button-event-filter"
+                  >
+                    {eventFilter === "all" 
+                      ? "Todos os eventos" 
+                      : events.find((event) => event.id === eventFilter)?.name || "Selecione um evento"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Buscar evento..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="all"
+                          onSelect={() => {
+                            setEventFilter("all");
+                            setOpenEventCombobox(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              eventFilter === "all" ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          Todos os eventos
+                        </CommandItem>
+                        {events.map((event) => (
+                          <CommandItem
+                            key={event.id}
+                            value={event.name}
+                            onSelect={() => {
+                              setEventFilter(event.id);
+                              setOpenEventCombobox(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                eventFilter === event.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {event.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -272,48 +361,75 @@ export default function Arte() {
             </div>
 
             {showAdvancedFilters && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t">
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full" data-testid="select-type-filter">
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os tipos</SelectItem>
-                    {uniqueTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-col gap-3 pt-4 border-t">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-full" data-testid="select-type-filter">
+                      <SelectValue placeholder="Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      {uniqueTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <Select value={materialFilter} onValueChange={setMaterialFilter}>
-                  <SelectTrigger className="w-full" data-testid="select-material-filter">
-                    <SelectValue placeholder="Material" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os materiais</SelectItem>
-                    {uniqueMaterials.map((material) => (
-                      <SelectItem key={material} value={material}>
-                        {material}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Select value={materialFilter} onValueChange={setMaterialFilter}>
+                    <SelectTrigger className="w-full" data-testid="select-material-filter">
+                      <SelectValue placeholder="Material" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os materiais</SelectItem>
+                      {uniqueMaterials.map((material) => (
+                        <SelectItem key={material} value={material}>
+                          {material}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <Select value={finishFilter} onValueChange={setFinishFilter}>
-                  <SelectTrigger className="w-full" data-testid="select-finish-filter">
-                    <SelectValue placeholder="Acabamento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os acabamentos</SelectItem>
-                    {uniqueFinishes.map((finish) => (
-                      <SelectItem key={finish} value={finish}>
-                        {finish}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Select value={finishFilter} onValueChange={setFinishFilter}>
+                    <SelectTrigger className="w-full" data-testid="select-finish-filter">
+                      <SelectValue placeholder="Acabamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os acabamentos</SelectItem>
+                      {uniqueFinishes.map((finish) => (
+                        <SelectItem key={finish} value={finish}>
+                          {finish}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Select value={monthFilter} onValueChange={setMonthFilter}>
+                    <SelectTrigger className="w-full" data-testid="select-month-filter">
+                      <SelectValue placeholder="Mês de saída" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map((month) => (
+                        <SelectItem key={month.value} value={month.value}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant={next10DaysFilter ? "default" : "outline"}
+                    onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+                    className="w-full"
+                    data-testid="button-next-10-days-filter"
+                  >
+                    <Truck className="h-4 w-4 mr-2" />
+                    {next10DaysFilter ? "Próximos 10 dias ✓" : "Próximos 10 dias"}
+                  </Button>
+                </div>
 
                 {(typeFilter !== "all" || materialFilter !== "all" || finishFilter !== "all") && (
                   <div className="sm:col-span-3">

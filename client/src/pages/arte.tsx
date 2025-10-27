@@ -534,7 +534,7 @@ export default function Arte() {
                                     <div className="flex items-center gap-1.5 text-muted-foreground whitespace-nowrap">
                                       <Truck className="h-3.5 w-3.5 flex-shrink-0" />
                                       <span className="hidden sm:inline">Saída: </span>
-                                      <strong className="text-foreground">{new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')}</strong>
+                                      <strong className="text-foreground">{new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(item.event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
                                     </div>
                                   </div>
                                 )}

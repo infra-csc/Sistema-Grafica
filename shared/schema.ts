@@ -24,6 +24,10 @@ export const items = pgTable("items", {
   quantity: integer("quantity").notNull(),
   area: decimal("area", { precision: 10, scale: 2 }).notNull(),
   visual: decimal("visual", { precision: 10, scale: 2 }).notNull(),
+  visualWidth: decimal("visual_width", { precision: 10, scale: 2 }), // Largura da área visual (ex: 2.00m)
+  visualHeight: decimal("visual_height", { precision: 10, scale: 2 }), // Altura da área visual (ex: 1.00m)
+  fileWidth: integer("file_width"), // Largura do arquivo em pixels
+  fileHeight: integer("file_height"), // Altura do arquivo em pixels
   material: text("material").notNull(),
   finish: text("finish").notNull(),
   measurement: text("measurement").notNull(), // Can be edited, starts as area x visual
@@ -48,6 +52,10 @@ export const standardItems = pgTable("standard_items", {
   type: text("type").notNull(),
   area: decimal("area", { precision: 10, scale: 2 }),
   visual: decimal("visual", { precision: 10, scale: 2 }),
+  visualWidth: decimal("visual_width", { precision: 10, scale: 2 }), // Largura da área visual
+  visualHeight: decimal("visual_height", { precision: 10, scale: 2 }), // Altura da área visual
+  fileWidth: integer("file_width"), // Largura do arquivo em pixels
+  fileHeight: integer("file_height"), // Altura do arquivo em pixels
   material: text("material"), // Material único (opcional)
   finish: text("finish"), // Acabamento único (opcional)
   hasVariableMeasurement: boolean("has_variable_measurement").notNull().default(false),

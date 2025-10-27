@@ -282,17 +282,17 @@ export default function EventDetail() {
             </div>
             <div className="mb-3">
               <span className="text-xs text-muted-foreground/70">
-                Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </span>
             </div>
             <div className="flex flex-col gap-1 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <Calendar className="h-3.5 w-3.5" />
-                <span>Início: {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.startDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>Início: {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Truck className="h-3.5 w-3.5" />
-                <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
               </div>
             </div>
           </div>

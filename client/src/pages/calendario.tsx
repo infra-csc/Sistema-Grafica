@@ -524,7 +524,7 @@ export default function Calendario() {
                         <div>
                           <p className="font-medium text-sm">{event.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            Saída: {departure.toLocaleDateString('pt-BR')} às {departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            Saída: {departure.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </p>
                         </div>
                       </div>

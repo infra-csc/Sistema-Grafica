@@ -17,8 +17,6 @@ interface BulkItemRow {
   type: string;
   description: string;
   quantity: string;
-  area: string;
-  visual: string;
   visualWidth: string;
   visualHeight: string;
   fileWidth: string;
@@ -62,8 +60,6 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
       type: "",
       description: "",
       quantity: "1",
-      area: "",
-      visual: "",
       visualWidth: "",
       visualHeight: "",
       fileWidth: "",
@@ -74,11 +70,6 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
       observations: "",
       calculatedM2: 0,
     };
-  }
-
-  // Usar função compartilhada para cálculo de m²
-  function calculateM2(quantity: string, fileWidth: string, fileHeight: string, area: string, visual: string): number {
-    return calculateM2FromStrings(quantity, fileWidth, fileHeight, area, visual);
   }
 
   function updateRow(id: string, field: keyof BulkItemRow, value: string) {
@@ -94,30 +85,26 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
           if (standardItem) {
             // Preencher com dados do modelo
             updated.type = value;
-            const area = standardItem.area ? String(standardItem.area) : "";
-            const visual = standardItem.visual ? String(standardItem.visual) : "";
             const vw = standardItem.visualWidth ? String(standardItem.visualWidth) : "";
             const vh = standardItem.visualHeight ? String(standardItem.visualHeight) : "";
             const fw = standardItem.fileWidth ? String(standardItem.fileWidth) : "";
             const fh = standardItem.fileHeight ? String(standardItem.fileHeight) : "";
-            updated.area = area;
-            updated.visual = visual;
             updated.visualWidth = vw;
             updated.visualHeight = vh;
             updated.fileWidth = fw;
             updated.fileHeight = fh;
             updated.material = standardItem.material || "";
             updated.finish = standardItem.finish || "";
-            updated.measurement = area && visual ? `${area} × ${visual}` : "";
-            updated.calculatedM2 = calculateM2(updated.quantity, fw, fh, area, visual);
+            updated.measurement = vw && vh ? `${vw} × ${vh}` : "";
+            updated.calculatedM2 = calculateM2FromStrings(updated.quantity, vw, vh);
           }
         }
         
-        // Recalcular m² se alterou quantidade, fileWidth, fileHeight, area ou visual
-        if (field === 'quantity' || field === 'area' || field === 'visual' || field === 'fileWidth' || field === 'fileHeight') {
-          updated.calculatedM2 = calculateM2(updated.quantity, updated.fileWidth, updated.fileHeight, updated.area, updated.visual);
-          if (!updated.measurement || updated.measurement === `${row.area} × ${row.visual}`) {
-            updated.measurement = `${updated.area} × ${updated.visual}`;
+        // Recalcular m² se alterou quantidade, visualWidth ou visualHeight
+        if (field === 'quantity' || field === 'visualWidth' || field === 'visualHeight') {
+          updated.calculatedM2 = calculateM2FromStrings(updated.quantity, updated.visualWidth, updated.visualHeight);
+          if (!updated.measurement || updated.measurement === `${row.visualWidth} × ${row.visualHeight}`) {
+            updated.measurement = `${updated.visualWidth} × ${updated.visualHeight}`;
           }
         }
         
@@ -130,29 +117,35 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
     setRows(prev => [...prev, createEmptyRow()]);
   }
 
-  function duplicateRow(id: string) {
-    const rowToDuplicate = rows.find(r => r.id === id);
-    if (rowToDuplicate) {
-      setRows(prev => [
-        ...prev,
-        { ...rowToDuplicate, id: Math.random().toString(36).substring(7) }
-      ]);
-    }
+  function removeRow(id: string) {
+    if (rows.length === 1) return;
+    setRows(prev => prev.filter(row => row.id !== id));
   }
 
-  function removeRow(id: string) {
-    if (rows.length === 1) return; // Manter pelo menos uma linha
-    setRows(prev => prev.filter(r => r.id !== id));
+  function duplicateRow(id: string) {
+    const rowToDuplicate = rows.find(r => r.id === id);
+    if (!rowToDuplicate) return;
+    
+    const newRow = {
+      ...rowToDuplicate,
+      id: Math.random().toString(36).substring(7),
+    };
+    
+    setRows(prev => {
+      const index = prev.findIndex(r => r.id === id);
+      const newRows = [...prev];
+      newRows.splice(index + 1, 0, newRow);
+      return newRows;
+    });
   }
 
   function handleSubmit() {
-    // Validar e preparar dados
     const validItems = rows
       .filter(row => 
         row.type && 
         parseFloat(row.quantity) > 0 && 
-        parseFloat(row.area) > 0 && 
-        parseFloat(row.visual) > 0 && 
+        parseFloat(row.visualWidth) > 0 && 
+        parseFloat(row.visualHeight) > 0 && 
         row.material && 
         row.finish
       )
@@ -161,15 +154,15 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         type: row.type,
         description: row.description || "",
         quantity: parseInt(row.quantity),
-        area: parseFloat(row.area),
-        visual: parseFloat(row.visual),
-        visualWidth: row.visualWidth ? parseFloat(row.visualWidth) : null,
-        visualHeight: row.visualHeight ? parseFloat(row.visualHeight) : null,
+        area: parseFloat(row.visualWidth),  // Usar visualWidth como area para compatibilidade com backend
+        visual: parseFloat(row.visualHeight),  // Usar visualHeight como visual para compatibilidade com backend
+        visualWidth: parseFloat(row.visualWidth),
+        visualHeight: parseFloat(row.visualHeight),
         fileWidth: row.fileWidth ? parseInt(row.fileWidth) : null,
         fileHeight: row.fileHeight ? parseInt(row.fileHeight) : null,
         material: row.material,
         finish: row.finish,
-        measurement: row.measurement || `${row.area} × ${row.visual}`,
+        measurement: row.measurement || `${row.visualWidth} × ${row.visualHeight}`,
         observations: row.observations || "",
         calculatedM2: row.calculatedM2,
         status: "requested",
@@ -185,7 +178,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
 
   const totalM2 = rows.reduce((sum, row) => sum + row.calculatedM2, 0);
   const validRowsCount = rows.filter(row => 
-    row.type && parseFloat(row.quantity) > 0 && parseFloat(row.area) > 0 && parseFloat(row.visual) > 0 && row.material && row.finish
+    row.type && parseFloat(row.quantity) > 0 && parseFloat(row.visualWidth) > 0 && parseFloat(row.visualHeight) > 0 && row.material && row.finish
   ).length;
 
   return (
@@ -210,19 +203,17 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         <table className="w-full text-sm">
           <colgroup>
             <col style={{ width: '35px' }} />
-            <col style={{ width: '100px' }} />
-            <col style={{ width: '130px' }} />
+            <col style={{ width: '120px' }} />
+            <col style={{ width: '150px' }} />
             <col style={{ width: '55px' }} />
-            <col style={{ width: '70px' }} />
-            <col style={{ width: '70px' }} />
-            <col style={{ width: '75px' }} />
-            <col style={{ width: '75px' }} />
-            <col style={{ width: '75px' }} />
-            <col style={{ width: '75px' }} />
-            <col style={{ width: '105px' }} />
-            <col style={{ width: '105px' }} />
-            <col style={{ width: '75px' }} />
-            <col style={{ width: '130px' }} />
+            <col style={{ width: '85px' }} />
+            <col style={{ width: '85px' }} />
+            <col style={{ width: '85px' }} />
+            <col style={{ width: '85px' }} />
+            <col style={{ width: '110px' }} />
+            <col style={{ width: '110px' }} />
+            <col style={{ width: '80px' }} />
+            <col style={{ width: '150px' }} />
             <col style={{ width: '75px' }} />
           </colgroup>
           <thead className="bg-muted/50 sticky top-0">
@@ -231,10 +222,8 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
               <th className="p-2 text-left font-medium whitespace-nowrap">Tipo*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Descrição</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Qtd*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Área*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Visual*</th>
-              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Área Visual</th>
-              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Medida do arquivo</th>
+              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Área Visual (m)*</th>
+              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Medida do arquivo (px)</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Material*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Acabamento*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">m² (auto)</th>
@@ -242,8 +231,6 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
               <th className="p-2 text-center font-medium whitespace-nowrap">Ações</th>
             </tr>
             <tr>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
@@ -358,34 +345,6 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                     onChange={(e) => updateRow(row.id, 'quantity', e.target.value)}
                     className="h-8"
                     data-testid={`input-quantity-${index}`}
-                  />
-                </td>
-
-                {/* Área */}
-                <td className="p-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={row.area}
-                    onChange={(e) => updateRow(row.id, 'area', e.target.value)}
-                    className="h-8"
-                    placeholder="m"
-                    data-testid={`input-area-${index}`}
-                  />
-                </td>
-
-                {/* Visual */}
-                <td className="p-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={row.visual}
-                    onChange={(e) => updateRow(row.id, 'visual', e.target.value)}
-                    className="h-8"
-                    placeholder="m"
-                    data-testid={`input-visual-${index}`}
                   />
                 </td>
 
@@ -526,17 +485,18 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         </table>
       </div>
 
-      {/* Botões de ação */}
-      <div className="flex items-center justify-between gap-4">
+      {/* Rodapé com botões de ação */}
+      <div className="flex items-center justify-between pt-2 border-t">
         <Button
           variant="outline"
+          size="sm"
           onClick={addRow}
           data-testid="button-add-row"
         >
-          <Plus className="h-4 w-4 mr-2" />
+          <Plus className="mr-2 h-4 w-4" />
           Adicionar Linha
         </Button>
-
+        
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -551,8 +511,8 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
             disabled={isPending || validRowsCount === 0}
             data-testid="button-save-all"
           >
-            <Save className="h-4 w-4 mr-2" />
-            {isPending ? "Salvando..." : `Salvar Todos (${validRowsCount})`}
+            <Save className="mr-2 h-4 w-4" />
+            Salvar Todos ({validRowsCount})
           </Button>
         </div>
       </div>

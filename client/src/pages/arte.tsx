@@ -251,18 +251,18 @@ export default function Arte() {
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <CardTitle>
-                  {viewMode === "pending" ? "Itens Pendentes de Liberação" : "Histórico de Liberações"}
-                </CardTitle>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <CardTitle>
+                {viewMode === "pending" ? "Itens Pendentes de Liberação" : "Histórico de Liberações"}
+              </CardTitle>
+              <div className="flex flex-wrap gap-2">
                 <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
                       aria-expanded={openEventCombobox}
-                      className="w-[280px] justify-between"
+                      className="w-[200px] justify-between"
                       data-testid="button-event-filter"
                     >
                       {eventFilter === "all" 
@@ -315,12 +315,9 @@ export default function Arte() {
                     </Command>
                   </PopoverContent>
                 </Popover>
-              </div>
-
-              {/* Filtros de Data - próximos ao filtro de eventos */}
-              <div className="flex flex-wrap gap-2">
+                
                 <Select value={monthFilter} onValueChange={setMonthFilter}>
-                  <SelectTrigger className="w-[180px]" data-testid="select-month-filter">
+                  <SelectTrigger className="w-[160px]" data-testid="select-month-filter">
                     <SelectValue placeholder="Mês de saída" />
                   </SelectTrigger>
                   <SelectContent>
@@ -341,21 +338,6 @@ export default function Arte() {
                   <Truck className="h-4 w-4 mr-2" />
                   Próximos 10 dias
                 </Button>
-
-                {(monthFilter !== "all" || next10DaysFilter) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setMonthFilter("all");
-                      setNext10DaysFilter(false);
-                    }}
-                    className="text-xs"
-                    data-testid="button-clear-date-filters"
-                  >
-                    Limpar datas
-                  </Button>
-                )}
               </div>
             </div>
             

@@ -315,52 +315,37 @@ export default function Grafica() {
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <CardTitle>Itens para Produção</CardTitle>
-                <div className="flex flex-wrap gap-2">
-                  <Select value={eventFilter} onValueChange={setEventFilter}>
-                    <SelectTrigger className="w-48" data-testid="select-event-filter">
-                      <SelectValue placeholder="Todos os eventos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os eventos</SelectItem>
-                      {events.map((event) => (
-                        <SelectItem key={event.id} value={event.id}>
-                          {event.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-48" data-testid="select-status-filter">
-                      <SelectValue placeholder="Todos os status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os status</SelectItem>
-                      <SelectItem value="approved">Liberados</SelectItem>
-                      <SelectItem value="inProduction">Em Produção</SelectItem>
-                      <SelectItem value="produced">Produzidos</SelectItem>
-                      <SelectItem value="delivered">Entregues</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                    className={showAdvancedFilters ? "bg-muted" : ""}
-                    data-testid="button-toggle-advanced-filters"
-                  >
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filtros Avançados
-                  </Button>
-                </div>
-              </div>
-
-              {/* Filtros de Data - inline com os outros filtros */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <CardTitle>Itens para Produção</CardTitle>
               <div className="flex flex-wrap gap-2">
+                <Select value={eventFilter} onValueChange={setEventFilter}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-event-filter">
+                    <SelectValue placeholder="Todos os eventos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os eventos</SelectItem>
+                    {events.map((event) => (
+                      <SelectItem key={event.id} value={event.id}>
+                        {event.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
+                    <SelectValue placeholder="Todos os status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="approved">Liberados</SelectItem>
+                    <SelectItem value="inProduction">Em Produção</SelectItem>
+                    <SelectItem value="produced">Produzidos</SelectItem>
+                    <SelectItem value="delivered">Entregues</SelectItem>
+                  </SelectContent>
+                </Select>
+                
                 <Select value={monthFilter} onValueChange={setMonthFilter}>
-                  <SelectTrigger className="w-[180px]" data-testid="select-month-filter">
+                  <SelectTrigger className="w-[160px]" data-testid="select-month-filter">
                     <SelectValue placeholder="Mês de saída" />
                   </SelectTrigger>
                   <SelectContent>
@@ -381,21 +366,17 @@ export default function Grafica() {
                   <Truck className="h-4 w-4 mr-2" />
                   Próximos 10 dias
                 </Button>
-
-                {(monthFilter !== "all" || next10DaysFilter) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setMonthFilter("all");
-                      setNext10DaysFilter(false);
-                    }}
-                    className="text-xs"
-                    data-testid="button-clear-date-filters"
-                  >
-                    Limpar datas
-                  </Button>
-                )}
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={showAdvancedFilters ? "bg-muted" : ""}
+                  data-testid="button-toggle-advanced-filters"
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filtros Avançados
+                </Button>
               </div>
             </div>
 

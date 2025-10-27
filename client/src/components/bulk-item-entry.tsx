@@ -79,9 +79,9 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         
         const updated = { ...row, [field]: value };
         
-        // Se mudou o tipo, verificar se é um modelo padrão
+        // Se mudou o tipo, verificar se é um modelo padrão (apenas pelo nome, não pelo tipo genérico)
         if (field === 'type') {
-          const standardItem = standardItems.find(s => s.name === value || s.type === value);
+          const standardItem = standardItems.find(s => s.name === value);
           if (standardItem) {
             // Preencher com dados do modelo (com fallback para area/visual)
             updated.type = value;

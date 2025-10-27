@@ -287,10 +287,10 @@ export default function Eventos() {
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="truckDepartureDate">Data de Saída do Caminhão</Label>
+                <Label htmlFor="truckDepartureDate">Data e Hora de Saída do Caminhão</Label>
                 <Input
                   id="truckDepartureDate"
-                  type="date"
+                  type="datetime-local"
                   value={formData.truckDepartureDate}
                   onChange={(e) => setFormData({ ...formData, truckDepartureDate: e.target.value })}
                   required
@@ -510,8 +510,10 @@ export default function Eventos() {
                           <span className="text-xs font-bold text-foreground whitespace-nowrap">
                             {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { 
                               day: '2-digit', 
-                              month: '2-digit',
-                              year: 'numeric'
+                              month: '2-digit'
+                            })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
                             })}
                           </span>
                         </div>

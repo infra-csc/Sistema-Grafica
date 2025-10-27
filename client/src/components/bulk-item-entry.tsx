@@ -18,6 +18,10 @@ interface BulkItemRow {
   quantity: string;
   area: string;
   visual: string;
+  visualWidth: string;
+  visualHeight: string;
+  fileWidth: string;
+  fileHeight: string;
   material: string;
   finish: string;
   measurement: string;
@@ -55,6 +59,10 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
       quantity: "1",
       area: "",
       visual: "",
+      visualWidth: "",
+      visualHeight: "",
+      fileWidth: "",
+      fileHeight: "",
       material: "",
       finish: "",
       measurement: "",

@@ -83,10 +83,14 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         if (field === 'type') {
           const standardItem = standardItems.find(s => s.name === value || s.type === value);
           if (standardItem) {
-            // Preencher com dados do modelo
+            // Preencher com dados do modelo (com fallback para area/visual)
             updated.type = value;
-            const vw = standardItem.visualWidth ? String(standardItem.visualWidth) : "";
-            const vh = standardItem.visualHeight ? String(standardItem.visualHeight) : "";
+            const vw = standardItem.visualWidth 
+              ? String(standardItem.visualWidth) 
+              : (standardItem.area ? String(standardItem.area) : "");
+            const vh = standardItem.visualHeight 
+              ? String(standardItem.visualHeight) 
+              : (standardItem.visual ? String(standardItem.visual) : "");
             const fw = standardItem.fileWidth ? String(standardItem.fileWidth) : "";
             const fh = standardItem.fileHeight ? String(standardItem.fileHeight) : "";
             updated.visualWidth = vw;

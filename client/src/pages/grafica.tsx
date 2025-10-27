@@ -468,7 +468,7 @@ export default function Grafica() {
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Prod.</th>
-                    <th className="text-left py-3 px-4 font-medium">Medida</th>
+                    <th className="text-left py-3 px-4 font-medium">Dimensões</th>
                     <th className="text-left py-3 px-4 font-medium w-16">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     <th className="text-left py-3 px-4 font-medium w-24">Status</th>
@@ -552,8 +552,21 @@ export default function Grafica() {
                               {item.quantityProduced || '-'}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
-                            {item.area} × {item.visual}
+                          <td className="py-3 px-4">
+                            {item.visualWidth && item.visualHeight ? (
+                              <div className="text-sm">
+                                <div className="tabular-nums whitespace-nowrap">
+                                  <span className="text-muted-foreground text-xs">Visual:</span> {item.visualWidth} × {item.visualHeight}m
+                                </div>
+                                {item.fileWidth && item.fileHeight && (
+                                  <div className="tabular-nums text-xs text-muted-foreground whitespace-nowrap">
+                                    Arq: {item.fileWidth} × {item.fileHeight}px
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">—</div>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">
                             {item.calculatedM2}
@@ -671,9 +684,18 @@ export default function Grafica() {
                     <p className="text-sm font-semibold text-status-production">{viewDetailsItem.quantityProduced}</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Área × Visual</p>
-                  <p className="text-sm font-semibold">{viewDetailsItem.area} × {viewDetailsItem.visual}</p>
+                <div className="col-span-2">
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Dimensões</p>
+                  {viewDetailsItem.visualWidth && viewDetailsItem.visualHeight ? (
+                    <>
+                      <p className="text-sm font-semibold">Visual: {viewDetailsItem.visualWidth} × {viewDetailsItem.visualHeight}m</p>
+                      {viewDetailsItem.fileWidth && viewDetailsItem.fileHeight && (
+                        <p className="text-sm text-muted-foreground">Arquivo: {viewDetailsItem.fileWidth} × {viewDetailsItem.fileHeight}px</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">—</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">m² Total</p>

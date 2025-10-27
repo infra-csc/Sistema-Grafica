@@ -284,7 +284,7 @@ export default function PainelGeral() {
                   <tr>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-center py-3 px-4 font-medium">Quantidade</th>
-                    <th className="text-left py-3 px-4 font-medium">Área × Visual</th>
+                    <th className="text-left py-3 px-4 font-medium">Dimensões</th>
                     <th className="text-center py-3 px-4 font-medium">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     <th className="text-left py-3 px-4 font-medium">Status</th>
@@ -374,7 +374,22 @@ export default function PainelGeral() {
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-sm tabular-nums">{item.area} × {item.visual}</td>
+                          <td className="py-3 px-4">
+                            {item.visualWidth && item.visualHeight ? (
+                              <div className="text-sm">
+                                <div className="tabular-nums">
+                                  <span className="text-muted-foreground text-xs">Visual:</span> {item.visualWidth} × {item.visualHeight}m
+                                </div>
+                                {item.fileWidth && item.fileHeight && (
+                                  <div className="tabular-nums text-xs text-muted-foreground">
+                                    Arq: {item.fileWidth} × {item.fileHeight}px
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">—</div>
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-center text-sm font-medium tabular-nums">{item.calculatedM2}</td>
                           <td className="py-3 px-4 text-sm">
                             <div>{item.material}</div>

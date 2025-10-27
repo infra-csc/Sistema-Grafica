@@ -489,7 +489,7 @@ export default function Arte() {
                     )}
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-center py-3 px-4 font-medium">Qtd</th>
-                    <th className="text-left py-3 px-4 font-medium">Medida</th>
+                    <th className="text-left py-3 px-4 font-medium">Dimensões</th>
                     <th className="text-center py-3 px-4 font-medium">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     {viewMode === "approved" && (
@@ -582,7 +582,20 @@ export default function Arte() {
                             <div className="text-sm tabular-nums">{item.quantity}</div>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="text-sm tabular-nums">{item.area} × {item.visual}</div>
+                            {item.visualWidth && item.visualHeight ? (
+                              <div className="text-sm">
+                                <div className="tabular-nums">
+                                  <span className="text-muted-foreground text-xs">Visual:</span> {item.visualWidth} × {item.visualHeight}m
+                                </div>
+                                {item.fileWidth && item.fileHeight && (
+                                  <div className="tabular-nums text-xs text-muted-foreground">
+                                    Arq: {item.fileWidth} × {item.fileHeight}px
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">—</div>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-center">
                             <div className="text-sm font-medium tabular-nums">{item.calculatedM2}</div>

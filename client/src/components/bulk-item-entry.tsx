@@ -99,16 +99,16 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
             updated.fileHeight = fh;
             updated.material = standardItem.material || "";
             updated.finish = standardItem.finish || "";
-            updated.measurement = vw && vh ? `${vw} × ${vh}` : "";
-            updated.calculatedM2 = calculateM2FromStrings(updated.quantity, vw, vh);
+            updated.measurement = fw && fh ? `${fw} × ${fh}` : "";
+            updated.calculatedM2 = calculateM2FromStrings(updated.quantity, fw, fh);
           }
         }
         
-        // Recalcular m² se alterou quantidade, visualWidth ou visualHeight
-        if (field === 'quantity' || field === 'visualWidth' || field === 'visualHeight') {
-          updated.calculatedM2 = calculateM2FromStrings(updated.quantity, updated.visualWidth, updated.visualHeight);
-          if (!updated.measurement || updated.measurement === `${row.visualWidth} × ${row.visualHeight}`) {
-            updated.measurement = `${updated.visualWidth} × ${updated.visualHeight}`;
+        // Recalcular m² se alterou quantidade, fileWidth ou fileHeight
+        if (field === 'quantity' || field === 'fileWidth' || field === 'fileHeight') {
+          updated.calculatedM2 = calculateM2FromStrings(updated.quantity, updated.fileWidth, updated.fileHeight);
+          if (!updated.measurement || updated.measurement === `${row.fileWidth} × ${row.fileHeight}`) {
+            updated.measurement = `${updated.fileWidth} × ${updated.fileHeight}`;
           }
         }
         
@@ -150,6 +150,8 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         parseFloat(row.quantity) > 0 && 
         parseFloat(row.visualWidth) > 0 && 
         parseFloat(row.visualHeight) > 0 && 
+        parseFloat(row.fileWidth) > 0 && 
+        parseFloat(row.fileHeight) > 0 && 
         row.material && 
         row.finish
       )
@@ -162,11 +164,11 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
         visual: parseFloat(row.visualHeight),  // Usar visualHeight como visual para compatibilidade com backend
         visualWidth: parseFloat(row.visualWidth),
         visualHeight: parseFloat(row.visualHeight),
-        fileWidth: row.fileWidth ? parseInt(row.fileWidth) : null,
-        fileHeight: row.fileHeight ? parseInt(row.fileHeight) : null,
+        fileWidth: parseFloat(row.fileWidth),
+        fileHeight: parseFloat(row.fileHeight),
         material: row.material,
         finish: row.finish,
-        measurement: row.measurement || `${row.visualWidth} × ${row.visualHeight}`,
+        measurement: row.measurement || `${row.fileWidth} × ${row.fileHeight}`,
         observations: row.observations || "",
         calculatedM2: row.calculatedM2,
         status: "requested",
@@ -182,7 +184,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
 
   const totalM2 = rows.reduce((sum, row) => sum + row.calculatedM2, 0);
   const validRowsCount = rows.filter(row => 
-    row.type && parseFloat(row.quantity) > 0 && parseFloat(row.visualWidth) > 0 && parseFloat(row.visualHeight) > 0 && row.material && row.finish
+    row.type && parseFloat(row.quantity) > 0 && parseFloat(row.visualWidth) > 0 && parseFloat(row.visualHeight) > 0 && parseFloat(row.fileWidth) > 0 && parseFloat(row.fileHeight) > 0 && row.material && row.finish
   ).length;
 
   return (
@@ -227,7 +229,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
               <th className="p-2 text-left font-medium whitespace-nowrap">Descrição</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Qtd*</th>
               <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Área Visual (m)*</th>
-              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Medida do arquivo (px)</th>
+              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Medida do arquivo (m)*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Material*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Acabamento*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">m² (auto)</th>
@@ -384,11 +386,12 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                 <td className="p-2">
                   <Input
                     type="number"
+                    step="0.01"
                     min="0"
                     value={row.fileWidth}
                     onChange={(e) => updateRow(row.id, 'fileWidth', e.target.value)}
                     className="h-8"
-                    placeholder="px"
+                    placeholder="0.00"
                     data-testid={`input-file-width-${index}`}
                   />
                 </td>
@@ -397,11 +400,12 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                 <td className="p-2">
                   <Input
                     type="number"
+                    step="0.01"
                     min="0"
                     value={row.fileHeight}
                     onChange={(e) => updateRow(row.id, 'fileHeight', e.target.value)}
                     className="h-8"
-                    placeholder="px"
+                    placeholder="0.00"
                     data-testid={`input-file-height-${index}`}
                   />
                 </td>

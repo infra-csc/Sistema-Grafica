@@ -85,22 +85,22 @@ export default function EventDetail() {
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      const visualWidth = parseFloat(data.visualWidth);
-      const visualHeight = parseFloat(data.visualHeight);
+      const fileWidth = parseFloat(data.fileWidth);
+      const fileHeight = parseFloat(data.fileHeight);
       
       const calculatedM2 = calculateM2(
         data.quantity,
-        visualWidth,
-        visualHeight
+        fileWidth,
+        fileHeight
       ).toFixed(2);
       
       return await apiRequest("POST", "/api/items", {
         ...data,
         eventId,
-        area: visualWidth,  // Usar visualWidth como area para compatibilidade com backend
-        visual: visualHeight,  // Usar visualHeight como visual para compatibilidade com backend
+        area: parseFloat(data.visualWidth),  // Manter area para compatibilidade com backend
+        visual: parseFloat(data.visualHeight),  // Manter visual para compatibilidade com backend
         calculatedM2,
-        measurement: data.measurement || `${visualWidth} × ${visualHeight}`,
+        measurement: data.measurement || `${fileWidth} × ${fileHeight}`,
       });
     },
     onSuccess: () => {
@@ -157,19 +157,19 @@ export default function EventDetail() {
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const visualWidth = parseFloat(data.visualWidth);
-      const visualHeight = parseFloat(data.visualHeight);
+      const fileWidth = parseFloat(data.fileWidth);
+      const fileHeight = parseFloat(data.fileHeight);
       
       const calculatedM2 = calculateM2(
         data.quantity,
-        visualWidth,
-        visualHeight
+        fileWidth,
+        fileHeight
       ).toFixed(2);
       
       return await apiRequest("PATCH", `/api/items/${id}`, {
         ...data,
-        area: visualWidth,  // Usar visualWidth como area para compatibilidade com backend
-        visual: visualHeight,  // Usar visualHeight como visual para compatibilidade com backend
+        area: parseFloat(data.visualWidth),  // Manter area para compatibilidade com backend
+        visual: parseFloat(data.visualHeight),  // Manter visual para compatibilidade com backend
         calculatedM2,
       });
     },
@@ -512,26 +512,30 @@ export default function EventDetail() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fileWidth">Largura Arquivo (px)</Label>
+                    <Label htmlFor="fileWidth">Largura Arquivo (m)*</Label>
                     <Input
                       id="fileWidth"
                       type="number"
+                      step="0.01"
                       min="0"
                       value={formData.fileWidth}
                       onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
-                      placeholder="Ex: 1920"
+                      placeholder="Ex: 1.90"
+                      required
                       data-testid="input-file-width"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="fileHeight">Altura Arquivo (px)</Label>
+                    <Label htmlFor="fileHeight">Altura Arquivo (m)*</Label>
                     <Input
                       id="fileHeight"
                       type="number"
+                      step="0.01"
                       min="0"
                       value={formData.fileHeight}
                       onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
-                      placeholder="Ex: 1080"
+                      placeholder="Ex: 0.90"
+                      required
                       data-testid="input-file-height"
                     />
                   </div>
@@ -573,10 +577,10 @@ export default function EventDetail() {
                     />
                   </div>
                 </div>
-                {formData.visualWidth && formData.visualHeight && formData.quantity && (
+                {formData.fileWidth && formData.fileHeight && formData.quantity && (
                   <div className="p-4 bg-muted/50 rounded-md">
                     <p className="text-sm font-medium">
-                      m² Total: {(formData.quantity * parseFloat(formData.visualWidth || "0") * parseFloat(formData.visualHeight || "0")).toFixed(2)}
+                      m² Total: {(formData.quantity * parseFloat(formData.fileWidth || "0") * parseFloat(formData.fileHeight || "0")).toFixed(2)}
                     </p>
                   </div>
                 )}

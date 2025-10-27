@@ -663,7 +663,7 @@ export default function EventDetail() {
                           className="border-b border-border hover-elevate"
                           data-testid={`row-item-${item.id}`}
                         >
-                          <td className="py-3 px-4">
+                          <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>
                             ) : (
@@ -673,30 +673,32 @@ export default function EventDetail() {
                               <div className="text-xs text-muted-foreground italic truncate max-w-xs">{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
-                          <td className="py-3 px-2 text-xs">
+                          <td className="py-2 px-3 text-sm tabular-nums text-center">{item.quantity}</td>
+                          <td className="py-2 px-2 text-xs">
                             {(item.visualWidth || item.visualHeight) && (
-                              <div className="whitespace-nowrap tabular-nums">
-                                <span className="text-muted-foreground font-medium">V</span> {item.visualWidth || "—"}×{item.visualHeight || "—"}
+                              <div className="whitespace-nowrap tabular-nums space-y-0.5">
+                                <div>
+                                  <span className="text-muted-foreground font-medium">V:</span> {item.visualWidth || "—"}×{item.visualHeight || "—"}
+                                </div>
                               </div>
                             )}
                             {(item.fileWidth || item.fileHeight) && (
                               <div className="whitespace-nowrap tabular-nums text-muted-foreground">
-                                <span className="font-medium">A</span> {item.fileWidth || "—"}×{item.fileHeight || "—"}
+                                <span className="font-medium">A:</span> {item.fileWidth || "—"}×{item.fileHeight || "—"}
                               </div>
                             )}
                             {!item.visualWidth && !item.visualHeight && !item.fileWidth && !item.fileHeight && (
                               <div className="text-muted-foreground">—</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">{item.calculatedM2}</td>
-                          <td className="py-3 px-4 text-sm">{item.material}</td>
-                          <td className="py-3 px-4 text-sm">{item.finish}</td>
-                          <td className="py-3 px-4">
+                          <td className="py-2 px-2 text-sm font-medium tabular-nums text-center">{item.calculatedM2}</td>
+                          <td className="py-2 px-3 text-sm">{item.material}</td>
+                          <td className="py-2 px-3 text-sm">{item.finish}</td>
+                          <td className="py-2 px-3">
                             <StatusBadge status={item.status} />
                           </td>
                           {hasPermission("admin") && (
-                            <td className="py-3 px-4">
+                            <td className="py-2 px-2">
                               <div className="flex items-center gap-1">
                                 <Button 
                                   variant="ghost" 

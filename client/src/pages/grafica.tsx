@@ -536,7 +536,7 @@ export default function Grafica() {
                           className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
                           data-testid={`row-item-${item.id}`}
                         >
-                          <td className="py-3 px-4">
+                          <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>
                             ) : (
@@ -546,21 +546,21 @@ export default function Grafica() {
                               <div className="text-xs text-muted-foreground italic truncate max-w-xs">{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm tabular-nums text-center">{item.quantity}</td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-2 px-3 text-sm tabular-nums text-center">{item.quantity}</td>
+                          <td className="py-2 px-3 text-center">
                             <div className="text-sm font-semibold tabular-nums text-status-production">
                               {item.quantityProduced || '-'}
                             </div>
                           </td>
-                          <td className="py-3 px-2 text-xs">
+                          <td className="py-2 px-2 text-xs">
                             {item.visualWidth && item.visualHeight ? (
                               <div className="space-y-0.5">
                                 <div className="tabular-nums whitespace-nowrap">
-                                  <span className="text-muted-foreground font-medium">V</span> {item.visualWidth}×{item.visualHeight}
+                                  <span className="text-muted-foreground font-medium">V:</span> {item.visualWidth}×{item.visualHeight}
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
                                   <div className="tabular-nums text-muted-foreground whitespace-nowrap">
-                                    <span className="font-medium">A</span> {item.fileWidth}×{item.fileHeight}
+                                    <span className="font-medium">A:</span> {item.fileWidth}×{item.fileHeight}
                                   </div>
                                 )}
                               </div>
@@ -568,17 +568,17 @@ export default function Grafica() {
                               <div className="text-muted-foreground">—</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-sm font-medium tabular-nums text-center">
+                          <td className="py-2 px-2 text-sm font-medium tabular-nums text-center">
                             {item.calculatedM2}
                           </td>
-                          <td className="py-3 px-4 text-sm">
+                          <td className="py-2 px-3 text-sm">
                             <div>{item.material}</div>
                             <div className="text-xs text-muted-foreground">{item.finish}</div>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-2 px-3">
                             <StatusBadge status={item.status} />
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-2 px-2">
                             <div className="flex gap-1 justify-end">
                               <Button
                                 size="icon"

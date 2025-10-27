@@ -560,7 +560,7 @@ export default function Arte() {
                           data-testid={`row-pending-item-${item.id}`}
                         >
                           {viewMode === "pending" && (
-                            <td className="py-3 px-4">
+                            <td className="py-2 px-3">
                               <Checkbox
                                 checked={selectedItems.includes(item.id)}
                                 onCheckedChange={() => toggleItemSelection(item.id)}
@@ -568,7 +568,7 @@ export default function Arte() {
                               />
                             </td>
                           )}
-                          <td className="py-3 px-4">
+                          <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-sm text-foreground">{item.description}</div>
                             ) : (
@@ -578,18 +578,18 @@ export default function Arte() {
                               <div className="text-xs text-muted-foreground italic mt-0.5">{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-2 px-3 text-center">
                             <div className="text-sm tabular-nums">{item.quantity}</div>
                           </td>
-                          <td className="py-3 px-2 text-xs">
+                          <td className="py-2 px-2 text-xs">
                             {item.visualWidth && item.visualHeight ? (
                               <div className="space-y-0.5">
                                 <div className="tabular-nums whitespace-nowrap">
-                                  <span className="text-muted-foreground font-medium">V</span> {item.visualWidth}×{item.visualHeight}
+                                  <span className="text-muted-foreground font-medium">V:</span> {item.visualWidth}×{item.visualHeight}
                                 </div>
                                 {item.fileWidth && item.fileHeight && (
                                   <div className="tabular-nums text-muted-foreground whitespace-nowrap">
-                                    <span className="font-medium">A</span> {item.fileWidth}×{item.fileHeight}
+                                    <span className="font-medium">A:</span> {item.fileWidth}×{item.fileHeight}
                                   </div>
                                 )}
                               </div>
@@ -597,19 +597,19 @@ export default function Arte() {
                               <div className="text-muted-foreground">—</div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-2 px-2 text-center">
                             <div className="text-sm font-medium tabular-nums">{item.calculatedM2}</div>
                           </td>
-                          <td className="py-3 px-4 text-sm">
+                          <td className="py-2 px-3 text-sm">
                             <div>{item.material}</div>
                             <div className="text-xs text-muted-foreground">{item.finish}</div>
                           </td>
                           {viewMode === "approved" && (
-                            <td className="py-3 px-4">
+                            <td className="py-2 px-3">
                               <StatusBadge status={item.status} />
                             </td>
                           )}
-                          <td className="py-3 px-4">
+                          <td className="py-2 px-2">
                             <div className="flex gap-1 justify-end">
                               <Button
                                 size="icon"

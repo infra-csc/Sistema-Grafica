@@ -57,6 +57,10 @@ export default function EventDetail() {
     quantity: 1,
     area: "",
     visual: "",
+    visualWidth: "",
+    visualHeight: "",
+    fileWidth: "",
+    fileHeight: "",
     material: "",
     finish: "",
     measurement: "",
@@ -102,6 +106,10 @@ export default function EventDetail() {
         quantity: 1,
         area: "",
         visual: "",
+        visualWidth: "",
+        visualHeight: "",
+        fileWidth: "",
+        fileHeight: "",
         material: "",
         finish: "",
         measurement: "",
@@ -212,6 +220,10 @@ export default function EventDetail() {
       quantity: item.quantity || 1,
       area: item.area || "",
       visual: item.visual || "",
+      visualWidth: item.visualWidth || "",
+      visualHeight: item.visualHeight || "",
+      fileWidth: item.fileWidth || "",
+      fileHeight: item.fileHeight || "",
       material: item.material || "",
       finish: item.finish || "",
       measurement: item.measurement || "",
@@ -234,6 +246,10 @@ export default function EventDetail() {
       quantity: 1,
       area: "",
       visual: "",
+      visualWidth: "",
+      visualHeight: "",
+      fileWidth: "",
+      fileHeight: "",
       material: "",
       finish: "",
       measurement: "",
@@ -482,6 +498,56 @@ export default function EventDetail() {
                       onChange={(e) => setFormData({ ...formData, visual: e.target.value })}
                       required
                       data-testid="input-visual"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="visualWidth">Largura Visual (m)</Label>
+                    <Input
+                      id="visualWidth"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.visualWidth}
+                      onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
+                      placeholder="Ex: 2.00"
+                      data-testid="input-visual-width"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="visualHeight">Altura Visual (m)</Label>
+                    <Input
+                      id="visualHeight"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.visualHeight}
+                      onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
+                      placeholder="Ex: 1.00"
+                      data-testid="input-visual-height"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fileWidth">Largura Arquivo (px)</Label>
+                    <Input
+                      id="fileWidth"
+                      type="number"
+                      min="0"
+                      value={formData.fileWidth}
+                      onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
+                      placeholder="Ex: 1920"
+                      data-testid="input-file-width"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fileHeight">Altura Arquivo (px)</Label>
+                    <Input
+                      id="fileHeight"
+                      type="number"
+                      min="0"
+                      value={formData.fileHeight}
+                      onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
+                      placeholder="Ex: 1080"
+                      data-testid="input-file-height"
                     />
                   </div>
                   <div className="space-y-2">

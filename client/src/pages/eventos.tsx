@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter, Flag } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
 import { useState } from "react";
@@ -48,6 +48,8 @@ export default function Eventos() {
   });
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
+  const [selectedEventForPriority, setSelectedEventForPriority] = useState<any>(null);
   const { toast } = useToast();
 
   const { data: events = [], isLoading } = useQuery<any[]>({
@@ -119,6 +121,28 @@ export default function Eventos() {
     },
   });
 
+  const updatePriorityMutation = useMutation({
+    mutationFn: async ({ id, priority }: { id: string; priority: string }) => {
+      return await apiRequest("PATCH", `/api/events/${id}/priority`, { priority });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setPriorityDialogOpen(false);
+      setSelectedEventForPriority(null);
+      toast({
+        title: "Prioridade atualizada",
+        description: "A prioridade do evento foi atualizada com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar prioridade",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,6 +195,32 @@ export default function Eventos() {
         ? prev.filter(u => u !== urgency)
         : [...prev, urgency]
     );
+  };
+
+  const handleSetPriority = (event: any, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedEventForPriority(event);
+    setPriorityDialogOpen(true);
+  };
+
+  const handlePrioritySelect = (priority: string) => {
+    if (selectedEventForPriority) {
+      updatePriorityMutation.mutate({ id: selectedEventForPriority.id, priority });
+    }
+  };
+
+  const getPriorityConfig = (priority: string | null | undefined) => {
+    if (!priority) return null;
+    
+    const configs = {
+      baixa: { label: "Baixa", color: "bg-blue-500/15 text-blue-700 border-blue-500/30", icon: "🔵" },
+      media: { label: "Média", color: "bg-yellow-500/15 text-yellow-700 border-yellow-500/30", icon: "🟡" },
+      alta: { label: "Alta", color: "bg-orange-500/15 text-orange-700 border-orange-500/30", icon: "🟠" },
+      urgente: { label: "Urgente", color: "bg-red-500/15 text-red-700 border-red-500/30", icon: "🔴" }
+    };
+    
+    return configs[priority as keyof typeof configs] || null;
   };
 
   // Meses do ano
@@ -572,9 +622,30 @@ export default function Eventos() {
             
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
-                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${truckColors.borderColor} ${truckColors.bgCard}`} data-testid={`card-event-${event.id}`}>
+                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${
+                  event.status === 'completed' ? 'border-l-status-completed bg-status-completed/5' : `${truckColors.borderColor} ${truckColors.bgCard}`
+                }`} data-testid={`card-event-${event.id}`}>
                   <CardHeader className="pb-3 pt-4">
-                    <CardTitle className={`text-base font-bold mb-2 ${truckColors.titleColor}`}>{event.name}</CardTitle>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <CardTitle className={`text-base font-bold ${
+                        event.status === 'completed' ? 'text-status-completed' : truckColors.titleColor
+                      }`}>{event.name}</CardTitle>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {event.status === 'completed' && (
+                          <Badge variant="outline" className="bg-status-completed/15 text-status-completed border-status-completed/30 text-xs">
+                            ✓ Concluído
+                          </Badge>
+                        )}
+                        {event.priority && getPriorityConfig(event.priority) && (
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs border ${getPriorityConfig(event.priority)!.color}`}
+                          >
+                            {getPriorityConfig(event.priority)!.icon} {getPriorityConfig(event.priority)!.label}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="flex items-center gap-2 p-2 rounded bg-card border">
                         <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${eventStartColors.icon}`} />
@@ -628,6 +699,16 @@ export default function Eventos() {
                       )}
                     </div>
                     <div className="flex items-center gap-1 ml-2">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="h-7 w-7 hover:bg-primary/10"
+                        onClick={(e) => handleSetPriority(event, e)}
+                        title="Definir prioridade"
+                        data-testid={`button-priority-event-${event.id}`}
+                      >
+                        <Flag className={`h-3.5 w-3.5 ${event.priority ? 'fill-current' : ''}`} />
+                      </Button>
                       {hasPermission("admin") && (
                         <>
                           <Button 
@@ -682,6 +763,57 @@ export default function Eventos() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Definir Prioridade</DialogTitle>
+            <DialogDescription>
+              {selectedEventForPriority && (
+                <span>Escolha a prioridade para <strong>{selectedEventForPriority.name}</strong></span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-4">
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col gap-2 hover:bg-blue-500/10 hover:border-blue-500 border-2"
+              onClick={() => handlePrioritySelect("baixa")}
+              disabled={updatePriorityMutation.isPending}
+            >
+              <span className="text-2xl">🔵</span>
+              <span className="font-semibold">Baixa</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col gap-2 hover:bg-yellow-500/10 hover:border-yellow-500 border-2"
+              onClick={() => handlePrioritySelect("media")}
+              disabled={updatePriorityMutation.isPending}
+            >
+              <span className="text-2xl">🟡</span>
+              <span className="font-semibold">Média</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col gap-2 hover:bg-orange-500/10 hover:border-orange-500 border-2"
+              onClick={() => handlePrioritySelect("alta")}
+              disabled={updatePriorityMutation.isPending}
+            >
+              <span className="text-2xl">🟠</span>
+              <span className="font-semibold">Alta</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col gap-2 hover:bg-red-500/10 hover:border-red-500 border-2"
+              onClick={() => handlePrioritySelect("urgente")}
+              disabled={updatePriorityMutation.isPending}
+            >
+              <span className="text-2xl">🔴</span>
+              <span className="font-semibold">Urgente</span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

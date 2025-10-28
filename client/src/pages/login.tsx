@@ -75,32 +75,87 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <LogIn className="w-8 h-8 text-primary" />
+    <div className="min-h-screen flex">
+      {/* Left side - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-[hsl(var(--norte-magenta))] to-accent p-12 flex-col justify-between relative overflow-hidden">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+        
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-xl border border-white/30">
+              N
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">NORTE</h1>
+              <p className="text-white/80 text-sm">Marketing Esportivo</p>
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">NORTE</CardTitle>
-          <CardDescription>
+        </div>
+
+        <div className="relative z-10 space-y-6">
+          <h2 className="text-4xl font-bold text-white leading-tight">
             Sistema de Gestão de Produção Gráfica
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </h2>
+          <p className="text-white/90 text-lg">
+            Controle completo do fluxo de produção: Solicitação → Arte → Gráfica → Entrega
+          </p>
+          <div className="flex gap-4 pt-4">
+            <div className="flex items-center gap-2 text-white/90">
+              <div className="w-2 h-2 rounded-full bg-white" />
+              <span className="text-sm">Notificações em tempo real</span>
+            </div>
+            <div className="flex items-center gap-2 text-white/90">
+              <div className="w-2 h-2 rounded-full bg-white" />
+              <span className="text-sm">Rastreamento completo</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10">
+          <p className="text-white/60 text-sm">© 2024 NORTE Marketing Esportivo</p>
+        </div>
+      </div>
+
+      {/* Right side - Login Form */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-background">
+        <div className="w-full max-w-md space-y-8">
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center">
+            <div className="inline-flex items-center gap-3 mb-6">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary via-[hsl(var(--norte-magenta))] to-accent flex items-center justify-center text-white font-bold text-xl">
+                N
+              </div>
+              <div className="text-left">
+                <h1 className="text-2xl font-bold text-foreground">NORTE</h1>
+                <p className="text-muted-foreground text-sm">Marketing Esportivo</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-center lg:text-left">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">
+              Bem-vindo de volta
+            </h2>
+            <p className="text-muted-foreground">
+              Entre com suas credenciais para acessar o sistema
+            </p>
+          </div>
+
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel className="text-foreground font-medium">Email</FormLabel>
                     <FormControl>
                       <Input
                         type="email"
                         placeholder="seu@email.com"
+                        className="h-11"
                         data-testid="input-email"
                         {...field}
                       />
@@ -114,11 +169,12 @@ export default function Login() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Senha</FormLabel>
+                    <FormLabel className="text-foreground font-medium">Senha</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
                         placeholder="••••••••"
+                        className="h-11"
                         data-testid="input-password"
                         {...field}
                       />
@@ -129,16 +185,27 @@ export default function Login() {
               />
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full h-11 text-base font-medium"
                 disabled={loginMutation.isPending}
                 data-testid="button-login"
               >
-                {loginMutation.isPending ? "Entrando..." : "Entrar"}
+                {loginMutation.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Entrando...
+                  </span>
+                ) : (
+                  "Entrar no Sistema"
+                )}
               </Button>
             </form>
           </Form>
-        </CardContent>
-      </Card>
+
+          <div className="text-center text-sm text-muted-foreground">
+            Sistema seguro com criptografia de ponta a ponta
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

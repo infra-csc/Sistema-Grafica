@@ -1,5 +1,6 @@
-import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3 } from "lucide-react";
+import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Sidebar,
   SidebarContent,
@@ -57,6 +58,7 @@ const menuItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { hasPermission } = useAuth();
 
   return (
     <Sidebar>
@@ -89,6 +91,23 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {hasPermission("admin") && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/usuarios"} data-testid="nav-usuarios">
+                    <Link href="/usuarios">
+                      <Users className="h-4 w-4" />
+                      <span>Usuários</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
     </Sidebar>
   );

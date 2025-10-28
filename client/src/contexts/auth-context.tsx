@@ -1,38 +1,32 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 type UserRole = "admin" | "solicitacao" | "arte" | "grafica";
 
 interface User {
   id: string;
   name: string;
+  email: string;
   role: UserRole;
+  mustChangePassword: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
-  setUser: (user: User | null) => void;
+  isLoading: boolean;
+  isAuthenticated: boolean;
   hasPermission: (requiredRole: UserRole | UserRole[]) => boolean;
+  refetchUser: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUserState] = useState<User | null>(() => {
-    const stored = localStorage.getItem("currentUser");
-    return stored ? JSON.parse(stored) : null;
+  const { data: user, isLoading, refetch } = useQuery<User>({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+    refetchOnWindowFocus: false,
   });
-
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem("currentUser", JSON.stringify(user));
-    } else {
-      localStorage.removeItem("currentUser");
-    }
-  }, [user]);
-
-  const setUser = (newUser: User | null) => {
-    setUserState(newUser);
-  };
 
   const hasPermission = (requiredRole: UserRole | UserRole[]) => {
     if (!user) return false;
@@ -43,7 +37,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setUser, hasPermission }}>
+    <AuthContext.Provider 
+      value={{ 
+        user: user || null, 
+        isLoading,
+        isAuthenticated: !!user,
+        hasPermission,
+        refetchUser: () => refetch()
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,14 +55,20 @@ export default function ChangePassword() {
       const res = await apiRequest("POST", "/api/auth/change-password", data);
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Invalidate auth query to refresh user data
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      
       toast({
         title: "Senha alterada com sucesso",
         description: isFirstLogin 
           ? "Você já pode acessar o sistema com sua nova senha"
           : "Sua senha foi atualizada",
       });
-      setLocation("/");
+      
+      setTimeout(() => {
+        setLocation("/");
+      }, 100);
     },
     onError: (error: any) => {
       toast({

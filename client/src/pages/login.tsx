@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,18 +43,23 @@ export default function Login() {
       const res = await apiRequest("POST", "/api/auth/login", data);
       return await res.json();
     },
-    onSuccess: (user) => {
+    onSuccess: async (user) => {
+      // Invalidate auth query to refresh user data
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      
       toast({
         title: "Login realizado com sucesso",
         description: `Bem-vindo, ${user.name}!`,
       });
 
-      // Check if user must change password
-      if (user.mustChangePassword) {
-        setLocation("/change-password");
-      } else {
-        setLocation("/");
-      }
+      // Small delay to ensure auth context updates
+      setTimeout(() => {
+        if (user.mustChangePassword) {
+          setLocation("/change-password");
+        } else {
+          setLocation("/");
+        }
+      }, 100);
     },
     onError: (error: any) => {
       toast({

@@ -105,8 +105,8 @@ Templates reutilizáveis de itens
 
 ### 7. Calendário (/calendario)
 Visão temporal com alertas de datas críticas
-- **🆕 Cores por Prioridade**: Eventos urgentes/altos em vermelho/laranja independente do prazo
-- **🆕 Legenda Atualizada**: Explica combinação de prioridade e prazo nas cores
+- **✅ Cores por Prioridade**: Cards coloridos baseados EXCLUSIVAMENTE na prioridade do evento
+- **✅ Legenda**: Vermelho (Urgente), Laranja (Alta), Amarelo (Média), Azul (Baixa/Sem prioridade)
 
 ### 8. Histórico (/historico)
 Timeline de atividades com filtro por evento
@@ -129,11 +129,13 @@ O sistema implementa um controle completo de prioridades para eventos com 4 nív
 - **Botão de Prioridade**: Ícone de bandeira (preenchido quando há prioridade definida)
 
 #### Lógica de Cores no Calendário
-1. **Verde**: Evento concluído ou data já passou
-2. **Vermelho**: Prioridade urgente OU menos de 24h para saída
-3. **Laranja**: Prioridade alta (e mais de 24h restantes)
-4. **Amarelo**: Prioridade média OU entre 24-48h para saída
-5. **Azul**: Mais de 48h e sem prioridade alta/urgente
+As cores dos cards no calendário são definidas EXCLUSIVAMENTE pela prioridade do evento:
+1. **🔴 Vermelho**: Prioridade urgente
+2. **🟠 Laranja**: Prioridade alta
+3. **🟡 Amarelo**: Prioridade média
+4. **🔵 Azul**: Prioridade baixa ou sem prioridade definida
+
+Esta abordagem permite identificar rapidamente os eventos críticos independentemente das datas.
 
 ### ✅ Status Automático de Eventos
 - **Cálculo Inteligente**: Status do evento calculado automaticamente baseado nos itens

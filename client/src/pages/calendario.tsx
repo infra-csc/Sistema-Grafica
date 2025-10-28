@@ -23,109 +23,44 @@ export default function Calendario() {
     queryKey: ["/api/events"],
   });
 
-  // Status para DATA DO EVENTO (startDate)
-  const getEventStartStatus = (event: any) => {
-    const now = new Date();
-    const start = new Date(event.startDate);
-    const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
-    // Vermelho: Menos de 24h para início
-    if (hoursUntilStart < 24 && hoursUntilStart > 0) {
-      return { 
-        status: 'critical', 
-        colorBg: 'bg-status-urgent',
-        colorAccent: 'bg-status-urgent/20',
-        textColor: 'text-status-urgent',
-        borderColor: 'border-status-urgent',
-        label: 'Início em menos de 24h' 
-      };
-    }
-    
-    // Amarelo: Entre 24h e 48h para início
-    if (hoursUntilStart < 48 && hoursUntilStart > 0) {
-      return { 
-        status: 'warning', 
-        colorBg: 'bg-status-pending',
-        colorAccent: 'bg-status-pending/20',
-        textColor: 'text-status-pending',
-        borderColor: 'border-status-pending',
-        label: 'Início em menos de 48h' 
-      };
-    }
-    
-    // Azul: Mais de 48h para início ou evento já passou
-    return { 
-      status: 'normal', 
-      colorBg: 'bg-status-approved',
-      colorAccent: 'bg-status-approved/20',
-      textColor: 'text-status-approved',
-      borderColor: 'border-status-approved',
-      label: hoursUntilStart < 0 ? 'Realizado' : 'Início em mais de 48h' 
-    };
-  };
-
-  // Status para SAÍDA DO CAMINHÃO (truckDepartureDate) - Considera prioridade
-  const getTruckDepartureStatus = (event: any) => {
-    const now = new Date();
-    const departure = new Date(event.truckDepartureDate);
-    const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
-    
-    // PRIORIDADE URGENTE sempre vermelho
+  // Cor do card baseada na PRIORIDADE do evento
+  const getEventCardColor = (event: any) => {
+    // Prioridade Urgente: Vermelho
     if (event.priority === 'urgente') {
       return { 
-        status: 'critical', 
         colorBg: 'bg-red-600',
         colorAccent: 'bg-red-600/20',
         textColor: 'text-red-600',
         borderColor: 'border-red-600',
-        label: 'Prioridade Urgente' 
       };
     }
     
-    // PRIORIDADE ALTA sempre laranja (se não urgente por prazo)
-    if (event.priority === 'alta' && hoursUntilDeparture >= 24) {
+    // Prioridade Alta: Laranja
+    if (event.priority === 'alta') {
       return { 
-        status: 'warning', 
         colorBg: 'bg-orange-600',
         colorAccent: 'bg-orange-600/20',
         textColor: 'text-orange-600',
         borderColor: 'border-orange-600',
-        label: 'Prioridade Alta' 
       };
     }
     
-    // Vermelho: Menos de 24h para saída (se ainda não saiu)
-    if (hoursUntilDeparture < 24 && hoursUntilDeparture > 0) {
+    // Prioridade Média: Amarelo
+    if (event.priority === 'media') {
       return { 
-        status: 'critical', 
-        colorBg: 'bg-status-urgent',
-        colorAccent: 'bg-status-urgent/20',
-        textColor: 'text-status-urgent',
-        borderColor: 'border-status-urgent',
-        label: 'Saída em menos de 24h' 
-      };
-    }
-    
-    // Amarelo: Entre 24h e 48h para saída OU prioridade média
-    if ((hoursUntilDeparture < 48 && hoursUntilDeparture > 0) || event.priority === 'media') {
-      return { 
-        status: 'warning', 
         colorBg: 'bg-status-pending',
         colorAccent: 'bg-status-pending/20',
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
-        label: event.priority === 'media' ? 'Prioridade Média' : 'Saída em menos de 48h' 
       };
     }
     
-    // Azul: Mais de 48h para saída ou já saiu/concluído
+    // Sem prioridade ou Baixa: Azul
     return { 
-      status: 'normal', 
       colorBg: 'bg-status-approved',
       colorAccent: 'bg-status-approved/20',
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
-      label: hoursUntilDeparture < 0 ? 'Concluído' : 'Saída em mais de 48h' 
     };
   };
 
@@ -270,10 +205,8 @@ export default function Calendario() {
                       <div className="flex-1 flex flex-col gap-1 overflow-hidden">
                         {eventsForDay.slice(0, 3).map((eventData) => {
                           const isStart = eventData.type === 'start';
-                          // Status diferente para cada tipo de data
-                          const { colorBg, colorAccent } = isStart 
-                            ? getEventStartStatus(eventData) 
-                            : getTruckDepartureStatus(eventData);
+                          // Cor baseada na PRIORIDADE do evento
+                          const { colorBg, colorAccent } = getEventCardColor(eventData);
                           const Icon = isStart ? Calendar : Truck;
                           const time = isStart 
                             ? null
@@ -344,32 +277,32 @@ export default function Calendario() {
 
         <Card className="bg-muted/30 border-muted">
           <CardHeader className="pb-3">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Legenda - Status e Prioridade</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Legenda - Prioridade</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-1.5">
               <p className="text-[10px] text-muted-foreground/70 mb-0.5">
-                Cores baseadas em prazo e prioridade:
+                Cores baseadas na prioridade do evento:
               </p>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-red-600 shrink-0" />
                 <span className="text-xs font-medium text-red-600">Vermelho:</span>
-                <span className="text-xs text-muted-foreground">&lt;24h ou Urgente</span>
+                <span className="text-xs text-muted-foreground">Urgente</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-orange-600 shrink-0" />
                 <span className="text-xs font-medium text-orange-600">Laranja:</span>
-                <span className="text-xs text-muted-foreground">Prioridade Alta</span>
+                <span className="text-xs text-muted-foreground">Alta</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-status-pending shrink-0" />
                 <span className="text-xs font-medium text-status-pending">Amarelo:</span>
-                <span className="text-xs text-muted-foreground">24-48h ou Média</span>
+                <span className="text-xs text-muted-foreground">Média</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-status-approved shrink-0" />
                 <span className="text-xs font-medium text-status-approved">Azul:</span>
-                <span className="text-xs text-muted-foreground">&gt;48h ou realizado</span>
+                <span className="text-xs text-muted-foreground">Baixa ou sem prioridade</span>
               </div>
             </div>
           </CardContent>
@@ -393,14 +326,21 @@ export default function Calendario() {
           <div className="space-y-3 mt-4">
             {selectedDate && getEventsForDate(selectedDate).map((eventData) => {
               const isStart = eventData.type === 'start';
-              // Status diferente para cada tipo de data
-              const { colorBg, colorAccent, textColor, borderColor, label } = isStart 
-                ? getEventStartStatus(eventData) 
-                : getTruckDepartureStatus(eventData);
+              // Cor baseada na PRIORIDADE do evento
+              const { colorBg, colorAccent, textColor, borderColor } = getEventCardColor(eventData);
               const Icon = isStart ? Calendar : Truck;
               const dateTime = isStart 
                 ? new Date(eventData.startDate)
                 : new Date(eventData.truckDepartureDate);
+              
+              // Label da prioridade
+              const priorityLabels: Record<string, string> = {
+                'urgente': 'Urgente',
+                'alta': 'Alta',
+                'media': 'Média',
+                'baixa': 'Baixa'
+              };
+              const priorityLabel = eventData.priority ? (priorityLabels[eventData.priority] || 'Sem prioridade') : 'Sem prioridade';
               
               return (
                 <div
@@ -429,7 +369,7 @@ export default function Calendario() {
                           borderColor
                         )}
                       >
-                        {label}
+                        {priorityLabel}
                       </Badge>
                     </div>
                     <div className="mt-1 space-y-1 text-sm text-muted-foreground">
@@ -437,12 +377,12 @@ export default function Calendario() {
                         {isStart ? (
                           <>
                             <Calendar className="h-3.5 w-3.5" />
-                            <span>Início do evento: {dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span>Início do evento: {dateTime.toLocaleDateString('pt-BR')}</span>
                           </>
                         ) : (
                           <>
                             <Truck className="h-3.5 w-3.5" />
-                            <span>Saída do caminhão: {dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span>Saída do caminhão: {dateTime.toLocaleDateString('pt-BR')} às {dateTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                           </>
                         )}
                       </div>

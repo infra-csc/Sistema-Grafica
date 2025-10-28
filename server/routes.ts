@@ -11,17 +11,32 @@ import {
   insertProductionUpdateSchema,
   insertCommentSchema,
   insertDeliveryPhotoSchema,
-  insertAuditLogSchema
+  insertAuditLogSchema,
+  insertUserSchema,
+  loginSchema,
+  changePasswordSchema
 } from "@shared/schema";
+import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { events } from "@shared/schema";
 
-// Extend Express Request type to include userName
+// Extend Express Request type to include userName and userId
 declare global {
   namespace Express {
     interface Request {
       userName?: string;
+      userId?: string;
+      userRole?: string;
     }
+  }
+}
+
+// Session data interface
+declare module "express-session" {
+  interface SessionData {
+    userId?: string;
+    userName?: string;
+    userRole?: string;
   }
 }
 
@@ -60,10 +75,260 @@ async function createAuditLog(
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Middleware to extract user info from headers
+  // Middleware to extract user info from session
   app.use((req, res, next) => {
-    req.userName = (req.headers['x-user-name'] as string) || 'Sistema';
+    if (req.session?.userId) {
+      req.userId = req.session.userId;
+      req.userName = req.session.userName || 'Sistema';
+      req.userRole = req.session.userRole || 'solicitacao';
+    } else {
+      // Fallback to headers for backwards compatibility
+      req.userName = (req.headers['x-user-name'] as string) || 'Sistema';
+    }
     next();
+  });
+
+  // Auth middleware - protect routes that require authentication
+  const requireAuth = (req: any, res: any, next: any) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ error: "Não autenticado" });
+    }
+    next();
+  };
+
+  // Admin middleware - protect routes that require admin role
+  const requireAdmin = (req: any, res: any, next: any) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ error: "Não autenticado" });
+    }
+    if (req.session.userRole !== 'admin') {
+      return res.status(403).json({ error: "Acesso negado - apenas administradores" });
+    }
+    next();
+  };
+
+  // ============ AUTHENTICATION ============
+
+  // Register new user (admin only)
+  app.post("/api/auth/register", requireAdmin, async (req, res) => {
+    try {
+      const { password, ...userData } = insertUserSchema.parse(req.body);
+      
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(userData.email);
+      if (existingUser) {
+        return res.status(400).json({ error: "Email já cadastrado" });
+      }
+
+      // Hash password
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Create user
+      const user = await storage.createUser({
+        ...userData,
+        passwordHash,
+        mustChangePassword: true,
+      });
+
+      // Create audit log
+      await createAuditLog(
+        req.userName!,
+        'created',
+        'user',
+        user.id,
+        `Usuário "${user.name}" criado com perfil "${user.role}"`
+      );
+
+      // Don't send password hash to client
+      const { passwordHash: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      console.error("Register error:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Login
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = loginSchema.parse(req.body);
+
+      // Find user
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ error: "Email ou senha inválidos" });
+      }
+
+      // Verify password
+      const isValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: "Email ou senha inválidos" });
+      }
+
+      // Set session
+      req.session.userId = user.id;
+      req.session.userName = user.name;
+      req.session.userRole = user.role;
+
+      // Don't send password hash to client
+      const { passwordHash: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      console.error("Login error:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Logout
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Erro ao fazer logout" });
+      }
+      res.json({ message: "Logout realizado com sucesso" });
+    });
+  });
+
+  // Get current user
+  app.get("/api/auth/me", async (req, res) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ error: "Não autenticado" });
+    }
+
+    try {
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      // Don't send password hash to client
+      const { passwordHash: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Change password
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+
+      // Get current user
+      const user = await storage.getUser(req.userId!);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      // If not first login, verify current password
+      if (!user.mustChangePassword && currentPassword) {
+        const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isValid) {
+          return res.status(401).json({ error: "Senha atual incorreta" });
+        }
+      }
+
+      // Hash new password
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+
+      // Update user
+      await storage.updateUser(user.id, {
+        passwordHash,
+        mustChangePassword: false,
+      });
+
+      // Create audit log
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'user',
+        user.id,
+        'Senha alterada'
+      );
+
+      res.json({ message: "Senha alterada com sucesso" });
+    } catch (error: any) {
+      console.error("Change password error:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ============ USER MANAGEMENT (Admin only) ============
+
+  // Get all users
+  app.get("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      // Don't send password hashes to client
+      const usersWithoutPasswords = users.map(({ passwordHash: _, ...user }) => user);
+      res.json(usersWithoutPasswords);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update user (admin only)
+  app.patch("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const { password, ...updateData } = req.body;
+
+      // If password is being updated, hash it
+      if (password) {
+        const passwordHash = await bcrypt.hash(password, 10);
+        updateData.passwordHash = passwordHash;
+        updateData.mustChangePassword = true;
+      }
+
+      const user = await storage.updateUser(req.params.id, updateData);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      // Create audit log
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'user',
+        user.id,
+        `Usuário "${user.name}" atualizado`
+      );
+
+      // Don't send password hash to client
+      const { passwordHash: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete user (admin only)
+  app.delete("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      // Prevent deleting yourself
+      if (req.params.id === req.userId) {
+        return res.status(400).json({ error: "Você não pode excluir sua própria conta" });
+      }
+
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      await storage.deleteUser(req.params.id);
+
+      // Create audit log
+      await createAuditLog(
+        req.userName!,
+        'deleted',
+        'user',
+        user.id,
+        `Usuário "${user.name}" excluído`
+      );
+
+      res.json({ message: "Usuário excluído com sucesso" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // ============ EVENTS ============

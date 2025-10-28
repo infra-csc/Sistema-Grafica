@@ -87,6 +87,9 @@ Tela dedicada a métricas avançadas e visualizações:
 ### 3. Eventos (/eventos)
 Gerenciamento de eventos com cards visuais
 - Cards com status colorido e informações-chave
+- **🆕 Sistema de Prioridades**: Definição de prioridade por evento (baixa, média, alta, urgente)
+- **🆕 Status Automático**: Eventos marcados como "concluído" automaticamente quando todos itens entregues
+- **🆕 Validação de Prioridade**: Ao adicionar item em evento concluído, prioridade deve ser redefinida
 
 ### 4. Arte (/arte)
 Módulo de aprovação de arte
@@ -102,9 +105,52 @@ Templates reutilizáveis de itens
 
 ### 7. Calendário (/calendario)
 Visão temporal com alertas de datas críticas
+- **🆕 Cores por Prioridade**: Eventos urgentes/altos em vermelho/laranja independente do prazo
+- **🆕 Legenda Atualizada**: Explica combinação de prioridade e prazo nas cores
 
 ### 8. Histórico (/historico)
 Timeline de atividades com filtro por evento
+
+## Sistema de Prioridades e Status
+
+### ✅ Prioridades de Eventos
+O sistema implementa um controle completo de prioridades para eventos com 4 níveis:
+
+#### Níveis de Prioridade
+- **🔵 Baixa**: Eventos de rotina sem urgência especial
+- **🟡 Média**: Eventos que necessitam atenção moderada
+- **🟠 Alta**: Eventos importantes que devem ser priorizados
+- **🔴 Urgente**: Eventos críticos de máxima prioridade
+
+#### Funcionalidades
+- **Definição Visual**: Dialog intuitivo com botões coloridos para selecionar prioridade
+- **Badge de Prioridade**: Exibido nos cards de eventos com ícone e cor correspondente
+- **Integração com Calendário**: Cores no calendário refletem prioridade + prazo
+- **Botão de Prioridade**: Ícone de bandeira (preenchido quando há prioridade definida)
+
+#### Lógica de Cores no Calendário
+1. **Verde**: Evento concluído ou data já passou
+2. **Vermelho**: Prioridade urgente OU menos de 24h para saída
+3. **Laranja**: Prioridade alta (e mais de 24h restantes)
+4. **Amarelo**: Prioridade média OU entre 24-48h para saída
+5. **Azul**: Mais de 48h e sem prioridade alta/urgente
+
+### ✅ Status Automático de Eventos
+- **Cálculo Inteligente**: Status do evento calculado automaticamente baseado nos itens
+- **Status "completed"**: Marcado quando TODOS os itens foram entregues
+- **Badge Verde**: Exibido em eventos concluídos (✓ Concluído)
+- **Validação de Itens**: Ao adicionar item em evento concluído, sistema solicita redefinição de prioridade
+
+#### Endpoint Backend
+- **PATCH /api/events/:id/priority**: Atualiza prioridade do evento
+  - Body: `{ priority: "baixa" | "media" | "alta" | "urgente" }`
+  - Retorna evento atualizado com novo status calculado
+
+#### Regras de Negócio
+1. Evento só pode ser "completed" quando todos itens estão "delivered"
+2. Se um evento está "completed" e um novo item é adicionado, o status volta para "created"
+3. A prioridade pode ser alterada a qualquer momento
+4. A cor visual combina prioridade + prazo (prioridade tem precedência)
 
 ## Recursos Implementados
 

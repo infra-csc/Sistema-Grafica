@@ -74,6 +74,32 @@ async function createAuditLog(
   }
 }
 
+// Helper to calculate event status based on items
+async function calculateEventStatus(eventId: string): Promise<"created" | "completed"> {
+  const items = await storage.getItemsByEvent(eventId);
+  
+  // If no items, event remains "created"
+  if (items.length === 0) {
+    return "created";
+  }
+  
+  // Check if ALL items are delivered
+  const allDelivered = items.every(item => item.status === "delivered");
+  
+  return allDelivered ? "completed" : "created";
+}
+
+// Helper to update event status automatically
+async function updateEventStatus(eventId: string): Promise<void> {
+  const newStatus = await calculateEventStatus(eventId);
+  const event = await storage.getEvent(eventId);
+  
+  if (event && event.status !== newStatus) {
+    await storage.updateEvent(eventId, { status: newStatus });
+    broadcast({ type: "event_updated", event: { ...event, status: newStatus } });
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Middleware to extract user info from session
   app.use((req, res, next) => {
@@ -426,6 +452,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update event priority
+  app.patch("/api/events/:id/priority", async (req, res) => {
+    try {
+      const { priority } = req.body;
+      
+      if (!priority || !["baixa", "media", "alta", "urgente"].includes(priority)) {
+        return res.status(400).json({ error: "Prioridade inválida. Use: baixa, media, alta ou urgente" });
+      }
+      
+      const event = await storage.updateEvent(req.params.id, { priority });
+      if (!event) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+      
+      // Create audit log
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'event',
+        event.id,
+        `Prioridade do evento "${event.name}" definida como "${priority}"`
+      );
+      
+      broadcast({ type: "event_priority_updated", event });
+      
+      res.json(event);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Delete event
   app.delete("/api/events/:id", async (req, res) => {
     try {
@@ -545,9 +602,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/items", async (req, res) => {
     try {
       const validatedData = insertItemSchema.parse(req.body);
-      const item = await storage.createItem(validatedData);
       
-      const event = await storage.getEvent(item.eventId);
+      const event = await storage.getEvent(validatedData.eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+      
+      // Check if event was completed - if so, reset priority and require re-definition
+      if (event.status === "completed") {
+        await storage.updateEvent(event.id, { 
+          status: "created",
+          priority: null // Reset priority - must be redefined
+        });
+        
+        // Create notification about priority reset
+        await storage.createNotification({
+          type: "eventCreated",
+          message: `Item adicionado ao evento "${event.name}" que estava concluído. Prioridade precisa ser redefinida.`,
+          eventId: event.id,
+        });
+      }
+      
+      const item = await storage.createItem(validatedData);
       
       // Create audit log
       await createAuditLog(
@@ -561,10 +637,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create notification
       await storage.createNotification({
         type: "itemAdded",
-        message: `Novo item adicionado: ${item.type} - Evento: ${event?.name}`,
+        message: `Novo item adicionado: ${item.type} - Evento: ${event.name}`,
         eventId: item.eventId,
         itemId: item.id,
       });
+      
+      // Update event status
+      await updateEventStatus(item.eventId);
       
       broadcast({ type: "item_created", item });
       
@@ -633,6 +712,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         item.id,
         `Item "${item.type}" atualizado`
       );
+      
+      // Recalculate event status if item status changed
+      await updateEventStatus(item.eventId);
       
       broadcast({ type: "item_updated", item });
       
@@ -771,6 +853,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eventId: item.eventId,
         itemId: item.id,
       });
+      
+      // Recalculate event status - might become "completed"
+      await updateEventStatus(item.eventId);
       
       broadcast({ type: "item_delivered", item });
       

@@ -11,6 +11,8 @@ export const events = pgTable("events", {
   startDate: timestamp("start_date").notNull(),
   truckDepartureDate: timestamp("truck_departure_date").notNull(),
   status: text("status").notNull().default("created"), // created, completed
+  priority: text("priority"), // baixa, media, alta, urgente
+  createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -191,6 +193,7 @@ export const insertEventSchema = createInsertSchema(events).omit({
 }).extend({
   startDate: z.string().or(z.date()),
   truckDepartureDate: z.string().or(z.date()),
+  priority: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
 });
 
 export const insertItemSchema = createInsertSchema(items).omit({

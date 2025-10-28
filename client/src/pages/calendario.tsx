@@ -28,21 +28,9 @@ export default function Calendario() {
     const now = new Date();
     const start = new Date(event.startDate);
     const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-    // Verde: Evento já passou ou finalizado
-    if (event.status === 'completed' || hoursUntilStart < 0) {
-      return { 
-        status: 'completed', 
-        colorBg: 'bg-status-completed', 
-        colorAccent: 'bg-status-completed/20',
-        textColor: 'text-status-completed', 
-        borderColor: 'border-status-completed',
-        label: hoursUntilStart < 0 ? 'Realizado' : 'Finalizado' 
-      };
-    }
     
     // Vermelho: Menos de 24h para início
-    if (hoursUntilStart < 24) {
+    if (hoursUntilStart < 24 && hoursUntilStart > 0) {
       return { 
         status: 'critical', 
         colorBg: 'bg-status-urgent',
@@ -54,7 +42,7 @@ export default function Calendario() {
     }
     
     // Amarelo: Entre 24h e 48h para início
-    if (hoursUntilStart < 48) {
+    if (hoursUntilStart < 48 && hoursUntilStart > 0) {
       return { 
         status: 'warning', 
         colorBg: 'bg-status-pending',
@@ -65,14 +53,14 @@ export default function Calendario() {
       };
     }
     
-    // Azul: Mais de 48h para início
+    // Azul: Mais de 48h para início ou evento já passou
     return { 
       status: 'normal', 
       colorBg: 'bg-status-approved',
       colorAccent: 'bg-status-approved/20',
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
-      label: 'Início em mais de 48h' 
+      label: hoursUntilStart < 0 ? 'Realizado' : 'Início em mais de 48h' 
     };
   };
 
@@ -81,20 +69,8 @@ export default function Calendario() {
     const now = new Date();
     const departure = new Date(event.truckDepartureDate);
     const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-    // Verde: Caminhão já saiu ou evento finalizado
-    if (event.status === 'completed' || hoursUntilDeparture < 0) {
-      return { 
-        status: 'completed', 
-        colorBg: 'bg-status-completed',
-        colorAccent: 'bg-status-completed/20',
-        textColor: 'text-status-completed', 
-        borderColor: 'border-status-completed',
-        label: hoursUntilDeparture < 0 ? 'Concluído' : 'Finalizado' 
-      };
-    }
     
-    // PRIORIDADE URGENTE sempre vermelho (exceto se já concluído)
+    // PRIORIDADE URGENTE sempre vermelho
     if (event.priority === 'urgente') {
       return { 
         status: 'critical', 
@@ -106,7 +82,7 @@ export default function Calendario() {
       };
     }
     
-    // PRIORIDADE ALTA sempre laranja (exceto se já concluído ou urgente por prazo)
+    // PRIORIDADE ALTA sempre laranja (se não urgente por prazo)
     if (event.priority === 'alta' && hoursUntilDeparture >= 24) {
       return { 
         status: 'warning', 
@@ -118,8 +94,8 @@ export default function Calendario() {
       };
     }
     
-    // Vermelho: Menos de 24h para saída
-    if (hoursUntilDeparture < 24) {
+    // Vermelho: Menos de 24h para saída (se ainda não saiu)
+    if (hoursUntilDeparture < 24 && hoursUntilDeparture > 0) {
       return { 
         status: 'critical', 
         colorBg: 'bg-status-urgent',
@@ -131,7 +107,7 @@ export default function Calendario() {
     }
     
     // Amarelo: Entre 24h e 48h para saída OU prioridade média
-    if (hoursUntilDeparture < 48 || event.priority === 'media') {
+    if ((hoursUntilDeparture < 48 && hoursUntilDeparture > 0) || event.priority === 'media') {
       return { 
         status: 'warning', 
         colorBg: 'bg-status-pending',
@@ -142,14 +118,14 @@ export default function Calendario() {
       };
     }
     
-    // Azul: Mais de 48h para saída
+    // Azul: Mais de 48h para saída ou já saiu/concluído
     return { 
       status: 'normal', 
       colorBg: 'bg-status-approved',
       colorAccent: 'bg-status-approved/20',
       textColor: 'text-status-approved',
       borderColor: 'border-status-approved',
-      label: 'Saída em mais de 48h' 
+      label: hoursUntilDeparture < 0 ? 'Concluído' : 'Saída em mais de 48h' 
     };
   };
 
@@ -376,11 +352,6 @@ export default function Calendario() {
                 Cores baseadas em prazo e prioridade:
               </p>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-status-completed shrink-0" />
-                <span className="text-xs font-medium text-status-completed">Verde:</span>
-                <span className="text-xs text-muted-foreground">Realizado/Finalizado</span>
-              </div>
-              <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-red-600 shrink-0" />
                 <span className="text-xs font-medium text-red-600">Vermelho:</span>
                 <span className="text-xs text-muted-foreground">&lt;24h ou Urgente</span>
@@ -398,7 +369,7 @@ export default function Calendario() {
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-status-approved shrink-0" />
                 <span className="text-xs font-medium text-status-approved">Azul:</span>
-                <span className="text-xs text-muted-foreground">&gt;48h e sem prioridade</span>
+                <span className="text-xs text-muted-foreground">&gt;48h ou realizado</span>
               </div>
             </div>
           </CardContent>

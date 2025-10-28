@@ -97,9 +97,9 @@ function Router() {
   );
 }
 
-function AppContent() {
-  const { isAuthenticated, user } = useAuth();
-  const [location, setLocation] = useLocation();
+function AuthenticatedLayout() {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   // Initialize WebSocket for real-time updates
@@ -107,7 +107,6 @@ function AppContent() {
 
   const { data: notifications = [] } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
-    enabled: isAuthenticated,
   });
 
   const markAsReadMutation = useMutation({
@@ -121,9 +120,8 @@ function AppContent() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/auth/logout", {
-        method: "POST",
-      });
+      const res = await apiRequest("POST", "/api/auth/logout");
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.clear();
@@ -134,11 +132,6 @@ function AppContent() {
       });
     },
   });
-
-  // Public pages (login, change-password)
-  if (location === "/login" || !isAuthenticated) {
-    return <Router />;
-  }
 
   return (
     <div className="flex h-screen w-full">
@@ -178,6 +171,32 @@ function AppContent() {
   );
 }
 
+function AppContent() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated and not already on login page
+  if (!isAuthenticated && location !== "/login") {
+    return <Router />;
+  }
+
+  // Show login page without sidebar
+  if (location === "/login") {
+    return <Router />;
+  }
+
+  // Show authenticated layout with sidebar
+  return <AuthenticatedLayout />;
+}
+
 export default function App() {
   const sidebarStyle = {
     "--sidebar-width": "16rem",
@@ -186,14 +205,14 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
+      <TooltipProvider>
+        <AuthProvider>
           <SidebarProvider style={sidebarStyle as React.CSSProperties}>
             <AppContent />
           </SidebarProvider>
           <Toaster />
-        </TooltipProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

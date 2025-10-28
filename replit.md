@@ -108,15 +108,27 @@ Timeline de atividades com filtro por evento
 
 ## Recursos Implementados
 
-### 🆕 Sistema de Perfis de Usuário (Fase 1)
-- ✅ **AuthContext**: Gerenciamento de usuário atual com localStorage
-- ✅ **ProfileSelector**: Dropdown no header para trocar perfis
-- ✅ **4 Perfis**: Admin, Solicitação, Arte, Gráfica
-- ✅ **Permissões**: Função `hasPermission()` para controle de acesso
-- ✅ **Audit Logs**: Registro automático de todas ações com nome e horário
-- ✅ **Editar/Deletar (Admin)**: Botões exclusivos para Admin gerenciar eventos e itens
-- 🔜 **Autenticação Real**: Backend com login/senha (Fase 2)
-- 🔜 **Enforcement**: Ocultar módulos baseado em permissões (Fase 2)
+### ✅ Sistema de Autenticação e Controle de Acesso
+- ✅ **Autenticação Real**: Sistema completo de login/logout com sessões
+- ✅ **Gerenciamento de Senhas**: Bcryptjs para hash seguro de senhas
+- ✅ **Primeiro Acesso**: Troca obrigatória de senha no primeiro login
+- ✅ **Gerenciamento de Usuários**: Interface admin para criar, editar e deletar usuários
+- ✅ **4 Perfis de Acesso**: 
+  - **Admin**: Acesso completo ao sistema, incluindo gerenciamento de usuários
+  - **Solicitação**: Criação e gerenciamento de eventos
+  - **Arte**: Aprovação de artes e liberação para produção
+  - **Gráfica**: Controle de produção e entregas
+- ✅ **Controle de Acesso**: Função `hasPermission()` para verificar permissões
+- ✅ **Proteção de Rotas**: Middleware automático que redireciona usuários não autenticados
+- ✅ **Audit Logs**: Registro automático de ações com nome do usuário e timestamp
+- ✅ **Páginas de Autenticação**:
+  - `/login` - Tela de login
+  - `/change-password` - Troca de senha (obrigatória no primeiro acesso)
+  - `/usuarios` - Gerenciamento de usuários (apenas Admin)
+- ✅ **Usuário Admin Padrão**: 
+  - Email: admin@norte.com
+  - Senha inicial: admin123
+- 🔜 **Enforcement**: Ocultar módulos não autorizados por perfil (Fase 2)
 
 ### 🆕 Audit Logs - Rastreamento de Modificações
 - ✅ **Tabela auditLogs**: Banco de dados com todos os logs

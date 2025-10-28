@@ -103,14 +103,11 @@ export default function Usuarios() {
   const createUserMutation = useMutation({
     mutationFn: async (data: UserForm) => {
       const { password, ...rest } = data;
-      return await apiRequest<User>("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...rest,
-          password: password || "123456", // Default password
-        }),
+      const res = await apiRequest("POST", "/api/auth/register", {
+        ...rest,
+        password: password || "123456", // Default password
       });
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
@@ -132,11 +129,8 @@ export default function Usuarios() {
 
   const updateUserMutation = useMutation({
     mutationFn: async (data: { id: string; update: Partial<UserForm> }) => {
-      return await apiRequest<User>(`/api/users/${data.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data.update),
-      });
+      const res = await apiRequest("PATCH", `/api/users/${data.id}`, data.update);
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
@@ -158,9 +152,8 @@ export default function Usuarios() {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/users/${id}`, {
-        method: "DELETE",
-      });
+      const res = await apiRequest("DELETE", `/api/users/${id}`);
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });

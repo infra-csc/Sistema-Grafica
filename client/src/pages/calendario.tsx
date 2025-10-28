@@ -76,7 +76,7 @@ export default function Calendario() {
     };
   };
 
-  // Status para SAÍDA DO CAMINHÃO (truckDepartureDate)
+  // Status para SAÍDA DO CAMINHÃO (truckDepartureDate) - Considera prioridade
   const getTruckDepartureStatus = (event: any) => {
     const now = new Date();
     const departure = new Date(event.truckDepartureDate);
@@ -94,6 +94,30 @@ export default function Calendario() {
       };
     }
     
+    // PRIORIDADE URGENTE sempre vermelho (exceto se já concluído)
+    if (event.priority === 'urgente') {
+      return { 
+        status: 'critical', 
+        colorBg: 'bg-red-600',
+        colorAccent: 'bg-red-600/20',
+        textColor: 'text-red-600',
+        borderColor: 'border-red-600',
+        label: 'Prioridade Urgente' 
+      };
+    }
+    
+    // PRIORIDADE ALTA sempre laranja (exceto se já concluído ou urgente por prazo)
+    if (event.priority === 'alta' && hoursUntilDeparture >= 24) {
+      return { 
+        status: 'warning', 
+        colorBg: 'bg-orange-600',
+        colorAccent: 'bg-orange-600/20',
+        textColor: 'text-orange-600',
+        borderColor: 'border-orange-600',
+        label: 'Prioridade Alta' 
+      };
+    }
+    
     // Vermelho: Menos de 24h para saída
     if (hoursUntilDeparture < 24) {
       return { 
@@ -106,15 +130,15 @@ export default function Calendario() {
       };
     }
     
-    // Amarelo: Entre 24h e 48h para saída
-    if (hoursUntilDeparture < 48) {
+    // Amarelo: Entre 24h e 48h para saída OU prioridade média
+    if (hoursUntilDeparture < 48 || event.priority === 'media') {
       return { 
         status: 'warning', 
         colorBg: 'bg-status-pending',
         colorAccent: 'bg-status-pending/20',
         textColor: 'text-status-pending',
         borderColor: 'border-status-pending',
-        label: 'Saída em menos de 48h' 
+        label: event.priority === 'media' ? 'Prioridade Média' : 'Saída em menos de 48h' 
       };
     }
     
@@ -344,32 +368,37 @@ export default function Calendario() {
 
         <Card className="bg-muted/30 border-muted">
           <CardHeader className="pb-3">
-            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Legenda - Status por Prazo</CardTitle>
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Legenda - Status e Prioridade</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-1.5">
               <p className="text-[10px] text-muted-foreground/70 mb-0.5">
-                Cada data tem seu próprio status baseado no prazo:
+                Cores baseadas em prazo e prioridade:
               </p>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-status-completed shrink-0" />
                 <span className="text-xs font-medium text-status-completed">Verde:</span>
-                <span className="text-xs text-muted-foreground">Realizado ou finalizado</span>
+                <span className="text-xs text-muted-foreground">Realizado/Finalizado</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-status-approved shrink-0" />
-                <span className="text-xs font-medium text-status-approved">Azul:</span>
-                <span className="text-xs text-muted-foreground">Mais de 48h restantes</span>
+                <div className="w-3 h-3 rounded bg-red-600 shrink-0" />
+                <span className="text-xs font-medium text-red-600">Vermelho:</span>
+                <span className="text-xs text-muted-foreground">&lt;24h ou Urgente</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-orange-600 shrink-0" />
+                <span className="text-xs font-medium text-orange-600">Laranja:</span>
+                <span className="text-xs text-muted-foreground">Prioridade Alta</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-status-pending shrink-0" />
                 <span className="text-xs font-medium text-status-pending">Amarelo:</span>
-                <span className="text-xs text-muted-foreground">Entre 24h e 48h</span>
+                <span className="text-xs text-muted-foreground">24-48h ou Média</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-status-urgent shrink-0" />
-                <span className="text-xs font-medium text-status-urgent">Vermelho:</span>
-                <span className="text-xs text-muted-foreground">Menos de 24h</span>
+                <div className="w-3 h-3 rounded bg-status-approved shrink-0" />
+                <span className="text-xs font-medium text-status-approved">Azul:</span>
+                <span className="text-xs text-muted-foreground">&gt;48h e sem prioridade</span>
               </div>
             </div>
           </CardContent>

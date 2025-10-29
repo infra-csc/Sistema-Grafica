@@ -376,12 +376,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const allEvents = await storage.getAllEvents();
       
-      // Fetch items for each event
+      // Fetch items for each event and calculate real-time status
       const eventsWithItems = await Promise.all(
         allEvents.map(async (event) => {
           const eventItems = await storage.getItemsByEvent(event.id);
+          
+          // Calculate real-time status
+          const now = new Date();
+          const eventStartDate = new Date(event.startDate);
+          const eventHasPassed = now > eventStartDate;
+          
+          let calculatedStatus = event.status;
+          
+          if (eventHasPassed) {
+            calculatedStatus = "completed";
+          } else if (eventItems.length > 0) {
+            const allDelivered = eventItems.every(item => item.status === "delivered");
+            if (allDelivered) {
+              calculatedStatus = "completed";
+            }
+          }
+          
           return {
             ...event,
+            status: calculatedStatus, // Override with calculated status
             items: eventItems,
           };
         })

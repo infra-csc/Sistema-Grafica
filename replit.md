@@ -1,242 +1,51 @@
 # NORTE - Sistema de Gestão de Produção Gráfica
 
 ## Overview
-
-NORTE is a comprehensive graphic production management system developed for NORTE Marketing Esportivo. Its primary purpose is to replace Excel spreadsheets, enhancing agility while providing complete control, traceability, and automatic notifications for the entire production workflow: **Request → Art → Printing → Delivery**. The system aims to streamline operations, improve oversight, and ensure timely communication across all stages.
+NORTE is a comprehensive graphic production management system for NORTE Marketing Esportivo. Its main goal is to replace Excel spreadsheets, enhancing agility and providing complete control, traceability, and automatic notifications across the entire production workflow: **Request → Art → Printing → Delivery**. The system aims to streamline operations, improve oversight, and ensure timely communication at all stages.
 
 ## User Preferences
-
 I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.
 
 ## System Architecture
 
 ### UI/UX Decisions
-The system features a professional light mode theme with a clean white background, subtle borders, and brand gradients in the header. The UI prioritizes simplicity, agility, visual control through color-coded statuses, and intelligent notifications. Key visual elements include:
-- **Client Logo**: Displayed in the sidebar header.
-- **Color Palette**:
-    - NORTE Blue (Primary): 210 70% 25% (main buttons, important elements)
-    - NORTE Cyan (Accent): 188 100% 42% (secondary actions, links)
-    - NORTE Magenta: 330 65% 50% (decorative highlights)
-    - NORTE Purple: 280 55% 45% (alternative accent)
-- **Status Colors**: Green (Completed), Yellow (Created/Requested), Red (Urgent/Late), Blue (Approved/In Process), Orange (In Production).
-- **Dashboard**: Features real-time statistics cards, a complete table with filters and search, and visual status indicators. Includes visual graphs (pie for status, bar for items per event), urgent alerts with countdowns, and expanded statistics (average approval/production time, delivery rate, most produced item).
-- **Calendar**: Monthly grid displaying events with status-based coloring for `startDate` and `truckDepartureDate`, visual alerts for critical deadlines, and a discreet legend.
-- **History**: Vertical timeline with chronological activities, filterable by event, showing icons, badges, detailed descriptions, and relative/exact timestamps.
+The system features a professional light mode theme with a clean white background, subtle borders, and brand gradients in the header. The UI prioritizes simplicity, agility, visual control through color-coded statuses, and intelligent notifications. Key visual elements include a client logo in the sidebar, a defined color palette (NORTE Blue, Cyan, Magenta, Purple), and status colors (Green, Yellow, Red, Blue, Orange). The dashboard includes real-time statistics, a filterable table, visual graphs, urgent alerts, and expanded statistics. A calendar provides a monthly grid with status-based coloring and alerts, and a history section offers a vertical timeline of activities.
 
 ### Technical Implementations
 - **Frontend**: React, TypeScript, Tailwind CSS, Shadcn UI.
 - **Backend**: Express.js, TypeScript.
 - **Database**: PostgreSQL (Neon).
 - **Real-time Communication**: WebSockets for notifications and live updates.
-- **Data Validation**: Zod schemas (used in both frontend and backend).
+- **Data Validation**: Zod schemas.
 - **ORM**: Drizzle ORM.
-- **State Management/Data Fetching**: React Query for data caching and synchronization.
-- **Timezone Handling**: Database stores UTC timestamps; JavaScript handles conversions between UTC and the browser's local timezone (Brasília - UTC-3).
-- **Date Handling**: 
-  - **startDate** (Início do Evento): Apenas data, sem horário. Usa `type="date"` e exibe somente a data (DD/MM/AAAA).
-  - **truckDepartureDate** (Saída do Caminhão): Data e horário completos. Usa `type="datetime-local"` e exibe data e hora (DD/MM/AAAA às HH:MM) em todas as telas.
+- **State Management/Data Fetching**: React Query.
+- **Timezone Handling**: UTC timestamps in DB, JavaScript handles conversions to browser's local timezone (Brasília - UTC-3).
+- **Date Handling**: `startDate` (date only), `truckDepartureDate` (datetime-local).
 
 ### Feature Specifications
-- **Modules**:
-    - **General Panel (Dashboard)**: Real-time overview of all items, statistics, and a filterable table.
-    - **Events**: Management of events with visual cards, creation forms, and status indicators.
-    - **Items (Event Detail)**: Addition of graphic items to events, automatic m² calculation, observations per item. Items cannot be modified after creation, only added.
-    - **Art**: Approval module for print files with pending/approved views, bulk approval, and notifications.
-    - **Printing**: Control of material delivery, tracking delivered items, and capturing delivery details (recipient, optional photo).
-    - **Templates**: Creation and management of reusable standard item templates.
-    - **Calendar**: Visual temporal overview of events with critical date alerts.
-    - **History**: Chronological timeline of all system activities with event filtering.
+- **Modules**: General Panel (Dashboard), Events, Items (Event Detail), Art Approval, Printing Control, Templates, Calendar, History.
 - **Notifications**: Automated for event creation, item additions, art approval, and deadline alerts (48h, 24h, 12h before truck departure).
 - **Item Statuses**: `requested`, `approved`, `inProduction`, `produced`, `delivered`.
 - **Event Statuses**: `created`, `completed`, `urgent`.
-- **Future Features (Phase 2)**: User access profiles (Admin, Request, Art, Printing), integrated comments and delivery photo galleries for items, visible audit logs, event templates, and manual confirmation for significant changes.
+- **User Authentication & Access Control**: Full login/logout, Bcryptjs for passwords, mandatory first-time password change, user management (Admin), 4 user profiles (Admin, Solicitation, Art, Graphics) with route protection and `hasPermission()` checks.
+- **Intelligent Notification System**: Notifications targeted to specific user roles based on event type.
+- **Audit Logs**: Automatic logging of significant actions (event/item creation, approval, delivery) including user, timestamp, action, entity type/ID, and details, viewable in History and Event Details.
+- **Admin Edit/Delete**: Functionality for Admin users to edit and delete events and items with corresponding audit logs and confirmation dialogs.
+- **Event Priority System**: Events can have priorities (Low, Medium, High, Urgent), displayed visually with badges and influencing calendar coloring.
+- **Automatic Event Status**: Events are marked "completed" when all items are delivered; status reverts if new items are added to a completed event.
 
 ### System Design Choices
-- **Folder Structure**: Clearly separated client, server, and shared directories.
-- **Component-Based**: Reusable UI components for consistency.
-- **API Endpoints**: RESTful API for managing events, items, standard items, and notifications.
-- **Scalability**: Designed with a robust backend and database to support future growth.
-- **Responsiveness**: Full responsiveness for mobile, tablet, and desktop.
+- **Folder Structure**: Client, server, and shared directories.
+- **Component-Based**: Reusable UI components.
+- **API Endpoints**: RESTful API.
+- **Scalability**: Robust backend and database.
+- **Responsiveness**: Full responsiveness for all devices.
 
 ## External Dependencies
-
-- **Database**: PostgreSQL (managed by Neon).
-- **Frontend Libraries**: React, Tailwind CSS, Shadcn UI.
+- **Database**: PostgreSQL (Neon).
+- **Frontend Libraries**: React, Tailwind CSS, Shadcn UI, Recharts, date-fns.
 - **Backend Framework**: Express.js.
 - **Data ORM**: Drizzle ORM.
 - **Validation Library**: Zod.
 - **Real-time Communication**: WebSockets.
-## Páginas do Sistema
-
-### 1. Painel Geral (/)
-Dashboard principal com visão geral simplificada:
-- 6 cards de estatísticas (Total, Solicitados, Liberados, Em Produção, Produzidos, Entregues)
-- Tabela completa com todos os itens
-- **🆕 Filtros Avançados**: Material e Acabamento (botão toggle com reset)
-- Filtros por evento, status e busca por texto
-- Foco em operação do dia-a-dia
-
-### 2. Análises (/analises) **NOVO!**
-Tela dedicada a métricas avançadas e visualizações:
-- **Alertas Urgentes**: Eventos com saída do caminhão em <48h
-- **Gráficos Recharts**: Pizza (distribuição status) e Barras (produção por evento)
-- **Métricas de Desempenho**: Tempo médio aprovação/produção, taxa de entrega
-- **Top 5 Rankings**: Itens mais produzidos
-- **Exportação**: Download de relatório CSV completo
-
-### 3. Eventos (/eventos)
-Gerenciamento de eventos com cards visuais
-- Cards com status colorido e informações-chave
-- **🆕 Sistema de Prioridades**: Definição de prioridade por evento (baixa, média, alta, urgente)
-- **🆕 Status Automático**: Eventos marcados como "concluído" automaticamente quando todos itens entregues
-- **🆕 Validação de Prioridade**: Ao adicionar item em evento concluído, prioridade deve ser redefinida
-
-### 4. Arte (/arte)
-Módulo de aprovação de arte
-- **🆕 Filtro Pesquisável de Eventos**: Combobox com busca para filtrar itens por evento
-- **🆕 Filtro "Próximos 10 dias"**: Toggle para exibir apenas eventos com saída do caminhão nos próximos 10 dias
-- **🆕 Filtro por Mês**: Seleção de mês para filtrar datas de saída do caminhão
-
-### 5. Gráfica (/grafica)
-Controle de entrega e produção
-
-### 6. Modelos (/modelos)
-Templates reutilizáveis de itens
-
-### 7. Calendário (/calendario)
-Visão temporal com alertas de datas críticas
-- **✅ Cores por Prioridade**: Cards coloridos baseados EXCLUSIVAMENTE na prioridade do evento
-- **✅ Legenda**: Vermelho (Urgente), Laranja (Alta), Amarelo (Média), Azul (Baixa/Sem prioridade)
-
-### 8. Histórico (/historico)
-Timeline de atividades com filtro por evento
-
-## Sistema de Prioridades e Status
-
-### ✅ Prioridades de Eventos
-O sistema implementa um controle completo de prioridades para eventos com 4 níveis:
-
-#### Níveis de Prioridade
-- **🔵 Baixa**: Eventos de rotina sem urgência especial
-- **🟡 Média**: Eventos que necessitam atenção moderada
-- **🟠 Alta**: Eventos importantes que devem ser priorizados
-- **🔴 Urgente**: Eventos críticos de máxima prioridade
-
-#### Funcionalidades
-- **Definição Visual**: Dialog intuitivo com botões coloridos para selecionar prioridade
-- **Badge de Prioridade**: Exibido nos cards de eventos com ícone e cor correspondente
-- **Integração com Calendário**: Cores no calendário refletem prioridade + prazo
-- **Botão de Prioridade**: Ícone de bandeira (preenchido quando há prioridade definida)
-
-#### Lógica de Cores no Calendário
-As cores dos cards no calendário são definidas EXCLUSIVAMENTE pela prioridade do evento:
-1. **🔴 Vermelho**: Prioridade urgente
-2. **🟠 Laranja**: Prioridade alta
-3. **🟡 Amarelo**: Prioridade média
-4. **🔵 Azul**: Prioridade baixa ou sem prioridade definida
-
-Esta abordagem permite identificar rapidamente os eventos críticos independentemente das datas.
-
-### ✅ Status Automático de Eventos
-- **Cálculo Inteligente**: Status do evento calculado automaticamente baseado nos itens
-- **Status "completed"**: Marcado quando TODOS os itens foram entregues
-- **Badge Verde**: Exibido em eventos concluídos (✓ Concluído)
-- **Validação de Itens**: Ao adicionar item em evento concluído, sistema solicita redefinição de prioridade
-
-#### Endpoint Backend
-- **PATCH /api/events/:id/priority**: Atualiza prioridade do evento
-  - Body: `{ priority: "baixa" | "media" | "alta" | "urgente" }`
-  - Retorna evento atualizado com novo status calculado
-
-#### Regras de Negócio
-1. Evento só pode ser "completed" quando todos itens estão "delivered"
-2. Se um evento está "completed" e um novo item é adicionado, o status volta para "created"
-3. A prioridade pode ser alterada a qualquer momento
-4. A cor visual combina prioridade + prazo (prioridade tem precedência)
-
-## Recursos Implementados
-
-### ✅ Sistema de Autenticação e Controle de Acesso
-- ✅ **Autenticação Real**: Sistema completo de login/logout com sessões
-- ✅ **Gerenciamento de Senhas**: Bcryptjs para hash seguro de senhas
-- ✅ **Primeiro Acesso**: Troca obrigatória de senha no primeiro login
-- ✅ **Gerenciamento de Usuários**: Interface admin para criar, editar e deletar usuários
-- ✅ **4 Perfis de Acesso**: 
-  - **Admin**: Acesso completo ao sistema, incluindo gerenciamento de usuários
-  - **Solicitação**: Criação e gerenciamento de eventos
-  - **Arte**: Aprovação de artes e liberação para produção
-  - **Gráfica**: Controle de produção e entregas
-- ✅ **Controle de Acesso**: Função `hasPermission()` para verificar permissões
-- ✅ **Proteção de Rotas**: Middleware automático que redireciona usuários não autenticados
-- ✅ **Audit Logs**: Registro automático de ações com nome do usuário e timestamp
-- ✅ **Páginas de Autenticação**:
-  - `/login` - Tela de login
-  - `/change-password` - Troca de senha (obrigatória no primeiro acesso)
-  - `/usuarios` - Gerenciamento de usuários (apenas Admin)
-- ✅ **Usuário Admin Padrão**: 
-  - Email: admin@norte.com
-  - Senha inicial: admin123
-- 🔜 **Enforcement**: Ocultar módulos não autorizados por perfil (Fase 2)
-
-### 🆕 Audit Logs - Rastreamento de Modificações
-- ✅ **Tabela auditLogs**: Banco de dados com todos os logs
-- ✅ **Endpoint GET /api/audit-logs**: Lista logs (filtráveis por tipo/entidade)
-- ✅ **Registro Automático**: Logs criados para:
-  - Criação de eventos
-  - Criação de itens
-  - Aprovação de itens (Arte)
-  - Entrega de itens (Gráfica)
-- ✅ **Informações Registradas**:
-  - Nome do usuário (do perfil selecionado)
-  - Data e hora (timestamp automático)
-  - Ação realizada
-  - Tipo de entidade (event, item)
-  - ID da entidade
-  - Detalhes da mudança
-- ✅ **Visualização no Histórico**: 
-  - Cada ação mostra "por [Nome do Usuário] • [tempo relativo]"
-  - Data e hora completa no canto direito
-  - Informação visível em ações importantes (criação, aprovação, entrega)
-  - **Filtros por tipo de ação**: Criações, Aprovações, Em Produção, Entregas
-  - Combinação de filtros: tipo de ação + evento específico
-- ✅ **Mini-Timeline na Página de Detalhes do Evento**:
-  - Exibe últimas 5 ações relacionadas ao evento
-  - Mostra quem fez cada ação e quando
-  - Ícones coloridos por tipo de ação
-  - Atualização automática conforme ações acontecem
-- ✅ **Informações nos Cards de Itens**:
-  - "Aprovado por [Nome]" visível em itens aprovados
-  - "Entregue por [Nome]" visível em itens entregues
-  - Informação discreta mas sempre visível no Painel Geral
-
-### ✅ Edição e Exclusão (Admin)
-- **Rotas Backend**:
-  - PATCH /api/events/:id - Atualizar evento
-  - DELETE /api/events/:id - Deletar evento (e todos itens associados)
-  - PATCH /api/items/:id - Atualizar item
-  - DELETE /api/items/:id - Deletar item
-  - Todas com audit logs automáticos
-- **Frontend - Eventos** (/eventos):
-  - Botões editar/deletar em cada card (apenas Admin)
-  - Dialog reutilizado para criar/editar
-  - AlertDialog de confirmação antes de excluir
-  - Avisos sobre exclusão de itens associados
-- **Frontend - Itens** (detalhes do evento):
-  - Coluna "Ações" na tabela (apenas Admin)
-  - Botões editar/deletar por item
-  - Dialog reutilizado para criar/editar
-  - AlertDialog de confirmação antes de excluir
-- **Segurança**: Verificação hasPermission("admin") em todos os botões
-- **Feedback**: Toasts informativos e loading states em todas operações
-
-### Backend Pronto (Componentes Criados)
-- ✅ **Sistema de Comentários**: Backend + componente CommentsSection
-- ✅ **Galeria de Fotos**: Backend + componente DeliveryPhotoGallery
-- ✅ **Tabelas Expandidas**: users, comments, deliveryPhotos, auditLogs
-- 🔜 **Integração na UI**: Próxima fase
-
-### Bibliotecas Principais
-- **Recharts**: Gráficos de pizza e barras
-- **date-fns**: Manipulação de datas e cálculos de tempo
-- **React Query**: Cache e sincronização de dados
-- **WebSocket**: Notificações em tempo real
+- **Authentication**: Bcryptjs.

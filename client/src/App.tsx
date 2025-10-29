@@ -105,6 +105,7 @@ function AuthenticatedLayout() {
   // Initialize WebSocket for real-time updates
   useWebSocket();
 
+  // Notificações já vêm filtradas pelo backend baseadas no perfil do usuário
   const { data: notifications = [] } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
   });

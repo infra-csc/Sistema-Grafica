@@ -71,7 +71,7 @@ export const notifications = pgTable("notifications", {
   message: text("message").notNull(),
   eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }),
   itemId: varchar("item_id").references(() => items.id, { onDelete: "cascade" }),
-  targetRoles: text("target_roles").array().notNull(), // Perfis que devem receber: ["arte", "grafica", "solicitacao"]
+  targetRoles: text("target_roles").array().notNull().default(sql`ARRAY['admin', 'solicitacao', 'arte', 'grafica']::text[]`), // Perfis que devem receber
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
@@ -221,7 +221,7 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   createdAt: true,
   isRead: true,
 }).extend({
-  targetRoles: z.array(z.enum(["admin", "solicitacao", "arte", "grafica"])),
+  targetRoles: z.array(z.enum(["admin", "solicitacao", "arte", "grafica"])).default(["admin", "solicitacao", "arte", "grafica"]),
 });
 
 export const insertProductionUpdateSchema = createInsertSchema(productionUpdates).omit({

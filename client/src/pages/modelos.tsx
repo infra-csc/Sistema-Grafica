@@ -208,9 +208,27 @@ export default function Modelos() {
               className="pl-9 w-full sm:w-64"
             />
           </div>
-          <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCloseDialog()}>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-new-model">
+            <Button 
+              data-testid="button-new-model"
+              onClick={() => {
+                setEditingItem(null);
+                setFormData({
+                  name: "",
+                  type: "",
+                  area: "",
+                  visual: "",
+                  visualWidth: "",
+                  visualHeight: "",
+                  fileWidth: "",
+                  fileHeight: "",
+                  material: "",
+                  finish: "",
+                  hasVariableMeasurement: false,
+                });
+              }}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Novo Modelo
             </Button>

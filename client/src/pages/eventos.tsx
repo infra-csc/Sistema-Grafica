@@ -484,26 +484,26 @@ export default function Eventos() {
           )}
         </div>
         
-        {/* Legenda bem mais discreta */}
-        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground/40 mt-1">
-          <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-red-600"></div>
+        {/* Legenda discreta */}
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground/60 mt-1">
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-red-600"></div>
             <span>Urgente</span>
           </span>
-          <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-yellow-500"></div>
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-yellow-500"></div>
             <span>Alta</span>
           </span>
-          <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-purple-600"></div>
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-purple-600"></div>
             <span>Média</span>
           </span>
-          <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
             <span>Baixa</span>
           </span>
-          <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-status-completed"></div>
+          <span className="flex items-center gap-1.5">
+            <div className="h-2 w-2 rounded-full bg-status-completed"></div>
             <span>Concluído</span>
           </span>
         </div>

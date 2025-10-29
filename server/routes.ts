@@ -411,12 +411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Evento "${event.name}" criado`
       );
       
-      // Create notification
-      await storage.createNotification({
-        type: "eventCreated",
-        message: `Novo evento criado: ${event.name}`,
-        eventId: event.id,
-      });
+      // Não notificar quando evento é criado (só quando itens forem adicionados)
       
       // Broadcast update
       broadcast({ type: "event_created", event });
@@ -612,14 +607,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (event.status === "completed") {
         await storage.updateEvent(event.id, { 
           status: "created",
-          priority: null // Reset priority - must be redefined
+          priority: undefined // Reset priority - must be redefined
         });
         
-        // Create notification about priority reset
+        // Notificação sobre reset de prioridade (apenas admin)
         await storage.createNotification({
           type: "eventCreated",
           message: `Item adicionado ao evento "${event.name}" que estava concluído. Prioridade precisa ser redefinida.`,
           eventId: event.id,
+          targetRoles: ["admin"],
         });
       }
       
@@ -634,12 +630,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
       );
       
-      // Create notification
+      // Novo item adicionado - notifica Arte + Gráfica
       await storage.createNotification({
         type: "itemAdded",
         message: `Novo item adicionado: ${item.type} - Evento: ${event.name}`,
         eventId: item.eventId,
         itemId: item.id,
+        targetRoles: ["arte", "grafica"],
       });
       
       // Update event status
@@ -678,12 +675,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const firstItem = createdItems[0];
       const event = firstItem ? await storage.getEvent(firstItem.eventId) : null;
       
-      // Create notification for bulk addition
+      // Primeira lista de itens - notificação única para Arte + Gráfica
       if (event) {
         await storage.createNotification({
           type: "itemAdded",
           message: `${createdItems.length} itens adicionados - Evento: ${event.name}`,
           eventId: event.id,
+          targetRoles: ["arte", "grafica"],
         });
       }
       
@@ -773,12 +771,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Item "${item.type}" aprovado para produção`
       );
       
-      // Create notification
+      // Liberação pela Arte - notifica apenas Gráfica
       await storage.createNotification({
         type: "arteApproved",
         message: `Item liberado para produção: ${item.type} - Evento: ${event?.name}`,
         eventId: item.eventId,
         itemId: item.id,
+        targetRoles: ["grafica"],
       });
       
       broadcast({ type: "item_approved", item });
@@ -805,13 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const event = await storage.getEvent(item.eventId);
       
-      // Create notification
-      await storage.createNotification({
-        type: "productionStarted",
-        message: `Produção iniciada: ${item.type} - ${quantityProduced}/${item.quantity} unidades - Evento: ${event?.name}`,
-        eventId: item.eventId,
-        itemId: item.id,
-      });
+      // Não notificar sobre início de produção
       
       broadcast({ type: "production_started", item });
       
@@ -846,16 +839,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Item "${item.type}" entregue - Recebido por: ${receivedBy}`
       );
       
-      // Create notification
-      await storage.createNotification({
-        type: "itemDelivered",
-        message: `Item entregue: ${item.type} - Recebido por: ${receivedBy} - Evento: ${event?.name}`,
-        eventId: item.eventId,
-        itemId: item.id,
-      });
-      
       // Recalculate event status - might become "completed"
+      const previousStatus = event?.status;
       await updateEventStatus(item.eventId);
+      
+      // Verificar se evento foi concluído agora - notificar Solicitação
+      const updatedEvent = await storage.getEvent(item.eventId);
+      if (previousStatus !== "completed" && updatedEvent?.status === "completed") {
+        await storage.createNotification({
+          type: "eventCompleted",
+          message: `Evento concluído: ${event?.name} - Todos os itens foram entregues`,
+          eventId: item.eventId,
+          targetRoles: ["solicitacao"],
+        });
+      }
       
       broadcast({ type: "item_delivered", item });
       
@@ -891,13 +888,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const event = await storage.getEvent(item.eventId);
       
-      // Create notification
-      await storage.createNotification({
-        type: "productionUpdate",
-        message: `Produção atualizada: ${item.type} - ${validatedData.quantityProduced}/${item.quantity} - Evento: ${event?.name}`,
-        eventId: item.eventId,
-        itemId: item.id,
-      });
+      // Não notificar sobre atualizações de produção
       
       broadcast({ type: "production_updated", item: updatedItem, update: productionUpdate });
       
@@ -1207,6 +1198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: "deadlineAlert",
             message: `⚠️ ALERTA: Faltam ${hours}h para saída do caminhão - ${event.name}`,
             eventId: event.id,
+            targetRoles: ["arte", "grafica", "solicitacao"], // Alertas para todos
           });
 
           broadcast({

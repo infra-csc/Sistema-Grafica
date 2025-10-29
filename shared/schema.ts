@@ -67,10 +67,11 @@ export const standardItems = pgTable("standard_items", {
 // Notifications table
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  type: text("type").notNull(), // eventCreated, itemAdded, arteApproved, deadlineAlert
+  type: text("type").notNull(), // eventCreated, itemAdded, arteApproved, deadlineAlert, eventCompleted
   message: text("message").notNull(),
   eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }),
   itemId: varchar("item_id").references(() => items.id, { onDelete: "cascade" }),
+  targetRoles: text("target_roles").array().notNull(), // Perfis que devem receber: ["arte", "grafica", "solicitacao"]
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
@@ -219,6 +220,8 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   id: true,
   createdAt: true,
   isRead: true,
+}).extend({
+  targetRoles: z.array(z.enum(["admin", "solicitacao", "arte", "grafica"])),
 });
 
 export const insertProductionUpdateSchema = createInsertSchema(productionUpdates).omit({
@@ -232,8 +235,10 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  passwordHash: true,
 }).extend({
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  role: z.enum(["admin", "solicitacao", "arte", "grafica"]).default("solicitacao"),
 });
 
 export const loginSchema = z.object({

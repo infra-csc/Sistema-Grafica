@@ -53,6 +53,7 @@ interface BulkItemEntryProps {
 export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [openPopovers, setOpenPopovers] = useState<Record<string, boolean>>({});
+  const [customTypeInputs, setCustomTypeInputs] = useState<Record<string, string>>({});
 
   function createEmptyRow(): BulkItemRow {
     return {
@@ -279,9 +280,32 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                     </PopoverTrigger>
                     <PopoverContent className="w-[200px] p-0" align="start">
                       <Command>
-                        <CommandInput placeholder="Buscar tipo..." />
+                        <CommandInput 
+                          placeholder="Buscar ou adicionar..." 
+                          value={customTypeInputs[row.id] || ""}
+                          onValueChange={(value) => setCustomTypeInputs(prev => ({ ...prev, [row.id]: value }))}
+                        />
                         <CommandList>
-                          <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
+                          <CommandEmpty>
+                            <div className="p-2 space-y-2">
+                              <p className="text-xs text-muted-foreground">Nenhum tipo encontrado.</p>
+                              {customTypeInputs[row.id] && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="w-full h-7 text-xs"
+                                  onClick={() => {
+                                    updateRow(row.id, 'type', customTypeInputs[row.id]);
+                                    setCustomTypeInputs(prev => ({ ...prev, [row.id]: "" }));
+                                    setOpenPopovers(prev => ({ ...prev, [row.id]: false }));
+                                  }}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Adicionar "{customTypeInputs[row.id]}"
+                                </Button>
+                              )}
+                            </div>
+                          </CommandEmpty>
                           {standardItems.length > 0 && (
                             <CommandGroup heading="Modelos">
                               {standardItems.map(item => (
@@ -290,6 +314,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                                   value={item.name}
                                   onSelect={() => {
                                     updateRow(row.id, 'type', item.name);
+                                    setCustomTypeInputs(prev => ({ ...prev, [row.id]: "" }));
                                     setOpenPopovers(prev => ({ ...prev, [row.id]: false }));
                                   }}
                                 >
@@ -311,6 +336,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                                 value={type}
                                 onSelect={() => {
                                   updateRow(row.id, 'type', type);
+                                  setCustomTypeInputs(prev => ({ ...prev, [row.id]: "" }));
                                   setOpenPopovers(prev => ({ ...prev, [row.id]: false }));
                                 }}
                               >

@@ -611,12 +611,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // Notificação sobre reset de prioridade (apenas admin)
-        await storage.createNotification({
+        const notification = await storage.createNotification({
           type: "eventCreated",
           message: `Item adicionado ao evento "${event.name}" que estava concluído. Prioridade precisa ser redefinida.`,
           eventId: event.id,
           targetRoles: ["admin"],
         });
+        broadcast({ type: "notification_created", notification });
       }
       
       const item = await storage.createItem(validatedData);
@@ -631,7 +632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       // Novo item adicionado - notifica Arte + Gráfica
-      await storage.createNotification({
+      const notification = await storage.createNotification({
         type: "itemAdded",
         message: `Novo item adicionado: ${item.type} - Evento: ${event.name}`,
         eventId: item.eventId,
@@ -643,6 +644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await updateEventStatus(item.eventId);
       
       broadcast({ type: "item_created", item });
+      broadcast({ type: "notification_created", notification });
       
       res.status(201).json(item);
     } catch (error: any) {
@@ -677,12 +679,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Primeira lista de itens - notificação única para Arte + Gráfica
       if (event) {
-        await storage.createNotification({
+        const notification = await storage.createNotification({
           type: "itemAdded",
           message: `${createdItems.length} itens adicionados - Evento: ${event.name}`,
           eventId: event.id,
           targetRoles: ["arte", "grafica"],
         });
+        broadcast({ type: "notification_created", notification });
       }
       
       // Broadcast update
@@ -772,7 +775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       // Liberação pela Arte - notifica apenas Gráfica
-      await storage.createNotification({
+      const notification = await storage.createNotification({
         type: "arteApproved",
         message: `Item liberado para produção: ${item.type} - Evento: ${event?.name}`,
         eventId: item.eventId,
@@ -781,6 +784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       broadcast({ type: "item_approved", item });
+      broadcast({ type: "notification_created", notification });
       
       res.json(item);
     } catch (error: any) {
@@ -846,12 +850,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Verificar se evento foi concluído agora - notificar Solicitação
       const updatedEvent = await storage.getEvent(item.eventId);
       if (previousStatus !== "completed" && updatedEvent?.status === "completed") {
-        await storage.createNotification({
+        const notification = await storage.createNotification({
           type: "eventCompleted",
           message: `Evento concluído: ${event?.name} - Todos os itens foram entregues`,
           eventId: item.eventId,
           targetRoles: ["solicitacao"],
         });
+        broadcast({ type: "notification_created", notification });
       }
       
       broadcast({ type: "item_delivered", item });
@@ -1215,7 +1220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           (hoursUntilDeparture <= 12 && hoursUntilDeparture > 11.5)
         ) {
           const hours = Math.floor(hoursUntilDeparture);
-          await storage.createNotification({
+          const notification = await storage.createNotification({
             type: "deadlineAlert",
             message: `⚠️ ALERTA: Faltam ${hours}h para saída do caminhão - ${event.name}`,
             eventId: event.id,
@@ -1227,6 +1232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             event,
             hoursRemaining: hours,
           });
+          broadcast({ type: "notification_created", notification });
         }
       }
     } catch (error) {

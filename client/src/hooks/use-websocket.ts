@@ -135,6 +135,10 @@ export function useWebSocket() {
             queryClient.invalidateQueries({ queryKey: ['/api/standard-items'] });
             break;
             
+          case 'notification_created':
+            queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+            break;
+            
           case 'notification_read':
             queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
             break;

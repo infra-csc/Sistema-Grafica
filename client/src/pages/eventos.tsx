@@ -32,13 +32,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 
-type UrgencyLevel = 'urgent' | 'attention' | 'normal' | 'completed';
+type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'sem_prioridade' | 'completed';
 
 export default function Eventos() {
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUrgencies, setSelectedUrgencies] = useState<UrgencyLevel[]>([]);
+  const [selectedPriorities, setSelectedPriorities] = useState<PriorityLevel[]>([]);
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [formData, setFormData] = useState({
@@ -177,23 +177,18 @@ export default function Eventos() {
     setFormData({ name: "", startDate: "", truckDepartureDate: "" });
   };
 
-  // Função para calcular urgência baseado na saída do caminhão
-  const getEventUrgency = (event: any): UrgencyLevel => {
-    const now = new Date();
-    const departure = new Date(event.truckDepartureDate);
-    const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-    if (hoursUntilDeparture < 0) return 'completed';
-    if (hoursUntilDeparture < 24) return 'urgent';
-    if (hoursUntilDeparture < 48) return 'attention';
-    return 'normal';
+  // Função para obter a prioridade do evento (para filtragem)
+  const getEventPriority = (event: any): PriorityLevel => {
+    if (event.status === 'completed') return 'completed';
+    if (!event.priority) return 'sem_prioridade';
+    return event.priority as PriorityLevel;
   };
 
-  const toggleUrgency = (urgency: UrgencyLevel) => {
-    setSelectedUrgencies(prev => 
-      prev.includes(urgency) 
-        ? prev.filter(u => u !== urgency)
-        : [...prev, urgency]
+  const togglePriority = (priority: PriorityLevel) => {
+    setSelectedPriorities(prev => 
+      prev.includes(priority) 
+        ? prev.filter(p => p !== priority)
+        : [...prev, priority]
     );
   };
 
@@ -285,9 +280,9 @@ export default function Eventos() {
       // Filtro de busca por nome
       const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Filtro de urgência
-      const matchesUrgency = selectedUrgencies.length === 0 || 
-        selectedUrgencies.includes(getEventUrgency(event));
+      // Filtro de prioridade
+      const matchesPriority = selectedPriorities.length === 0 || 
+        selectedPriorities.includes(getEventPriority(event));
       
       // Filtro de próximos 10 dias
       let matchesNext10Days = true;
@@ -308,28 +303,30 @@ export default function Eventos() {
         matchesMonth = month.toString() === monthFilter;
       }
       
-      return matchesSearch && matchesUrgency && matchesNext10Days && matchesMonth;
+      return matchesSearch && matchesPriority && matchesNext10Days && matchesMonth;
     })
     .sort((a, b) => {
-      const urgencyOrder: Record<UrgencyLevel, number> = {
-        urgent: 0,      // Vermelho - primeiro
-        attention: 1,   // Amarelo - segundo
-        normal: 2,      // Azul - terceiro
-        completed: 3    // Verde - último
+      const priorityOrder: Record<PriorityLevel, number> = {
+        urgente: 0,        // Vermelho - primeiro
+        alta: 1,           // Laranja - segundo
+        media: 2,          // Amarelo - terceiro
+        baixa: 3,          // Azul - quarto
+        sem_prioridade: 4, // Sem prioridade - quinto
+        completed: 5       // Verde - último
       };
 
-      const urgencyA = getEventUrgency(a);
-      const urgencyB = getEventUrgency(b);
+      const priorityA = getEventPriority(a);
+      const priorityB = getEventPriority(b);
       
-      const orderA = urgencyOrder[urgencyA];
-      const orderB = urgencyOrder[urgencyB];
+      const orderA = priorityOrder[priorityA];
+      const orderB = priorityOrder[priorityB];
       
-      // Se têm urgências diferentes, ordena por prioridade
+      // Se têm prioridades diferentes, ordena por prioridade
       if (orderA !== orderB) {
         return orderA - orderB;
       }
       
-      // Se têm a mesma urgência, ordena primeiro por data de início do evento
+      // Se têm a mesma prioridade, ordena primeiro por data de início do evento
       const startDateA = new Date(a.startDate);
       const startDateB = new Date(b.startDate);
       
@@ -343,11 +340,13 @@ export default function Eventos() {
       return truckDateA.getTime() - truckDateB.getTime();
     });
 
-  const urgencyConfig = {
-    urgent: { label: 'Urgente', color: 'bg-status-urgent text-white', count: events.filter(e => getEventUrgency(e) === 'urgent').length },
-    attention: { label: 'Atenção', color: 'bg-status-pending text-foreground', count: events.filter(e => getEventUrgency(e) === 'attention').length },
-    normal: { label: 'Normal', color: 'bg-primary text-white', count: events.filter(e => getEventUrgency(e) === 'normal').length },
-    completed: { label: 'Concluído', color: 'bg-status-completed text-white', count: events.filter(e => getEventUrgency(e) === 'completed').length },
+  const priorityFilterConfig = {
+    urgente: { label: 'Urgente', color: 'bg-red-500 text-white', icon: '🔴', count: events.filter(e => getEventPriority(e) === 'urgente').length },
+    alta: { label: 'Alta', color: 'bg-orange-500 text-white', icon: '🟠', count: events.filter(e => getEventPriority(e) === 'alta').length },
+    media: { label: 'Média', color: 'bg-yellow-500 text-foreground', icon: '🟡', count: events.filter(e => getEventPriority(e) === 'media').length },
+    baixa: { label: 'Baixa', color: 'bg-blue-500 text-white', icon: '🔵', count: events.filter(e => getEventPriority(e) === 'baixa').length },
+    sem_prioridade: { label: 'Sem prioridade', color: 'bg-muted text-foreground', icon: '⚪', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
+    completed: { label: 'Concluído', color: 'bg-status-completed text-white', icon: '✓', count: events.filter(e => getEventPriority(e) === 'completed').length },
   };
 
   return (
@@ -450,33 +449,33 @@ export default function Eventos() {
         </div>
       </div>
 
-      {/* Filtros de Urgência */}
+      {/* Filtros de Prioridade */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-muted-foreground">Filtrar por urgência:</span>
+          <span className="text-sm font-medium text-muted-foreground">Filtrar por prioridade:</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(Object.entries(urgencyConfig) as [UrgencyLevel, typeof urgencyConfig.urgent][]).map(([urgency, config]) => (
+          {(Object.entries(priorityFilterConfig) as [PriorityLevel, typeof priorityFilterConfig.urgente][]).map(([priority, config]) => (
             <Badge
-              key={urgency}
-              variant={selectedUrgencies.includes(urgency) ? "default" : "outline"}
+              key={priority}
+              variant={selectedPriorities.includes(priority) ? "default" : "outline"}
               className={`cursor-pointer transition-all ${
-                selectedUrgencies.includes(urgency) 
+                selectedPriorities.includes(priority) 
                   ? config.color 
                   : 'hover-elevate'
               }`}
-              onClick={() => toggleUrgency(urgency)}
-              data-testid={`filter-urgency-${urgency}`}
+              onClick={() => togglePriority(priority)}
+              data-testid={`filter-priority-${priority}`}
             >
               {config.label} ({config.count})
             </Badge>
           ))}
-          {selectedUrgencies.length > 0 && (
+          {selectedPriorities.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSelectedUrgencies([])}
+              onClick={() => setSelectedPriorities([])}
               className="h-auto py-1 px-2 text-xs"
               data-testid="button-clear-filters"
             >
@@ -485,22 +484,30 @@ export default function Eventos() {
           )}
         </div>
         
-        {/* Legenda discreta */}
-        <div className="flex items-center gap-4 text-xs text-muted-foreground/60 mt-2">
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-status-urgent"></div>
-            <span>Urgente (&lt;24h)</span>
+        {/* Legenda bem mais discreta */}
+        <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground/40 mt-1">
+          <span className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-red-500"></div>
+            <span>Urgente</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-status-pending"></div>
-            <span>Atenção (24-48h)</span>
+          <span className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-orange-500"></div>
+            <span>Alta</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-primary"></div>
-            <span>Normal (&gt;48h)</span>
+          <span className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-yellow-500"></div>
+            <span>Média</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-status-completed"></div>
+          <span className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+            <span>Baixa</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-muted"></div>
+            <span>Sem prioridade</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-status-completed"></div>
             <span>Concluído</span>
           </span>
         </div>

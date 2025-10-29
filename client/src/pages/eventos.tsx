@@ -233,25 +233,25 @@ export default function Eventos() {
       },
       alta: { 
         label: "Alta", 
-        color: "bg-orange-500/15 text-orange-700 border-orange-500/30", 
+        color: "bg-amber-600/15 text-amber-700 border-amber-600/30", 
         icon: "🟠",
-        borderColor: 'border-l-orange-500',
-        bgCard: 'bg-orange-500/5',
-        titleColor: 'text-orange-700',
-        bg: 'bg-orange-500/10',
-        border: 'border-orange-500/20',
-        iconColor: 'text-orange-600'
+        borderColor: 'border-l-amber-600',
+        bgCard: 'bg-amber-600/5',
+        titleColor: 'text-amber-700',
+        bg: 'bg-amber-600/10',
+        border: 'border-amber-600/20',
+        iconColor: 'text-amber-700'
       },
       urgente: { 
         label: "Urgente", 
-        color: "bg-red-500/15 text-red-700 border-red-500/30", 
+        color: "bg-rose-600/15 text-rose-700 border-rose-600/30", 
         icon: "🔴",
-        borderColor: 'border-l-red-500',
-        bgCard: 'bg-red-500/5',
-        titleColor: 'text-red-700',
-        bg: 'bg-red-500/10',
-        border: 'border-red-500/20',
-        iconColor: 'text-red-600'
+        borderColor: 'border-l-rose-600',
+        bgCard: 'bg-rose-600/5',
+        titleColor: 'text-rose-700',
+        bg: 'bg-rose-600/10',
+        border: 'border-rose-600/20',
+        iconColor: 'text-rose-700'
       }
     };
     
@@ -342,8 +342,8 @@ export default function Eventos() {
     });
 
   const priorityFilterConfig = {
-    urgente: { label: 'Urgente', color: 'bg-red-500 text-white', icon: '🔴', count: events.filter(e => getEventPriority(e) === 'urgente').length },
-    alta: { label: 'Alta', color: 'bg-orange-500 text-white', icon: '🟠', count: events.filter(e => getEventPriority(e) === 'alta').length },
+    urgente: { label: 'Urgente', color: 'bg-rose-600 text-white', icon: '🔴', count: events.filter(e => getEventPriority(e) === 'urgente').length },
+    alta: { label: 'Alta', color: 'bg-amber-600 text-white', icon: '🟠', count: events.filter(e => getEventPriority(e) === 'alta').length },
     media: { label: 'Média', color: 'bg-yellow-500 text-foreground', icon: '🟡', count: events.filter(e => getEventPriority(e) === 'media').length },
     baixa: { label: 'Baixa', color: 'bg-blue-500 text-white', icon: '🔵', count: events.filter(e => getEventPriority(e) === 'baixa').length },
     completed: { label: 'Concluído', color: 'bg-status-completed text-white', icon: '✓', count: events.filter(e => getEventPriority(e) === 'completed').length },
@@ -487,11 +487,11 @@ export default function Eventos() {
         {/* Legenda bem mais discreta */}
         <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground/40 mt-1">
           <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-red-500"></div>
+            <div className="h-1.5 w-1.5 rounded-full bg-rose-600"></div>
             <span>Urgente</span>
           </span>
           <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-orange-500"></div>
+            <div className="h-1.5 w-1.5 rounded-full bg-amber-600"></div>
             <span>Alta</span>
           </span>
           <span className="flex items-center gap-1">
@@ -852,7 +852,7 @@ export default function Eventos() {
             </Button>
             <Button
               variant="outline"
-              className="h-20 flex flex-col gap-2 hover:bg-orange-500/10 hover:border-orange-500 border-2"
+              className="h-20 flex flex-col gap-2 hover:bg-amber-600/10 hover:border-amber-600 border-2"
               onClick={() => handlePrioritySelect("alta")}
               disabled={updatePriorityMutation.isPending}
             >
@@ -861,7 +861,7 @@ export default function Eventos() {
             </Button>
             <Button
               variant="outline"
-              className="h-20 flex flex-col gap-2 hover:bg-red-500/10 hover:border-red-500 border-2"
+              className="h-20 flex flex-col gap-2 hover:bg-rose-600/10 hover:border-rose-600 border-2"
               onClick={() => handlePrioritySelect("urgente")}
               disabled={updatePriorityMutation.isPending}
             >

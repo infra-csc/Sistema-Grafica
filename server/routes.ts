@@ -76,14 +76,26 @@ async function createAuditLog(
 
 // Helper to calculate event status based on items
 async function calculateEventStatus(eventId: string): Promise<"created" | "completed"> {
+  const event = await storage.getEvent(eventId);
+  if (!event) return "created";
+  
   const items = await storage.getItemsByEvent(eventId);
   
-  // If no items, event remains "created"
+  // Se já passou a data do evento, considera como concluído
+  const now = new Date();
+  const eventStartDate = new Date(event.startDate);
+  const eventHasPassed = now > eventStartDate;
+  
+  if (eventHasPassed) {
+    return "completed";
+  }
+  
+  // Se não há itens, evento permanece "created"
   if (items.length === 0) {
     return "created";
   }
   
-  // Check if ALL items are delivered
+  // Verifica se TODOS os itens foram entregues
   const allDelivered = items.every(item => item.status === "delivered");
   
   return allDelivered ? "completed" : "created";

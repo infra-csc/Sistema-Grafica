@@ -32,7 +32,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 
-type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'sem_prioridade' | 'completed';
+type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'completed';
 
 export default function Eventos() {
   const { hasPermission } = useAuth();
@@ -178,9 +178,9 @@ export default function Eventos() {
   };
 
   // Função para obter a prioridade do evento (para filtragem)
-  const getEventPriority = (event: any): PriorityLevel => {
+  const getEventPriority = (event: any): PriorityLevel | null => {
     if (event.status === 'completed') return 'completed';
-    if (!event.priority) return 'sem_prioridade';
+    if (!event.priority) return null; // Sem prioridade definida
     return event.priority as PriorityLevel;
   };
 
@@ -281,8 +281,9 @@ export default function Eventos() {
       const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase());
       
       // Filtro de prioridade
+      const eventPriority = getEventPriority(event);
       const matchesPriority = selectedPriorities.length === 0 || 
-        selectedPriorities.includes(getEventPriority(event));
+        (eventPriority && selectedPriorities.includes(eventPriority));
       
       // Filtro de próximos 10 dias
       let matchesNext10Days = true;
@@ -311,15 +312,15 @@ export default function Eventos() {
         alta: 1,           // Laranja - segundo
         media: 2,          // Amarelo - terceiro
         baixa: 3,          // Azul - quarto
-        sem_prioridade: 4, // Sem prioridade - quinto
-        completed: 5       // Verde - último
+        completed: 4       // Verde - último
       };
 
       const priorityA = getEventPriority(a);
       const priorityB = getEventPriority(b);
       
-      const orderA = priorityOrder[priorityA];
-      const orderB = priorityOrder[priorityB];
+      // Eventos sem prioridade vão para o final (antes de completed)
+      const orderA = priorityA ? priorityOrder[priorityA] : 3.5;
+      const orderB = priorityB ? priorityOrder[priorityB] : 3.5;
       
       // Se têm prioridades diferentes, ordena por prioridade
       if (orderA !== orderB) {
@@ -345,7 +346,6 @@ export default function Eventos() {
     alta: { label: 'Alta', color: 'bg-orange-500 text-white', icon: '🟠', count: events.filter(e => getEventPriority(e) === 'alta').length },
     media: { label: 'Média', color: 'bg-yellow-500 text-foreground', icon: '🟡', count: events.filter(e => getEventPriority(e) === 'media').length },
     baixa: { label: 'Baixa', color: 'bg-blue-500 text-white', icon: '🔵', count: events.filter(e => getEventPriority(e) === 'baixa').length },
-    sem_prioridade: { label: 'Sem prioridade', color: 'bg-muted text-foreground', icon: '⚪', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
     completed: { label: 'Concluído', color: 'bg-status-completed text-white', icon: '✓', count: events.filter(e => getEventPriority(e) === 'completed').length },
   };
 
@@ -501,10 +501,6 @@ export default function Eventos() {
           <span className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
             <span>Baixa</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-muted"></div>
-            <span>Sem prioridade</span>
           </span>
           <span className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-status-completed"></div>

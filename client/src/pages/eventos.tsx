@@ -214,10 +214,50 @@ export default function Eventos() {
     if (!priority) return null;
     
     const configs = {
-      baixa: { label: "Baixa", color: "bg-blue-500/15 text-blue-700 border-blue-500/30", icon: "🔵" },
-      media: { label: "Média", color: "bg-yellow-500/15 text-yellow-700 border-yellow-500/30", icon: "🟡" },
-      alta: { label: "Alta", color: "bg-orange-500/15 text-orange-700 border-orange-500/30", icon: "🟠" },
-      urgente: { label: "Urgente", color: "bg-red-500/15 text-red-700 border-red-500/30", icon: "🔴" }
+      baixa: { 
+        label: "Baixa", 
+        color: "bg-blue-500/15 text-blue-700 border-blue-500/30", 
+        icon: "🔵",
+        borderColor: 'border-l-blue-500',
+        bgCard: 'bg-blue-500/5',
+        titleColor: 'text-blue-700',
+        bg: 'bg-blue-500/10',
+        border: 'border-blue-500/20',
+        iconColor: 'text-blue-600'
+      },
+      media: { 
+        label: "Média", 
+        color: "bg-yellow-500/15 text-yellow-700 border-yellow-500/30", 
+        icon: "🟡",
+        borderColor: 'border-l-yellow-500',
+        bgCard: 'bg-yellow-500/5',
+        titleColor: 'text-yellow-700',
+        bg: 'bg-yellow-500/10',
+        border: 'border-yellow-500/20',
+        iconColor: 'text-yellow-600'
+      },
+      alta: { 
+        label: "Alta", 
+        color: "bg-orange-500/15 text-orange-700 border-orange-500/30", 
+        icon: "🟠",
+        borderColor: 'border-l-orange-500',
+        bgCard: 'bg-orange-500/5',
+        titleColor: 'text-orange-700',
+        bg: 'bg-orange-500/10',
+        border: 'border-orange-500/20',
+        iconColor: 'text-orange-600'
+      },
+      urgente: { 
+        label: "Urgente", 
+        color: "bg-red-500/15 text-red-700 border-red-500/30", 
+        icon: "🔴",
+        borderColor: 'border-l-red-500',
+        bgCard: 'bg-red-500/5',
+        titleColor: 'text-red-700',
+        bg: 'bg-red-500/10',
+        border: 'border-red-500/20',
+        iconColor: 'text-red-600'
+      }
     };
     
     return configs[priority as keyof typeof configs] || null;
@@ -620,37 +660,51 @@ export default function Eventos() {
             const eventStartColors = getEventStartStatus();
             const truckColors = getTruckStatus();
             
+            // Se houver prioridade definida, usa as cores da prioridade em vez das cores de urgência
+            const priorityConfig = getPriorityConfig(event.priority);
+            const cardColors = event.status === 'completed' 
+              ? { 
+                  borderColor: 'border-l-status-completed', 
+                  bgCard: 'bg-status-completed/5',
+                  titleColor: 'text-status-completed',
+                  icon: 'text-status-completed'
+                }
+              : priorityConfig 
+                ? {
+                    borderColor: priorityConfig.borderColor,
+                    bgCard: priorityConfig.bgCard,
+                    titleColor: priorityConfig.titleColor,
+                    icon: priorityConfig.iconColor
+                  }
+                : truckColors;
+            
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
-                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${
-                  event.status === 'completed' ? 'border-l-status-completed bg-status-completed/5' : `${truckColors.borderColor} ${truckColors.bgCard}`
-                }`} data-testid={`card-event-${event.id}`}>
+                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${cardColors.borderColor} ${cardColors.bgCard}`} data-testid={`card-event-${event.id}`}>
                   <CardHeader className="pb-3 pt-4">
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <CardTitle className={`text-base font-bold ${
-                        event.status === 'completed' ? 'text-status-completed' : truckColors.titleColor
-                      }`}>{event.name}</CardTitle>
+                      <CardTitle className={`text-base font-bold ${cardColors.titleColor}`}>{event.name}</CardTitle>
                       <div className="flex gap-1 flex-shrink-0">
                         {event.status === 'completed' && (
                           <Badge variant="outline" className="bg-status-completed/15 text-status-completed border-status-completed/30 text-xs">
                             ✓ Concluído
                           </Badge>
                         )}
-                        {event.priority && getPriorityConfig(event.priority) && (
+                        {priorityConfig && (
                           <Badge 
                             variant="outline" 
-                            className={`text-xs border ${getPriorityConfig(event.priority)!.color}`}
+                            className={`text-xs border ${priorityConfig.color}`}
                           >
-                            {getPriorityConfig(event.priority)!.icon} {getPriorityConfig(event.priority)!.label}
+                            {priorityConfig.icon} {priorityConfig.label}
                           </Badge>
                         )}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="flex items-center gap-2 p-2 rounded bg-card border">
-                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${eventStartColors.icon}`} />
+                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${cardColors.icon}`} />
                         <div className="flex flex-col gap-0 min-w-0">
-                          <span className={`text-[10px] font-medium uppercase ${eventStartColors.icon}`}>Início</span>
+                          <span className={`text-[10px] font-medium uppercase ${cardColors.icon}`}>Início</span>
                           <span className="text-xs font-semibold text-foreground whitespace-nowrap">
                             {new Date(event.startDate).toLocaleDateString('pt-BR', { 
                               day: '2-digit', 
@@ -661,9 +715,9 @@ export default function Eventos() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 p-2 rounded bg-card border">
-                        <Truck className={`h-3.5 w-3.5 flex-shrink-0 ${truckColors.icon}`} />
+                        <Truck className={`h-3.5 w-3.5 flex-shrink-0 ${cardColors.icon}`} />
                         <div className="flex flex-col gap-0 min-w-0">
-                          <span className={`text-[10px] font-medium uppercase ${truckColors.icon}`}>Saída</span>
+                          <span className={`text-[10px] font-medium uppercase ${cardColors.icon}`}>Saída</span>
                           <span className="text-xs font-bold text-foreground whitespace-nowrap">
                             {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { 
                               day: '2-digit', 

@@ -23,8 +23,18 @@ export default function Calendario() {
     queryKey: ["/api/events"],
   });
 
-  // Cor do card baseada na PRIORIDADE do evento
+  // Cor do card baseada na PRIORIDADE do evento (IGUAL aos eventos)
   const getEventCardColor = (event: any) => {
+    // Se concluído: Verde
+    if (event.status === 'completed') {
+      return { 
+        colorBg: 'bg-status-completed',
+        colorAccent: 'bg-status-completed/20',
+        textColor: 'text-status-completed',
+        borderColor: 'border-status-completed',
+      };
+    }
+    
     // Prioridade Urgente: Vermelho
     if (event.priority === 'urgente') {
       return { 
@@ -35,32 +45,32 @@ export default function Calendario() {
       };
     }
     
-    // Prioridade Alta: Laranja
+    // Prioridade Alta: Amarelo
     if (event.priority === 'alta') {
       return { 
-        colorBg: 'bg-orange-600',
-        colorAccent: 'bg-orange-600/20',
-        textColor: 'text-orange-600',
-        borderColor: 'border-orange-600',
+        colorBg: 'bg-yellow-500',
+        colorAccent: 'bg-yellow-500/20',
+        textColor: 'text-yellow-500',
+        borderColor: 'border-yellow-500',
       };
     }
     
-    // Prioridade Média: Amarelo
+    // Prioridade Média: Roxo
     if (event.priority === 'media') {
       return { 
-        colorBg: 'bg-status-pending',
-        colorAccent: 'bg-status-pending/20',
-        textColor: 'text-status-pending',
-        borderColor: 'border-status-pending',
+        colorBg: 'bg-purple-600',
+        colorAccent: 'bg-purple-600/20',
+        textColor: 'text-purple-600',
+        borderColor: 'border-purple-600',
       };
     }
     
-    // Sem prioridade ou Baixa: Azul
+    // Prioridade Baixa: Azul
     return { 
-      colorBg: 'bg-status-approved',
-      colorAccent: 'bg-status-approved/20',
-      textColor: 'text-status-approved',
-      borderColor: 'border-status-approved',
+      colorBg: 'bg-blue-500',
+      colorAccent: 'bg-blue-500/20',
+      textColor: 'text-blue-500',
+      borderColor: 'border-blue-500',
     };
   };
 
@@ -290,19 +300,24 @@ export default function Calendario() {
                 <span className="text-xs text-muted-foreground">Urgente</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-orange-600 shrink-0" />
-                <span className="text-xs font-medium text-orange-600">Laranja:</span>
+                <div className="w-3 h-3 rounded bg-yellow-500 shrink-0" />
+                <span className="text-xs font-medium text-yellow-500">Amarelo:</span>
                 <span className="text-xs text-muted-foreground">Alta</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-status-pending shrink-0" />
-                <span className="text-xs font-medium text-status-pending">Amarelo:</span>
+                <div className="w-3 h-3 rounded bg-purple-600 shrink-0" />
+                <span className="text-xs font-medium text-purple-600">Roxo:</span>
                 <span className="text-xs text-muted-foreground">Média</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded bg-status-approved shrink-0" />
-                <span className="text-xs font-medium text-status-approved">Azul:</span>
-                <span className="text-xs text-muted-foreground">Baixa ou sem prioridade</span>
+                <div className="w-3 h-3 rounded bg-blue-500 shrink-0" />
+                <span className="text-xs font-medium text-blue-500">Azul:</span>
+                <span className="text-xs text-muted-foreground">Baixa</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-status-completed shrink-0" />
+                <span className="text-xs font-medium text-status-completed">Verde:</span>
+                <span className="text-xs text-muted-foreground">Concluído</span>
               </div>
             </div>
           </CardContent>

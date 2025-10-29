@@ -50,6 +50,11 @@ export default function EventDetail() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
+  const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
+  const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
+  const [customTypeInput, setCustomTypeInput] = useState("");
+  const [customMaterialInput, setCustomMaterialInput] = useState("");
+  const [customFinishInput, setCustomFinishInput] = useState("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -401,9 +406,32 @@ export default function EventDetail() {
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0" align="start">
                         <Command>
-                          <CommandInput placeholder="Buscar tipo..." />
+                          <CommandInput 
+                            placeholder="Buscar ou adicionar tipo..." 
+                            value={customTypeInput}
+                            onValueChange={setCustomTypeInput}
+                          />
                           <CommandList>
-                            <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
+                            <CommandEmpty>
+                              <div className="p-2 space-y-2">
+                                <p className="text-sm text-muted-foreground">Nenhum tipo encontrado.</p>
+                                {customTypeInput && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() => {
+                                      setFormData({ ...formData, type: customTypeInput });
+                                      setCustomTypeInput("");
+                                      setTypePopoverOpen(false);
+                                    }}
+                                  >
+                                    <Plus className="h-3 w-3 mr-1" />
+                                    Adicionar "{customTypeInput}"
+                                  </Button>
+                                )}
+                              </div>
+                            </CommandEmpty>
                             {standardItems.length > 0 && (
                               <CommandGroup heading="Modelos">
                                 {standardItems.map((item: any) => (
@@ -422,6 +450,7 @@ export default function EventDetail() {
                                         finish: item.finish || "",
                                         measurement: (item.visualWidth && item.visualHeight) ? `${item.visualWidth} × ${item.visualHeight}` : (item.area && item.visual ? `${item.area} × ${item.visual}` : ""),
                                       });
+                                      setCustomTypeInput("");
                                       setTypePopoverOpen(false);
                                     }}
                                   >
@@ -443,6 +472,7 @@ export default function EventDetail() {
                                   value={type}
                                   onSelect={() => {
                                     setFormData({ ...formData, type });
+                                    setCustomTypeInput("");
                                     setTypePopoverOpen(false);
                                   }}
                                 >
@@ -541,29 +571,147 @@ export default function EventDetail() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="material">Material</Label>
-                    <Select value={formData.material} onValueChange={(value) => setFormData({ ...formData, material: value })} required>
-                      <SelectTrigger id="material" data-testid="select-material">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {materials.map((mat) => (
-                          <SelectItem key={mat} value={mat}>{mat}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={materialPopoverOpen}
+                          className="w-full justify-between font-normal"
+                          data-testid="select-material"
+                        >
+                          <span className="truncate">
+                            {formData.material || "Selecione ou digite um material"}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0" align="start">
+                        <Command>
+                          <CommandInput 
+                            placeholder="Buscar ou adicionar material..." 
+                            value={customMaterialInput}
+                            onValueChange={setCustomMaterialInput}
+                          />
+                          <CommandList>
+                            <CommandEmpty>
+                              <div className="p-2 space-y-2">
+                                <p className="text-sm text-muted-foreground">Nenhum material encontrado.</p>
+                                {customMaterialInput && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() => {
+                                      setFormData({ ...formData, material: customMaterialInput });
+                                      setCustomMaterialInput("");
+                                      setMaterialPopoverOpen(false);
+                                    }}
+                                  >
+                                    <Plus className="h-3 w-3 mr-1" />
+                                    Adicionar "{customMaterialInput}"
+                                  </Button>
+                                )}
+                              </div>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {materials.map((material) => (
+                                <CommandItem
+                                  key={material}
+                                  value={material}
+                                  onSelect={() => {
+                                    setFormData({ ...formData, material });
+                                    setCustomMaterialInput("");
+                                    setMaterialPopoverOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      formData.material === material ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {material}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="col-span-2 space-y-2">
                     <Label htmlFor="finish">Acabamento</Label>
-                    <Select value={formData.finish} onValueChange={(value) => setFormData({ ...formData, finish: value })} required>
-                      <SelectTrigger id="finish" data-testid="select-finish">
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {finishes.map((fin) => (
-                          <SelectItem key={fin} value={fin}>{fin}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={finishPopoverOpen}
+                          className="w-full justify-between font-normal"
+                          data-testid="select-finish"
+                        >
+                          <span className="truncate">
+                            {formData.finish || "Selecione ou digite um acabamento"}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0" align="start">
+                        <Command>
+                          <CommandInput 
+                            placeholder="Buscar ou adicionar acabamento..." 
+                            value={customFinishInput}
+                            onValueChange={setCustomFinishInput}
+                          />
+                          <CommandList>
+                            <CommandEmpty>
+                              <div className="p-2 space-y-2">
+                                <p className="text-sm text-muted-foreground">Nenhum acabamento encontrado.</p>
+                                {customFinishInput && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() => {
+                                      setFormData({ ...formData, finish: customFinishInput });
+                                      setCustomFinishInput("");
+                                      setFinishPopoverOpen(false);
+                                    }}
+                                  >
+                                    <Plus className="h-3 w-3 mr-1" />
+                                    Adicionar "{customFinishInput}"
+                                  </Button>
+                                )}
+                              </div>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {finishes.map((finish) => (
+                                <CommandItem
+                                  key={finish}
+                                  value={finish}
+                                  onSelect={() => {
+                                    setFormData({ ...formData, finish });
+                                    setCustomFinishInput("");
+                                    setFinishPopoverOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      formData.finish === finish ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  {finish}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="col-span-2 space-y-2">
                     <Label htmlFor="observations">Observações</Label>

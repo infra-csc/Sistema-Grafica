@@ -233,14 +233,14 @@ export default function Eventos() {
       },
       alta: { 
         label: "Alta", 
-        color: "bg-orange-600/15 text-orange-700 border-orange-600/30", 
-        icon: "🟠",
-        borderColor: 'border-l-orange-600',
-        bgCard: 'bg-orange-600/5',
-        titleColor: 'text-orange-700',
-        bg: 'bg-orange-600/10',
-        border: 'border-orange-600/20',
-        iconColor: 'text-orange-700'
+        color: "bg-yellow-500/15 text-yellow-700 border-yellow-500/30", 
+        icon: "🟡",
+        borderColor: 'border-l-yellow-500',
+        bgCard: 'bg-yellow-500/5',
+        titleColor: 'text-yellow-700',
+        bg: 'bg-yellow-500/10',
+        border: 'border-yellow-500/20',
+        iconColor: 'text-yellow-600'
       },
       urgente: { 
         label: "Urgente", 
@@ -343,7 +343,7 @@ export default function Eventos() {
 
   const priorityFilterConfig = {
     urgente: { label: 'Urgente', color: 'bg-red-600 text-white', icon: '🔴', count: events.filter(e => getEventPriority(e) === 'urgente').length },
-    alta: { label: 'Alta', color: 'bg-orange-600 text-white', icon: '🟠', count: events.filter(e => getEventPriority(e) === 'alta').length },
+    alta: { label: 'Alta', color: 'bg-yellow-500 text-foreground', icon: '🟡', count: events.filter(e => getEventPriority(e) === 'alta').length },
     media: { label: 'Média', color: 'bg-purple-600 text-white', icon: '🟣', count: events.filter(e => getEventPriority(e) === 'media').length },
     baixa: { label: 'Baixa', color: 'bg-blue-500 text-white', icon: '🔵', count: events.filter(e => getEventPriority(e) === 'baixa').length },
     completed: { label: 'Concluído', color: 'bg-status-completed text-white', icon: '✓', count: events.filter(e => getEventPriority(e) === 'completed').length },
@@ -491,7 +491,7 @@ export default function Eventos() {
             <span>Urgente</span>
           </span>
           <span className="flex items-center gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-orange-600"></div>
+            <div className="h-1.5 w-1.5 rounded-full bg-yellow-500"></div>
             <span>Alta</span>
           </span>
           <span className="flex items-center gap-1">
@@ -852,11 +852,11 @@ export default function Eventos() {
             </Button>
             <Button
               variant="outline"
-              className="h-20 flex flex-col gap-2 hover:bg-orange-600/10 hover:border-orange-600 border-2"
+              className="h-20 flex flex-col gap-2 hover:bg-yellow-500/10 hover:border-yellow-500 border-2"
               onClick={() => handlePrioritySelect("alta")}
               disabled={updatePriorityMutation.isPending}
             >
-              <span className="text-2xl">🟠</span>
+              <span className="text-2xl">🟡</span>
               <span className="font-semibold">Alta</span>
             </Button>
             <Button

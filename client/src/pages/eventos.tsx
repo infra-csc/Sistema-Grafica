@@ -451,10 +451,37 @@ export default function Eventos() {
 
       {/* Filtros de Prioridade */}
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-muted-foreground">Filtrar por prioridade:</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">Filtrar por prioridade:</span>
+          </div>
+          
+          {/* Legenda discreta à direita */}
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/50">
+            <span className="flex items-center gap-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-red-600"></div>
+              <span>Urgente</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-yellow-500"></div>
+              <span>Alta</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-purple-600"></div>
+              <span>Média</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+              <span>Baixa</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-status-completed"></div>
+              <span>Concluído</span>
+            </span>
+          </div>
         </div>
+        
         <div className="flex flex-wrap gap-2">
           {(Object.entries(priorityFilterConfig) as [PriorityLevel, typeof priorityFilterConfig.urgente][]).map(([priority, config]) => (
             <Badge
@@ -482,30 +509,6 @@ export default function Eventos() {
               Limpar filtros
             </Button>
           )}
-        </div>
-        
-        {/* Legenda discreta */}
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground/60 mt-1">
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-red-600"></div>
-            <span>Urgente</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-yellow-500"></div>
-            <span>Alta</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-purple-600"></div>
-            <span>Média</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-            <span>Baixa</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-full bg-status-completed"></div>
-            <span>Concluído</span>
-          </span>
         </div>
       </div>
 

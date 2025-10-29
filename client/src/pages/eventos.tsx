@@ -764,7 +764,8 @@ export default function Eventos() {
                         size="icon"
                         className="h-7 w-7 hover:bg-primary/10"
                         onClick={(e) => handleSetPriority(event, e)}
-                        title="Definir prioridade"
+                        title={event.status === 'completed' ? 'Evento concluído - prioridade bloqueada' : 'Definir prioridade'}
+                        disabled={event.status === 'completed'}
                         data-testid={`button-priority-event-${event.id}`}
                       >
                         <Flag className={`h-3.5 w-3.5 ${event.priority ? 'fill-current' : ''}`} />

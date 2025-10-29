@@ -28,7 +28,7 @@ The system features a professional light mode theme with a clean white backgroun
 - **Item Statuses**: `requested`, `approved`, `inProduction`, `produced`, `delivered`.
 - **Event Statuses**: `created`, `completed`, `urgent`.
 - **User Authentication & Access Control**: Full login/logout, Bcryptjs for passwords, mandatory first-time password change, user management (Admin), 4 user profiles (Admin, Solicitation, Art, Graphics) with route protection and `hasPermission()` checks.
-- **Intelligent Notification System**: Notifications targeted to specific user roles based on event type.
+- **Intelligent Notification System**: Notifications targeted to specific user roles based on event type. Admin users see ALL notifications for complete system oversight.
 - **Audit Logs**: Automatic logging of significant actions (event/item creation, approval, delivery) including user, timestamp, action, entity type/ID, and details, viewable in History and Event Details.
 - **Admin Edit/Delete**: Functionality for Admin users to edit and delete events and items with corresponding audit logs and confirmation dialogs.
 - **Event Priority System**: Events can have priorities (Low, Medium, High, Urgent), displayed visually with badges and influencing calendar coloring.

@@ -987,7 +987,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const allNotifications = await storage.getAllNotifications();
       
-      // Filtrar notificações baseadas no perfil do usuário (SEGURANÇA)
+      // Admin vê TODAS as notificações
+      if (userRole === "admin") {
+        return res.json(allNotifications);
+      }
+      
+      // Outros perfis: filtrar notificações baseadas no perfil (SEGURANÇA)
       const filteredNotifications = allNotifications.filter((notification) => {
         // Se não houver targetRoles, mostrar para todos (backward compatibility)
         if (!notification.targetRoles || notification.targetRoles.length === 0) {

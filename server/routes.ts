@@ -991,7 +991,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update item
   app.patch("/api/items/:id", async (req, res) => {
     try {
-      const item = await storage.updateItem(req.params.id, req.body);
+      const validatedData = insertItemSchema.partial().parse(req.body);
+      const item = await storage.updateItem(req.params.id, validatedData);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
@@ -1046,7 +1047,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Approve item (Arte module)
+  // Submit item for sponsor approval (Arte module)
+  app.patch("/api/items/:id/submit-for-approval", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Arte podem enviar para aprovação" });
+      }
+      
+      const { approvalThumbUrl } = req.body;
+      
+      if (!approvalThumbUrl) {
+        return res.status(400).json({ error: "approvalThumbUrl is required" });
+      }
+      
+      // Validate current status
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      if (currentItem.status !== "requested") {
+        return res.status(409).json({ 
+          error: `Item não pode ser enviado para aprovação. Status atual: ${currentItem.status}, esperado: requested` 
+        });
+      }
+      
+      const item = await storage.updateItem(req.params.id, {
+        status: "awaiting_sponsor_approval",
+        approvalThumbUrl,
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'item',
+        item.id,
+        `Item "${item.type}" enviado para aprovação do patrocinador`
+      );
+      
+      // Notifica Atendimento para aprovar com patrocinador
+      const notification = await storage.createNotification({
+        type: "itemAdded",
+        message: `Novo item aguardando aprovação do patrocinador: ${item.type} - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["atendimento"],
+      });
+      
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Sponsor approves item (Atendimento module)
+  app.patch("/api/items/:id/sponsor-approve", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "atendimento" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Atendimento podem aprovar pelo patrocinador" });
+      }
+      
+      // Validate current status
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      if (currentItem.status !== "awaiting_sponsor_approval") {
+        return res.status(409).json({ 
+          error: `Item não pode ser aprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval` 
+        });
+      }
+      
+      const item = await storage.updateItem(req.params.id, {
+        status: "sponsor_approved",
+        sponsorApprovedBy: req.userName,
+        sponsorApprovedAt: new Date().toISOString(),
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      
+      await createAuditLog(
+        req.userName!,
+        'approved',
+        'item',
+        item.id,
+        `Item "${item.type}" aprovado pelo patrocinador`
+      );
+      
+      // Notifica Solicitação para revisão do criador do evento
+      const notification = await storage.createNotification({
+        type: "arteApproved",
+        message: `Patrocinador aprovou o item. Aguardando revisão do criador: ${item.type} - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["solicitacao"],
+      });
+      
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Creator reviews and releases item for production (Solicitação module)
+  app.patch("/api/items/:id/creator-review", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem revisar como criador do evento" });
+      }
+      
+      const { finalFileUrl } = req.body;
+      
+      if (!finalFileUrl) {
+        return res.status(400).json({ error: "finalFileUrl is required" });
+      }
+      
+      // Validate current status
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      if (currentItem.status !== "sponsor_approved") {
+        return res.status(409).json({ 
+          error: `Item não pode ser revisado pelo criador. Status atual: ${currentItem.status}, esperado: sponsor_approved` 
+        });
+      }
+      
+      const item = await storage.updateItem(req.params.id, {
+        status: "ready_for_production",
+        finalFileUrl,
+        creatorReviewedAt: new Date().toISOString(),
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      
+      await createAuditLog(
+        req.userName!,
+        'approved',
+        'item',
+        item.id,
+        `Item "${item.type}" revisado e liberado para produção pelo criador do evento`
+      );
+      
+      // Notifica Arte e Gráfica que o item está liberado para produção
+      const notification = await storage.createNotification({
+        type: "arteApproved",
+        message: `Criador do evento liberou item para produção: ${item.type} - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["arte", "grafica"],
+      });
+      
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Approve item (Arte module) - DEPRECATED: Use new approval workflow
   app.patch("/api/items/:id/approve", async (req, res) => {
     try {
       const item = await storage.approveItem(req.params.id);

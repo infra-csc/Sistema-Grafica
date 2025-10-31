@@ -212,6 +212,11 @@ export default function Arte() {
 
   const filteredItems = getFilteredItemsForTab(activeTab);
 
+  // Filter items by selected event for statistics cards
+  const itemsForEvent = eventFilter === "all" 
+    ? allItems 
+    : allItems.filter(item => item.eventId === eventFilter);
+
   // Calculate badge counts using the same filtered pipeline
   const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;

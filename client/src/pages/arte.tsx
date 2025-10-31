@@ -261,7 +261,7 @@ export default function Arte() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
@@ -314,23 +314,6 @@ export default function Arte() {
               ).length}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Liberados</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Em Produção</CardTitle>
-            <CheckCircle className="h-4 w-4 text-status-production" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-status-production" data-testid="stat-in-production">
-              {itemsForEvent.filter(i => 
-                i.status === 'inProduction' || 
-                i.status === 'produced' || 
-                i.status === 'delivered'
-              ).length}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Produzindo/Concluído</p>
           </CardContent>
         </Card>
       </div>

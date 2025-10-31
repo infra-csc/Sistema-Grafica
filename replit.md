@@ -49,6 +49,20 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
     - Sidebar link filtered - only authorized roles see menu item
     - Backend validates roles with 403 response on unauthorized access
     - Defense in depth: both frontend and backend enforce access control
+- **Solicitação (Creator Review) Page Implementation (October 31, 2025):**
+  - Created `/solicitacao` page for final creator review before production
+  - Displays items with status `sponsor_approved` in grid cards
+  - Shows approval thumbs, item details, and complete approval history
+  - Review dialog with full-size image, final file link, and approval timeline
+  - Shows checkmarks for Arte and Patrocinador approvals with timestamps
+  - "Liberar para Produção" button calls `/api/items/:id/creator-review` to transition to `ready_for_production`
+  - Counter displays pending items count
+  - Empty state when no items await review
+  - **Access Control (Layered Security):**
+    - Route restricted to "solicitacao" and "admin" roles using RoleProtectedRoute
+    - Sidebar link filtered - only authorized roles see menu item
+    - Backend validates roles with 403 response on unauthorized access
+    - Defense in depth: both frontend and backend enforce access control
 
 ## User Preferences
 I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.

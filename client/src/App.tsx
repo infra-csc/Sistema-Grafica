@@ -22,6 +22,7 @@ import Eventos from "@/pages/eventos";
 import EventDetail from "@/pages/event-detail";
 import Arte from "@/pages/arte";
 import Atendimento from "@/pages/atendimento";
+import Solicitacao from "@/pages/solicitacao";
 import Grafica from "@/pages/grafica";
 import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
@@ -126,6 +127,9 @@ function Router() {
       </Route>
       <Route path="/atendimento">
         {() => <RoleProtectedRoute component={Atendimento} allowedRoles={["atendimento", "admin"]} />}
+      </Route>
+      <Route path="/solicitacao">
+        {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={["solicitacao", "admin"]} />}
       </Route>
       <Route path="/grafica">
         {() => <ProtectedRoute component={Grafica} />}

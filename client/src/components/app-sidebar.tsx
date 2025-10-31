@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users, Building2, UserCheck } from "lucide-react";
+import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -34,6 +34,12 @@ const menuItems = [
     url: "/atendimento",
     icon: UserCheck,
     roles: ["atendimento", "admin"],
+  },
+  {
+    title: "Solicitação",
+    url: "/solicitacao",
+    icon: ClipboardCheck,
+    roles: ["solicitacao", "admin"],
   },
   {
     title: "Gráfica",

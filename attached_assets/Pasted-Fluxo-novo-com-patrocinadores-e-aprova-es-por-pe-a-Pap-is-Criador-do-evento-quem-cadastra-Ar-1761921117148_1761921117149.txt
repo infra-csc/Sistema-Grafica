@@ -1,0 +1,95 @@
+Fluxo novo (com patrocinadores e aprovações por peça)
+
+Papéis
+
+Criador do evento (quem cadastra)
+
+Arte (designers)
+
+Atendimento (quem fala com o cliente/patrocinador)
+
+Patrocinador (aprovador externo)
+
+Gráfica
+
+Estados do evento
+
+rascunho
+
+ag.pecas (peças cadastradas)
+
+ag.patrocinadores (patrocinadores vinculados)
+
+ag.aprov.patrocinador (ao menos 1 peça aguardando OK do patrocinador)
+
+ag.revisao.arte (voltou da aprovação externa p/ ajustes finais)
+
+pronto.grafica (checklist do evento completo)
+
+enviado.grafica (com link(s) de arquivo final)
+
+concluido
+
+Estados da peça (cada item do evento)
+
+rascunho
+
+ag.thumb (arte sobe thumb/link leve para aprovar)
+
+em.aprov.patroc (esperando resposta do(s) patrocinador(es))
+
+reprovado.patroc (com motivo)
+
+aprovado.patroc
+
+ag.final.arte (arte finalizando arquivo)
+
+pronto.grafica (link final pronto)
+
+enviado.grafica
+
+Regras-chave
+
+Pode haver vários patrocinadores por evento.
+
+Aprovação pode ser por peça ou por patrocinador (um patrocinador aprova um subconjunto de peças).
+
+A arte sempre anexa um “thumb/link leve” para aprovação. Nada pesado nessa fase.
+
+Após todas as peças necessárias estarem aprovado.patroc, o criador do evento faz um check da lista de peças do evento. Se tudo OK → estado do evento pronto.grafica.
+
+Ao enviar pra gráfica, a arte obrigatoriamente coloca o link do arquivo final (ex.: Drive, S3, etc.). Evento vai para enviado.grafica.
+
+Telas (mínimo viável)
+
+Vincular Patrocinadores ao Evento
+
+Campos: buscar/selecionar patrocinador, cargo/contato, e-mail, observações.
+
+Lista dos vinculados + botão “Remover”.
+
+Botão “Prosseguir para Aprovação de Peças”.
+
+Dashboard de Aprovação por Peça
+
+Filtros: Evento, Patrocinador, Status da peça.
+
+Tabela: Peça | Thumb/Link | Patrocinadores pendentes | Última ação | Status | Ações (Enviar p/ patrocinador, Reprovar, Aprovar manualmente, Ver histórico).
+
+Ação “Enviar amostra” → registra envio + notifica por e-mail (se já tiver isso).
+
+Ação “Registrar aprovação” (quando link externo de aprovação for clicado ou atendimento marcar manualmente).
+
+Campo obrigatório para link final quando status avançar para pronto.grafica.
+
+Checklist do Evento
+
+Lista de peças do evento + checkbox “Peça pronta p/ gráfica”.
+
+Valida se todas as peças obrigatórias estão aprovado.patroc.
+
+Botão “Fechar checklist e preparar envio”.
+
+Envio à Gráfica
+
+Campo: Link(s) final(is) (um por peça ou zip do book).

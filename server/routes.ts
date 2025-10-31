@@ -13,6 +13,9 @@ import {
   insertDeliveryPhotoSchema,
   insertAuditLogSchema,
   insertUserSchema,
+  insertSponsorSchema,
+  insertClientSchema,
+  insertEventSponsorSchema,
   loginSchema,
   changePasswordSchema
 } from "@shared/schema";
@@ -364,6 +367,264 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       res.json({ message: "Usuário excluído com sucesso" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ SPONSORS ============
+  
+  // Get all sponsors
+  app.get("/api/sponsors", requireAuth, async (req, res) => {
+    try {
+      const sponsors = await storage.getAllSponsors();
+      res.json(sponsors);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single sponsor
+  app.get("/api/sponsors/:id", requireAuth, async (req, res) => {
+    try {
+      const sponsor = await storage.getSponsor(req.params.id);
+      if (!sponsor) {
+        return res.status(404).json({ error: "Patrocinador não encontrado" });
+      }
+      res.json(sponsor);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create sponsor
+  app.post("/api/sponsors", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertSponsorSchema.parse(req.body);
+      const sponsor = await storage.createSponsor(validatedData);
+      
+      await createAuditLog(
+        req.userName!,
+        'created',
+        'sponsor',
+        sponsor.id,
+        `Patrocinador "${sponsor.name}" criado`
+      );
+      
+      broadcast({ type: "sponsor_created", sponsor });
+      res.status(201).json(sponsor);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update sponsor
+  app.patch("/api/sponsors/:id", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertSponsorSchema.partial().parse(req.body);
+      const sponsor = await storage.updateSponsor(req.params.id, validatedData);
+      if (!sponsor) {
+        return res.status(404).json({ error: "Patrocinador não encontrado" });
+      }
+      
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'sponsor',
+        sponsor.id,
+        `Patrocinador "${sponsor.name}" atualizado`
+      );
+      
+      broadcast({ type: "sponsor_updated", sponsor });
+      res.json(sponsor);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete sponsor
+  app.delete("/api/sponsors/:id", requireAdmin, async (req, res) => {
+    try {
+      const sponsor = await storage.getSponsor(req.params.id);
+      if (!sponsor) {
+        return res.status(404).json({ error: "Patrocinador não encontrado" });
+      }
+
+      await storage.deleteSponsor(req.params.id);
+      
+      await createAuditLog(
+        req.userName!,
+        'deleted',
+        'sponsor',
+        sponsor.id,
+        `Patrocinador "${sponsor.name}" excluído`
+      );
+      
+      broadcast({ type: "sponsor_deleted", sponsorId: req.params.id });
+      res.json({ message: "Patrocinador excluído com sucesso" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ CLIENTS ============
+  
+  // Get all clients
+  app.get("/api/clients", requireAuth, async (req, res) => {
+    try {
+      const clients = await storage.getAllClients();
+      res.json(clients);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get single client
+  app.get("/api/clients/:id", requireAuth, async (req, res) => {
+    try {
+      const client = await storage.getClient(req.params.id);
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+      res.json(client);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Create client
+  app.post("/api/clients", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertClientSchema.parse(req.body);
+      const client = await storage.createClient(validatedData);
+      
+      await createAuditLog(
+        req.userName!,
+        'created',
+        'client',
+        client.id,
+        `Cliente "${client.name}" criado`
+      );
+      
+      broadcast({ type: "client_created", client });
+      res.status(201).json(client);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update client
+  app.patch("/api/clients/:id", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertClientSchema.partial().parse(req.body);
+      const client = await storage.updateClient(req.params.id, validatedData);
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+      
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'client',
+        client.id,
+        `Cliente "${client.name}" atualizado`
+      );
+      
+      broadcast({ type: "client_updated", client });
+      res.json(client);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete client
+  app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
+    try {
+      const client = await storage.getClient(req.params.id);
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+
+      await storage.deleteClient(req.params.id);
+      
+      await createAuditLog(
+        req.userName!,
+        'deleted',
+        'client',
+        client.id,
+        `Cliente "${client.name}" excluído`
+      );
+      
+      broadcast({ type: "client_deleted", clientId: req.params.id });
+      res.json({ message: "Cliente excluído com sucesso" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ EVENT SPONSORS ============
+  
+  // Get sponsors for an event
+  app.get("/api/events/:id/sponsors", requireAuth, async (req, res) => {
+    try {
+      const eventSponsors = await storage.getEventSponsors(req.params.id);
+      res.json(eventSponsors);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add sponsor to event
+  app.post("/api/events/:id/sponsors", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertEventSponsorSchema.parse({
+        eventId: req.params.id,
+        sponsorId: req.body.sponsorId,
+      });
+
+      const eventSponsor = await storage.addSponsorToEvent(validatedData);
+      
+      const event = await storage.getEvent(req.params.id);
+      const sponsor = await storage.getSponsor(validatedData.sponsorId);
+      
+      await createAuditLog(
+        req.userName!,
+        'added',
+        'event_sponsor',
+        eventSponsor.id,
+        `Patrocinador "${sponsor?.name}" vinculado ao evento "${event?.name}"`
+      );
+      
+      broadcast({ type: "event_sponsor_added", eventSponsor });
+      res.status(201).json(eventSponsor);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Remove sponsor from event
+  app.delete("/api/events/:eventId/sponsors/:sponsorId", requireAdmin, async (req, res) => {
+    try {
+      const { eventId, sponsorId } = req.params;
+      const success = await storage.removeSponsorFromEvent(eventId, sponsorId);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Vinculação não encontrada" });
+      }
+      
+      const event = await storage.getEvent(eventId);
+      const sponsor = await storage.getSponsor(sponsorId);
+      
+      await createAuditLog(
+        req.userName!,
+        'removed',
+        'event_sponsor',
+        `${eventId}_${sponsorId}`,
+        `Patrocinador "${sponsor?.name}" removido do evento "${event?.name}"`
+      );
+      
+      broadcast({ type: "event_sponsor_removed", eventId, sponsorId });
+      res.json({ message: "Patrocinador removido do evento com sucesso" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -9,6 +9,9 @@ import {
   deliveryPhotos,
   auditLogs,
   users,
+  sponsors,
+  clients,
+  eventSponsors,
   type Event, 
   type InsertEvent,
   type Item,
@@ -25,7 +28,13 @@ import {
   type InsertDeliveryPhoto,
   type AuditLog,
   type InsertAuditLog,
-  type User
+  type User,
+  type Sponsor,
+  type InsertSponsor,
+  type Client,
+  type InsertClient,
+  type EventSponsor,
+  type InsertEventSponsor
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -89,6 +98,25 @@ export interface IStorage {
   createUser(user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User>;
   updateUser(id: string, data: Partial<User>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
+  
+  // Sponsors
+  getSponsor(id: string): Promise<Sponsor | undefined>;
+  getAllSponsors(): Promise<Sponsor[]>;
+  createSponsor(sponsor: InsertSponsor): Promise<Sponsor>;
+  updateSponsor(id: string, data: Partial<InsertSponsor>): Promise<Sponsor | undefined>;
+  deleteSponsor(id: string): Promise<boolean>;
+  
+  // Clients
+  getClient(id: string): Promise<Client | undefined>;
+  getAllClients(): Promise<Client[]>;
+  createClient(client: InsertClient): Promise<Client>;
+  updateClient(id: string, data: Partial<InsertClient>): Promise<Client | undefined>;
+  deleteClient(id: string): Promise<boolean>;
+  
+  // Event Sponsors (many-to-many relationship)
+  getEventSponsors(eventId: string): Promise<EventSponsor[]>;
+  addSponsorToEvent(eventSponsor: InsertEventSponsor): Promise<EventSponsor>;
+  removeSponsorFromEvent(eventId: string, sponsorId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -162,7 +190,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(eq(items.status, 'requested'))
+      .where(sql`${items.status} IN ('requested', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_creator_review')`)
       .orderBy(desc(items.createdAt));
   }
 
@@ -170,7 +198,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(sql`${items.status} IN ('approved', 'inProduction', 'produced', 'delivered')`)
+      .where(sql`${items.status} IN ('ready_for_production', 'approved', 'inProduction', 'produced', 'delivered')`)
       .orderBy(desc(items.createdAt));
   }
 
@@ -511,6 +539,105 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(users)
       .where(eq(users.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Sponsors
+  async getSponsor(id: string): Promise<Sponsor | undefined> {
+    const [sponsor] = await db.select().from(sponsors).where(eq(sponsors.id, id));
+    return sponsor || undefined;
+  }
+
+  async getAllSponsors(): Promise<Sponsor[]> {
+    return await db.select().from(sponsors).orderBy(desc(sponsors.createdAt));
+  }
+
+  async createSponsor(insertSponsor: InsertSponsor): Promise<Sponsor> {
+    const [sponsor] = await db
+      .insert(sponsors)
+      .values(insertSponsor)
+      .returning();
+    return sponsor;
+  }
+
+  async updateSponsor(id: string, data: Partial<InsertSponsor>): Promise<Sponsor | undefined> {
+    const updateData: any = { ...data, updatedAt: new Date() };
+    const [sponsor] = await db
+      .update(sponsors)
+      .set(updateData)
+      .where(eq(sponsors.id, id))
+      .returning();
+    return sponsor || undefined;
+  }
+
+  async deleteSponsor(id: string): Promise<boolean> {
+    const result = await db
+      .delete(sponsors)
+      .where(eq(sponsors.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Clients
+  async getClient(id: string): Promise<Client | undefined> {
+    const [client] = await db.select().from(clients).where(eq(clients.id, id));
+    return client || undefined;
+  }
+
+  async getAllClients(): Promise<Client[]> {
+    return await db.select().from(clients).orderBy(desc(clients.createdAt));
+  }
+
+  async createClient(insertClient: InsertClient): Promise<Client> {
+    const [client] = await db
+      .insert(clients)
+      .values(insertClient)
+      .returning();
+    return client;
+  }
+
+  async updateClient(id: string, data: Partial<InsertClient>): Promise<Client | undefined> {
+    const updateData: any = { ...data, updatedAt: new Date() };
+    const [client] = await db
+      .update(clients)
+      .set(updateData)
+      .where(eq(clients.id, id))
+      .returning();
+    return client || undefined;
+  }
+
+  async deleteClient(id: string): Promise<boolean> {
+    const result = await db
+      .delete(clients)
+      .where(eq(clients.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Event Sponsors
+  async getEventSponsors(eventId: string): Promise<EventSponsor[]> {
+    return await db
+      .select()
+      .from(eventSponsors)
+      .where(eq(eventSponsors.eventId, eventId))
+      .orderBy(desc(eventSponsors.createdAt));
+  }
+
+  async addSponsorToEvent(insertEventSponsor: InsertEventSponsor): Promise<EventSponsor> {
+    const [eventSponsor] = await db
+      .insert(eventSponsors)
+      .values(insertEventSponsor)
+      .returning();
+    return eventSponsor;
+  }
+
+  async removeSponsorFromEvent(eventId: string, sponsorId: string): Promise<boolean> {
+    const result = await db
+      .delete(eventSponsors)
+      .where(
+        and(
+          eq(eventSponsors.eventId, eventId),
+          eq(eventSponsors.sponsorId, sponsorId)
+        )
+      );
     return result.rowCount !== null && result.rowCount > 0;
   }
 }

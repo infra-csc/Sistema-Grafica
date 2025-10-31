@@ -12,9 +12,43 @@ export const events = pgTable("events", {
   truckDepartureDate: timestamp("truck_departure_date").notNull(),
   status: text("status").notNull().default("created"), // created, completed
   priority: text("priority"), // baixa, media, alta, urgente
+  approvalBookUrl: text("approval_book_url"), // URL do PDF com book de aprovação
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Sponsors table (Patrocinadores)
+export const sponsors = pgTable("sponsors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  company: text("company"),
+  contactPerson: text("contact_person"), // Pessoa de contato
+  notes: text("notes"), // Observações gerais
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Clients table (Clientes)
+export const clients = pgTable("clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  company: text("company"),
+  notes: text("notes"), // Observações gerais
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Event-Sponsors relationship table (many-to-many)
+export const eventSponsors = pgTable("event_sponsors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  sponsorId: varchar("sponsor_id").notNull().references(() => sponsors.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
 // Items table
@@ -34,11 +68,17 @@ export const items = pgTable("items", {
   finish: text("finish").notNull(),
   measurement: text("measurement").notNull(), // Can be edited, starts as area x visual
   calculatedM2: decimal("calculated_m2", { precision: 10, scale: 2 }).notNull(),
-  status: text("status").notNull().default("requested"), // requested, approved, inProduction, produced, delivered
+  status: text("status").notNull().default("requested"), // requested, awaiting_sponsor_approval, sponsor_approved, awaiting_creator_review, ready_for_production, approved, inProduction, produced, delivered
   observations: text("observations"),
   quantityProduced: integer("quantity_produced"),
   receivedBy: text("received_by"),
   deliveryPhotoUrl: text("delivery_photo_url"),
+  clientId: varchar("client_id").references(() => clients.id, { onDelete: "set null" }), // Cliente específico desta peça
+  approvalThumbUrl: text("approval_thumb_url"), // Thumb/link leve para aprovação
+  finalFileUrl: text("final_file_url"), // Link do arquivo final (Drive, S3, etc)
+  sponsorApprovedBy: text("sponsor_approved_by"), // Nome do aprovador do patrocinador
+  sponsorApprovedAt: timestamp("sponsor_approved_at"), // Quando foi aprovado pelo patrocinador
+  creatorReviewedAt: timestamp("creator_reviewed_at"), // Quando criador do evento revisou
   approvedAt: timestamp("approved_at"), // Timestamp quando foi liberado pela Arte
   productionStartedAt: timestamp("production_started_at"), // Timestamp quando produção iniciou
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
@@ -71,7 +111,7 @@ export const notifications = pgTable("notifications", {
   message: text("message").notNull(),
   eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }),
   itemId: varchar("item_id").references(() => items.id, { onDelete: "cascade" }),
-  targetRoles: text("target_roles").array().notNull().default(sql`ARRAY['admin', 'solicitacao', 'arte', 'grafica']::text[]`), // Perfis que devem receber
+  targetRoles: text("target_roles").array().notNull().default(sql`ARRAY['admin', 'solicitacao', 'arte', 'grafica', 'atendimento']::text[]`), // Perfis que devem receber
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
@@ -92,7 +132,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  role: text("role").notNull().default("solicitacao"), // admin, solicitacao, arte, grafica
+  role: text("role").notNull().default("solicitacao"), // admin, solicitacao, arte, grafica, atendimento
   mustChangePassword: boolean("must_change_password").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
@@ -133,12 +173,36 @@ export const auditLogs = pgTable("audit_logs", {
 export const eventsRelations = relations(events, ({ many }) => ({
   items: many(items),
   notifications: many(notifications),
+  eventSponsors: many(eventSponsors),
+}));
+
+export const sponsorsRelations = relations(sponsors, ({ many }) => ({
+  eventSponsors: many(eventSponsors),
+}));
+
+export const clientsRelations = relations(clients, ({ many }) => ({
+  items: many(items),
+}));
+
+export const eventSponsorsRelations = relations(eventSponsors, ({ one }) => ({
+  event: one(events, {
+    fields: [eventSponsors.eventId],
+    references: [events.id],
+  }),
+  sponsor: one(sponsors, {
+    fields: [eventSponsors.sponsorId],
+    references: [sponsors.id],
+  }),
 }));
 
 export const itemsRelations = relations(items, ({ one, many }) => ({
   event: one(events, {
     fields: [items.eventId],
     references: [events.id],
+  }),
+  client: one(clients, {
+    fields: [items.clientId],
+    references: [clients.id],
   }),
   notifications: many(notifications),
   productionUpdates: many(productionUpdates),
@@ -221,7 +285,7 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   createdAt: true,
   isRead: true,
 }).extend({
-  targetRoles: z.array(z.enum(["admin", "solicitacao", "arte", "grafica"])).default(["admin", "solicitacao", "arte", "grafica"]),
+  targetRoles: z.array(z.enum(["admin", "solicitacao", "arte", "grafica", "atendimento"])).default(["admin", "solicitacao", "arte", "grafica", "atendimento"]),
 });
 
 export const insertProductionUpdateSchema = createInsertSchema(productionUpdates).omit({
@@ -231,6 +295,23 @@ export const insertProductionUpdateSchema = createInsertSchema(productionUpdates
   quantityProduced: z.number().min(0),
 });
 
+export const insertSponsorSchema = createInsertSchema(sponsors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertClientSchema = createInsertSchema(clients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEventSponsorSchema = createInsertSchema(eventSponsors).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -238,7 +319,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   passwordHash: true,
 }).extend({
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-  role: z.enum(["admin", "solicitacao", "arte", "grafica"]).default("solicitacao"),
+  role: z.enum(["admin", "solicitacao", "arte", "grafica", "atendimento"]).default("solicitacao"),
 });
 
 export const loginSchema = z.object({
@@ -297,3 +378,12 @@ export type InsertDeliveryPhoto = z.infer<typeof insertDeliveryPhotoSchema>;
 
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export type Sponsor = typeof sponsors.$inferSelect;
+export type InsertSponsor = z.infer<typeof insertSponsorSchema>;
+
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = z.infer<typeof insertClientSchema>;
+
+export type EventSponsor = typeof eventSponsors.$inferSelect;
+export type InsertEventSponsor = z.infer<typeof insertEventSponsorSchema>;

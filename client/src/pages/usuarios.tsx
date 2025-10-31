@@ -49,7 +49,7 @@ import { ptBR } from "date-fns/locale";
 const userSchema = z.object({
   name: z.string().min(1, "Nome obrigatório"),
   email: z.string().email("Email inválido"),
-  role: z.enum(["admin", "solicitacao", "arte", "grafica"], {
+  role: z.enum(["admin", "solicitacao", "arte", "grafica", "atendimento"], {
     required_error: "Selecione um perfil",
   }),
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres").optional().or(z.literal("")),
@@ -71,6 +71,7 @@ const roleLabels: Record<string, string> = {
   solicitacao: "Solicitação",
   arte: "Arte",
   grafica: "Gráfica",
+  atendimento: "Atendimento",
 };
 
 const roleColors: Record<string, string> = {
@@ -78,6 +79,7 @@ const roleColors: Record<string, string> = {
   solicitacao: "bg-blue-500",
   arte: "bg-purple-500",
   grafica: "bg-orange-500",
+  atendimento: "bg-green-600",
 };
 
 export default function Usuarios() {
@@ -299,6 +301,7 @@ export default function Usuarios() {
                           <SelectItem value="solicitacao">Solicitação</SelectItem>
                           <SelectItem value="arte">Arte</SelectItem>
                           <SelectItem value="grafica">Gráfica</SelectItem>
+                          <SelectItem value="atendimento">Atendimento</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

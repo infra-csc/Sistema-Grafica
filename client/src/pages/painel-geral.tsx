@@ -68,7 +68,15 @@ export default function PainelGeral() {
   const stats = {
     total: filteredItems.length,
     requested: filteredItems.filter(i => i.status === 'requested').length,
-    approved: filteredItems.filter(i => i.status === 'approved').length,
+    awaitingApproval: filteredItems.filter(i => 
+      i.status === 'awaiting_sponsor_approval' || 
+      i.status === 'sponsor_approved' || 
+      i.status === 'awaiting_creator_review'
+    ).length,
+    approved: filteredItems.filter(i => 
+      i.status === 'ready_for_production' || 
+      i.status === 'approved'
+    ).length,
     inProduction: filteredItems.filter(i => i.status === 'inProduction').length,
     produced: filteredItems.filter(i => i.status === 'produced').length,
     delivered: filteredItems.filter(i => i.status === 'delivered').length,
@@ -85,7 +93,7 @@ export default function PainelGeral() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -103,6 +111,22 @@ export default function PainelGeral() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-status-pending" data-testid="stat-requested">{stats.requested}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Aguardando Arte
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Em Aprovação</CardTitle>
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600" data-testid="stat-awaiting-approval">{stats.awaitingApproval}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Fluxo aprovação
+            </p>
           </CardContent>
         </Card>
 
@@ -113,6 +137,9 @@ export default function PainelGeral() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-status-inProgress" data-testid="stat-approved">{stats.approved}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Prontos p/ produzir
+            </p>
           </CardContent>
         </Card>
 
@@ -192,6 +219,10 @@ export default function PainelGeral() {
                   <SelectContent>
                     <SelectItem value="all">Todos os status</SelectItem>
                     <SelectItem value="requested">Solicitado</SelectItem>
+                    <SelectItem value="awaiting_sponsor_approval">Aguardando Patrocinador</SelectItem>
+                    <SelectItem value="sponsor_approved">Patrocinador Aprovou</SelectItem>
+                    <SelectItem value="awaiting_creator_review">Aguardando Solicitação</SelectItem>
+                    <SelectItem value="ready_for_production">Pronto para Produção</SelectItem>
                     <SelectItem value="approved">Liberado</SelectItem>
                     <SelectItem value="inProduction">Em Produção</SelectItem>
                     <SelectItem value="produced">Produzido</SelectItem>

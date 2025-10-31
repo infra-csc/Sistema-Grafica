@@ -261,7 +261,7 @@ export default function Arte() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
@@ -277,14 +277,60 @@ export default function Arte() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Liberados</CardTitle>
-            <CheckCircle className="h-4 w-4 text-status-approved" />
+            <CardTitle className="text-sm font-medium">Aguard. Patrocinador</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-status-approved" data-testid="stat-approved">
-              {approvedCount}
+            <div className="text-2xl font-bold text-yellow-600" data-testid="stat-awaiting-sponsor">
+              {itemsForEvent.filter(i => i.status === 'awaiting_sponsor_approval').length}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Liberados para produção</p>
+            <p className="text-xs text-muted-foreground mt-1">Enviado p/ aprovação</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Patrocinador Aprovou</CardTitle>
+            <CheckCircle className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600" data-testid="stat-sponsor-approved">
+              {itemsForEvent.filter(i => i.status === 'sponsor_approved').length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Aguard. solicitação</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Prontos p/ Produção</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600" data-testid="stat-ready-production">
+              {itemsForEvent.filter(i => 
+                i.status === 'ready_for_production' || 
+                i.status === 'approved'
+              ).length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Liberados</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Em Produção</CardTitle>
+            <CheckCircle className="h-4 w-4 text-status-production" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-status-production" data-testid="stat-in-production">
+              {itemsForEvent.filter(i => 
+                i.status === 'inProduction' || 
+                i.status === 'produced' || 
+                i.status === 'delivered'
+              ).length}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Produzindo/Concluído</p>
           </CardContent>
         </Card>
       </div>

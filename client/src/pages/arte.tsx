@@ -21,12 +21,13 @@ import {
 import { Fragment, useState } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"pending" | "needsFinalFile" | "approved">("pending");
+  const [activeTab, setActiveTab] = useState<string>("criar-aprovacoes");
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");
@@ -153,75 +154,68 @@ export default function Arte() {
     { value: "12", label: "Dezembro" },
   ];
 
-  const filteredItems = allItems
-    .filter(item => {
-      const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-      let matchesView = false;
-      if (viewMode === "pending") {
-        matchesView = item.status === 'requested';
-      } else if (viewMode === "needsFinalFile") {
-        matchesView = item.status === 'sponsor_approved';
-      } else {
-        matchesView = item.status === 'awaiting_sponsor_approval' || 
-          item.status === 'awaiting_creator_review' || 
-          item.status === 'ready_for_production' || 
-          item.status === 'approved' || 
-          item.status === 'inProduction' || 
-          item.status === 'produced' || 
-          item.status === 'delivered';
-      }
-      const matchesType = typeFilter === "all" || item.type === typeFilter;
-      const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
-      const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
-      
-      // Filtro de próximos 10 dias
-      let matchesNext10Days = true;
-      if (next10DaysFilter && item.event?.truckDepartureDate) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tenDaysFromNow = new Date(today);
-        tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
-        const departureDate = new Date(item.event.truckDepartureDate);
-        matchesNext10Days = departureDate >= today && departureDate <= tenDaysFromNow;
-      }
-      
-      // Filtro por mês
-      let matchesMonth = true;
-      if (monthFilter !== "all" && item.event?.truckDepartureDate) {
-        const departureDate = new Date(item.event.truckDepartureDate);
-        const month = departureDate.getMonth() + 1; // getMonth() retorna 0-11
-        matchesMonth = month.toString() === monthFilter;
-      }
-      
-      return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth;
-    })
-    .sort((a, b) => {
-      // Primeiro ordenar por evento
-      const eventA = a.event?.name || '';
-      const eventB = b.event?.name || '';
-      if (eventA !== eventB) {
-        return eventA.localeCompare(eventB);
-      }
-      // Depois ordenar por tipo
-      return a.type.localeCompare(b.type);
-    });
+  // Function to filter items based on active tab
+  const getFilteredItemsForTab = (tab: string) => {
+    return allItems
+      .filter(item => {
+        const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+        let matchesView = false;
+        if (tab === "criar-aprovacoes") {
+          matchesView = item.status === 'requested';
+        } else if (tab === "finalizar-layouts") {
+          matchesView = item.status === 'sponsor_approved';
+        } else {
+          matchesView = item.status === 'awaiting_sponsor_approval' || 
+            item.status === 'awaiting_creator_review' || 
+            item.status === 'ready_for_production' || 
+            item.status === 'approved' || 
+            item.status === 'inProduction' || 
+            item.status === 'produced' || 
+            item.status === 'delivered';
+        }
+        const matchesType = typeFilter === "all" || item.type === typeFilter;
+        const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
+        const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
+        
+        // Filtro de próximos 10 dias
+        let matchesNext10Days = true;
+        if (next10DaysFilter && item.event?.truckDepartureDate) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tenDaysFromNow = new Date(today);
+          tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+          const departureDate = new Date(item.event.truckDepartureDate);
+          matchesNext10Days = departureDate >= today && departureDate <= tenDaysFromNow;
+        }
+        
+        // Filtro por mês
+        let matchesMonth = true;
+        if (monthFilter !== "all" && item.event?.truckDepartureDate) {
+          const departureDate = new Date(item.event.truckDepartureDate);
+          const month = departureDate.getMonth() + 1; // getMonth() retorna 0-11
+          matchesMonth = month.toString() === monthFilter;
+        }
+        
+        return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth;
+      })
+      .sort((a, b) => {
+        // Primeiro ordenar por evento
+        const eventA = a.event?.name || '';
+        const eventB = b.event?.name || '';
+        if (eventA !== eventB) {
+          return eventA.localeCompare(eventB);
+        }
+        // Depois ordenar por tipo
+        return a.type.localeCompare(b.type);
+      });
+  };
 
-  // Filtrar por evento antes de contar
-  const itemsForEvent = eventFilter === "all" 
-    ? allItems 
-    : allItems.filter(item => item.eventId === eventFilter);
-  
-  const pendingCount = itemsForEvent.filter(item => item.status === 'requested').length;
-  const needsFinalFileCount = itemsForEvent.filter(item => item.status === 'sponsor_approved').length;
-  const approvedCount = itemsForEvent.filter(item => 
-    item.status === 'awaiting_sponsor_approval' ||
-    item.status === 'awaiting_creator_review' ||
-    item.status === 'ready_for_production' ||
-    item.status === 'approved' || 
-    item.status === 'inProduction' || 
-    item.status === 'produced' || 
-    item.status === 'delivered'
-  ).length;
+  const filteredItems = getFilteredItemsForTab(activeTab);
+
+  // Calculate badge counts using the same filtered pipeline
+  const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
+  const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
+  const approvedCount = getFilteredItemsForTab("aprovados").length;
 
   const pendingItems = filteredItems.filter(item => item.status === 'requested');
 
@@ -358,17 +352,30 @@ export default function Arte() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <CardTitle>
-                {viewMode === "pending" 
-                  ? "Itens Pendentes de Liberação" 
-                  : viewMode === "needsFinalFile"
-                  ? "Itens Aguardando Arquivo Final"
-                  : "Histórico de Liberações"}
-              </CardTitle>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex-1">
+                  <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
+                    <TabsTrigger value="criar-aprovacoes" data-testid="tab-criar-aprovacoes">
+                      <FileImage className="h-4 w-4 mr-2" />
+                      Criar Aprovações
+                      <Badge variant="secondary" className="ml-2">{pendingCount}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="finalizar-layouts" data-testid="tab-finalizar-layouts">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Finalizar Layouts
+                      <Badge variant="secondary" className="ml-2">{needsFinalFileCount}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger value="aprovados" data-testid="tab-aprovados">
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Aprovados
+                      <Badge variant="secondary" className="ml-2">{approvedCount}</Badge>
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
               <div className="flex flex-wrap gap-2">
                 <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
                   <PopoverTrigger asChild>
@@ -452,60 +459,31 @@ export default function Arte() {
                   <Truck className="h-4 w-4 mr-2" />
                   Próximos 10 dias
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className={showAdvancedFilters ? "bg-muted" : ""}
+                  data-testid="button-toggle-advanced-filters"
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filtros Avançados
+                </Button>
               </div>
             </div>
             
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div className="flex flex-wrap gap-2">
+              {activeTab === "criar-aprovacoes" && selectedItemIds.size > 0 && (
                 <Button
-                  variant={viewMode === "pending" ? "default" : "outline"}
+                  variant="default"
                   size="sm"
-                  onClick={() => setViewMode("pending")}
-                  data-testid="button-view-pending"
+                  onClick={() => setShowBulkDialog(true)}
+                  data-testid="button-open-bulk-upload"
                 >
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Pendentes ({pendingCount})
+                  <File className="h-4 w-4 mr-2" />
+                  Upload PDF Compartilhado ({selectedItemIds.size})
                 </Button>
-                <Button
-                  variant={viewMode === "needsFinalFile" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("needsFinalFile")}
-                  data-testid="button-view-needs-final-file"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Aguard. Arquivo Final ({needsFinalFileCount})
-                </Button>
-                <Button
-                  variant={viewMode === "approved" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setViewMode("approved")}
-                  data-testid="button-view-approved"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Liberados ({approvedCount})
-                </Button>
-                {viewMode === "pending" && selectedItemIds.size > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setShowBulkDialog(true)}
-                    data-testid="button-open-bulk-upload"
-                  >
-                    <File className="h-4 w-4 mr-2" />
-                    Upload PDF Compartilhado ({selectedItemIds.size})
-                  </Button>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className={showAdvancedFilters ? "bg-muted" : ""}
-                data-testid="button-toggle-advanced-filters"
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                Filtros Avançados
-              </Button>
+              )}
             </div>
 
             {showAdvancedFilters && (
@@ -582,11 +560,17 @@ export default function Arte() {
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-12">
-              {viewMode === "pending" ? (
+              {activeTab === "criar-aprovacoes" ? (
                 <>
                   <CheckCircle className="h-12 w-12 text-status-completed mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Tudo liberado!</h3>
                   <p className="text-muted-foreground">Não há itens pendentes no momento</p>
+                </>
+              ) : activeTab === "finalizar-layouts" ? (
+                <>
+                  <Upload className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Nenhum item aguardando arquivo final</h3>
+                  <p className="text-muted-foreground">Todos os itens aprovados já possuem arquivos finais</p>
                 </>
               ) : (
                 <>
@@ -601,7 +585,7 @@ export default function Arte() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
-                    {viewMode === "pending" && (
+                    {activeTab === "criar-aprovacoes" && (
                       <th className="text-center py-3 px-4 font-medium w-10">
                         <Checkbox
                           checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
@@ -615,7 +599,7 @@ export default function Arte() {
                     <th className="text-left py-3 px-4 font-medium">Dimensões</th>
                     <th className="text-center py-3 px-4 font-medium">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
-                    {viewMode === "approved" && (
+                    {activeTab === "aprovados" && (
                       <th className="text-left py-3 px-4 font-medium">Status</th>
                     )}
                     <th className="text-right py-3 px-4 font-medium">Ações</th>
@@ -639,7 +623,7 @@ export default function Arte() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={viewMode === "pending" ? 8 : 7} className="py-3 px-4">
+                            <td colSpan={activeTab === "criar-aprovacoes" ? 8 : 7} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
@@ -667,7 +651,7 @@ export default function Arte() {
                         )}
                         {showTypeHeader && (
                           <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={viewMode === "pending" ? 8 : 7} className="py-1.5 px-4">
+                            <td colSpan={activeTab === "criar-aprovacoes" ? 8 : 7} className="py-1.5 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -682,7 +666,7 @@ export default function Arte() {
                           className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
                           data-testid={`row-pending-item-${item.id}`}
                         >
-                          {viewMode === "pending" && (
+                          {activeTab === "criar-aprovacoes" && (
                             <td className="py-2 px-4 text-center">
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
@@ -727,7 +711,7 @@ export default function Arte() {
                             <div>{item.material}</div>
                             <div className="text-xs text-muted-foreground">{item.finish}</div>
                           </td>
-                          {viewMode === "approved" && (
+                          {activeTab === "aprovados" && (
                             <td className="py-2 px-3">
                               <StatusBadge status={item.status} />
                             </td>
@@ -739,9 +723,11 @@ export default function Arte() {
                                 variant="ghost"
                                 onClick={() => handleViewDetails(item)}
                                 data-testid={`button-view-${item.id}`}
-                                title="Ver detalhes e enviar para aprovação"
+                                title="Ver detalhes"
                               >
-                                {viewMode === "pending" ? <Upload className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                {activeTab === "criar-aprovacoes" ? <Upload className="h-4 w-4" /> : 
+                                 activeTab === "finalizar-layouts" ? <FileImage className="h-4 w-4" /> : 
+                                 <Eye className="h-4 w-4" />}
                               </Button>
                             </div>
                           </td>
@@ -755,6 +741,7 @@ export default function Arte() {
           )}
         </CardContent>
       </Card>
+      </Tabs>
 
       <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
         <DialogContent>

@@ -29,15 +29,21 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
   - Created generic FileUploader component for file uploads (images, PDFs, etc.) using object storage
   - **Modern Segmented Control Navigation (October 31, 2025):**
     - Implemented horizontal tab navigation with modern segmented control design
-    - Three tabs in single row with refined visual hierarchy:
-      1. **"Criar Aprovações"** (FileImage icon): Items with status `requested` - Arte creates approval thumbs
-      2. **"Finalizar Layouts"** (Upload icon): Items with status `sponsor_approved` - Arte uploads final files
-      3. **"Aprovados"** (CheckCircle icon): All other workflow statuses (historical view)
+    - Three tabs in single row with refined visual hierarchy and vertical layout:
+      1. **"Mandar para Aprovação"** (FileImage icon, Blue): Items with status `requested` - Arte creates approval thumbs
+      2. **"Finalizar Arte"** (Upload icon, Orange): Items with status `sponsor_approved` - Arte uploads final files
+      3. **"Aprovados"** (CheckCircle icon, Green): All other workflow statuses (historical view)
+    - Color-coded differentiation:
+      - Each tab has unique color theme (Blue, Orange, Green) for easy identification
+      - Colored icons persist in both active and inactive states
+      - Active tabs have colored border (border-2) matching theme
+      - Badges show theme color when active, muted background when inactive
     - Design refinements:
-      - Active tab: elevated with shadow, border, and background contrast
-      - Inactive tabs: `text-foreground/70` for optimal legibility (not overly muted)
-      - Badges: consistent sizing (min-w-28px), right-aligned, variant-aware backgrounds
-      - Spacing: optimized padding (py-3.5), gap between tabs, refined container spacing
+      - Vertical flex layout (flex-col): icon + text on first line, badge centered below
+      - Active tab: elevated with shadow, colored border, and background contrast
+      - Inactive tabs: `text-foreground/70` for optimal legibility
+      - Badges: consistent sizing (min-w-28px), centered below label
+      - Spacing: optimized padding (py-3.5), gap between tabs and elements
       - Typography: semibold labels for clear hierarchy
     - Badge counters respect ALL active filters (event, type, material, finish, month, next 10 days)
     - Filters separated into distinct Card component below navigation for clear visual hierarchy
@@ -77,13 +83,24 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
     - Defense in depth: both frontend and backend enforce access control
 - **Solicitação (Creator Review) Page Implementation (October 31, 2025):**
   - Created `/solicitacao` page for final creator review before production
-  - Displays items with status `sponsor_approved` in grid cards
-  - Shows approval thumbs, item details, and complete approval history
-  - Review dialog with full-size image, final file link, and approval timeline
+  - **Refactored to Table Layout (October 31, 2025):**
+    - Changed from grid of cards to responsive table layout matching Atendimento page
+    - Search filter by description/type/name with clear button (X icon)
+    - Event filter dropdown (Select) with all available events
+    - Item type filter dropdown (Select) with unique types
+    - "Limpar" button appears when any filter is active
+    - Table columns: Checkbox, Evento, Tipo, Descrição, Qtd, Patrocinador, Saída Caminhão, Ações
+    - Visual grouping by event with purple gradient headers and event info
+    - Displays items with status `sponsor_approved`
+    - Checkbox multi-selection for bulk operations
+    - "Liberar X Itens" button for batch release to production
+    - Memoized filtering logic for performance (useMemo)
+    - Badge with counter showing pending items count
+    - Empty states differentiated: "Nenhum item para revisar" vs "Nenhum resultado encontrado"
+  - Review dialog with full-size image, final file link, and approval timeline (unchanged)
   - Shows checkmarks for Arte and Patrocinador approvals with timestamps
-  - "Liberar para Produção" button calls `/api/items/:id/creator-review` to transition to `ready_for_production`
-  - Counter displays pending items count
-  - Empty state when no items await review
+  - Individual "Revisar" button per row or batch "Liberar" for multiple items
+  - Both routes call `/api/items/:id/creator-review` to transition to `ready_for_production`
   - **Access Control (Layered Security):**
     - Route restricted to "solicitacao" and "admin" roles using RoleProtectedRoute
     - Sidebar link filtered - only authorized roles see menu item

@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users } from "lucide-react";
+import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users, Building2, UserCheck } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -101,6 +101,22 @@ export function AppSidebar() {
                     <Link href="/usuarios">
                       <Users className="h-4 w-4" />
                       <span>Usuários</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/patrocinadores"} data-testid="nav-patrocinadores">
+                    <Link href="/patrocinadores">
+                      <Building2 className="h-4 w-4" />
+                      <span>Patrocinadores</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/clientes"} data-testid="nav-clientes">
+                    <Link href="/clientes">
+                      <UserCheck className="h-4 w-4" />
+                      <span>Clientes</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

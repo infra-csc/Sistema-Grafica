@@ -15,6 +15,7 @@ import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import ChangePassword from "@/pages/change-password";
 import Usuarios from "@/pages/usuarios";
+import Patrocinadores from "@/pages/patrocinadores";
 import PainelGeral from "@/pages/painel-geral";
 import DashboardAnalises from "@/pages/dashboard-analises";
 import Eventos from "@/pages/eventos";
@@ -91,6 +92,9 @@ function Router() {
       </Route>
       <Route path="/usuarios">
         {() => <ProtectedRoute component={Usuarios} />}
+      </Route>
+      <Route path="/patrocinadores">
+        {() => <ProtectedRoute component={Patrocinadores} />}
       </Route>
       <Route component={NotFound} />
     </Switch>

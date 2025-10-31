@@ -3,6 +3,23 @@
 ## Overview
 NORTE is a comprehensive graphic production management system for NORTE Marketing Esportivo. Its main goal is to replace Excel spreadsheets, enhancing agility and providing complete control, traceability, and automatic notifications across the entire production workflow: **Request → Art → Printing → Delivery**. The system aims to streamline operations, improve oversight, and ensure timely communication at all stages.
 
+## Recent Changes (October 31, 2025)
+- **Multi-stage approval workflow fully implemented:**
+  - Backend API routes for sponsor/client management with admin-only access
+  - New approval routes with status validation and role-based authorization
+  - Three-stage approval: Arte → Atendimento (sponsor) → Solicitação (creator) → Production
+- **Sponsors & Clients Management:**
+  - Full CRUD operations for sponsors and clients (admin-only)
+  - Patrocinadores page created with form and list view
+  - Navigation items added to sidebar for Patrocinadores and Clientes
+  - API routes secured with schema validation and requireAdmin middleware
+- **Approval Routes Created:**
+  - `/api/items/:id/submit-for-approval` - Arte submits with approval thumb
+  - `/api/items/:id/sponsor-approve` - Atendimento approves for sponsor
+  - `/api/items/:id/creator-review` - Solicitação reviews and releases to production
+  - All routes validate current item status before transition (409 on invalid state)
+  - All routes enforce role-based access (403 on unauthorized role)
+
 ## User Preferences
 I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.
 

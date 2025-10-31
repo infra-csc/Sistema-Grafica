@@ -319,12 +319,15 @@ export default function Solicitacao() {
                         data-testid="checkbox-select-all"
                       />
                     </th>
-                    <th className="text-left py-3 px-4 font-medium">Evento</th>
+                    <th className="text-left py-3 px-4 font-medium">Nome</th>
                     <th className="text-left py-3 px-4 font-medium">Tipo</th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-center py-3 px-4 font-medium">Qtd</th>
+                    <th className="text-left py-3 px-4 font-medium">Material</th>
+                    <th className="text-left py-3 px-4 font-medium">Acabamento</th>
+                    <th className="text-left py-3 px-4 font-medium">Dimensões</th>
                     <th className="text-left py-3 px-4 font-medium">Patrocinador</th>
-                    <th className="text-left py-3 px-4 font-medium">Saída Caminhão</th>
+                    <th className="text-left py-3 px-4 font-medium">Observações</th>
                     <th className="text-right py-3 px-4 font-medium">Ações</th>
                   </tr>
                 </thead>
@@ -339,7 +342,7 @@ export default function Solicitacao() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-purple-500/10 to-purple-500/5 border-t-4 border-purple-500/30">
-                            <td colSpan={8} className="py-2 px-4">
+                            <td colSpan={11} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-purple-500 rounded-full"></div>
                                 <div className="text-sm font-bold text-purple-600 uppercase tracking-wider">
@@ -374,11 +377,11 @@ export default function Solicitacao() {
                               data-testid={`checkbox-item-${item.id}`}
                             />
                           </td>
-                          <td className="py-2 px-4 text-sm text-muted-foreground">
-                            {event?.name || "—"}
+                          <td className="py-2 px-4">
+                            <div className="text-sm font-medium">{item.name || "—"}</div>
                           </td>
                           <td className="py-2 px-4">
-                            <div className="text-sm font-medium">{item.type}</div>
+                            <div className="text-sm text-muted-foreground">{item.type}</div>
                           </td>
                           <td className="py-2 px-4">
                             {item.description ? (
@@ -391,14 +394,27 @@ export default function Solicitacao() {
                             <Badge variant="outline">{item.quantity}x</Badge>
                           </td>
                           <td className="py-2 px-4">
+                            <div className="text-sm text-muted-foreground">{item.material || "—"}</div>
+                          </td>
+                          <td className="py-2 px-4">
+                            <div className="text-sm text-muted-foreground">{item.finish || "—"}</div>
+                          </td>
+                          <td className="py-2 px-4">
+                            <div className="text-sm text-muted-foreground">{item.dimensions || "—"}</div>
+                          </td>
+                          <td className="py-2 px-4">
                             <div className="text-sm text-muted-foreground">
                               {sponsor?.name || "—"}
                             </div>
                           </td>
-                          <td className="py-2 px-4 text-sm text-muted-foreground">
-                            {event?.truckDepartureDate
-                              ? `${new Date(event.truckDepartureDate).toLocaleDateString('pt-BR')} ${new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-                              : "—"}
+                          <td className="py-2 px-4">
+                            {item.notes ? (
+                              <div className="text-sm text-muted-foreground max-w-xs truncate" title={item.notes}>
+                                {item.notes}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">—</div>
+                            )}
                           </td>
                           <td className="py-2 px-4 text-right">
                             <Button

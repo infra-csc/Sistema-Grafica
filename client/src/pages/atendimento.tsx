@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -46,6 +47,9 @@ export default function Atendimento() {
   const [searchTerm, setSearchTerm] = useState("");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
+  
+  // Seleção múltipla
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -76,6 +80,30 @@ export default function Atendimento() {
       toast({
         title: "Erro ao aprovar item",
         description: error.message || "Ocorreu um erro ao aprovar o item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkApproveMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const approvePromises = itemIds.map(id => 
+        apiRequest("PATCH", `/api/items/${id}/sponsor-approve`, {})
+      );
+      return await Promise.all(approvePromises);
+    },
+    onSuccess: (_, itemIds) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItemIds(new Set());
+      toast({
+        title: "Itens aprovados",
+        description: `${itemIds.length} ${itemIds.length === 1 ? 'item foi aprovado' : 'itens foram aprovados'} com sucesso!`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao aprovar itens",
+        description: error.message || "Ocorreu um erro ao aprovar os itens",
         variant: "destructive",
       });
     },
@@ -124,6 +152,33 @@ export default function Atendimento() {
   const handleApprove = () => {
     if (selectedItem) {
       sponsorApproveMutation.mutate(selectedItem.id);
+    }
+  };
+
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllSelection = () => {
+    if (selectedItemIds.size === filteredItems.length && filteredItems.length > 0) {
+      setSelectedItemIds(new Set());
+    } else {
+      setSelectedItemIds(new Set(filteredItems.map(item => item.id)));
+    }
+  };
+
+  const handleBulkApprove = () => {
+    const itemIds = Array.from(selectedItemIds);
+    if (itemIds.length > 0) {
+      bulkApproveMutation.mutate(itemIds);
     }
   };
 
@@ -219,6 +274,19 @@ export default function Atendimento() {
                 Limpar
               </Button>
             )}
+            
+            {selectedItemIds.size > 0 && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleBulkApprove}
+                disabled={bulkApproveMutation.isPending}
+                data-testid="button-bulk-approve"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Aprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+              </Button>
+            )}
           </div>
         </CardHeader>
         
@@ -244,6 +312,13 @@ export default function Atendimento() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
+                    <th className="text-center py-3 px-4 font-medium w-10">
+                      <Checkbox
+                        checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
+                        onCheckedChange={toggleAllSelection}
+                        data-testid="checkbox-select-all"
+                      />
+                    </th>
                     <th className="text-left py-3 px-4 font-medium">Evento</th>
                     <th className="text-left py-3 px-4 font-medium">Tipo</th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
@@ -264,7 +339,7 @@ export default function Atendimento() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={7} className="py-2 px-4">
+                            <td colSpan={8} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-primary rounded-full"></div>
                                 <div className="text-sm font-bold text-primary uppercase tracking-wider">
@@ -292,6 +367,13 @@ export default function Atendimento() {
                           className="border-b border-border hover-elevate"
                           data-testid={`row-item-${item.id}`}
                         >
+                          <td className="py-2 px-4 text-center">
+                            <Checkbox
+                              checked={selectedItemIds.has(item.id)}
+                              onCheckedChange={() => toggleItemSelection(item.id)}
+                              data-testid={`checkbox-item-${item.id}`}
+                            />
+                          </td>
                           <td className="py-2 px-4 text-sm text-muted-foreground">
                             {event?.name || "—"}
                           </td>
@@ -381,6 +463,22 @@ export default function Atendimento() {
                         <span className="font-medium">Patrocinador:</span>{" "}
                         <span className="text-muted-foreground">
                           {getSponsorInfo(selectedItem.sponsorId)?.name || "N/A"}
+                        </span>
+                      </div>
+                    )}
+                    {selectedItem.visualWidth && selectedItem.visualHeight && (
+                      <div>
+                        <span className="font-medium">Área Visual:</span>{" "}
+                        <span className="text-muted-foreground">
+                          {selectedItem.visualWidth}m × {selectedItem.visualHeight}m
+                        </span>
+                      </div>
+                    )}
+                    {selectedItem.fileWidth && selectedItem.fileHeight && (
+                      <div>
+                        <span className="font-medium">Medida do Arquivo:</span>{" "}
+                        <span className="text-muted-foreground">
+                          {selectedItem.fileWidth}m × {selectedItem.fileHeight}m
                         </span>
                       </div>
                     )}

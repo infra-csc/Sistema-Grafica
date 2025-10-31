@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Fragment, useState } from "react";
 import { FileUploader } from "@/components/FileUploader";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Arte() {
   const { toast } = useToast();
@@ -35,6 +36,11 @@ export default function Arte() {
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
+  
+  // Multi-selection states
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [showBulkDialog, setShowBulkDialog] = useState(false);
+  const [sharedPdfUrl, setSharedPdfUrl] = useState<string>("");
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -62,6 +68,34 @@ export default function Arte() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao enviar item",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const submitBulkForApprovalMutation = useMutation({
+    mutationFn: async ({ itemIds, pdfUrl }: { itemIds: string[]; pdfUrl: string }) => {
+      // Submit all selected items with the same PDF
+      const promises = itemIds.map(itemId =>
+        apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, { approvalThumbUrl: pdfUrl })
+      );
+      return await Promise.all(promises);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setShowBulkDialog(false);
+      setSelectedItemIds(new Set());
+      setSharedPdfUrl("");
+      toast({
+        title: "Peças enviadas para aprovação",
+        description: `${variables.itemIds.length} peças foram enviadas com o mesmo PDF`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao enviar peças",
         description: error.message,
         variant: "destructive",
       });
@@ -181,6 +215,39 @@ export default function Arte() {
       return;
     }
     submitForApprovalMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
+  };
+
+  const toggleItemSelection = (itemId: string) => {
+    const newSet = new Set(selectedItemIds);
+    if (newSet.has(itemId)) {
+      newSet.delete(itemId);
+    } else {
+      newSet.add(itemId);
+    }
+    setSelectedItemIds(newSet);
+  };
+
+  const toggleAllSelection = () => {
+    if (selectedItemIds.size === pendingItems.length) {
+      setSelectedItemIds(new Set());
+    } else {
+      setSelectedItemIds(new Set(pendingItems.map(item => item.id)));
+    }
+  };
+
+  const handleBulkSubmit = () => {
+    if (!sharedPdfUrl) {
+      toast({
+        title: "Erro",
+        description: "É necessário fazer upload do PDF compartilhado",
+        variant: "destructive",
+      });
+      return;
+    }
+    submitBulkForApprovalMutation.mutate({ 
+      itemIds: Array.from(selectedItemIds), 
+      pdfUrl: sharedPdfUrl 
+    });
   };
 
   return (
@@ -335,6 +402,17 @@ export default function Arte() {
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Liberados ({approvedCount})
                 </Button>
+                {viewMode === "pending" && selectedItemIds.size > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setShowBulkDialog(true)}
+                    data-testid="button-open-bulk-upload"
+                  >
+                    <File className="h-4 w-4 mr-2" />
+                    Upload PDF Compartilhado ({selectedItemIds.size})
+                  </Button>
+                )}
               </div>
               <Button
                 variant="outline"
@@ -441,6 +519,15 @@ export default function Arte() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
+                    {viewMode === "pending" && (
+                      <th className="text-center py-3 px-4 font-medium w-10">
+                        <Checkbox
+                          checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
+                          onCheckedChange={toggleAllSelection}
+                          data-testid="checkbox-select-all"
+                        />
+                      </th>
+                    )}
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-center py-3 px-4 font-medium">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Dimensões</th>
@@ -470,7 +557,7 @@ export default function Arte() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={7} className="py-3 px-4">
+                            <td colSpan={viewMode === "pending" ? 8 : 7} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
@@ -498,7 +585,7 @@ export default function Arte() {
                         )}
                         {showTypeHeader && (
                           <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={7} className="py-1.5 px-4">
+                            <td colSpan={viewMode === "pending" ? 8 : 7} className="py-1.5 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -513,6 +600,15 @@ export default function Arte() {
                           className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
                           data-testid={`row-pending-item-${item.id}`}
                         >
+                          {viewMode === "pending" && (
+                            <td className="py-2 px-4 text-center">
+                              <Checkbox
+                                checked={selectedItemIds.has(item.id)}
+                                onCheckedChange={() => toggleItemSelection(item.id)}
+                                data-testid={`checkbox-item-${item.id}`}
+                              />
+                            </td>
+                          )}
                           <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-sm text-foreground">{item.description}</div>
@@ -747,6 +843,135 @@ export default function Arte() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Upload Compartilhado de PDF */}
+      <Dialog open={showBulkDialog} onOpenChange={setShowBulkDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Upload de PDF Compartilhado</DialogTitle>
+            <DialogDescription>
+              Faça upload de 1 PDF que contém artes de múltiplas peças. {selectedItemIds.size} peça(s) selecionada(s).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <p className="text-sm font-medium mb-2">Peças Selecionadas:</p>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {Array.from(selectedItemIds).map(itemId => {
+                  const item = allItems.find(i => i.id === itemId);
+                  return item ? (
+                    <div key={itemId} className="text-xs flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {item.event?.name || 'Sem Evento'}
+                      </Badge>
+                      <span className="text-muted-foreground">•</span>
+                      <span>{item.type}</span>
+                      {item.description && (
+                        <>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-muted-foreground">{item.description}</span>
+                        </>
+                      )}
+                    </div>
+                  ) : null;
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <File className="h-4 w-4" />
+                PDF Compartilhado <span className="text-destructive">*</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Envie 1 PDF contendo todas as artes. Ele será usado por todas as peças marcadas.
+              </p>
+              {sharedPdfUrl ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/20">
+                    <File className="h-5 w-5 text-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">PDF enviado com sucesso</p>
+                      <p className="text-xs text-muted-foreground truncate">{sharedPdfUrl}</p>
+                    </div>
+                  </div>
+                  <FileUploader
+                    onGetUploadParameters={getUploadUrl}
+                    onComplete={(result) => {
+                      setSharedPdfUrl(result.url);
+                      toast({
+                        title: "Upload concluído",
+                        description: "PDF compartilhado enviado com sucesso",
+                      });
+                    }}
+                    onError={(error) => {
+                      toast({
+                        title: "Erro no upload",
+                        description: error.message,
+                        variant: "destructive",
+                      });
+                    }}
+                    accept=".pdf,application/pdf"
+                    buttonVariant="outline"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Alterar PDF
+                  </FileUploader>
+                </div>
+              ) : (
+                <FileUploader
+                  onGetUploadParameters={getUploadUrl}
+                  onComplete={(result) => {
+                    setSharedPdfUrl(result.url);
+                    toast({
+                      title: "Upload concluído",
+                      description: "PDF compartilhado enviado com sucesso",
+                    });
+                  }}
+                  onError={(error) => {
+                    toast({
+                      title: "Erro no upload",
+                      description: error.message,
+                      variant: "destructive",
+                    });
+                  }}
+                  accept=".pdf,application/pdf"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Fazer Upload do PDF
+                </FileUploader>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowBulkDialog(false);
+                setSharedPdfUrl("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleBulkSubmit}
+              disabled={submitBulkForApprovalMutation.isPending || !sharedPdfUrl}
+            >
+              {submitBulkForApprovalMutation.isPending ? (
+                <>
+                  <Upload className="h-4 w-4 mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Enviar {selectedItemIds.size} Peças para Aprovação
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

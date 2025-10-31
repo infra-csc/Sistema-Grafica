@@ -364,18 +364,20 @@ export default function Arte() {
               onClick={() => setActiveTab("criar-aprovacoes")}
               data-testid="tab-criar-aprovacoes"
               className={cn(
-                "relative inline-flex items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
+                "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
                 activeTab === "criar-aprovacoes"
                   ? "bg-background text-foreground shadow-md border border-border/50"
                   : "text-foreground/70 hover-elevate"
               )}
             >
-              <FileImage className="h-4 w-4" />
-              <span className="font-semibold">Mandar para Aprovação</span>
+              <div className="flex items-center gap-2">
+                <FileImage className="h-4 w-4" />
+                <span className="font-semibold">Mandar para Aprovação</span>
+              </div>
               <Badge 
                 variant={activeTab === "criar-aprovacoes" ? "default" : "secondary"} 
                 className={cn(
-                  "absolute right-3 min-w-[28px] justify-center",
+                  "min-w-[28px] justify-center",
                   activeTab !== "criar-aprovacoes" && "bg-muted-foreground/20"
                 )}
               >
@@ -387,18 +389,20 @@ export default function Arte() {
               onClick={() => setActiveTab("finalizar-layouts")}
               data-testid="tab-finalizar-layouts"
               className={cn(
-                "relative inline-flex items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
+                "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
                 activeTab === "finalizar-layouts"
                   ? "bg-background text-foreground shadow-md border border-border/50"
                   : "text-foreground/70 hover-elevate"
               )}
             >
-              <Upload className="h-4 w-4" />
-              <span className="font-semibold">Finalizar Arte</span>
+              <div className="flex items-center gap-2">
+                <Upload className="h-4 w-4" />
+                <span className="font-semibold">Finalizar Arte</span>
+              </div>
               <Badge 
                 variant={activeTab === "finalizar-layouts" ? "default" : "secondary"}
                 className={cn(
-                  "absolute right-3 min-w-[28px] justify-center",
+                  "min-w-[28px] justify-center",
                   activeTab !== "finalizar-layouts" && "bg-muted-foreground/20"
                 )}
               >
@@ -410,18 +414,20 @@ export default function Arte() {
               onClick={() => setActiveTab("aprovados")}
               data-testid="tab-aprovados"
               className={cn(
-                "relative inline-flex items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
+                "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
                 activeTab === "aprovados"
                   ? "bg-background text-foreground shadow-md border border-border/50"
                   : "text-foreground/70 hover-elevate"
               )}
             >
-              <CheckCircle className="h-4 w-4" />
-              <span className="font-semibold">Aprovados</span>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                <span className="font-semibold">Aprovados</span>
+              </div>
               <Badge 
                 variant={activeTab === "aprovados" ? "default" : "secondary"}
                 className={cn(
-                  "absolute right-3 min-w-[28px] justify-center",
+                  "min-w-[28px] justify-center",
                   activeTab !== "aprovados" && "bg-muted-foreground/20"
                 )}
               >

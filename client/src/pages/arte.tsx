@@ -2,12 +2,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -19,25 +18,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Fragment, useState } from "react";
+import { FileUploader } from "@/components/FileUploader";
 
 export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"pending" | "approved">("pending");
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [confirmApprovalItem, setConfirmApprovalItem] = useState<any>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
@@ -45,6 +33,8 @@ export default function Arte() {
   const [openEventCombobox, setOpenEventCombobox] = useState(false);
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
+  const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -54,53 +44,37 @@ export default function Arte() {
     queryKey: ["/api/events"],
   });
 
-  const approveItemMutation = useMutation({
-    mutationFn: async (itemId: string) => {
-      return await apiRequest("PATCH", `/api/items/${itemId}/approve`, {});
+  const submitForApprovalMutation = useMutation({
+    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, { approvalThumbUrl });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
-      setConfirmApprovalItem(null);
+      setApprovalThumbUrl("");
+      setApprovalThumbPreview("");
       toast({
-        title: "Item liberado",
-        description: "O item foi liberado para produção",
+        title: "Item enviado para aprovação",
+        description: "O item foi enviado para aprovação do patrocinador",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao liberar item",
+        title: "Erro ao enviar item",
         description: error.message,
         variant: "destructive",
       });
     },
   });
 
-  const approveBulkMutation = useMutation({
-    mutationFn: async (itemIds: string[]) => {
-      return await Promise.all(
-        itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/approve`, {}))
-      );
-    },
-    onSuccess: (_, itemIds) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setSelectedItems([]);
-      setConfirmApprovalItem(null);
-      toast({
-        title: "Itens liberados",
-        description: `${itemIds.length} itens foram liberados para produção`,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao liberar itens",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const getUploadUrl = async () => {
+    const response = await apiRequest("POST", "/api/object-storage/upload", {
+      directory: "private",
+    });
+    const data = await response.json();
+    return { method: "PUT" as const, url: data.uploadUrl };
+  };
 
   // Obter tipos, materiais e acabamentos únicos
   const uniqueTypes = Array.from(new Set(allItems.map(item => item.type))).sort();
@@ -129,7 +103,14 @@ export default function Arte() {
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
       const matchesView = viewMode === "pending" 
         ? item.status === 'requested'
-        : item.status === 'approved' || item.status === 'inProduction' || item.status === 'produced' || item.status === 'delivered';
+        : item.status === 'awaiting_sponsor_approval' || 
+          item.status === 'sponsor_approved' || 
+          item.status === 'awaiting_creator_review' || 
+          item.status === 'ready_for_production' || 
+          item.status === 'approved' || 
+          item.status === 'inProduction' || 
+          item.status === 'produced' || 
+          item.status === 'delivered';
       const matchesType = typeFilter === "all" || item.type === typeFilter;
       const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
       const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
@@ -172,41 +153,36 @@ export default function Arte() {
     : allItems.filter(item => item.eventId === eventFilter);
   
   const pendingCount = itemsForEvent.filter(item => item.status === 'requested').length;
-  const approvedCount = itemsForEvent.filter(item => item.status !== 'requested').length;
+  const approvedCount = itemsForEvent.filter(item => 
+    item.status === 'awaiting_sponsor_approval' ||
+    item.status === 'sponsor_approved' ||
+    item.status === 'awaiting_creator_review' ||
+    item.status === 'ready_for_production' ||
+    item.status === 'approved' || 
+    item.status === 'inProduction' || 
+    item.status === 'produced' || 
+    item.status === 'delivered'
+  ).length;
 
   const pendingItems = filteredItems.filter(item => item.status === 'requested');
-  const allPendingSelected = pendingItems.length > 0 && selectedItems.length === pendingItems.length;
 
-  const toggleItemSelection = (itemId: string) => {
-    setSelectedItems(prev => 
-      prev.includes(itemId) 
-        ? prev.filter(id => id !== itemId)
-        : [...prev, itemId]
-    );
+  const handleViewDetails = (item: any) => {
+    setSelectedItem(item);
+    // Reset upload states when opening dialog
+    setApprovalThumbUrl(item.approvalThumbUrl || "");
+    setApprovalThumbPreview(item.approvalThumbUrl || "");
   };
 
-  const toggleSelectAll = () => {
-    if (allPendingSelected) {
-      setSelectedItems([]);
-    } else {
-      setSelectedItems(pendingItems.map(item => item.id));
+  const handleSubmitForApproval = () => {
+    if (!selectedItem || !approvalThumbUrl) {
+      toast({
+        title: "Erro",
+        description: "É necessário fazer upload do thumb de aprovação",
+        variant: "destructive",
+      });
+      return;
     }
-  };
-
-  const handleBulkApprove = () => {
-    setConfirmApprovalItem({ type: 'bulk', count: selectedItems.length });
-  };
-
-  const handleSingleApprove = (item: any) => {
-    setConfirmApprovalItem({ type: 'single', item });
-  };
-
-  const confirmApproval = () => {
-    if (confirmApprovalItem?.type === 'bulk') {
-      approveBulkMutation.mutate(selectedItems);
-    } else if (confirmApprovalItem?.type === 'single') {
-      approveItemMutation.mutate(confirmApprovalItem.item.id);
-    }
+    submitForApprovalMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
   };
 
   return (
@@ -361,17 +337,6 @@ export default function Arte() {
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Liberados ({approvedCount})
                 </Button>
-                {viewMode === "pending" && selectedItems.length > 0 && (
-                  <Button
-                    size="sm"
-                    onClick={handleBulkApprove}
-                    disabled={approveBulkMutation.isPending}
-                    data-testid="button-bulk-approve"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Liberar Selecionados ({selectedItems.length})
-                  </Button>
-                )}
               </div>
               <Button
                 variant="outline"
@@ -478,15 +443,6 @@ export default function Arte() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
-                    {viewMode === "pending" && (
-                      <th className="w-12 py-3 px-4">
-                        <Checkbox
-                          checked={allPendingSelected}
-                          onCheckedChange={toggleSelectAll}
-                          data-testid="checkbox-select-all"
-                        />
-                      </th>
-                    )}
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-center py-3 px-4 font-medium">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Dimensões</th>
@@ -516,7 +472,7 @@ export default function Arte() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={viewMode === "pending" ? 7 : 7} className="py-3 px-4">
+                            <td colSpan={7} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
@@ -544,7 +500,7 @@ export default function Arte() {
                         )}
                         {showTypeHeader && (
                           <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={viewMode === "pending" ? 7 : 7} className="py-1.5 px-4">
+                            <td colSpan={7} className="py-1.5 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -559,15 +515,6 @@ export default function Arte() {
                           className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
                           data-testid={`row-pending-item-${item.id}`}
                         >
-                          {viewMode === "pending" && (
-                            <td className="py-2 px-3">
-                              <Checkbox
-                                checked={selectedItems.includes(item.id)}
-                                onCheckedChange={() => toggleItemSelection(item.id)}
-                                data-testid={`checkbox-item-${item.id}`}
-                              />
-                            </td>
-                          )}
                           <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-sm text-foreground">{item.description}</div>
@@ -614,24 +561,12 @@ export default function Arte() {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                onClick={() => setSelectedItem(item)}
+                                onClick={() => handleViewDetails(item)}
                                 data-testid={`button-view-${item.id}`}
-                                title="Ver detalhes"
+                                title="Ver detalhes e enviar para aprovação"
                               >
-                                <Eye className="h-4 w-4" />
+                                {viewMode === "pending" ? <Upload className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                               </Button>
-                              {viewMode === "pending" && (
-                                <Button
-                                  size="icon"
-                                  onClick={() => handleSingleApprove(item)}
-                                  disabled={approveItemMutation.isPending}
-                                  data-testid={`button-approve-${item.id}`}
-                                  title="Liberar para Produção"
-                                  className="bg-status-approved hover:bg-status-approved/90"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                              )}
                             </div>
                           </td>
                         </tr>
@@ -714,19 +649,101 @@ export default function Arte() {
                   <p className="text-sm">{selectedItem.observations}</p>
                 </div>
               )}
+              {/* Upload de Thumb de Aprovação */}
+              {selectedItem.status === 'requested' && (
+                <div className="border-t pt-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                      <FileImage className="h-4 w-4" />
+                      Thumb de Aprovação <span className="text-destructive">*</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Envie uma imagem leve (preview) para o patrocinador aprovar
+                    </p>
+                    {approvalThumbPreview ? (
+                      <div className="space-y-2">
+                        <img 
+                          src={approvalThumbPreview} 
+                          alt="Preview" 
+                          className="max-h-48 rounded-md border"
+                        />
+                        <FileUploader
+                          onGetUploadParameters={getUploadUrl}
+                          onComplete={(result) => {
+                            setApprovalThumbUrl(result.url);
+                            setApprovalThumbPreview(result.url);
+                            toast({
+                              title: "Upload concluído",
+                              description: "Thumb de aprovação enviado com sucesso",
+                            });
+                          }}
+                          onError={(error) => {
+                            toast({
+                              title: "Erro no upload",
+                              description: error.message,
+                              variant: "destructive",
+                            });
+                          }}
+                          onFileSelect={(file) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                              setApprovalThumbPreview(e.target?.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                          accept="image/*"
+                          buttonVariant="outline"
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Alterar Thumb
+                        </FileUploader>
+                      </div>
+                    ) : (
+                      <FileUploader
+                        onGetUploadParameters={getUploadUrl}
+                        onComplete={(result) => {
+                          setApprovalThumbUrl(result.url);
+                          setApprovalThumbPreview(result.url);
+                          toast({
+                            title: "Upload concluído",
+                            description: "Thumb de aprovação enviado com sucesso",
+                          });
+                        }}
+                        onError={(error) => {
+                          toast({
+                            title: "Erro no upload",
+                            description: error.message,
+                            variant: "destructive",
+                          });
+                        }}
+                        onFileSelect={(file) => {
+                          const reader = new FileReader();
+                          reader.onload = (e) => {
+                            setApprovalThumbPreview(e.target?.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                        accept="image/*"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Fazer Upload do Thumb
+                      </FileUploader>
+                    )}
+                  </div>
+                </div>
+              )}
+              
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={() => setSelectedItem(null)}>
                   Fechar
                 </Button>
                 {selectedItem.status === 'requested' && (
                   <Button
-                    onClick={() => {
-                      approveItemMutation.mutate(selectedItem.id);
-                    }}
-                    disabled={approveItemMutation.isPending}
+                    onClick={handleSubmitForApproval}
+                    disabled={submitForApprovalMutation.isPending || !approvalThumbUrl}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Liberar para Produção
+                    Enviar para Aprovação do Patrocinador
                   </Button>
                 )}
               </div>
@@ -735,56 +752,6 @@ export default function Arte() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!confirmApprovalItem} onOpenChange={(open) => !open && setConfirmApprovalItem(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Liberação</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmApprovalItem?.type === 'bulk' ? (
-                <>
-                  Você está prestes a liberar <strong>{confirmApprovalItem.count} itens</strong> para produção.
-                  <br /><br />
-                  Esta ação notificará a Gráfica e os itens ficarão disponíveis para impressão.
-                </>
-              ) : confirmApprovalItem?.type === 'single' ? (
-                <>
-                  Você está prestes a liberar o item <strong>{confirmApprovalItem.item?.type}</strong> para produção.
-                  <br /><br />
-                  <div className="space-y-1 text-sm">
-                    <div><span className="text-muted-foreground">Evento:</span> <strong>{confirmApprovalItem.item?.event?.name}</strong></div>
-                    {confirmApprovalItem.item?.description && (
-                      <div><span className="text-muted-foreground">Descrição:</span> <strong>{confirmApprovalItem.item.description}</strong></div>
-                    )}
-                    {confirmApprovalItem.item?.observations && (
-                      <div><span className="text-muted-foreground">Observações:</span> <strong className="italic">{confirmApprovalItem.item.observations}</strong></div>
-                    )}
-                    <div><span className="text-muted-foreground">Quantidade:</span> <strong>{confirmApprovalItem.item?.quantity}</strong></div>
-                    <div><span className="text-muted-foreground">Medida:</span> <strong>{confirmApprovalItem.item?.area} × {confirmApprovalItem.item?.visual}</strong></div>
-                    <div><span className="text-muted-foreground">m² Total:</span> <strong>{confirmApprovalItem.item?.calculatedM2}</strong></div>
-                    <div><span className="text-muted-foreground">Material:</span> <strong>{confirmApprovalItem.item?.material}</strong></div>
-                    {confirmApprovalItem.item?.finish && (
-                      <div><span className="text-muted-foreground">Acabamento:</span> <strong>{confirmApprovalItem.item.finish}</strong></div>
-                    )}
-                  </div>
-                  <br />
-                  Esta ação notificará a Gráfica e o item ficará disponível para impressão.
-                </>
-              ) : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmApproval}
-              disabled={approveItemMutation.isPending || approveBulkMutation.isPending}
-              data-testid="button-confirm-approval"
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Confirmar Liberação
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

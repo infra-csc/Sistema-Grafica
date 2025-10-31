@@ -356,68 +356,63 @@ export default function Arte() {
         </Card>
       </div>
 
-      {/* Cards de Navegação - Seleção de Etapa */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover-elevate active-elevate-2",
-            activeTab === "criar-aprovacoes" && "border-primary border-2"
-          )}
-          onClick={() => setActiveTab("criar-aprovacoes")}
-          data-testid="card-criar-aprovacoes"
-        >
-          <CardHeader className="text-center pb-3">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <FileImage className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle className="text-lg">Criar Aprovações</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <div className="text-3xl font-bold text-primary mb-1">{pendingCount}</div>
-            <p className="text-sm text-muted-foreground">Itens aguardando thumb</p>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover-elevate active-elevate-2",
-            activeTab === "finalizar-layouts" && "border-primary border-2"
-          )}
-          onClick={() => setActiveTab("finalizar-layouts")}
-          data-testid="card-finalizar-layouts"
-        >
-          <CardHeader className="text-center pb-3">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-              <Upload className="h-6 w-6 text-blue-600" />
-            </div>
-            <CardTitle className="text-lg">Finalizar Layouts</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <div className="text-3xl font-bold text-blue-600 mb-1">{needsFinalFileCount}</div>
-            <p className="text-sm text-muted-foreground">Itens aguardando arquivo final</p>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover-elevate active-elevate-2",
-            activeTab === "aprovados" && "border-primary border-2"
-          )}
-          onClick={() => setActiveTab("aprovados")}
-          data-testid="card-aprovados"
-        >
-          <CardHeader className="text-center pb-3">
-            <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-            <CardTitle className="text-lg">Aprovados</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <div className="text-3xl font-bold text-green-600 mb-1">{approvedCount}</div>
-            <p className="text-sm text-muted-foreground">Histórico de aprovações</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Abas Horizontais Modernas */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="inline-flex items-center justify-center rounded-md bg-muted p-1 w-full">
+            <button
+              onClick={() => setActiveTab("criar-aprovacoes")}
+              data-testid="tab-criar-aprovacoes"
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-6 py-3 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 flex-1 gap-2",
+                activeTab === "criar-aprovacoes"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover-elevate"
+              )}
+            >
+              <FileImage className="h-4 w-4" />
+              <span>Criar Aprovações</span>
+              <Badge variant={activeTab === "criar-aprovacoes" ? "default" : "secondary"} className="ml-1">
+                {pendingCount}
+              </Badge>
+            </button>
+            
+            <button
+              onClick={() => setActiveTab("finalizar-layouts")}
+              data-testid="tab-finalizar-layouts"
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-6 py-3 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 flex-1 gap-2",
+                activeTab === "finalizar-layouts"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover-elevate"
+              )}
+            >
+              <Upload className="h-4 w-4" />
+              <span>Finalizar Layouts</span>
+              <Badge variant={activeTab === "finalizar-layouts" ? "default" : "secondary"} className="ml-1">
+                {needsFinalFileCount}
+              </Badge>
+            </button>
+            
+            <button
+              onClick={() => setActiveTab("aprovados")}
+              data-testid="tab-aprovados"
+              className={cn(
+                "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-6 py-3 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 flex-1 gap-2",
+                activeTab === "aprovados"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover-elevate"
+              )}
+            >
+              <CheckCircle className="h-4 w-4" />
+              <span>Aprovados</span>
+              <Badge variant={activeTab === "aprovados" ? "default" : "secondary"} className="ml-1">
+                {approvedCount}
+              </Badge>
+            </button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filtros */}
       <Card>

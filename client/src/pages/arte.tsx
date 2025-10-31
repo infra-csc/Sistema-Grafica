@@ -69,11 +69,9 @@ export default function Arte() {
   });
 
   const getUploadUrl = async () => {
-    const response = await apiRequest("POST", "/api/object-storage/upload", {
-      directory: "private",
-    });
+    const response = await apiRequest("POST", "/api/objects/upload", {});
     const data = await response.json();
-    return { method: "PUT" as const, url: data.uploadUrl };
+    return { method: "PUT" as const, url: data.uploadURL };
   };
 
   // Obter tipos, materiais e acabamentos únicos

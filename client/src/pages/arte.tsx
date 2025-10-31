@@ -371,7 +371,7 @@ export default function Arte() {
               )}
             >
               <FileImage className="h-4 w-4" />
-              <span className="font-semibold">Criar Aprovações</span>
+              <span className="font-semibold">Mandar para Aprovação</span>
               <Badge 
                 variant={activeTab === "criar-aprovacoes" ? "default" : "secondary"} 
                 className={cn(
@@ -394,7 +394,7 @@ export default function Arte() {
               )}
             >
               <Upload className="h-4 w-4" />
-              <span className="font-semibold">Finalizar Layouts</span>
+              <span className="font-semibold">Finalizar Arte</span>
               <Badge 
                 variant={activeTab === "finalizar-layouts" ? "default" : "secondary"}
                 className={cn(

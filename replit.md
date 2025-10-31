@@ -27,12 +27,21 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
   - All routes enforce role-based access (403 on unauthorized role)
 - **Arte Page Implementation (October 31, 2025):**
   - Created generic FileUploader component for file uploads (images, PDFs, etc.) using object storage
-  - Modified Arte page to implement approval thumb upload workflow:
-    - Items with status `requested` appear in "Pendentes" tab
-    - After upload and submission, items move to `awaiting_sponsor_approval` status
-    - Items in all workflow statuses (`awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_creator_review`, `ready_for_production`, `approved`, `inProduction`, `produced`, `delivered`) visible in "Liberados" tab
+  - **Tabbed Interface Refactoring (October 31, 2025):**
+    - Refactored Arte page to use Shadcn Tabs component for clear visual separation of work stages
+    - Three distinct tabs with badge counters showing filtered item counts:
+      1. **"Criar Aprovações"** (FileImage icon): Items with status `requested` - Arte creates approval thumbs
+      2. **"Finalizar Layouts"** (Upload icon): Items with status `sponsor_approved` - Arte uploads final files
+      3. **"Aprovados"** (CheckCircle icon): All other workflow statuses (historical view)
+    - Badge counters respect ALL active filters (event, type, material, finish, month, next 10 days)
+    - Tab-specific functionality:
+      - "Criar Aprovações": Shows checkbox column for bulk selection, Upload icon for actions
+      - "Finalizar Layouts": Upload icon for adding final files
+      - "Aprovados": Eye icon for view-only, Status column visible
+    - Empty state messages customized per tab
+    - Maintained all existing filters and functionality (event filter, advanced filters, search, date ranges)
   - **Shared PDF Upload (Batch Processing):**
-    - Multi-selection UI with checkboxes in "Pendentes" tab
+    - Multi-selection UI with checkboxes in "Criar Aprovações" tab
     - Checkbox in table header for "Select All" functionality
     - Upload button appears when items are selected: "Upload PDF Compartilhado (N)"
     - Dialog for uploading single PDF to be applied to all selected items
@@ -42,8 +51,6 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
     - Each item maintains individual approval workflow (approval per piece, not per batch)
     - After submission, all items transition to `awaiting_sponsor_approval` status
     - Selection cleared and cache invalidated after successful submission
-  - Status filters updated to include all intermediate workflow statuses
-  - Counters adjusted to reflect correct item counts across workflow stages
 - **Atendimento Page Implementation (October 31, 2025):**
   - Created `/atendimento` page for sponsor approval workflow
   - **Refactored to Table Layout with Filters:**

@@ -400,7 +400,11 @@ export default function Solicitacao() {
                             <div className="text-sm text-muted-foreground">{item.finish || "—"}</div>
                           </td>
                           <td className="py-2 px-4">
-                            <div className="text-sm text-muted-foreground">{item.dimensions || "—"}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {item.fileWidth && item.fileHeight 
+                                ? `${item.fileWidth}m x ${item.fileHeight}m` 
+                                : "—"}
+                            </div>
                           </td>
                           <td className="py-2 px-4">
                             <div className="text-sm text-muted-foreground">

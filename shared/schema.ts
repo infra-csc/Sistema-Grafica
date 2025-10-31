@@ -31,18 +31,6 @@ export const sponsors = pgTable("sponsors", {
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
 
-// Clients table (Clientes)
-export const clients = pgTable("clients", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  email: text("email"),
-  phone: text("phone"),
-  company: text("company"),
-  notes: text("notes"), // Observações gerais
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-});
-
 // Event-Sponsors relationship table (many-to-many)
 export const eventSponsors = pgTable("event_sponsors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -73,7 +61,7 @@ export const items = pgTable("items", {
   quantityProduced: integer("quantity_produced"),
   receivedBy: text("received_by"),
   deliveryPhotoUrl: text("delivery_photo_url"),
-  clientId: varchar("client_id").references(() => clients.id, { onDelete: "set null" }), // Cliente específico desta peça
+  sponsorId: varchar("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }), // Patrocinador específico desta peça
   approvalThumbUrl: text("approval_thumb_url"), // Thumb/link leve para aprovação
   finalFileUrl: text("final_file_url"), // Link do arquivo final (Drive, S3, etc)
   sponsorApprovedBy: text("sponsor_approved_by"), // Nome do aprovador do patrocinador
@@ -180,10 +168,6 @@ export const sponsorsRelations = relations(sponsors, ({ many }) => ({
   eventSponsors: many(eventSponsors),
 }));
 
-export const clientsRelations = relations(clients, ({ many }) => ({
-  items: many(items),
-}));
-
 export const eventSponsorsRelations = relations(eventSponsors, ({ one }) => ({
   event: one(events, {
     fields: [eventSponsors.eventId],
@@ -200,9 +184,9 @@ export const itemsRelations = relations(items, ({ one, many }) => ({
     fields: [items.eventId],
     references: [events.id],
   }),
-  client: one(clients, {
-    fields: [items.clientId],
-    references: [clients.id],
+  sponsor: one(sponsors, {
+    fields: [items.sponsorId],
+    references: [sponsors.id],
   }),
   notifications: many(notifications),
   productionUpdates: many(productionUpdates),
@@ -301,12 +285,6 @@ export const insertSponsorSchema = createInsertSchema(sponsors).omit({
   updatedAt: true,
 });
 
-export const insertClientSchema = createInsertSchema(clients).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
 export const insertEventSponsorSchema = createInsertSchema(eventSponsors).omit({
   id: true,
   createdAt: true,
@@ -381,9 +359,6 @@ export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 
 export type Sponsor = typeof sponsors.$inferSelect;
 export type InsertSponsor = z.infer<typeof insertSponsorSchema>;
-
-export type Client = typeof clients.$inferSelect;
-export type InsertClient = z.infer<typeof insertClientSchema>;
 
 export type EventSponsor = typeof eventSponsors.$inferSelect;
 export type InsertEventSponsor = z.infer<typeof insertEventSponsorSchema>;

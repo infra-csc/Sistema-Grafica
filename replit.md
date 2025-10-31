@@ -40,13 +40,13 @@ The system features a professional light mode theme with a clean white backgroun
 - **Date Handling**: `startDate` (date only), `truckDepartureDate` (datetime-local).
 
 ### Feature Specifications
-- **Modules**: General Panel (Dashboard), Events, Items (Event Detail), Art Approval, Printing Control, Templates, Calendar, History, Sponsors, Clients.
+- **Modules**: General Panel (Dashboard), Events, Items (Event Detail), Art Approval, Printing Control, Templates, Calendar, History, Sponsors.
 - **Notifications**: Automated for event creation, item additions, art approval, and deadline alerts (48h, 24h, 12h before truck departure).
 - **Item Statuses**: `requested`, `awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_creator_review`, `ready_for_production`, `approved`, `inProduction`, `produced`, `delivered`.
 - **Event Statuses**: `created`, `completed`, `urgent`.
 - **User Authentication & Access Control**: Full login/logout, Bcryptjs for passwords, mandatory first-time password change, user management (Admin), 5 user profiles (Admin, Solicitation, Art, Graphics, Atendimento) with route protection and `hasPermission()` checks.
 - **Multi-Stage Approval Workflow**: Events can have multiple sponsors; items require sponsor approval before creator review; Arte uploads approval thumbs and final files; creator reviews and releases to production.
-- **Sponsor & Client Management**: Full CRUD for sponsors and clients; events can link to multiple sponsors; items can link to specific clients.
+- **Sponsor Management**: Full CRUD for sponsors; events can link to multiple sponsors; items can link to specific sponsors.
 - **Intelligent Notification System**: Notifications targeted to specific user roles based on event type. Admin users see ALL notifications for complete system oversight.
 - **Audit Logs**: Automatic logging of significant actions (event/item creation, approval, delivery) including user, timestamp, action, entity type/ID, and details, viewable in History and Event Details.
 - **Admin Edit/Delete**: Functionality for Admin users to edit and delete events and items with corresponding audit logs and confirmation dialogs.

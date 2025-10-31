@@ -3,10 +3,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter, Flag } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter, Flag, Building2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import type { Sponsor } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +48,7 @@ export default function Eventos() {
     startDate: "",
     truckDepartureDate: "",
   });
+  const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
@@ -56,14 +59,37 @@ export default function Eventos() {
     queryKey: ["/api/events"],
   });
 
+  const { data: sponsors = [] } = useQuery<Sponsor[]>({
+    queryKey: ["/api/sponsors"],
+  });
+
   const createEventMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return await apiRequest("POST", "/api/events", data);
+      try {
+        const response = await apiRequest("POST", "/api/events", data);
+        const event = await response.json();
+        
+        // Vincular todos os patrocinadores em paralelo com Promise.all
+        // Nota: Se falhar, o evento já foi criado e não será revertido automaticamente.
+        // Para transações atômicas completas, considere implementar lógica server-side.
+        if (selectedSponsorIds.length > 0) {
+          await Promise.all(
+            selectedSponsorIds.map((sponsorId) =>
+              apiRequest("POST", `/api/events/${event.id}/sponsors`, { sponsorId })
+            )
+          );
+        }
+        
+        return event;
+      } catch (error) {
+        throw new Error("Erro ao criar evento e vincular patrocinadores");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setOpen(false);
       setFormData({ name: "", startDate: "", truckDepartureDate: "" });
+      setSelectedSponsorIds([]);
       toast({
         title: "Evento criado",
         description: "O evento foi criado com sucesso",
@@ -80,12 +106,43 @@ export default function Eventos() {
 
   const updateEventMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      return await apiRequest("PATCH", `/api/events/${id}`, data);
+      try {
+        // Atualizar evento
+        await apiRequest("PATCH", `/api/events/${id}`, data);
+        
+        // Buscar patrocinadores atuais do evento
+        const currentSponsorsRes = await apiRequest("GET", `/api/events/${id}/sponsors`);
+        const currentSponsors = await currentSponsorsRes.json();
+        const currentSponsorIds = currentSponsors.map((es: any) => es.sponsorId);
+        
+        // Calcular operações necessárias
+        const toRemove = currentSponsorIds.filter((id: string) => !selectedSponsorIds.includes(id));
+        const toAdd = selectedSponsorIds.filter((id: string) => !currentSponsorIds.includes(id));
+        
+        // Executar todas as operações em paralelo com Promise.all
+        // Nota: Falha em qualquer operação cancela todas, mas operações bem-sucedidas não são revertidas.
+        // Para transações atômicas completas, considere implementar endpoint backend dedicado.
+        const operations = [
+          ...toRemove.map((sponsorId: string) => 
+            apiRequest("DELETE", `/api/events/${id}/sponsors/${sponsorId}`)
+          ),
+          ...toAdd.map((sponsorId: string) => 
+            apiRequest("POST", `/api/events/${id}/sponsors`, { sponsorId })
+          ),
+        ];
+        
+        if (operations.length > 0) {
+          await Promise.all(operations);
+        }
+      } catch (error) {
+        throw new Error("Erro ao atualizar evento e patrocinadores");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setEditingEvent(null);
       setFormData({ name: "", startDate: "", truckDepartureDate: "" });
+      setSelectedSponsorIds([]);
       toast({
         title: "Evento atualizado",
         description: "O evento foi atualizado com sucesso",
@@ -175,7 +232,24 @@ export default function Eventos() {
     setOpen(false);
     setEditingEvent(null);
     setFormData({ name: "", startDate: "", truckDepartureDate: "" });
+    setSelectedSponsorIds([]);
   };
+
+  // Buscar patrocinadores vinculados ao editar evento
+  useEffect(() => {
+    if (editingEvent) {
+      apiRequest("GET", `/api/events/${editingEvent.id}/sponsors`)
+        .then((res) => res.json())
+        .then((eventSponsors) => {
+          const sponsorIds = eventSponsors.map((es: any) => es.sponsorId);
+          setSelectedSponsorIds(sponsorIds);
+        })
+        .catch((error) => {
+          console.error("Erro ao buscar patrocinadores:", error);
+          setSelectedSponsorIds([]);
+        });
+    }
+  }, [editingEvent]);
 
   // Função para obter a prioridade do evento (para filtragem)
   const getEventPriority = (event: any): PriorityLevel | null => {
@@ -428,6 +502,49 @@ export default function Eventos() {
                   Prazo final para entrega dos materiais
                 </p>
               </div>
+
+              {/* Seleção de Patrocinadores */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  Patrocinadores (opcional)
+                </Label>
+                {sponsors.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum patrocinador cadastrado. <Link href="/patrocinadores" className="text-primary hover:underline">Cadastre agora</Link>
+                  </p>
+                ) : (
+                  <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                    {sponsors.map((sponsor) => (
+                      <div key={sponsor.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`sponsor-${sponsor.id}`}
+                          checked={selectedSponsorIds.includes(sponsor.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                            } else {
+                              setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                            }
+                          }}
+                          data-testid={`checkbox-sponsor-${sponsor.id}`}
+                        />
+                        <label
+                          htmlFor={`sponsor-${sponsor.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {sponsor.name}
+                          {sponsor.company && <span className="text-muted-foreground ml-1">({sponsor.company})</span>}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Selecione os patrocinadores associados ao evento
+                </p>
+              </div>
+
               <div className="flex gap-2 justify-end">
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
                   Cancelar

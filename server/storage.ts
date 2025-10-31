@@ -10,7 +10,6 @@ import {
   auditLogs,
   users,
   sponsors,
-  clients,
   eventSponsors,
   type Event, 
   type InsertEvent,
@@ -31,8 +30,6 @@ import {
   type User,
   type Sponsor,
   type InsertSponsor,
-  type Client,
-  type InsertClient,
   type EventSponsor,
   type InsertEventSponsor
 } from "@shared/schema";
@@ -105,13 +102,6 @@ export interface IStorage {
   createSponsor(sponsor: InsertSponsor): Promise<Sponsor>;
   updateSponsor(id: string, data: Partial<InsertSponsor>): Promise<Sponsor | undefined>;
   deleteSponsor(id: string): Promise<boolean>;
-  
-  // Clients
-  getClient(id: string): Promise<Client | undefined>;
-  getAllClients(): Promise<Client[]>;
-  createClient(client: InsertClient): Promise<Client>;
-  updateClient(id: string, data: Partial<InsertClient>): Promise<Client | undefined>;
-  deleteClient(id: string): Promise<boolean>;
   
   // Event Sponsors (many-to-many relationship)
   getEventSponsors(eventId: string): Promise<EventSponsor[]>;
@@ -574,41 +564,6 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(sponsors)
       .where(eq(sponsors.id, id));
-    return result.rowCount !== null && result.rowCount > 0;
-  }
-
-  // Clients
-  async getClient(id: string): Promise<Client | undefined> {
-    const [client] = await db.select().from(clients).where(eq(clients.id, id));
-    return client || undefined;
-  }
-
-  async getAllClients(): Promise<Client[]> {
-    return await db.select().from(clients).orderBy(desc(clients.createdAt));
-  }
-
-  async createClient(insertClient: InsertClient): Promise<Client> {
-    const [client] = await db
-      .insert(clients)
-      .values(insertClient)
-      .returning();
-    return client;
-  }
-
-  async updateClient(id: string, data: Partial<InsertClient>): Promise<Client | undefined> {
-    const updateData: any = { ...data, updatedAt: new Date() };
-    const [client] = await db
-      .update(clients)
-      .set(updateData)
-      .where(eq(clients.id, id))
-      .returning();
-    return client || undefined;
-  }
-
-  async deleteClient(id: string): Promise<boolean> {
-    const result = await db
-      .delete(clients)
-      .where(eq(clients.id, id));
     return result.rowCount !== null && result.rowCount > 0;
   }
 

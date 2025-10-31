@@ -3,8 +3,9 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2, Check, ChevronsUpDown, Building2 } from "lucide-react";
 import { Fragment, useState } from "react";
+import type { Sponsor } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -69,6 +70,7 @@ export default function EventDetail() {
     finish: "",
     measurement: "",
     observations: "",
+    sponsorId: "",
   });
 
   const { data: event, isLoading: loadingEvent } = useQuery<any>({
@@ -88,6 +90,10 @@ export default function EventDetail() {
     queryKey: ["/api/standard-items"],
   });
 
+  const { data: sponsors = [] } = useQuery<Sponsor[]>({
+    queryKey: ["/api/sponsors"],
+  });
+
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
       const fileWidth = parseFloat(data.fileWidth);
@@ -99,14 +105,21 @@ export default function EventDetail() {
         fileHeight
       ).toFixed(2);
       
-      return await apiRequest("POST", "/api/items", {
+      const itemData: any = {
         ...data,
         eventId,
         area: parseFloat(data.visualWidth),  // Manter area para compatibilidade com backend
         visual: parseFloat(data.visualHeight),  // Manter visual para compatibilidade com backend
         calculatedM2,
         measurement: data.measurement || `${fileWidth} × ${fileHeight}`,
-      });
+      };
+      
+      // Remover sponsorId se estiver vazio, enviar null caso contrário
+      if (!data.sponsorId) {
+        delete itemData.sponsorId;
+      }
+      
+      return await apiRequest("POST", "/api/items", itemData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
@@ -123,6 +136,7 @@ export default function EventDetail() {
         finish: "",
         measurement: "",
         observations: "",
+        sponsorId: "",
       });
       toast({
         title: "Item adicionado",
@@ -171,12 +185,19 @@ export default function EventDetail() {
         fileHeight
       ).toFixed(2);
       
-      return await apiRequest("PATCH", `/api/items/${id}`, {
+      const itemData: any = {
         ...data,
         area: parseFloat(data.visualWidth),  // Manter area para compatibilidade com backend
         visual: parseFloat(data.visualHeight),  // Manter visual para compatibilidade com backend
         calculatedM2,
-      });
+      };
+      
+      // Remover sponsorId se estiver vazio
+      if (!data.sponsorId) {
+        delete itemData.sponsorId;
+      }
+      
+      return await apiRequest("PATCH", `/api/items/${id}`, itemData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
@@ -242,6 +263,7 @@ export default function EventDetail() {
       finish: item.finish || "",
       measurement: item.measurement || "",
       observations: item.observations || "",
+      sponsorId: item.sponsorId || "",
     });
     setOpen(true);
   };
@@ -266,6 +288,7 @@ export default function EventDetail() {
       finish: "",
       measurement: "",
       observations: "",
+      sponsorId: "",
     });
   };
 
@@ -723,6 +746,36 @@ export default function EventDetail() {
                       rows={3}
                       data-testid="textarea-observations"
                     />
+                  </div>
+
+                  {/* Seleção de Patrocinador */}
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="sponsorId" className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      Patrocinador (opcional)
+                    </Label>
+                    <Select
+                      value={formData.sponsorId}
+                      onValueChange={(value) => setFormData({ ...formData, sponsorId: value })}
+                    >
+                      <SelectTrigger data-testid="select-sponsor">
+                        <SelectValue placeholder="Selecione o patrocinador" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Nenhum</SelectItem>
+                        {sponsors.map((sponsor) => (
+                          <SelectItem key={sponsor.id} value={sponsor.id}>
+                            {sponsor.name}
+                            {sponsor.company && ` (${sponsor.company})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {sponsors.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Nenhum patrocinador cadastrado. <Link href="/patrocinadores" className="text-primary hover:underline">Cadastre agora</Link>
+                      </p>
+                    )}
                   </div>
                 </div>
                 {formData.fileWidth && formData.fileHeight && formData.quantity && (

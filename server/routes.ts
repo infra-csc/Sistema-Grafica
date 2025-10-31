@@ -14,7 +14,6 @@ import {
   insertAuditLogSchema,
   insertUserSchema,
   insertSponsorSchema,
-  insertClientSchema,
   insertEventSponsorSchema,
   loginSchema,
   changePasswordSchema
@@ -462,101 +461,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       broadcast({ type: "sponsor_deleted", sponsorId: req.params.id });
       res.json({ message: "Patrocinador excluído com sucesso" });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // ============ CLIENTS ============
-  
-  // Get all clients
-  app.get("/api/clients", requireAuth, async (req, res) => {
-    try {
-      const clients = await storage.getAllClients();
-      res.json(clients);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get single client
-  app.get("/api/clients/:id", requireAuth, async (req, res) => {
-    try {
-      const client = await storage.getClient(req.params.id);
-      if (!client) {
-        return res.status(404).json({ error: "Cliente não encontrado" });
-      }
-      res.json(client);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Create client
-  app.post("/api/clients", requireAdmin, async (req, res) => {
-    try {
-      const validatedData = insertClientSchema.parse(req.body);
-      const client = await storage.createClient(validatedData);
-      
-      await createAuditLog(
-        req.userName!,
-        'created',
-        'client',
-        client.id,
-        `Cliente "${client.name}" criado`
-      );
-      
-      broadcast({ type: "client_created", client });
-      res.status(201).json(client);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  // Update client
-  app.patch("/api/clients/:id", requireAdmin, async (req, res) => {
-    try {
-      const validatedData = insertClientSchema.partial().parse(req.body);
-      const client = await storage.updateClient(req.params.id, validatedData);
-      if (!client) {
-        return res.status(404).json({ error: "Cliente não encontrado" });
-      }
-      
-      await createAuditLog(
-        req.userName!,
-        'updated',
-        'client',
-        client.id,
-        `Cliente "${client.name}" atualizado`
-      );
-      
-      broadcast({ type: "client_updated", client });
-      res.json(client);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  // Delete client
-  app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
-    try {
-      const client = await storage.getClient(req.params.id);
-      if (!client) {
-        return res.status(404).json({ error: "Cliente não encontrado" });
-      }
-
-      await storage.deleteClient(req.params.id);
-      
-      await createAuditLog(
-        req.userName!,
-        'deleted',
-        'client',
-        client.id,
-        `Cliente "${client.name}" excluído`
-      );
-      
-      broadcast({ type: "client_deleted", clientId: req.params.id });
-      res.json({ message: "Cliente excluído com sucesso" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

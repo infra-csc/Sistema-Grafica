@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users, Building2 } from "lucide-react";
+import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users, Building2, UserCheck } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -30,6 +30,12 @@ const menuItems = [
     icon: CheckCircle,
   },
   {
+    title: "Atendimento",
+    url: "/atendimento",
+    icon: UserCheck,
+    roles: ["atendimento", "admin"],
+  },
+  {
     title: "Gráfica",
     url: "/grafica",
     icon: Factory,
@@ -58,7 +64,15 @@ const menuItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
+
+  // Filter menu items based on user role
+  const filteredMenuItems = menuItems.filter(item => {
+    if (item.roles) {
+      return item.roles.includes(user?.role || '');
+    }
+    return true;
+  });
 
   return (
     <Sidebar>
@@ -78,7 +92,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {filteredMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={location === item.url} data-testid={`nav-${item.title.toLowerCase().replace(' ', '-')}`}>
                     <Link href={item.url}>

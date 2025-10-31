@@ -25,6 +25,30 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
   - `/api/items/:id/creator-review` - Solicitação reviews and releases to production
   - All routes validate current item status before transition (409 on invalid state)
   - All routes enforce role-based access (403 on unauthorized role)
+- **Arte Page Implementation (October 31, 2025):**
+  - Created generic FileUploader component for file uploads (images, PDFs, etc.) using object storage
+  - Modified Arte page to implement approval thumb upload workflow:
+    - Removed bulk approval functionality (each item requires individual thumb)
+    - Added upload UI for approval thumbnails with image preview
+    - Items with status `requested` appear in "Pendentes" tab
+    - After upload and submission, items move to `awaiting_sponsor_approval` status
+    - Items in all workflow statuses (`awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_creator_review`, `ready_for_production`, `approved`, `inProduction`, `produced`, `delivered`) visible in "Liberados" tab
+  - Status filters updated to include all intermediate workflow statuses
+  - Counters adjusted to reflect correct item counts across workflow stages
+- **Atendimento Page Implementation (October 31, 2025):**
+  - Created `/atendimento` page for sponsor approval workflow
+  - Displays items with status `awaiting_sponsor_approval` in grid cards
+  - Shows approval thumbs, item details, event info, and sponsor information
+  - Review dialog with full-size image and complete details
+  - Approve button calls `/api/items/:id/sponsor-approve` to transition to `sponsor_approved`
+  - Counter displays pending items count
+  - Empty state when no items await approval
+  - **Access Control (Layered Security):**
+    - Created `RoleProtectedRoute` component for role-based route protection
+    - Route restricted to "atendimento" and "admin" roles only
+    - Sidebar link filtered - only authorized roles see menu item
+    - Backend validates roles with 403 response on unauthorized access
+    - Defense in depth: both frontend and backend enforce access control
 
 ## User Preferences
 I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.

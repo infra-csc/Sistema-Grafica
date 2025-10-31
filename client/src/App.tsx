@@ -21,6 +21,7 @@ import DashboardAnalises from "@/pages/dashboard-analises";
 import Eventos from "@/pages/eventos";
 import EventDetail from "@/pages/event-detail";
 import Arte from "@/pages/arte";
+import Atendimento from "@/pages/atendimento";
 import Grafica from "@/pages/grafica";
 import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
@@ -56,6 +57,51 @@ function ProtectedRoute({ component: Component, ...rest }: { component: React.Co
   return <Component />;
 }
 
+function RoleProtectedRoute({ 
+  component: Component, 
+  allowedRoles,
+  ...rest 
+}: { 
+  component: React.ComponentType; 
+  allowedRoles: string[];
+  path?: string;
+}) {
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const [location, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      setLocation("/login");
+    } else if (!isLoading && user?.mustChangePassword && location !== "/change-password") {
+      setLocation("/change-password");
+    } else if (!isLoading && isAuthenticated && user && !allowedRoles.includes(user.role)) {
+      setLocation("/");
+    }
+  }, [isAuthenticated, isLoading, user, location, setLocation, allowedRoles]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  if (!allowedRoles.includes(user?.role || '')) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-muted-foreground">Acesso negado</div>
+      </div>
+    );
+  }
+
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -77,6 +123,9 @@ function Router() {
       </Route>
       <Route path="/arte">
         {() => <ProtectedRoute component={Arte} />}
+      </Route>
+      <Route path="/atendimento">
+        {() => <RoleProtectedRoute component={Atendimento} allowedRoles={["atendimento", "admin"]} />}
       </Route>
       <Route path="/grafica">
         {() => <ProtectedRoute component={Grafica} />}

@@ -27,18 +27,22 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
   - All routes enforce role-based access (403 on unauthorized role)
 - **Arte Page Implementation (October 31, 2025):**
   - Created generic FileUploader component for file uploads (images, PDFs, etc.) using object storage
-  - **Tabbed Interface Refactoring (October 31, 2025):**
-    - Refactored Arte page to use Shadcn Tabs component for clear visual separation of work stages
-    - Three distinct tabs with badge counters showing filtered item counts:
-      1. **"Criar Aprovações"** (FileImage icon): Items with status `requested` - Arte creates approval thumbs
-      2. **"Finalizar Layouts"** (Upload icon): Items with status `sponsor_approved` - Arte uploads final files
-      3. **"Aprovados"** (CheckCircle icon): All other workflow statuses (historical view)
+  - **Card-Based Navigation Interface (October 31, 2025):**
+    - Redesigned navigation with modern, corporate card-based workflow selector
+    - Replaced Tabs component with three large, clickable cards in responsive grid (1 column mobile, 3 columns desktop)
+    - Each workflow card displays:
+      - Circular icon with color-coded background (12x12 size)
+      - Clear workflow stage title
+      - Large counter showing filtered item count (text-3xl)
+      - Descriptive status message
+    - Color theming per stage:
+      1. **"Criar Aprovações"** (FileImage icon, Primary color): Items with status `requested` - Arte creates approval thumbs
+      2. **"Finalizar Layouts"** (Upload icon, Blue-600): Items with status `sponsor_approved` - Arte uploads final files
+      3. **"Aprovados"** (CheckCircle icon, Green-600): All other workflow statuses (historical view)
+    - Active card highlighted with border-primary border-2
+    - Interactive states: hover-elevate and active-elevate-2 for professional feel
+    - Filters separated into distinct Card component below navigation for clear visual hierarchy
     - Badge counters respect ALL active filters (event, type, material, finish, month, next 10 days)
-    - Tab-specific functionality:
-      - "Criar Aprovações": Shows checkbox column for bulk selection, Upload icon for actions
-      - "Finalizar Layouts": Upload icon for adding final files
-      - "Aprovados": Eye icon for view-only, Status column visible
-    - Empty state messages customized per tab
     - Maintained all existing filters and functionality (event filter, advanced filters, search, date ranges)
   - **Shared PDF Upload (Batch Processing):**
     - Multi-selection UI with checkboxes in "Criar Aprovações" tab

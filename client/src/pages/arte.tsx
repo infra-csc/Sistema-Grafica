@@ -352,9 +352,9 @@ export default function Arte() {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <Card>
-          <CardHeader>
+      <Card>
+        <CardHeader>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex-1">
@@ -551,7 +551,8 @@ export default function Arte() {
                 )}
               </div>
             )}
-          </div>
+            </div>
+          </Tabs>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -741,7 +742,6 @@ export default function Arte() {
           )}
         </CardContent>
       </Card>
-      </Tabs>
 
       <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
         <DialogContent>

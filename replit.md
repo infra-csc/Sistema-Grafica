@@ -4,15 +4,21 @@
 NORTE is a comprehensive graphic production management system for NORTE Marketing Esportivo. Its main goal is to replace Excel spreadsheets, enhancing agility and providing complete control, traceability, and automatic notifications across the entire production workflow: **Request → Art → Printing → Delivery**. The system aims to streamline operations, improve oversight, and ensure timely communication at all stages.
 
 ## Recent Changes (October 31, 2025)
+- **Client Management Removed - Items Now Link to Sponsors:**
+  - Removed clients table from database schema
+  - Items now link directly to sponsors via `sponsorId` field
+  - Events support multiple sponsors (many-to-many via event_sponsors junction table)
+  - Items support single sponsor selection (optional foreign key)
+  - Frontend: Events use checkbox multi-select for sponsors, Items use dropdown single-select
+- **Sponsor Linking Improvements:**
+  - Event creation/editing: Uses Promise.all for parallel sponsor linking operations
+  - Items: Properly omits sponsorId field when no sponsor selected (avoids sending empty strings)
+  - Sponsor sync uses apiRequest consistently (no direct fetch calls)
+  - Note: Current implementation lacks full atomic transactions (documented for future improvement)
 - **Multi-stage approval workflow fully implemented:**
-  - Backend API routes for sponsor/client management with admin-only access
+  - Backend API routes for sponsor management with admin-only access
   - New approval routes with status validation and role-based authorization
   - Three-stage approval: Arte → Atendimento (sponsor) → Solicitação (creator) → Production
-- **Sponsors & Clients Management:**
-  - Full CRUD operations for sponsors and clients (admin-only)
-  - Patrocinadores page created with form and list view
-  - Navigation items added to sidebar for Patrocinadores and Clientes
-  - API routes secured with schema validation and requireAdmin middleware
 - **Approval Routes Created:**
   - `/api/items/:id/submit-for-approval` - Arte submits with approval thumb
   - `/api/items/:id/sponsor-approve` - Atendimento approves for sponsor
@@ -45,8 +51,8 @@ The system features a professional light mode theme with a clean white backgroun
 - **Item Statuses**: `requested`, `awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_creator_review`, `ready_for_production`, `approved`, `inProduction`, `produced`, `delivered`.
 - **Event Statuses**: `created`, `completed`, `urgent`.
 - **User Authentication & Access Control**: Full login/logout, Bcryptjs for passwords, mandatory first-time password change, user management (Admin), 5 user profiles (Admin, Solicitation, Art, Graphics, Atendimento) with route protection and `hasPermission()` checks.
-- **Multi-Stage Approval Workflow**: Events can have multiple sponsors; items require sponsor approval before creator review; Arte uploads approval thumbs and final files; creator reviews and releases to production.
-- **Sponsor Management**: Full CRUD for sponsors; events can link to multiple sponsors; items can link to specific sponsors.
+- **Multi-Stage Approval Workflow**: Events can have multiple sponsors; items link to a single sponsor (optional); sponsor approval required before creator review; Arte uploads approval thumbs and final files; creator reviews and releases to production.
+- **Sponsor Management**: Full CRUD for sponsors (admin-only); events support multiple sponsors via checkboxes; items support single sponsor via dropdown; no client management (clients removed).
 - **Intelligent Notification System**: Notifications targeted to specific user roles based on event type. Admin users see ALL notifications for complete system oversight.
 - **Audit Logs**: Automatic logging of significant actions (event/item creation, approval, delivery) including user, timestamp, action, entity type/ID, and details, viewable in History and Event Details.
 - **Admin Edit/Delete**: Functionality for Admin users to edit and delete events and items with corresponding audit logs and confirmation dialogs.

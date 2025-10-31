@@ -21,6 +21,7 @@ import {
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { events } from "@shared/schema";
+import { z } from "zod";
 
 // Extend Express Request type to include userName and userId
 declare global {
@@ -1054,10 +1055,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Item "${item.type}" aprovado pelo patrocinador`
       );
       
-      // Notifica Solicitação para revisão do criador do evento
+      // Notifica Arte para finalizar o layout e adicionar arquivo final
       const notification = await storage.createNotification({
         type: "arteApproved",
-        message: `Patrocinador aprovou o item. Aguardando revisão do criador: ${item.type} - Evento: ${event?.name}`,
+        message: `Patrocinador aprovou o item. Finalize o layout e adicione o arquivo final: ${item.type} - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["arte"],
+      });
+      
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Arte submits final file after sponsor approval
+  app.patch("/api/items/:id/submit-final-file", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Arte podem enviar arquivo final" });
+      }
+      
+      // Validate request body with Zod
+      const finalFileSchema = z.object({
+        finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio").url("finalFileUrl deve ser uma URL válida"),
+      });
+      
+      const validatedData = finalFileSchema.parse(req.body);
+      
+      // Validate current status
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      if (currentItem.status !== "sponsor_approved") {
+        return res.status(409).json({ 
+          error: `Item não pode receber arquivo final. Status atual: ${currentItem.status}, esperado: sponsor_approved` 
+        });
+      }
+      
+      const item = await storage.updateItem(req.params.id, {
+        status: "awaiting_creator_review",
+        finalFileUrl: validatedData.finalFileUrl,
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'item',
+        item.id,
+        `Item "${item.type}" - arquivo final adicionado pela Arte`
+      );
+      
+      // Notifica Solicitação para revisão final
+      const notification = await storage.createNotification({
+        type: "arteApproved",
+        message: `Arquivo final pronto para revisão: ${item.type} - Evento: ${event?.name}`,
         eventId: item.eventId,
         itemId: item.id,
         targetRoles: ["solicitacao"],
@@ -1080,27 +1145,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem revisar como criador do evento" });
       }
       
-      const { finalFileUrl } = req.body;
-      
-      if (!finalFileUrl) {
-        return res.status(400).json({ error: "finalFileUrl is required" });
-      }
-      
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
       }
       
-      if (currentItem.status !== "sponsor_approved") {
+      if (currentItem.status !== "awaiting_creator_review") {
         return res.status(409).json({ 
-          error: `Item não pode ser revisado pelo criador. Status atual: ${currentItem.status}, esperado: sponsor_approved` 
+          error: `Item não pode ser revisado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_creator_review` 
         });
       }
       
       const item = await storage.updateItem(req.params.id, {
         status: "ready_for_production",
-        finalFileUrl,
         creatorReviewedAt: new Date(),
       });
       

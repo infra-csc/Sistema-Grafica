@@ -26,7 +26,8 @@ export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"pending" | "approved">("pending");
+  const [viewMode, setViewMode] = useState<"pending" | "needsFinalFile" | "approved">("pending");
+  const [finalFileUrl, setFinalFileUrl] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
@@ -102,6 +103,28 @@ export default function Arte() {
     },
   });
 
+  const submitFinalFileMutation = useMutation({
+    mutationFn: async ({ itemId, finalFileUrl }: { itemId: string; finalFileUrl: string }) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}/submit-final-file`, { finalFileUrl });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItem(null);
+      setFinalFileUrl("");
+      toast({
+        title: "Arquivo final enviado",
+        description: "O arquivo final foi enviado para revisão da solicitação",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao enviar arquivo final",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});
     const data = await response.json();
@@ -133,16 +156,20 @@ export default function Arte() {
   const filteredItems = allItems
     .filter(item => {
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-      const matchesView = viewMode === "pending" 
-        ? item.status === 'requested'
-        : item.status === 'awaiting_sponsor_approval' || 
-          item.status === 'sponsor_approved' || 
+      let matchesView = false;
+      if (viewMode === "pending") {
+        matchesView = item.status === 'requested';
+      } else if (viewMode === "needsFinalFile") {
+        matchesView = item.status === 'sponsor_approved';
+      } else {
+        matchesView = item.status === 'awaiting_sponsor_approval' || 
           item.status === 'awaiting_creator_review' || 
           item.status === 'ready_for_production' || 
           item.status === 'approved' || 
           item.status === 'inProduction' || 
           item.status === 'produced' || 
           item.status === 'delivered';
+      }
       const matchesType = typeFilter === "all" || item.type === typeFilter;
       const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
       const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
@@ -185,9 +212,9 @@ export default function Arte() {
     : allItems.filter(item => item.eventId === eventFilter);
   
   const pendingCount = itemsForEvent.filter(item => item.status === 'requested').length;
+  const needsFinalFileCount = itemsForEvent.filter(item => item.status === 'sponsor_approved').length;
   const approvedCount = itemsForEvent.filter(item => 
     item.status === 'awaiting_sponsor_approval' ||
-    item.status === 'sponsor_approved' ||
     item.status === 'awaiting_creator_review' ||
     item.status === 'ready_for_production' ||
     item.status === 'approved' || 
@@ -203,6 +230,7 @@ export default function Arte() {
     // Reset upload states when opening dialog
     setApprovalThumbUrl(item.approvalThumbUrl || "");
     setApprovalThumbPreview(item.approvalThumbUrl || "");
+    setFinalFileUrl(item.finalFileUrl || "");
   };
 
   const handleSubmitForApproval = () => {
@@ -215,6 +243,18 @@ export default function Arte() {
       return;
     }
     submitForApprovalMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
+  };
+
+  const handleSubmitFinalFile = () => {
+    if (!selectedItem || !finalFileUrl) {
+      toast({
+        title: "Erro",
+        description: "É necessário fazer upload do arquivo final",
+        variant: "destructive",
+      });
+      return;
+    }
+    submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl });
   };
 
   const toggleItemSelection = (itemId: string) => {
@@ -323,7 +363,11 @@ export default function Arte() {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <CardTitle>
-                {viewMode === "pending" ? "Itens Pendentes de Liberação" : "Histórico de Liberações"}
+                {viewMode === "pending" 
+                  ? "Itens Pendentes de Liberação" 
+                  : viewMode === "needsFinalFile"
+                  ? "Itens Aguardando Arquivo Final"
+                  : "Histórico de Liberações"}
               </CardTitle>
               <div className="flex flex-wrap gap-2">
                 <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
@@ -421,6 +465,15 @@ export default function Arte() {
                 >
                   <AlertCircle className="h-4 w-4 mr-2" />
                   Pendentes ({pendingCount})
+                </Button>
+                <Button
+                  variant={viewMode === "needsFinalFile" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setViewMode("needsFinalFile")}
+                  data-testid="button-view-needs-final-file"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Aguard. Arquivo Final ({needsFinalFileCount})
                 </Button>
                 <Button
                   variant={viewMode === "approved" ? "default" : "outline"}
@@ -855,6 +908,83 @@ export default function Arte() {
                   </div>
                 </div>
               )}
+
+              {/* Upload de Arquivo Final após Aprovação do Patrocinador */}
+              {selectedItem.status === 'sponsor_approved' && (
+                <div className="border-t pt-4 space-y-4">
+                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-4 mb-4">
+                    <p className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4" />
+                      Patrocinador aprovou este item!
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+                      Finalize o layout e adicione o arquivo final para enviar para revisão da solicitação.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                      <File className="h-4 w-4" />
+                      Arquivo Final <span className="text-destructive">*</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Envie o arquivo final em alta resolução (PDF, imagem, etc.)
+                    </p>
+                    {finalFileUrl ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                          <File className="h-4 w-4 text-green-600" />
+                          <span className="text-sm truncate flex-1">Arquivo final enviado</span>
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        </div>
+                        <FileUploader
+                          onGetUploadParameters={getUploadUrl}
+                          onComplete={(result) => {
+                            setFinalFileUrl(result.url);
+                            toast({
+                              title: "Upload concluído",
+                              description: "Arquivo final atualizado com sucesso",
+                            });
+                          }}
+                          onError={(error) => {
+                            toast({
+                              title: "Erro no upload",
+                              description: error.message,
+                              variant: "destructive",
+                            });
+                          }}
+                          accept=".pdf,image/*"
+                          buttonVariant="outline"
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Alterar Arquivo Final
+                        </FileUploader>
+                      </div>
+                    ) : (
+                      <FileUploader
+                        onGetUploadParameters={getUploadUrl}
+                        onComplete={(result) => {
+                          setFinalFileUrl(result.url);
+                          toast({
+                            title: "Upload concluído",
+                            description: "Arquivo final enviado com sucesso",
+                          });
+                        }}
+                        onError={(error) => {
+                          toast({
+                            title: "Erro no upload",
+                            description: error.message,
+                            variant: "destructive",
+                          });
+                        }}
+                        accept=".pdf,image/*"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Fazer Upload do Arquivo Final
+                      </FileUploader>
+                    )}
+                  </div>
+                </div>
+              )}
               
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={() => setSelectedItem(null)}>
@@ -867,6 +997,15 @@ export default function Arte() {
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     Enviar para Aprovação do Patrocinador
+                  </Button>
+                )}
+                {selectedItem.status === 'sponsor_approved' && (
+                  <Button
+                    onClick={handleSubmitFinalFile}
+                    disabled={submitFinalFileMutation.isPending || !finalFileUrl}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Enviar Arquivo Final
                   </Button>
                 )}
               </div>

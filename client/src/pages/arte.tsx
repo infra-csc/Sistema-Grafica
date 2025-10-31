@@ -366,19 +366,18 @@ export default function Arte() {
               className={cn(
                 "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
                 activeTab === "criar-aprovacoes"
-                  ? "bg-background text-foreground shadow-md border border-border/50"
+                  ? "bg-background text-foreground shadow-md border-2 border-blue-500"
                   : "text-foreground/70 hover-elevate"
               )}
             >
               <div className="flex items-center gap-2">
-                <FileImage className="h-4 w-4" />
+                <FileImage className={cn("h-4 w-4", activeTab === "criar-aprovacoes" ? "text-blue-600" : "text-blue-500")} />
                 <span className="font-semibold">Mandar para Aprovação</span>
               </div>
               <Badge 
-                variant={activeTab === "criar-aprovacoes" ? "default" : "secondary"} 
                 className={cn(
-                  "min-w-[28px] justify-center",
-                  activeTab !== "criar-aprovacoes" && "bg-muted-foreground/20"
+                  "min-w-[28px] justify-center bg-blue-600 text-white hover:bg-blue-700",
+                  activeTab !== "criar-aprovacoes" && "bg-blue-500/20 text-blue-700 hover:bg-blue-500/30"
                 )}
               >
                 {pendingCount}
@@ -391,19 +390,18 @@ export default function Arte() {
               className={cn(
                 "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
                 activeTab === "finalizar-layouts"
-                  ? "bg-background text-foreground shadow-md border border-border/50"
+                  ? "bg-background text-foreground shadow-md border-2 border-orange-500"
                   : "text-foreground/70 hover-elevate"
               )}
             >
               <div className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
+                <Upload className={cn("h-4 w-4", activeTab === "finalizar-layouts" ? "text-orange-600" : "text-orange-500")} />
                 <span className="font-semibold">Finalizar Arte</span>
               </div>
               <Badge 
-                variant={activeTab === "finalizar-layouts" ? "default" : "secondary"}
                 className={cn(
-                  "min-w-[28px] justify-center",
-                  activeTab !== "finalizar-layouts" && "bg-muted-foreground/20"
+                  "min-w-[28px] justify-center bg-orange-600 text-white hover:bg-orange-700",
+                  activeTab !== "finalizar-layouts" && "bg-orange-500/20 text-orange-700 hover:bg-orange-500/30"
                 )}
               >
                 {needsFinalFileCount}
@@ -416,19 +414,18 @@ export default function Arte() {
               className={cn(
                 "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
                 activeTab === "aprovados"
-                  ? "bg-background text-foreground shadow-md border border-border/50"
+                  ? "bg-background text-foreground shadow-md border-2 border-green-500"
                   : "text-foreground/70 hover-elevate"
               )}
             >
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
+                <CheckCircle className={cn("h-4 w-4", activeTab === "aprovados" ? "text-green-600" : "text-green-500")} />
                 <span className="font-semibold">Aprovados</span>
               </div>
               <Badge 
-                variant={activeTab === "aprovados" ? "default" : "secondary"}
                 className={cn(
-                  "min-w-[28px] justify-center",
-                  activeTab !== "aprovados" && "bg-muted-foreground/20"
+                  "min-w-[28px] justify-center bg-green-600 text-white hover:bg-green-700",
+                  activeTab !== "aprovados" && "bg-green-500/20 text-green-700 hover:bg-green-500/30"
                 )}
               >
                 {approvedCount}

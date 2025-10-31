@@ -28,21 +28,38 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
 - **Arte Page Implementation (October 31, 2025):**
   - Created generic FileUploader component for file uploads (images, PDFs, etc.) using object storage
   - Modified Arte page to implement approval thumb upload workflow:
-    - Removed bulk approval functionality (each item requires individual thumb)
-    - Added upload UI for approval thumbnails with image preview
     - Items with status `requested` appear in "Pendentes" tab
     - After upload and submission, items move to `awaiting_sponsor_approval` status
     - Items in all workflow statuses (`awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_creator_review`, `ready_for_production`, `approved`, `inProduction`, `produced`, `delivered`) visible in "Liberados" tab
+  - **Shared PDF Upload (Batch Processing):**
+    - Multi-selection UI with checkboxes in "Pendentes" tab
+    - Checkbox in table header for "Select All" functionality
+    - Upload button appears when items are selected: "Upload PDF Compartilhado (N)"
+    - Dialog for uploading single PDF to be applied to all selected items
+    - Shows list of selected items with event, type, and description
+    - Single PDF upload using FileUploader component
+    - Promise.all-based mutation submits all items in parallel with same PDF URL
+    - Each item maintains individual approval workflow (approval per piece, not per batch)
+    - After submission, all items transition to `awaiting_sponsor_approval` status
+    - Selection cleared and cache invalidated after successful submission
   - Status filters updated to include all intermediate workflow statuses
   - Counters adjusted to reflect correct item counts across workflow stages
 - **Atendimento Page Implementation (October 31, 2025):**
   - Created `/atendimento` page for sponsor approval workflow
-  - Displays items with status `awaiting_sponsor_approval` in grid cards
-  - Shows approval thumbs, item details, event info, and sponsor information
-  - Review dialog with full-size image and complete details
+  - **Refactored to Table Layout with Filters:**
+    - Changed from grid of cards to responsive table layout
+    - Search filter by description/type/name with clear button (X icon)
+    - Event filter dropdown (Select) with all available events
+    - Item type filter dropdown (Select) with unique types
+    - "Limpar" button appears when any filter is active
+    - Table columns: Evento, Tipo, Descrição, Qtd, Patrocinador, Saída Caminhão, Ações
+    - Visual grouping by event with gradient headers and event info
+    - Displays items with status `awaiting_sponsor_approval`
+    - Memoized filtering logic for performance (useMemo)
+    - Badge with counter showing pending items count
+    - Empty states differentiated: "Nenhum item pendente" vs "Nenhum resultado encontrado"
+  - Review dialog with full-size image and complete details (unchanged)
   - Approve button calls `/api/items/:id/sponsor-approve` to transition to `sponsor_approved`
-  - Counter displays pending items count
-  - Empty state when no items await approval
   - **Access Control (Layered Security):**
     - Created `RoleProtectedRoute` component for role-based route protection
     - Route restricted to "atendimento" and "admin" roles only

@@ -1037,7 +1037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.updateItem(req.params.id, {
         status: "sponsor_approved",
         sponsorApprovedBy: req.userName,
-        sponsorApprovedAt: new Date().toISOString(),
+        sponsorApprovedAt: new Date(),
       });
       
       if (!item) {
@@ -1101,7 +1101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.updateItem(req.params.id, {
         status: "ready_for_production",
         finalFileUrl,
-        creatorReviewedAt: new Date().toISOString(),
+        creatorReviewedAt: new Date(),
       });
       
       if (!item) {

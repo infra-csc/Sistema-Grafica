@@ -63,6 +63,15 @@ NORTE is a comprehensive graphic production management system for NORTE Marketin
     - Sidebar link filtered - only authorized roles see menu item
     - Backend validates roles with 403 response on unauthorized access
     - Defense in depth: both frontend and backend enforce access control
+- **Multi-Stage Approval Notification System (October 31, 2025):**
+  - Complete notification workflow for all approval stages:
+    1. Arte submits → Notifies "atendimento" profile
+    2. Atendimento approves → Notifies "solicitacao" profile
+    3. Solicitação releases → Notifies "arte" and "grafica" profiles
+  - All notifications include item type and event name for context
+  - Real-time WebSocket broadcasts for instant UI updates
+  - Audit trail with timestamps: `sponsorApprovedAt`, `creatorReviewedAt`
+  - Type-safe timestamp fields (Date objects, not strings)
 
 ## User Preferences
 I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.

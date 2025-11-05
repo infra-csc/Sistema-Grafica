@@ -90,9 +90,21 @@ export default function EventDetail() {
     queryKey: ["/api/standard-items"],
   });
 
-  const { data: sponsors = [] } = useQuery<Sponsor[]>({
+  // Buscar patrocinadores vinculados ao evento
+  const { data: eventSponsors = [] } = useQuery<any[]>({
+    queryKey: ["/api/events", eventId, "sponsors"],
+    enabled: !!eventId,
+  });
+
+  // Buscar todos os patrocinadores para obter os detalhes
+  const { data: allSponsors = [] } = useQuery<Sponsor[]>({
     queryKey: ["/api/sponsors"],
   });
+
+  // Filtrar apenas os patrocinadores vinculados ao evento
+  const sponsors = allSponsors.filter(sponsor => 
+    eventSponsors.some(es => es.sponsorId === sponsor.id)
+  );
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {

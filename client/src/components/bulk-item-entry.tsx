@@ -491,14 +491,14 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 {/* Patrocinador */}
                 <td className="p-2">
                   <Select 
-                    value={row.sponsorId} 
-                    onValueChange={(value) => updateRow(row.id, 'sponsorId', value)}
+                    value={row.sponsorId || "none"} 
+                    onValueChange={(value) => updateRow(row.id, 'sponsorId', value === "none" ? "" : value)}
                   >
                     <SelectTrigger className="h-8" data-testid={`select-sponsor-${index}`}>
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {sponsors.map(sponsor => (
                         <SelectItem key={sponsor.id} value={sponsor.id}>
                           {sponsor.name}

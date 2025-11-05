@@ -813,7 +813,7 @@ export default function Eventos() {
                             ✓ Concluído
                           </Badge>
                         )}
-                        {priorityConfig && (
+                        {priorityConfig && event.status !== 'completed' && (
                           <Badge 
                             variant="outline" 
                             className={`text-xs border ${priorityConfig.color}`}

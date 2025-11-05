@@ -310,8 +310,8 @@ export default function EventDetail() {
       type: item.type || "",
       description: item.description || "",
       quantity: item.quantity || 1,
-      visualWidth: item.visualWidth || item.area || "",  // Usar visualWidth ou fallback para area (compatibilidade)
-      visualHeight: item.visualHeight || item.visual || "",  // Usar visualHeight ou fallback para visual (compatibilidade)
+      visualWidth: item.visualWidth || item.area || "",
+      visualHeight: item.visualHeight || item.visual || "",
       fileWidth: item.fileWidth || "",
       fileHeight: item.fileHeight || "",
       material: item.material || "",
@@ -415,8 +415,11 @@ export default function EventDetail() {
           </div>
           <div className="flex gap-2">
             <Dialog open={open} onOpenChange={(isOpen) => {
-              if (isOpen) setOpen(true);
-              else handleCloseDialog();
+              if (!isOpen) {
+                handleCloseDialog();
+              } else {
+                setOpen(true);
+              }
             }}>
               <DialogTrigger asChild>
                 <Button data-testid="button-add-item">

@@ -172,17 +172,17 @@ export default function Patrocinadores() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Patrocinadores</h1>
-          <p className="text-muted-foreground">
+    <div className="flex flex-col gap-6 p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Patrocinadores</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Gerencie os patrocinadores dos eventos
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
           <DialogTrigger asChild>
-            <Button data-testid="button-add-sponsor">
+            <Button data-testid="button-add-sponsor" className="flex-shrink-0">
               <Plus className="mr-2 h-4 w-4" />
               Novo Patrocinador
             </Button>

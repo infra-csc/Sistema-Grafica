@@ -563,36 +563,8 @@ export default function Solicitacao() {
                 </div>
               </div>
 
-              {selectedItem.approvalThumbUrl && (
-                <div>
-                  <h3 className="font-semibold mb-2">Thumb de Aprovação</h3>
-                  <div className="rounded-md overflow-hidden border">
-                    <img
-                      src={selectedItem.approvalThumbUrl}
-                      alt="Thumb de aprovação"
-                      className="w-full h-auto"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {selectedItem.finalFileUrl && (
-                <div>
-                  <h3 className="font-semibold mb-2">Arquivo Final</h3>
-                  <a
-                    href={selectedItem.finalFileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-primary hover:underline"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Visualizar arquivo final
-                  </a>
-                </div>
-              )}
-
               {selectedItem.notes && (
-                <div>
+                <div className="border-t pt-4">
                   <h3 className="font-semibold mb-2">Observações</h3>
                   <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                     {selectedItem.notes}

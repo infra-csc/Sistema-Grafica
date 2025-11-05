@@ -846,6 +846,7 @@ export default function EventDetail() {
                     <th className="text-left py-3 px-4 font-medium w-16">m²</th>
                     <th className="text-left py-3 px-4 font-medium">Material</th>
                     <th className="text-left py-3 px-4 font-medium">Acabamento</th>
+                    <th className="text-left py-3 px-4 font-medium">Patrocinador</th>
                     <th className="text-left py-3 px-4 font-medium w-24">Status</th>
                     {hasPermission("admin") && (
                       <th className="text-left py-3 px-4 font-medium w-32">Ações</th>
@@ -861,7 +862,7 @@ export default function EventDetail() {
                       <Fragment key={item.id}>
                         {showTypeHeader && (
                           <tr key={`group-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
-                            <td colSpan={hasPermission("admin") ? 8 : 7} className="py-2 px-4">
+                            <td colSpan={hasPermission("admin") ? 9 : 8} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-primary rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -907,6 +908,18 @@ export default function EventDetail() {
                           <td className="py-2 px-2 text-sm font-medium tabular-nums text-center">{item.calculatedM2}</td>
                           <td className="py-2 px-3 text-sm">{item.material}</td>
                           <td className="py-2 px-3 text-sm">{item.finish}</td>
+                          <td className="py-2 px-3 text-sm">
+                            {item.sponsorId ? (
+                              <div className="flex items-center gap-1">
+                                <Building2 className="h-3 w-3 text-muted-foreground" />
+                                <span className="truncate max-w-[120px]">
+                                  {allSponsors.find(s => s.id === item.sponsorId)?.name || "—"}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </td>
                           <td className="py-2 px-3">
                             <StatusBadge status={item.status} />
                           </td>

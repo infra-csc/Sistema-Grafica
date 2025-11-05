@@ -304,23 +304,39 @@ export default function EventDetail() {
   };
 
   const handleEditItem = (item: any) => {
-    setBulkMode(false);
-    setEditingItem(item);
-    setFormData({
-      type: item.type || "",
-      description: item.description || "",
-      quantity: item.quantity || 1,
-      visualWidth: item.visualWidth || item.area || "",
-      visualHeight: item.visualHeight || item.visual || "",
-      fileWidth: item.fileWidth || "",
-      fileHeight: item.fileHeight || "",
-      material: item.material || "",
-      finish: item.finish || "",
-      measurement: item.measurement || "",
-      observations: item.observations || "",
-      sponsorId: item.sponsorId || "",
-    });
-    setOpen(true);
+    console.log('🔧 handleEditItem START', { itemId: item.id, itemType: item.type });
+    try {
+      setBulkMode(false);
+      console.log('✓ bulkMode set to false');
+      
+      setEditingItem(item);
+      console.log('✓ editingItem set');
+      
+      const newFormData = {
+        type: item.type || "",
+        description: item.description || "",
+        quantity: item.quantity || 1,
+        visualWidth: item.visualWidth || item.area || "",
+        visualHeight: item.visualHeight || item.visual || "",
+        fileWidth: item.fileWidth || "",
+        fileHeight: item.fileHeight || "",
+        material: item.material || "",
+        finish: item.finish || "",
+        measurement: item.measurement || "",
+        observations: item.observations || "",
+        sponsorId: item.sponsorId || "",
+      };
+      console.log('✓ formData prepared', newFormData);
+      
+      setFormData(newFormData);
+      console.log('✓ formData set');
+      
+      setOpen(true);
+      console.log('✓ open set to true');
+      console.log('🔧 handleEditItem END');
+    } catch (error) {
+      console.error('❌ Error in handleEditItem:', error);
+    }
   };
 
   const handleDeleteItem = (id: string) => {

@@ -441,28 +441,30 @@ export default function EventDetail() {
                         }
                       </DialogDescription>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setBulkMode(!bulkMode)}
-                      data-testid="button-toggle-mode"
-                    >
-                      {bulkMode ? (
-                        <>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Modo Simples
-                        </>
-                      ) : (
-                        <>
-                          <List className="h-4 w-4 mr-2" />
-                          Entrada Rápida
-                        </>
-                      )}
-                    </Button>
+                    {!editingItem && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBulkMode(!bulkMode)}
+                        data-testid="button-toggle-mode"
+                      >
+                        {bulkMode ? (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Modo Simples
+                          </>
+                        ) : (
+                          <>
+                            <List className="h-4 w-4 mr-2" />
+                            Entrada Rápida
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </DialogHeader>
                 
-                {bulkMode ? (
+                {bulkMode && !editingItem ? (
                   <BulkItemEntry
                     eventId={eventId!}
                     standardItems={standardItems}

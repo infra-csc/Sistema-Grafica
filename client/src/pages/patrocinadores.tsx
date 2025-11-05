@@ -157,10 +157,12 @@ export default function Patrocinadores() {
     }
   };
 
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditingSponsor(null);
-    form.reset();
+  const handleOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingSponsor(null);
+      form.reset();
+    }
   };
 
   if (isLoading) {
@@ -180,7 +182,7 @@ export default function Patrocinadores() {
             Gerencie os patrocinadores dos eventos
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
+        <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button data-testid="button-add-sponsor" className="flex-shrink-0">
               <Plus className="mr-2 h-4 w-4" />
@@ -314,7 +316,7 @@ export default function Patrocinadores() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={handleCloseDialog}
+                    onClick={() => handleOpenChange(false)}
                     data-testid="button-cancel"
                   >
                     Cancelar

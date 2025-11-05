@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2, Check, ChevronsUpDown, Building2 } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
   Dialog,
@@ -108,6 +108,13 @@ export default function EventDetail() {
   const sponsors = allSponsors.filter(sponsor => 
     eventSponsors.some(es => es.sponsorId === sponsor.id)
   );
+
+  // Garantir que o dialog abre quando editingItem é definido
+  useEffect(() => {
+    if (editingItem) {
+      setOpen(true);
+    }
+  }, [editingItem]);
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -304,7 +311,6 @@ export default function EventDetail() {
   };
 
   const handleEditItem = (item: any) => {
-    setEditingItem(item);
     setBulkMode(false);
     setFormData({
       type: item.type || "",
@@ -320,7 +326,7 @@ export default function EventDetail() {
       observations: item.observations || "",
       sponsorId: item.sponsorId || "",
     });
-    setOpen(true);
+    setEditingItem(item);
   };
 
   const handleDeleteItem = (id: string) => {
@@ -328,7 +334,6 @@ export default function EventDetail() {
   };
 
   const handleCloseDialog = () => {
-    setOpen(false);
     setEditingItem(null);
     setBulkMode(true);
     setFormData({
@@ -345,6 +350,7 @@ export default function EventDetail() {
       observations: "",
       sponsorId: "",
     });
+    setOpen(false);
   };
 
   const handleOpenSponsorsDialog = () => {
@@ -414,6 +420,18 @@ export default function EventDetail() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button 
+              onClick={() => {
+                setEditingItem(null);
+                setBulkMode(true);
+                setOpen(true);
+              }}
+              data-testid="button-add-item"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Item
+            </Button>
+            
             <Dialog open={open} onOpenChange={(isOpen) => {
               if (!isOpen) {
                 handleCloseDialog();
@@ -421,12 +439,6 @@ export default function EventDetail() {
                 setOpen(true);
               }
             }}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-item">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Adicionar Item
-                </Button>
-              </DialogTrigger>
               <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh] overflow-y-auto" : "sm:max-w-lg max-h-[90vh] overflow-y-auto"}>
                 <DialogHeader>
                   <div className="flex items-center justify-between">
@@ -983,7 +995,11 @@ export default function EventDetail() {
               <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Nenhum item adicionado</h3>
               <p className="text-muted-foreground mb-4">Adicione itens ao evento para começar</p>
-              <Button onClick={() => setOpen(true)}>
+              <Button onClick={() => {
+                setEditingItem(null);
+                setBulkMode(true);
+                setOpen(true);
+              }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Adicionar Primeiro Item
               </Button>

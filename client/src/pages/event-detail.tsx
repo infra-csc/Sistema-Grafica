@@ -109,13 +109,6 @@ export default function EventDetail() {
     eventSponsors.some(es => es.sponsorId === sponsor.id)
   );
 
-  // Garantir que o dialog abre quando editingItem é definido
-  useEffect(() => {
-    if (editingItem) {
-      setOpen(true);
-    }
-  }, [editingItem]);
-
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
       const fileWidth = parseFloat(data.fileWidth);
@@ -312,6 +305,7 @@ export default function EventDetail() {
 
   const handleEditItem = (item: any) => {
     setBulkMode(false);
+    setEditingItem(item);
     setFormData({
       type: item.type || "",
       description: item.description || "",
@@ -326,7 +320,7 @@ export default function EventDetail() {
       observations: item.observations || "",
       sponsorId: item.sponsorId || "",
     });
-    setEditingItem(item);
+    setOpen(true);
   };
 
   const handleDeleteItem = (id: string) => {

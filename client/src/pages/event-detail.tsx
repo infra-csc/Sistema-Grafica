@@ -48,6 +48,7 @@ export default function EventDetail() {
   const [, params] = useRoute("/eventos/:id");
   const eventId = params?.id;
   const [open, setOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(true);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
@@ -304,7 +305,6 @@ export default function EventDetail() {
   };
 
   const handleEditItem = (item: any) => {
-    setBulkMode(false);
     setEditingItem(item);
     setFormData({
       type: item.type || "",
@@ -320,7 +320,7 @@ export default function EventDetail() {
       observations: item.observations || "",
       sponsorId: item.sponsorId || "",
     });
-    setOpen(true);
+    setEditDialogOpen(true);
   };
 
   const handleDeleteItem = (id: string) => {
@@ -1139,6 +1139,183 @@ export default function EventDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog separado para editar item */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Item</DialogTitle>
+            <DialogDescription>Atualize as informações do item</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (editingItem) {
+              updateItemMutation.mutate({ id: editingItem.id, data: formData });
+            }
+          }} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-2">
+                <Label>Tipo de Item</Label>
+                <Input
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  placeholder="Digite o tipo"
+                  data-testid="input-edit-type"
+                />
+              </div>
+              
+              <div className="col-span-2 space-y-2">
+                <Label>Descrição</Label>
+                <Input
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descrição opcional"
+                  data-testid="input-edit-description"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Quantidade</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+                  data-testid="input-edit-quantity"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>m² Calculado</Label>
+                <Input
+                  value={calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2)}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+
+              <div className="col-span-2 grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Visual Largura (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.visualWidth}
+                    onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
+                    data-testid="input-edit-visual-width"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Visual Altura (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.visualHeight}
+                    onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
+                    data-testid="input-edit-visual-height"
+                  />
+                </div>
+              </div>
+
+              <div className="col-span-2 grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Arquivo Largura (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.fileWidth}
+                    onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
+                    data-testid="input-edit-file-width"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Arquivo Altura (m)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.fileHeight}
+                    onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
+                    data-testid="input-edit-file-height"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Material</Label>
+                <Input
+                  value={formData.material}
+                  onChange={(e) => setFormData({ ...formData, material: e.target.value })}
+                  placeholder="Material"
+                  data-testid="input-edit-material"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Acabamento</Label>
+                <Input
+                  value={formData.finish}
+                  onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
+                  placeholder="Acabamento"
+                  data-testid="input-edit-finish"
+                />
+              </div>
+
+              <div className="col-span-2 space-y-2">
+                <Label>Patrocinador</Label>
+                <Select 
+                  value={formData.sponsorId || "none"} 
+                  onValueChange={(value) => setFormData({ ...formData, sponsorId: value === "none" ? "" : value })}
+                >
+                  <SelectTrigger data-testid="select-edit-sponsor">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {sponsors.map(sponsor => (
+                      <SelectItem key={sponsor.id} value={sponsor.id}>
+                        {sponsor.name}
+                        {sponsor.company && ` (${sponsor.company})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="col-span-2 space-y-2">
+                <Label>Observações</Label>
+                <Textarea
+                  value={formData.observations}
+                  onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+                  placeholder="Observações adicionais"
+                  className="min-h-[80px]"
+                  data-testid="textarea-edit-observations"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setEditDialogOpen(false);
+                  setEditingItem(null);
+                }}
+                data-testid="button-cancel-edit"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateItemMutation.isPending}
+                data-testid="button-save-edit"
+              >
+                {updateItemMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

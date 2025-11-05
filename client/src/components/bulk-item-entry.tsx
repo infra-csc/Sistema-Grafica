@@ -26,6 +26,7 @@ interface BulkItemRow {
   measurement: string;
   observations: string;
   calculatedM2: number;
+  sponsorId: string;
 }
 
 interface StandardItem {
@@ -42,15 +43,22 @@ interface StandardItem {
   finish?: string | null;
 }
 
+interface Sponsor {
+  id: string;
+  name: string;
+  company?: string | null;
+}
+
 interface BulkItemEntryProps {
   eventId: string;
   standardItems?: StandardItem[];
+  sponsors?: Sponsor[];
   onSubmit: (items: any[]) => void;
   onCancel: () => void;
   isPending?: boolean;
 }
 
-export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
+export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [openPopovers, setOpenPopovers] = useState<Record<string, boolean>>({});
   const [customTypeInputs, setCustomTypeInputs] = useState<Record<string, string>>({});
@@ -70,6 +78,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
       measurement: "",
       observations: "",
       calculatedM2: 0,
+      sponsorId: "",
     };
   }
 
@@ -220,6 +229,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
             <col style={{ width: '110px' }} />
             <col style={{ width: '110px' }} />
             <col style={{ width: '80px' }} />
+            <col style={{ width: '120px' }} />
             <col style={{ width: '150px' }} />
             <col style={{ width: '75px' }} />
           </colgroup>
@@ -234,6 +244,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
               <th className="p-2 text-left font-medium whitespace-nowrap">Material*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Acabamento*</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">m² (auto)</th>
+              <th className="p-2 text-left font-medium whitespace-nowrap">Patrocinador</th>
               <th className="p-2 text-left font-medium whitespace-nowrap">Observações</th>
               <th className="p-2 text-center font-medium whitespace-nowrap">Ações</th>
             </tr>
@@ -246,6 +257,7 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
               <th className="p-2 text-left text-xs font-normal text-muted-foreground">Altura</th>
               <th className="p-2 text-left text-xs font-normal text-muted-foreground">Largura</th>
               <th className="p-2 text-left text-xs font-normal text-muted-foreground">Altura</th>
+              <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
               <th className="p-2"></th>
@@ -474,6 +486,27 @@ export function BulkItemEntry({ eventId, standardItems = [], onSubmit, onCancel,
                 {/* m² calculado */}
                 <td className="p-2 text-center font-semibold text-primary">
                   {row.calculatedM2.toFixed(2)}
+                </td>
+
+                {/* Patrocinador */}
+                <td className="p-2">
+                  <Select 
+                    value={row.sponsorId} 
+                    onValueChange={(value) => updateRow(row.id, 'sponsorId', value)}
+                  >
+                    <SelectTrigger className="h-8" data-testid={`select-sponsor-${index}`}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhum</SelectItem>
+                      {sponsors.map(sponsor => (
+                        <SelectItem key={sponsor.id} value={sponsor.id}>
+                          {sponsor.name}
+                          {sponsor.company && ` (${sponsor.company})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </td>
 
                 {/* Observações */}

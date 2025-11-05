@@ -468,6 +468,7 @@ export default function EventDetail() {
                   <BulkItemEntry
                     eventId={eventId!}
                     standardItems={standardItems}
+                    sponsors={sponsors}
                     onSubmit={(items) => createBulkItemsMutation.mutate(items)}
                     onCancel={() => {
                       setBulkMode(false);

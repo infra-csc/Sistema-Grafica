@@ -1406,6 +1406,89 @@ export default function EventDetail() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog para atribuir patrocinador em lote */}
+      <Dialog open={bulkSponsorDialogOpen} onOpenChange={setBulkSponsorDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Atribuir Patrocinador em Lote</DialogTitle>
+            <DialogDescription>
+              Selecione um patrocinador para atribuir aos {selectedItemIds.length} {selectedItemIds.length === 1 ? 'item selecionado' : 'itens selecionados'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Lista de itens selecionados */}
+            <div className="rounded-md border p-3 max-h-[200px] overflow-y-auto">
+              <div className="text-xs font-medium text-muted-foreground mb-2">Itens que serão atualizados:</div>
+              <div className="space-y-1">
+                {items
+                  .filter(item => selectedItemIds.includes(item.id))
+                  .map(item => (
+                    <div key={item.id} className="text-sm flex items-center gap-2 py-1">
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                      <span className="font-medium">{item.type}</span>
+                      {item.description && (
+                        <span className="text-muted-foreground">- {item.description}</span>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Seletor de patrocinador */}
+            <div className="space-y-2">
+              <Label>Patrocinador</Label>
+              <Select 
+                value={bulkSponsorId || "none"} 
+                onValueChange={setBulkSponsorId}
+              >
+                <SelectTrigger data-testid="select-bulk-sponsor">
+                  <SelectValue placeholder="Selecione um patrocinador" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Remover Patrocinador</SelectItem>
+                  {sponsors.map(sponsor => (
+                    <SelectItem key={sponsor.id} value={sponsor.id}>
+                      {sponsor.name}
+                      {sponsor.company && ` (${sponsor.company})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Botões de ação */}
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setBulkSponsorDialogOpen(false);
+                  setBulkSponsorId("");
+                }}
+                data-testid="button-cancel-bulk-sponsor"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  if (bulkSponsorId) {
+                    bulkUpdateSponsorMutation.mutate({
+                      itemIds: selectedItemIds,
+                      sponsorId: bulkSponsorId
+                    });
+                  }
+                }}
+                disabled={!bulkSponsorId || bulkUpdateSponsorMutation.isPending}
+                data-testid="button-confirm-bulk-sponsor"
+              >
+                {bulkUpdateSponsorMutation.isPending ? "Atribuindo..." : "Atribuir Patrocinador"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

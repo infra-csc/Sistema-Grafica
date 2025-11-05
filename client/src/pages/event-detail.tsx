@@ -1505,7 +1505,6 @@ export default function EventDetail() {
                 {/* Itens disponíveis */}
                 {selectedSponsorForLinking && (() => {
                   const availableItems = items.filter(item => !item.sponsorId);
-                  if (availableItems.length === 0) return null;
                   
                   return (
                     <div>
@@ -1513,95 +1512,67 @@ export default function EventDetail() {
                         <div className="h-1 w-1 rounded-full bg-orange-600"></div>
                         <h4 className="text-sm font-semibold text-foreground">Itens Disponíveis ({availableItems.length})</h4>
                       </div>
-                      <div className="space-y-2">
-                        {availableItems.map((item) => (
-                          <div
-                            key={item.id}
-                            className={cn(
-                              "flex items-center gap-3 p-3 border rounded-lg hover-elevate cursor-pointer",
-                              selectedItemsToLink.includes(item.id) && "border-primary bg-primary/5"
-                            )}
-                            onClick={() => {
-                              if (selectedItemsToLink.includes(item.id)) {
-                                setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
-                              } else {
-                                setSelectedItemsToLink([...selectedItemsToLink, item.id]);
-                              }
-                            }}
-                            data-testid={`item-available-${item.id}`}
-                          >
-                            <Checkbox
-                              checked={selectedItemsToLink.includes(item.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedItemsToLink([...selectedItemsToLink, item.id]);
-                                } else {
+                      {availableItems.length === 0 ? (
+                        <div className="text-center py-8 px-4 border border-dashed rounded-lg bg-muted/20">
+                          <Package className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
+                          <p className="text-sm text-muted-foreground">Nenhum item disponível</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Todos os itens deste evento já estão vinculados a patrocinadores
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {availableItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className={cn(
+                                "flex items-center gap-3 p-3 border rounded-lg hover-elevate cursor-pointer",
+                                selectedItemsToLink.includes(item.id) && "border-primary bg-primary/5"
+                              )}
+                              onClick={() => {
+                                if (selectedItemsToLink.includes(item.id)) {
                                   setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
+                                } else {
+                                  setSelectedItemsToLink([...selectedItemsToLink, item.id]);
                                 }
                               }}
-                              onClick={(e) => e.stopPropagation()}
-                              data-testid={`checkbox-link-item-${item.id}`}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline" className="text-xs font-medium">
-                                  {item.type}
-                                </Badge>
-                              </div>
-                              {item.description && (
-                                <div className="text-sm text-foreground">{item.description}</div>
-                              )}
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                                <span>Qtd: {item.quantity}</span>
-                                {item.material && <span>• {item.material}</span>}
-                                {item.finish && <span>• {item.finish}</span>}
+                              data-testid={`item-available-${item.id}`}
+                            >
+                              <Checkbox
+                                checked={selectedItemsToLink.includes(item.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setSelectedItemsToLink([...selectedItemsToLink, item.id]);
+                                  } else {
+                                    setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`checkbox-link-item-${item.id}`}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="outline" className="text-xs font-medium">
+                                    {item.type}
+                                  </Badge>
+                                </div>
+                                {item.description && (
+                                  <div className="text-sm text-foreground">{item.description}</div>
+                                )}
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                                  <span>Qtd: {item.quantity}</span>
+                                  {item.material && <span>• {item.material}</span>}
+                                  {item.finish && <span>• {item.finish}</span>}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
 
-                {/* Itens vinculados a outros patrocinadores */}
-                {selectedSponsorForLinking && (() => {
-                  const otherLinkedItems = items.filter(item => item.sponsorId && item.sponsorId !== selectedSponsorForLinking.id);
-                  if (otherLinkedItems.length === 0) return null;
-                  
-                  return (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="h-1 w-1 rounded-full bg-muted-foreground"></div>
-                        <h4 className="text-sm font-semibold text-muted-foreground">Vinculados a Outros Patrocinadores ({otherLinkedItems.length})</h4>
-                      </div>
-                      <div className="space-y-2">
-                        {otherLinkedItems.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center gap-3 p-3 border bg-muted/30 rounded-lg opacity-60"
-                            data-testid={`item-other-${item.id}`}
-                          >
-                            <Checkbox disabled checked={false} />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline" className="text-xs font-medium">
-                                  {item.type}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">
-                                  → {allSponsors.find(s => s.id === item.sponsorId)?.name}
-                                </span>
-                              </div>
-                              {item.description && (
-                                <div className="text-sm text-muted-foreground">{item.description}</div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
               </>
             )}
           </div>

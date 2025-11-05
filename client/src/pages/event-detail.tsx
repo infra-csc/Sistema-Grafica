@@ -1176,6 +1176,39 @@ export default function EventDetail() {
         </CardContent>
       </Card>
 
+      {/* Botão flutuante para atribuir patrocinador em lote */}
+      {selectedItemIds.length > 0 && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+          <div className="bg-card border-2 border-primary shadow-lg rounded-lg px-6 py-3 flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="bg-primary/10 rounded-full h-8 w-8 flex items-center justify-center">
+                <span className="text-sm font-bold text-primary">{selectedItemIds.length}</span>
+              </div>
+              <span className="text-sm font-medium">
+                {selectedItemIds.length === 1 ? 'item selecionado' : 'itens selecionados'}
+              </span>
+            </div>
+            <div className="h-6 w-px bg-border"></div>
+            <Button
+              onClick={() => setBulkSponsorDialogOpen(true)}
+              size="sm"
+              data-testid="button-bulk-assign-sponsor"
+            >
+              <Building2 className="h-4 w-4 mr-2" />
+              Atribuir Patrocinador
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedItemIds([])}
+              data-testid="button-clear-selection"
+            >
+              Limpar
+            </Button>
+          </div>
+        </div>
+      )}
+
       <AlertDialog open={!!deletingItemId} onOpenChange={() => setDeletingItemId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

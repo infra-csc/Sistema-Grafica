@@ -60,6 +60,9 @@ export default function EventDetail() {
   const [customFinishInput, setCustomFinishInput] = useState("");
   const [sponsorsDialogOpen, setSponsorsDialogOpen] = useState(false);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [bulkSponsorDialogOpen, setBulkSponsorDialogOpen] = useState(false);
+  const [bulkSponsorId, setBulkSponsorId] = useState<string>("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -289,6 +292,34 @@ export default function EventDetail() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao atualizar patrocinadores",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkUpdateSponsorMutation = useMutation({
+    mutationFn: async ({ itemIds, sponsorId }: { itemIds: string[], sponsorId: string }) => {
+      const operations = itemIds.map((id) =>
+        apiRequest("PATCH", `/api/items/${id}`, { 
+          sponsorId: sponsorId === "none" ? null : sponsorId 
+        })
+      );
+      await Promise.all(operations);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      setBulkSponsorDialogOpen(false);
+      setSelectedItemIds([]);
+      setBulkSponsorId("");
+      toast({
+        title: "Patrocinador atribuído",
+        description: `Patrocinador atribuído a ${selectedItemIds.length} ${selectedItemIds.length === 1 ? 'item' : 'itens'} com sucesso`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atribuir patrocinador",
         description: error.message,
         variant: "destructive",
       });
@@ -1003,6 +1034,19 @@ export default function EventDetail() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
+                    <th className="text-left py-3 px-2 w-10">
+                      <Checkbox
+                        checked={selectedItemIds.length === items.length && items.length > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedItemIds(items.map(item => item.id));
+                          } else {
+                            setSelectedItemIds([]);
+                          }
+                        }}
+                        data-testid="checkbox-select-all-items"
+                      />
+                    </th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Dimensões</th>
@@ -1025,7 +1069,7 @@ export default function EventDetail() {
                       <Fragment key={item.id}>
                         {showTypeHeader && (
                           <tr key={`group-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
-                            <td colSpan={hasPermission("admin") ? 9 : 8} className="py-2 px-4">
+                            <td colSpan={hasPermission("admin") ? 10 : 9} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-primary rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -1040,6 +1084,19 @@ export default function EventDetail() {
                           className="border-b border-border hover-elevate"
                           data-testid={`row-item-${item.id}`}
                         >
+                          <td className="py-2 px-2">
+                            <Checkbox
+                              checked={selectedItemIds.includes(item.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedItemIds([...selectedItemIds, item.id]);
+                                } else {
+                                  setSelectedItemIds(selectedItemIds.filter(id => id !== item.id));
+                                }
+                              }}
+                              data-testid={`checkbox-item-${item.id}`}
+                            />
+                          </td>
                           <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>

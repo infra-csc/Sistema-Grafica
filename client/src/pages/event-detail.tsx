@@ -60,9 +60,9 @@ export default function EventDetail() {
   const [customFinishInput, setCustomFinishInput] = useState("");
   const [sponsorsDialogOpen, setSponsorsDialogOpen] = useState(false);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [bulkSponsorDialogOpen, setBulkSponsorDialogOpen] = useState(false);
-  const [bulkSponsorId, setBulkSponsorId] = useState<string>("");
+  const [linkItemsDialogOpen, setLinkItemsDialogOpen] = useState(false);
+  const [selectedSponsorForLinking, setSelectedSponsorForLinking] = useState<Sponsor | null>(null);
+  const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -298,28 +298,26 @@ export default function EventDetail() {
     },
   });
 
-  const bulkUpdateSponsorMutation = useMutation({
+  const linkItemsToSponsorMutation = useMutation({
     mutationFn: async ({ itemIds, sponsorId }: { itemIds: string[], sponsorId: string }) => {
       const operations = itemIds.map((id) =>
-        apiRequest("PATCH", `/api/items/${id}`, { 
-          sponsorId: sponsorId === "none" ? null : sponsorId 
-        })
+        apiRequest("PATCH", `/api/items/${id}`, { sponsorId })
       );
       await Promise.all(operations);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      setBulkSponsorDialogOpen(false);
-      setSelectedItemIds([]);
-      setBulkSponsorId("");
+      setLinkItemsDialogOpen(false);
+      setSelectedItemsToLink([]);
+      setSelectedSponsorForLinking(null);
       toast({
-        title: "Patrocinador atribuído",
-        description: `Patrocinador atribuído a ${selectedItemIds.length} ${selectedItemIds.length === 1 ? 'item' : 'itens'} com sucesso`,
+        title: "Itens vinculados",
+        description: `${selectedItemsToLink.length} ${selectedItemsToLink.length === 1 ? 'item vinculado' : 'itens vinculados'} ao patrocinador com sucesso`,
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao atribuir patrocinador",
+        title: "Erro ao vincular itens",
         description: error.message,
         variant: "destructive",
       });
@@ -997,13 +995,38 @@ export default function EventDetail() {
               <p className="text-xs text-muted-foreground mt-1">Clique em "Gerenciar Patrocinadores" para adicionar</p>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {sponsors.map((sponsor) => (
-                <Badge key={sponsor.id} variant="secondary" className="px-3 py-1.5 text-sm" data-testid={`badge-sponsor-${sponsor.id}`}>
-                  <Building2 className="h-3 w-3 mr-1.5" />
-                  {sponsor.name}
-                  {sponsor.company && <span className="ml-1 text-muted-foreground">({sponsor.company})</span>}
-                </Badge>
+                <div 
+                  key={sponsor.id} 
+                  className="flex items-center justify-between p-4 border rounded-lg bg-card hover-elevate"
+                  data-testid={`card-sponsor-${sponsor.id}`}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Building2 className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{sponsor.name}</div>
+                      {sponsor.company && (
+                        <div className="text-xs text-muted-foreground truncate">{sponsor.company}</div>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedSponsorForLinking(sponsor);
+                      setLinkItemsDialogOpen(true);
+                    }}
+                    className="ml-2 flex-shrink-0"
+                    data-testid={`button-link-items-${sponsor.id}`}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Vincular Itens
+                  </Button>
+                </div>
               ))}
             </div>
           )}
@@ -1034,19 +1057,6 @@ export default function EventDetail() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
-                    <th className="text-left py-3 px-2 w-10">
-                      <Checkbox
-                        checked={selectedItemIds.length === items.length && items.length > 0}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedItemIds(items.map(item => item.id));
-                          } else {
-                            setSelectedItemIds([]);
-                          }
-                        }}
-                        data-testid="checkbox-select-all-items"
-                      />
-                    </th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Dimensões</th>
@@ -1069,7 +1079,7 @@ export default function EventDetail() {
                       <Fragment key={item.id}>
                         {showTypeHeader && (
                           <tr key={`group-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
-                            <td colSpan={hasPermission("admin") ? 10 : 9} className="py-2 px-4">
+                            <td colSpan={hasPermission("admin") ? 9 : 8} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-primary rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -1084,19 +1094,6 @@ export default function EventDetail() {
                           className="border-b border-border hover-elevate"
                           data-testid={`row-item-${item.id}`}
                         >
-                          <td className="py-2 px-2">
-                            <Checkbox
-                              checked={selectedItemIds.includes(item.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedItemIds([...selectedItemIds, item.id]);
-                                } else {
-                                  setSelectedItemIds(selectedItemIds.filter(id => id !== item.id));
-                                }
-                              }}
-                              data-testid={`checkbox-item-${item.id}`}
-                            />
-                          </td>
                           <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>
@@ -1175,39 +1172,6 @@ export default function EventDetail() {
           )}
         </CardContent>
       </Card>
-
-      {/* Botão flutuante para atribuir patrocinador em lote */}
-      {selectedItemIds.length > 0 && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
-          <div className="bg-card border-2 border-primary shadow-lg rounded-lg px-6 py-3 flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="bg-primary/10 rounded-full h-8 w-8 flex items-center justify-center">
-                <span className="text-sm font-bold text-primary">{selectedItemIds.length}</span>
-              </div>
-              <span className="text-sm font-medium">
-                {selectedItemIds.length === 1 ? 'item selecionado' : 'itens selecionados'}
-              </span>
-            </div>
-            <div className="h-6 w-px bg-border"></div>
-            <Button
-              onClick={() => setBulkSponsorDialogOpen(true)}
-              size="sm"
-              data-testid="button-bulk-assign-sponsor"
-            >
-              <Building2 className="h-4 w-4 mr-2" />
-              Atribuir Patrocinador
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedItemIds([])}
-              data-testid="button-clear-selection"
-            >
-              Limpar
-            </Button>
-          </div>
-        </div>
-      )}
 
       <AlertDialog open={!!deletingItemId} onOpenChange={() => setDeletingItemId(null)}>
         <AlertDialogContent>
@@ -1407,83 +1371,121 @@ export default function EventDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog para atribuir patrocinador em lote */}
-      <Dialog open={bulkSponsorDialogOpen} onOpenChange={setBulkSponsorDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+      {/* Dialog para vincular itens ao patrocinador */}
+      <Dialog open={linkItemsDialogOpen} onOpenChange={setLinkItemsDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Atribuir Patrocinador em Lote</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              Vincular Itens ao Patrocinador
+            </DialogTitle>
             <DialogDescription>
-              Selecione um patrocinador para atribuir aos {selectedItemIds.length} {selectedItemIds.length === 1 ? 'item selecionado' : 'itens selecionados'}
+              {selectedSponsorForLinking && (
+                <span className="font-medium text-foreground">
+                  {selectedSponsorForLinking.name}
+                  {selectedSponsorForLinking.company && (
+                    <span className="text-muted-foreground ml-1">({selectedSponsorForLinking.company})</span>
+                  )}
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            {/* Lista de itens selecionados */}
-            <div className="rounded-md border p-3 max-h-[200px] overflow-y-auto">
-              <div className="text-xs font-medium text-muted-foreground mb-2">Itens que serão atualizados:</div>
-              <div className="space-y-1">
-                {items
-                  .filter(item => selectedItemIds.includes(item.id))
-                  .map(item => (
-                    <div key={item.id} className="text-sm flex items-center gap-2 py-1">
-                      <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
-                      <span className="font-medium">{item.type}</span>
-                      {item.description && (
-                        <span className="text-muted-foreground">- {item.description}</span>
-                      )}
-                    </div>
-                  ))}
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+            <div className="text-sm text-muted-foreground mb-3">
+              Selecione os itens que deseja vincular a este patrocinador:
+            </div>
+            
+            {items.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Nenhum item disponível neste evento
               </div>
-            </div>
+            ) : (
+              <div className="space-y-2">
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "flex items-center gap-3 p-3 border rounded-lg hover-elevate cursor-pointer",
+                      selectedItemsToLink.includes(item.id) && "border-primary bg-primary/5"
+                    )}
+                    onClick={() => {
+                      if (selectedItemsToLink.includes(item.id)) {
+                        setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
+                      } else {
+                        setSelectedItemsToLink([...selectedItemsToLink, item.id]);
+                      }
+                    }}
+                    data-testid={`item-to-link-${item.id}`}
+                  >
+                    <Checkbox
+                      checked={selectedItemsToLink.includes(item.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedItemsToLink([...selectedItemsToLink, item.id]);
+                        } else {
+                          setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid={`checkbox-link-item-${item.id}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline" className="text-xs font-medium">
+                          {item.type}
+                        </Badge>
+                        {item.sponsorId && (
+                          <span className="text-xs text-muted-foreground">
+                            (já vinculado a: {allSponsors.find(s => s.id === item.sponsorId)?.name})
+                          </span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <div className="text-sm text-foreground">{item.description}</div>
+                      )}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                        <span>Qtd: {item.quantity}</span>
+                        {item.material && <span>• {item.material}</span>}
+                        {item.finish && <span>• {item.finish}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-            {/* Seletor de patrocinador */}
-            <div className="space-y-2">
-              <Label>Patrocinador</Label>
-              <Select 
-                value={bulkSponsorId || "none"} 
-                onValueChange={setBulkSponsorId}
-              >
-                <SelectTrigger data-testid="select-bulk-sponsor">
-                  <SelectValue placeholder="Selecione um patrocinador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Remover Patrocinador</SelectItem>
-                  {sponsors.map(sponsor => (
-                    <SelectItem key={sponsor.id} value={sponsor.id}>
-                      {sponsor.name}
-                      {sponsor.company && ` (${sponsor.company})`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex items-center justify-between pt-4 border-t mt-4">
+            <div className="text-sm text-muted-foreground">
+              {selectedItemsToLink.length} {selectedItemsToLink.length === 1 ? 'item selecionado' : 'itens selecionados'}
             </div>
-
-            {/* Botões de ação */}
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  setBulkSponsorDialogOpen(false);
-                  setBulkSponsorId("");
+                  setLinkItemsDialogOpen(false);
+                  setSelectedItemsToLink([]);
+                  setSelectedSponsorForLinking(null);
                 }}
-                data-testid="button-cancel-bulk-sponsor"
+                data-testid="button-cancel-link-items"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={() => {
-                  if (bulkSponsorId) {
-                    bulkUpdateSponsorMutation.mutate({
-                      itemIds: selectedItemIds,
-                      sponsorId: bulkSponsorId
+                  if (selectedSponsorForLinking && selectedItemsToLink.length > 0) {
+                    linkItemsToSponsorMutation.mutate({
+                      itemIds: selectedItemsToLink,
+                      sponsorId: selectedSponsorForLinking.id
                     });
                   }
                 }}
-                disabled={!bulkSponsorId || bulkUpdateSponsorMutation.isPending}
-                data-testid="button-confirm-bulk-sponsor"
+                disabled={selectedItemsToLink.length === 0 || linkItemsToSponsorMutation.isPending}
+                data-testid="button-confirm-link-items"
               >
-                {bulkUpdateSponsorMutation.isPending ? "Atribuindo..." : "Atribuir Patrocinador"}
+                {linkItemsToSponsorMutation.isPending ? "Vinculando..." : "Vincular Itens"}
               </Button>
             </div>
           </div>

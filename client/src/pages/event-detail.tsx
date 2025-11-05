@@ -301,23 +301,29 @@ export default function EventDetail() {
   const linkItemsToSponsorMutation = useMutation({
     mutationFn: async ({ itemIds, sponsorId }: { itemIds: string[], sponsorId: string }) => {
       const operations = itemIds.map((id) =>
-        apiRequest("PATCH", `/api/items/${id}`, { sponsorId })
+        apiRequest("PATCH", `/api/items/${id}`, { 
+          sponsorId: sponsorId === "" ? null : sponsorId 
+        })
       );
       await Promise.all(operations);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       setLinkItemsDialogOpen(false);
       setSelectedItemsToLink([]);
       setSelectedSponsorForLinking(null);
+      
+      const isUnlinking = variables.sponsorId === "";
       toast({
-        title: "Itens vinculados",
-        description: `${selectedItemsToLink.length} ${selectedItemsToLink.length === 1 ? 'item vinculado' : 'itens vinculados'} ao patrocinador com sucesso`,
+        title: isUnlinking ? "Itens desvinculados" : "Itens vinculados",
+        description: isUnlinking 
+          ? `${variables.itemIds.length} ${variables.itemIds.length === 1 ? 'item desvinculado' : 'itens desvinculados'} com sucesso`
+          : `${variables.itemIds.length} ${variables.itemIds.length === 1 ? 'item vinculado' : 'itens vinculados'} ao patrocinador com sucesso`,
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao vincular itens",
+        title: "Erro ao processar itens",
         description: error.message,
         variant: "destructive",
       });
@@ -996,38 +1002,48 @@ export default function EventDetail() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {sponsors.map((sponsor) => (
-                <div 
-                  key={sponsor.id} 
-                  className="flex items-center justify-between p-4 border rounded-lg bg-card hover-elevate"
-                  data-testid={`card-sponsor-${sponsor.id}`}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Building2 className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{sponsor.name}</div>
-                      {sponsor.company && (
-                        <div className="text-xs text-muted-foreground truncate">{sponsor.company}</div>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedSponsorForLinking(sponsor);
-                      setLinkItemsDialogOpen(true);
-                    }}
-                    className="ml-2 flex-shrink-0"
-                    data-testid={`button-link-items-${sponsor.id}`}
+              {sponsors.map((sponsor) => {
+                const linkedItemsCount = items.filter(item => item.sponsorId === sponsor.id).length;
+                return (
+                  <div 
+                    key={sponsor.id} 
+                    className="flex items-center justify-between p-4 border rounded-lg bg-card hover-elevate"
+                    data-testid={`card-sponsor-${sponsor.id}`}
                   >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Vincular Itens
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{sponsor.name}</div>
+                        {sponsor.company && (
+                          <div className="text-xs text-muted-foreground truncate">{sponsor.company}</div>
+                        )}
+                        {linkedItemsCount > 0 && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Badge variant="secondary" className="text-xs px-2 py-0">
+                              {linkedItemsCount} {linkedItemsCount === 1 ? 'item vinculado' : 'itens vinculados'}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedSponsorForLinking(sponsor);
+                        setLinkItemsDialogOpen(true);
+                      }}
+                      className="ml-2 flex-shrink-0"
+                      data-testid={`button-link-items-${sponsor.id}`}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Vincular Itens
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -1377,7 +1393,7 @@ export default function EventDetail() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5 text-primary" />
-              Vincular Itens ao Patrocinador
+              Gerenciar Itens do Patrocinador
             </DialogTitle>
             <DialogDescription>
               {selectedSponsorForLinking && (
@@ -1391,74 +1407,214 @@ export default function EventDetail() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-            <div className="text-sm text-muted-foreground mb-3">
-              Selecione os itens que deseja vincular a este patrocinador:
-            </div>
+          {/* Estatísticas */}
+          {selectedSponsorForLinking && (() => {
+            const alreadyLinked = items.filter(item => item.sponsorId === selectedSponsorForLinking.id);
+            const availableItems = items.filter(item => !item.sponsorId || item.sponsorId === selectedSponsorForLinking.id);
             
+            return (
+              <div className="grid grid-cols-3 gap-3 pb-4 border-b">
+                <div className="text-center p-3 bg-primary/5 rounded-lg">
+                  <div className="text-2xl font-bold text-primary">{items.length}</div>
+                  <div className="text-xs text-muted-foreground">Total de Itens</div>
+                </div>
+                <div className="text-center p-3 bg-green-500/10 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{alreadyLinked.length}</div>
+                  <div className="text-xs text-muted-foreground">Já Vinculados</div>
+                </div>
+                <div className="text-center p-3 bg-orange-500/10 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-600">{availableItems.length - alreadyLinked.length}</div>
+                  <div className="text-xs text-muted-foreground">Disponíveis</div>
+                </div>
+              </div>
+            );
+          })()}
+          
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2">
             {items.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 Nenhum item disponível neste evento
               </div>
             ) : (
-              <div className="space-y-2">
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "flex items-center gap-3 p-3 border rounded-lg hover-elevate cursor-pointer",
-                      selectedItemsToLink.includes(item.id) && "border-primary bg-primary/5"
-                    )}
-                    onClick={() => {
-                      if (selectedItemsToLink.includes(item.id)) {
-                        setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
-                      } else {
-                        setSelectedItemsToLink([...selectedItemsToLink, item.id]);
-                      }
-                    }}
-                    data-testid={`item-to-link-${item.id}`}
-                  >
-                    <Checkbox
-                      checked={selectedItemsToLink.includes(item.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedItemsToLink([...selectedItemsToLink, item.id]);
-                        } else {
-                          setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
-                        }
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      data-testid={`checkbox-link-item-${item.id}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-xs font-medium">
-                          {item.type}
-                        </Badge>
-                        {item.sponsorId && (
-                          <span className="text-xs text-muted-foreground">
-                            (já vinculado a: {allSponsors.find(s => s.id === item.sponsorId)?.name})
-                          </span>
-                        )}
+              <>
+                {/* Itens já vinculados */}
+                {selectedSponsorForLinking && (() => {
+                  const linkedItems = items.filter(item => item.sponsorId === selectedSponsorForLinking.id);
+                  if (linkedItems.length === 0) return null;
+                  
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="h-1 w-1 rounded-full bg-green-600"></div>
+                        <h4 className="text-sm font-semibold text-foreground">Itens Vinculados ({linkedItems.length})</h4>
                       </div>
-                      {item.description && (
-                        <div className="text-sm text-foreground">{item.description}</div>
-                      )}
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        <span>Qtd: {item.quantity}</span>
-                        {item.material && <span>• {item.material}</span>}
-                        {item.finish && <span>• {item.finish}</span>}
+                      <div className="space-y-2">
+                        {linkedItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              "flex items-center gap-3 p-3 border border-green-200 bg-green-50/50 rounded-lg hover-elevate cursor-pointer",
+                              selectedItemsToLink.includes(item.id) && "border-primary bg-primary/5"
+                            )}
+                            onClick={() => {
+                              if (selectedItemsToLink.includes(item.id)) {
+                                setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
+                              } else {
+                                setSelectedItemsToLink([...selectedItemsToLink, item.id]);
+                              }
+                            }}
+                            data-testid={`item-linked-${item.id}`}
+                          >
+                            <Checkbox
+                              checked={selectedItemsToLink.includes(item.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedItemsToLink([...selectedItemsToLink, item.id]);
+                                } else {
+                                  setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`checkbox-link-item-${item.id}`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="text-xs font-medium bg-white">
+                                  {item.type}
+                                </Badge>
+                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 border-green-200">
+                                  Vinculado
+                                </Badge>
+                              </div>
+                              {item.description && (
+                                <div className="text-sm text-foreground">{item.description}</div>
+                              )}
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                                <span>Qtd: {item.quantity}</span>
+                                {item.material && <span>• {item.material}</span>}
+                                {item.finish && <span>• {item.finish}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  );
+                })()}
+
+                {/* Itens disponíveis */}
+                {selectedSponsorForLinking && (() => {
+                  const availableItems = items.filter(item => !item.sponsorId);
+                  if (availableItems.length === 0) return null;
+                  
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="h-1 w-1 rounded-full bg-orange-600"></div>
+                        <h4 className="text-sm font-semibold text-foreground">Itens Disponíveis ({availableItems.length})</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {availableItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              "flex items-center gap-3 p-3 border rounded-lg hover-elevate cursor-pointer",
+                              selectedItemsToLink.includes(item.id) && "border-primary bg-primary/5"
+                            )}
+                            onClick={() => {
+                              if (selectedItemsToLink.includes(item.id)) {
+                                setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
+                              } else {
+                                setSelectedItemsToLink([...selectedItemsToLink, item.id]);
+                              }
+                            }}
+                            data-testid={`item-available-${item.id}`}
+                          >
+                            <Checkbox
+                              checked={selectedItemsToLink.includes(item.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedItemsToLink([...selectedItemsToLink, item.id]);
+                                } else {
+                                  setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`checkbox-link-item-${item.id}`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="text-xs font-medium">
+                                  {item.type}
+                                </Badge>
+                              </div>
+                              {item.description && (
+                                <div className="text-sm text-foreground">{item.description}</div>
+                              )}
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                                <span>Qtd: {item.quantity}</span>
+                                {item.material && <span>• {item.material}</span>}
+                                {item.finish && <span>• {item.finish}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Itens vinculados a outros patrocinadores */}
+                {selectedSponsorForLinking && (() => {
+                  const otherLinkedItems = items.filter(item => item.sponsorId && item.sponsorId !== selectedSponsorForLinking.id);
+                  if (otherLinkedItems.length === 0) return null;
+                  
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="h-1 w-1 rounded-full bg-muted-foreground"></div>
+                        <h4 className="text-sm font-semibold text-muted-foreground">Vinculados a Outros Patrocinadores ({otherLinkedItems.length})</h4>
+                      </div>
+                      <div className="space-y-2">
+                        {otherLinkedItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-3 p-3 border bg-muted/30 rounded-lg opacity-60"
+                            data-testid={`item-other-${item.id}`}
+                          >
+                            <Checkbox disabled checked={false} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="text-xs font-medium">
+                                  {item.type}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  → {allSponsors.find(s => s.id === item.sponsorId)?.name}
+                                </span>
+                              </div>
+                              {item.description && (
+                                <div className="text-sm text-muted-foreground">{item.description}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </div>
 
           <div className="flex items-center justify-between pt-4 border-t mt-4">
-            <div className="text-sm text-muted-foreground">
-              {selectedItemsToLink.length} {selectedItemsToLink.length === 1 ? 'item selecionado' : 'itens selecionados'}
+            <div className="text-sm">
+              {selectedItemsToLink.length > 0 ? (
+                <span className="font-medium text-foreground">
+                  {selectedItemsToLink.length} {selectedItemsToLink.length === 1 ? 'item selecionado' : 'itens selecionados'}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Nenhum item selecionado</span>
+              )}
             </div>
             <div className="flex gap-2">
               <Button
@@ -1471,22 +1627,41 @@ export default function EventDetail() {
                 }}
                 data-testid="button-cancel-link-items"
               >
-                Cancelar
+                Fechar
               </Button>
-              <Button
-                onClick={() => {
-                  if (selectedSponsorForLinking && selectedItemsToLink.length > 0) {
-                    linkItemsToSponsorMutation.mutate({
-                      itemIds: selectedItemsToLink,
-                      sponsorId: selectedSponsorForLinking.id
-                    });
-                  }
-                }}
-                disabled={selectedItemsToLink.length === 0 || linkItemsToSponsorMutation.isPending}
-                data-testid="button-confirm-link-items"
-              >
-                {linkItemsToSponsorMutation.isPending ? "Vinculando..." : "Vincular Itens"}
-              </Button>
+              {selectedItemsToLink.length > 0 && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (selectedSponsorForLinking && selectedItemsToLink.length > 0) {
+                        linkItemsToSponsorMutation.mutate({
+                          itemIds: selectedItemsToLink,
+                          sponsorId: ""
+                        });
+                      }
+                    }}
+                    disabled={linkItemsToSponsorMutation.isPending}
+                    data-testid="button-unlink-items"
+                  >
+                    {linkItemsToSponsorMutation.isPending ? "Processando..." : "Desvincular"}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (selectedSponsorForLinking && selectedItemsToLink.length > 0) {
+                        linkItemsToSponsorMutation.mutate({
+                          itemIds: selectedItemsToLink,
+                          sponsorId: selectedSponsorForLinking.id
+                        });
+                      }
+                    }}
+                    disabled={linkItemsToSponsorMutation.isPending}
+                    data-testid="button-confirm-link-items"
+                  >
+                    {linkItemsToSponsorMutation.isPending ? "Processando..." : "Vincular"}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </DialogContent>

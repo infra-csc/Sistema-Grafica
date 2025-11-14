@@ -178,13 +178,13 @@ export default function EventDetail() {
       return await apiRequest("POST", "/api/items/bulk", { items });
     },
     onSuccess: (data: any) => {
-      // Invalidar em background (não esperar)
+      // Invalidar em background para atualizar dados
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      setOpen(false);
-      setBulkMode(false);
+      
+      // NÃO fechar o dialog - deixar usuário ver os dados atualizando
       toast({
-        title: "Itens adicionados",
-        description: `${data.length} itens foram adicionados ao evento`,
+        title: "✅ Itens salvos com sucesso!",
+        description: `${data.length} itens adicionados. Você pode fechar esta janela.`,
       });
     },
     onError: (error: Error) => {

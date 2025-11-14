@@ -203,6 +203,20 @@ export default function Eventos() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validação: Saída do caminhão não pode ser depois do início do evento
+    const startDate = new Date(formData.startDate);
+    const truckDate = new Date(formData.truckDepartureDate);
+    
+    if (truckDate > startDate) {
+      toast({
+        title: "Data inválida",
+        description: "A saída do caminhão não pode ser depois do início do evento",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (editingEvent) {
       updateEventMutation.mutate({ id: editingEvent.id, data: formData });
     } else {
@@ -875,7 +889,7 @@ export default function Eventos() {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 ml-2">
+                    <div className="flex items-center gap-2 ml-4">
                       <Button 
                         variant="ghost" 
                         size="icon"

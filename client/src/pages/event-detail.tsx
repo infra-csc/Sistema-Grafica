@@ -89,6 +89,7 @@ export default function EventDetail() {
     queryKey: ["/api/items", eventId],
     enabled: !!eventId,
     placeholderData: (previousData) => previousData,
+    refetchOnWindowFocus: false,
   });
 
   // Ordenar itens por tipo

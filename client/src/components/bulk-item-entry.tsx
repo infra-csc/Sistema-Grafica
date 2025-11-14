@@ -198,7 +198,20 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
   ).length;
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
+      {/* Loading Overlay */}
+      {isPending && (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <div>
+              <p className="text-lg font-semibold">Salvando itens...</p>
+              <p className="text-sm text-muted-foreground">Aguarde enquanto processamos os dados</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <div>

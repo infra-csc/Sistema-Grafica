@@ -177,9 +177,9 @@ export default function EventDetail() {
     mutationFn: async (items: any[]) => {
       return await apiRequest("POST", "/api/items/bulk", { items });
     },
-    onSuccess: async (data: any) => {
-      // Aguardar a invalidação e refetch das queries antes de fechar o dialog
-      await queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+    onSuccess: (data: any) => {
+      // Invalidar em background (não esperar)
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       setOpen(false);
       setBulkMode(false);
       toast({

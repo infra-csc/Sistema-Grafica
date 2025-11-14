@@ -546,7 +546,7 @@ export default function EventDetail() {
                 setOpen(true);
               }
             }}>
-              <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh] overflow-y-auto" : "sm:max-w-lg max-h-[90vh] overflow-y-auto"}>
+              <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh]" : "sm:max-w-lg max-h-[90vh] overflow-y-auto"}>
                 <DialogHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -587,6 +587,7 @@ export default function EventDetail() {
                 </DialogHeader>
                 
                 {bulkMode && !editingItem ? (
+                  <div className="overflow-y-auto -mx-6 px-6">
                   <BulkItemEntry
                     eventId={eventId!}
                     standardItems={standardItems}
@@ -599,6 +600,7 @@ export default function EventDetail() {
                     }}
                     isPending={createBulkItemsMutation.isPending}
                   />
+                  </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">

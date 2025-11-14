@@ -205,10 +205,11 @@ export default function Eventos() {
     e.preventDefault();
     
     // Validação: Saída do caminhão não pode ser depois do início do evento
-    const startDate = new Date(formData.startDate);
-    const truckDate = new Date(formData.truckDepartureDate);
+    // Comparar apenas as datas do calendário (YYYY-MM-DD) sem timezone
+    const startDateStr = formData.startDate; // "YYYY-MM-DD"
+    const truckDateStr = formData.truckDepartureDate.substring(0, 10); // "YYYY-MM-DD"
     
-    if (truckDate > startDate) {
+    if (truckDateStr > startDateStr) {
       toast({
         title: "Data inválida",
         description: "A saída do caminhão não pode ser depois do início do evento",
@@ -230,7 +231,7 @@ export default function Eventos() {
     setEditingEvent(event);
     setFormData({
       name: event.name || "",
-      startDate: event.startDate ? new Date(event.startDate).toISOString().slice(0, 16) : "",
+      startDate: event.startDate ? new Date(event.startDate).toISOString().slice(0, 10) : "",
       truckDepartureDate: event.truckDepartureDate ? new Date(event.truckDepartureDate).toISOString().slice(0, 16) : "",
     });
     setOpen(true);

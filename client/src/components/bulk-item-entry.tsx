@@ -218,60 +218,60 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
       <div className="border rounded-lg overflow-auto">
         <table className="w-full text-sm">
           <colgroup>
-            <col style={{ width: '35px' }} />
-            <col style={{ width: '120px' }} />
-            <col style={{ width: '150px' }} />
-            <col style={{ width: '55px' }} />
-            <col style={{ width: '85px' }} />
-            <col style={{ width: '85px' }} />
-            <col style={{ width: '85px' }} />
-            <col style={{ width: '85px' }} />
+            <col style={{ width: '30px' }} />
             <col style={{ width: '110px' }} />
-            <col style={{ width: '110px' }} />
-            <col style={{ width: '80px' }} />
-            <col style={{ width: '120px' }} />
-            <col style={{ width: '150px' }} />
-            <col style={{ width: '75px' }} />
+            <col style={{ width: '130px' }} />
+            <col style={{ width: '45px' }} />
+            <col style={{ width: '70px' }} />
+            <col style={{ width: '70px' }} />
+            <col style={{ width: '70px' }} />
+            <col style={{ width: '70px' }} />
+            <col style={{ width: '95px' }} />
+            <col style={{ width: '95px' }} />
+            <col style={{ width: '65px' }} />
+            <col style={{ width: '105px' }} />
+            <col style={{ width: '130px' }} />
+            <col style={{ width: '65px' }} />
           </colgroup>
           <thead className="bg-muted/50 sticky top-0">
             <tr>
-              <th className="p-2 text-left font-medium whitespace-nowrap">#</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Tipo*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Descrição</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Qtd*</th>
-              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Área Visual (m)*</th>
-              <th className="p-2 text-center font-medium whitespace-nowrap" colSpan={2}>Medida do arquivo (m)*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Material*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Acabamento*</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">m² (auto)</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Patrocinador</th>
-              <th className="p-2 text-left font-medium whitespace-nowrap">Observações</th>
-              <th className="p-2 text-center font-medium whitespace-nowrap">Ações</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">#</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">Tipo*</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">Descrição</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">Qtd*</th>
+              <th className="px-1.5 py-2 text-center font-medium whitespace-nowrap" colSpan={2}>Área Visual (m)*</th>
+              <th className="px-1.5 py-2 text-center font-medium whitespace-nowrap" colSpan={2}>Medida do arquivo (m)*</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">Material*</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">Acabamento*</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">m² (auto)</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">Patrocinador</th>
+              <th className="px-1.5 py-2 text-left font-medium whitespace-nowrap">Observações</th>
+              <th className="px-1.5 py-2 text-center font-medium whitespace-nowrap">Ações</th>
             </tr>
             <tr>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2 text-left text-xs font-normal text-muted-foreground">Largura</th>
-              <th className="p-2 text-left text-xs font-normal text-muted-foreground">Altura</th>
-              <th className="p-2 text-left text-xs font-normal text-muted-foreground">Largura</th>
-              <th className="p-2 text-left text-xs font-normal text-muted-foreground">Altura</th>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
-              <th className="p-2"></th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1 text-left text-xs font-normal text-muted-foreground">Largura</th>
+              <th className="px-1.5 py-1 text-left text-xs font-normal text-muted-foreground">Altura</th>
+              <th className="px-1.5 py-1 text-left text-xs font-normal text-muted-foreground">Largura</th>
+              <th className="px-1.5 py-1 text-left text-xs font-normal text-muted-foreground">Altura</th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1"></th>
+              <th className="px-1.5 py-1"></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => (
               <tr key={row.id} className={cn("border-t", index % 2 === 0 ? "bg-card" : "bg-muted/20")}>
-                <td className="p-2 text-center text-muted-foreground font-medium">{index + 1}</td>
+                <td className="px-1.5 py-2 text-center text-muted-foreground font-medium">{index + 1}</td>
                 
                 {/* Tipo */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Popover 
                     open={openPopovers[row.id]} 
                     onOpenChange={(open) => setOpenPopovers(prev => ({ ...prev, [row.id]: open }))}
@@ -369,7 +369,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Descrição */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Input
                     type="text"
                     value={row.description}
@@ -381,7 +381,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Quantidade */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Input
                     type="number"
                     min="1"
@@ -394,7 +394,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Área Visual - Largura */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Input
                     type="number"
                     step="0.01"
@@ -408,7 +408,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Área Visual - Altura */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Input
                     type="number"
                     step="0.01"
@@ -422,7 +422,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Medida do arquivo - Largura */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Input
                     type="number"
                     step="0.01"
@@ -436,7 +436,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Medida do arquivo - Altura */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Input
                     type="number"
                     step="0.01"
@@ -450,7 +450,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Material */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Select 
                     value={row.material} 
                     onValueChange={(value) => updateRow(row.id, 'material', value)}
@@ -467,7 +467,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Acabamento */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Select 
                     value={row.finish} 
                     onValueChange={(value) => updateRow(row.id, 'finish', value)}
@@ -484,12 +484,12 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* m² calculado */}
-                <td className="p-2 text-center font-semibold text-primary">
+                <td className="px-1.5 py-2 text-center font-semibold text-primary">
                   {row.calculatedM2.toFixed(2)}
                 </td>
 
                 {/* Patrocinador */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Select 
                     value={row.sponsorId || "none"} 
                     onValueChange={(value) => updateRow(row.id, 'sponsorId', value === "none" ? "" : value)}
@@ -510,7 +510,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Observações */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <Input
                     type="text"
                     value={row.observations}
@@ -522,7 +522,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                 </td>
 
                 {/* Ações */}
-                <td className="p-2">
+                <td className="px-1.5 py-2">
                   <div className="flex items-center justify-center gap-1">
                     <Button
                       size="icon"

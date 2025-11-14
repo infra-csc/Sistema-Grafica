@@ -182,9 +182,10 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       
       // NÃO fechar o dialog - deixar usuário ver os dados atualizando
+      const quantidade = Array.isArray(data) ? data.length : 0;
       toast({
         title: "✅ Itens salvos com sucesso!",
-        description: `${data.length} itens adicionados. Você pode fechar esta janela.`,
+        description: `${quantidade} ${quantidade === 1 ? 'item adicionado' : 'itens adicionados'}`,
       });
     },
     onError: (error: Error) => {

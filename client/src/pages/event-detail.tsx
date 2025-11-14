@@ -186,7 +186,27 @@ export default function EventDetail() {
       const response = await apiRequest("POST", "/api/items/bulk", { items });
       return await response.json();
     },
-    onSuccess: async (data: any) => {
+    onMutate: async (newItems: any[]) => {
+      // Cancelar queries pendentes para evitar sobrescrever nosso optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/items", eventId] });
+      
+      // Snapshot dos dados atuais (para rollback em caso de erro)
+      const previousItems = queryClient.getQueryData(["/api/items", eventId]);
+      
+      // Optimistically update: adicionar os novos itens IMEDIATAMENTE no cache
+      queryClient.setQueryData(["/api/items", eventId], (old: any[] = []) => {
+        const itemsWithIds = newItems.map(item => ({
+          ...item,
+          id: `temp-${Math.random()}`, // ID temporário
+          status: 'requested',
+        }));
+        return [...old, ...itemsWithIds];
+      });
+      
+      // Retornar contexto para possível rollback
+      return { previousItems };
+    },
+    onSuccess: (data: any) => {
       const quantidade = Array.isArray(data) ? data.length : 0;
       
       toast({
@@ -194,17 +214,19 @@ export default function EventDetail() {
         description: `${quantidade} ${quantidade === 1 ? 'item adicionado' : 'itens adicionados'}`,
       });
       
-      // Invalidar e aguardar os dados carregarem
-      await queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      // Atualizar com dados reais do servidor (substitui os temporários)
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       
-      // Aguardar um momento extra para garantir que os dados foram carregados
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Agora fecha o dialog com segurança
+      // Fechar dialog imediatamente - dados já estão na tela!
       setOpen(false);
       setBulkMode(false);
     },
-    onError: (error: Error) => {
+    onError: (error: any, newItems: any, context: any) => {
+      // Se der erro, reverter para dados anteriores
+      if (context?.previousItems) {
+        queryClient.setQueryData(["/api/items", eventId], context.previousItems);
+      }
+      
       toast({
         title: "Erro ao adicionar itens",
         description: error.message,

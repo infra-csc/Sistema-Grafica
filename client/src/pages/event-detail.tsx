@@ -217,9 +217,8 @@ export default function EventDetail() {
       // Atualizar com dados reais do servidor (substitui os temporários)
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       
-      // Fechar dialog imediatamente - dados já estão na tela!
-      setOpen(false);
-      setBulkMode(false);
+      // NÃO FECHA O DIALOG - deixa usuário fechar quando quiser
+      // Assim não causa re-fetches múltiplos e não fica tela branca
     },
     onError: (error: any, newItems: any, context: any) => {
       // Se der erro, reverter para dados anteriores

@@ -593,7 +593,8 @@ export default function EventDetail() {
                     sponsors={sponsors}
                     onSubmit={(items) => createBulkItemsMutation.mutate(items)}
                     onCancel={() => {
-                      setBulkMode(false);
+                      // Apenas fecha o dialog, sem resetar estados
+                      // Isso evita re-fetches múltiplos e tela branca
                       setOpen(false);
                     }}
                     isPending={createBulkItemsMutation.isPending}

@@ -23,14 +23,17 @@ export default function PainelGeral() {
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items", "global"],
+    placeholderData: [],
   });
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
+    placeholderData: [],
   });
 
   const { data: auditLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/audit-logs"],
+    placeholderData: [],
   });
 
   // Criar mapa de audit logs

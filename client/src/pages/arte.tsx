@@ -57,7 +57,6 @@ export default function Arte() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
       setApprovalThumbUrl("");
       setApprovalThumbPreview("");
@@ -85,7 +84,6 @@ export default function Arte() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setShowBulkDialog(false);
       setSelectedItemIds(new Set());
       setSharedPdfUrl("");
@@ -108,7 +106,6 @@ export default function Arte() {
       return await apiRequest("PATCH", `/api/items/${itemId}/submit-final-file`, { finalFileUrl });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
       setFinalFileUrl("");
       toast({

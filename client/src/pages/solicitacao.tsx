@@ -68,7 +68,6 @@ export default function Solicitacao() {
       return await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
@@ -93,7 +92,6 @@ export default function Solicitacao() {
       return await Promise.all(releasePromises);
     },
     onSuccess: (_, itemIds) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItemIds(new Set());
       toast({
         title: "Itens liberados para produção",

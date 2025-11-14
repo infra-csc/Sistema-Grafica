@@ -68,7 +68,6 @@ export default function Atendimento() {
       return await apiRequest("PATCH", `/api/items/${itemId}/sponsor-approve`, {});
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
@@ -93,7 +92,6 @@ export default function Atendimento() {
       return await Promise.all(approvePromises);
     },
     onSuccess: (_, itemIds) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItemIds(new Set());
       toast({
         title: "Itens aprovados",

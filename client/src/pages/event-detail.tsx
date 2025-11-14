@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2, Check, ChevronsUpDown, Building2 } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2 } from "lucide-react";
 import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -85,9 +85,10 @@ export default function EventDetail() {
     enabled: !!eventId,
   });
 
-  const { data: rawItems = [], isLoading: loadingItems } = useQuery<any[]>({
+  const { data: rawItems = [], isLoading: loadingItems, isFetching } = useQuery<any[]>({
     queryKey: ["/api/items", eventId],
     enabled: !!eventId,
+    placeholderData: (previousData) => previousData,
   });
 
   // Ordenar itens por tipo
@@ -175,8 +176,9 @@ export default function EventDetail() {
     mutationFn: async (items: any[]) => {
       return await apiRequest("POST", "/api/items/bulk", { items });
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+    onSuccess: async (data: any) => {
+      // Aguardar a invalidação e refetch das queries antes de fechar o dialog
+      await queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       setOpen(false);
       setBulkMode(false);
       toast({
@@ -1051,7 +1053,15 @@ export default function EventDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Itens do Evento</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Itens do Evento</CardTitle>
+            {isFetching && !loadingItems && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>Atualizando...</span>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (

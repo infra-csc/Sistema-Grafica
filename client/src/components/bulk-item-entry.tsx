@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Copy, Trash2, Save, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Copy, Trash2, Save, Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 
@@ -579,8 +579,17 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
             disabled={isPending || validRowsCount === 0}
             data-testid="button-save-all"
           >
-            <Save className="mr-2 h-4 w-4" />
-            Salvar Todos ({validRowsCount})
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Salvar Todos ({validRowsCount})
+              </>
+            )}
           </Button>
         </div>
       </div>

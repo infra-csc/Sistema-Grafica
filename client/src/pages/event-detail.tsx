@@ -175,7 +175,8 @@ export default function EventDetail() {
 
   const createBulkItemsMutation = useMutation({
     mutationFn: async (items: any[]) => {
-      return await apiRequest("POST", "/api/items/bulk", { items });
+      const response = await apiRequest("POST", "/api/items/bulk", { items });
+      return await response.json();
     },
     onSuccess: (data: any) => {
       // Invalidar em background para atualizar dados

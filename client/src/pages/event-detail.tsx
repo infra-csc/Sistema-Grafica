@@ -83,6 +83,8 @@ export default function EventDetail() {
   const { data: event, isLoading: loadingEvent } = useQuery<any>({
     queryKey: ["/api/events", eventId],
     enabled: !!eventId,
+    placeholderData: (previousData: any) => previousData,
+    refetchOnWindowFocus: false,
   });
 
   const { data: rawItems = [], isLoading: loadingItems, isFetching } = useQuery<any[]>({
@@ -97,17 +99,23 @@ export default function EventDetail() {
 
   const { data: standardItems = [] } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
+    placeholderData: (previousData: any) => previousData,
+    refetchOnWindowFocus: false,
   });
 
   // Buscar patrocinadores vinculados ao evento
   const { data: eventSponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/events", eventId, "sponsors"],
     enabled: !!eventId,
+    placeholderData: (previousData: any) => previousData,
+    refetchOnWindowFocus: false,
   });
 
   // Buscar todos os patrocinadores para obter os detalhes
   const { data: allSponsors = [] } = useQuery<Sponsor[]>({
     queryKey: ["/api/sponsors"],
+    placeholderData: (previousData: any) => previousData,
+    refetchOnWindowFocus: false,
   });
 
   // Filtrar apenas os patrocinadores vinculados ao evento
@@ -178,16 +186,23 @@ export default function EventDetail() {
       const response = await apiRequest("POST", "/api/items/bulk", { items });
       return await response.json();
     },
-    onSuccess: (data: any) => {
-      // Invalidar em background para atualizar dados
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      
-      // NÃO fechar o dialog - deixar usuário ver os dados atualizando
+    onSuccess: async (data: any) => {
       const quantidade = Array.isArray(data) ? data.length : 0;
+      
       toast({
         title: "✅ Itens salvos com sucesso!",
         description: `${quantidade} ${quantidade === 1 ? 'item adicionado' : 'itens adicionados'}`,
       });
+      
+      // Invalidar e aguardar os dados carregarem
+      await queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      
+      // Aguardar um momento extra para garantir que os dados foram carregados
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Agora fecha o dialog com segurança
+      setOpen(false);
+      setBulkMode(false);
     },
     onError: (error: Error) => {
       toast({

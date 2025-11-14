@@ -398,8 +398,45 @@ export default function EventDetail() {
 
   if (loadingEvent || loadingItems) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex flex-col gap-6 p-6">
+        <Card>
+          <CardHeader>
+            <div className="space-y-3">
+              <div className="h-8 w-64 bg-muted animate-pulse rounded"></div>
+              <div className="h-4 w-96 bg-muted animate-pulse rounded"></div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-sm text-muted-foreground">Carregando evento...</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <div className="h-6 w-48 bg-muted animate-pulse rounded"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex gap-4 p-4 border rounded-lg">
+                  <div className="h-4 w-4 bg-muted animate-pulse rounded"></div>
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-32 bg-muted animate-pulse rounded"></div>
+                    <div className="h-3 w-48 bg-muted animate-pulse rounded"></div>
+                  </div>
+                  <div className="h-8 w-20 bg-muted animate-pulse rounded"></div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

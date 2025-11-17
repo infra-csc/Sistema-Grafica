@@ -17,6 +17,7 @@ export default function VincularPatrocinadores() {
   const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -224,14 +225,22 @@ export default function VincularPatrocinadores() {
     });
   };
 
+  // Normalizar patrocinadores do evento (event.sponsors é array de objetos relation)
+  const eventSponsorMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    rawEvents.forEach(event => {
+      if (event.sponsors && Array.isArray(event.sponsors)) {
+        map[event.id] = event.sponsors.map((rel: any) => rel.sponsorId);
+      } else {
+        map[event.id] = [];
+      }
+    });
+    return map;
+  }, [rawEvents]);
+
   const getEventSponsors = (eventId: string) => {
-    const event = events.find(e => e.id === eventId);
-    if (!event) return [];
-    
-    // Buscar sponsors vinculados ao evento
-    return sponsors.filter(sponsor => 
-      event.sponsors?.includes(sponsor.id)
-    );
+    const sponsorIds = eventSponsorMap[eventId] || [];
+    return sponsors.filter(sponsor => sponsorIds.includes(sponsor.id));
   };
 
   // Calcular progresso
@@ -280,35 +289,69 @@ export default function VincularPatrocinadores() {
     );
   }
 
+  // Ações em lote
+  const handleBulkLink = (itemIds: string[], sponsorId: string) => {
+    itemIds.forEach(itemId => {
+      const currentSponsors = itemSponsorsMap[itemId] || [];
+      if (!currentSponsors.includes(sponsorId)) {
+        syncItemSponsorsMutation.mutate({
+          itemId,
+          sponsorIds: [...currentSponsors, sponsorId]
+        });
+      }
+    });
+  };
+
+  const handleBulkSkipApproval = (itemIds: string[]) => {
+    itemIds.forEach(itemId => {
+      updateItemSkipApprovalMutation.mutate({
+        itemId,
+        skipApproval: true
+      });
+    });
+  };
+
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds(prev =>
+      prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
+    );
+  };
+
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      {/* Header Simples */}
+    <div className="container mx-auto p-6 max-w-7xl">
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Vincular Patrocinadores</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Vincule patrocinadores aos items ou marque como "sem aprovação"
+        </p>
       </div>
 
-      {/* Cards de Eventos com Items */}
-      <div className="space-y-6">
+      {/* Cards de Eventos - Matriz Visual */}
+      <div className="space-y-8">
         {Object.entries(itemsByEvent).map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           const eventSponsors = getEventSponsors(eventId);
           const progress = calculateProgress(eventItems);
+          const eventSelectedItems = selectedItemIds.filter(id =>
+            eventItems.some(item => item.id === id)
+          );
 
           if (!event) return null;
 
           return (
-            <Card key={eventId} className="overflow-hidden">
+            <Card key={eventId}>
               {/* Header do Evento */}
-              <CardHeader className="border-b">
+              <CardHeader className="border-b space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-2">
+                    <div className="flex items-center gap-3 mb-1">
                       <CardTitle className="text-lg">{event.name}</CardTitle>
                       <Badge variant="secondary" className="text-xs">
-                        {progress.completed}/{progress.total}
+                        {progress.completed}/{progress.total} items
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
                       <span>{format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
                       <span>•</span>
                       <span>Caminhão: {format(new Date(event.truckDepartureDate), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
@@ -322,126 +365,187 @@ export default function VincularPatrocinadores() {
                     data-testid={`button-manage-event-sponsors-${event.id}`}
                   >
                     <Building2 className="h-4 w-4" />
-                    Patrocinadores ({eventSponsors.length})
+                    {eventSponsors.length === 0 ? 'Adicionar Patrocinadores' : `${eventSponsors.length} Patrocinador${eventSponsors.length !== 1 ? 'es' : ''}`}
                   </Button>
                 </div>
+
+                {/* Patrocinadores do Evento - Badges */}
+                {eventSponsors.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {eventSponsors.map(sponsor => (
+                      <Badge key={sponsor.id} variant="outline" className="gap-1">
+                        <Building2 className="h-3 w-3" />
+                        {sponsor.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Ações em Lote */}
+                {eventSelectedItems.length > 0 && eventSponsors.length > 0 && (
+                  <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                    <span className="text-sm font-medium">
+                      {eventSelectedItems.length} item{eventSelectedItems.length !== 1 ? 's' : ''} selecionado{eventSelectedItems.length !== 1 ? 's' : ''}:
+                    </span>
+                    <div className="flex gap-2 flex-wrap">
+                      {eventSponsors.map(sponsor => (
+                        <Button
+                          key={sponsor.id}
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleBulkLink(eventSelectedItems, sponsor.id)}
+                          className="gap-1"
+                        >
+                          <Link2 className="h-3 w-3" />
+                          Vincular a {sponsor.name}
+                        </Button>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleBulkSkipApproval(eventSelectedItems)}
+                        className="gap-1"
+                      >
+                        <X className="h-3 w-3" />
+                        Sem Aprovação
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardHeader>
 
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                    {eventItems.map(item => {
-                      const itemStatus = getItemStatus(item);
-                      const linkedSponsors = itemSponsorsMap[item.id] || [];
+              {/* Tabela de Items */}
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="border-b bg-muted/30">
+                      <tr>
+                        <th className="p-3 text-left w-12">
+                          <Checkbox
+                            checked={eventSelectedItems.length === eventItems.length}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedItemIds(prev => [
+                                  ...prev.filter(id => !eventItems.some(item => item.id === id)),
+                                  ...eventItems.map(item => item.id)
+                                ]);
+                              } else {
+                                setSelectedItemIds(prev =>
+                                  prev.filter(id => !eventItems.some(item => item.id === id))
+                                );
+                              }
+                            }}
+                          />
+                        </th>
+                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Item</th>
+                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Qtd</th>
+                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Material</th>
+                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Patrocinadores</th>
+                        <th className="p-3 text-center text-xs font-medium text-muted-foreground">Sem Aprovação</th>
+                        <th className="p-3 text-center text-xs font-medium text-muted-foreground">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventItems.map(item => {
+                        const itemStatus = getItemStatus(item);
+                        const linkedSponsors = itemSponsorsMap[item.id] || [];
+                        const isSelected = selectedItemIds.includes(item.id);
 
-                      return (
-                        <div
-                          key={item.id}
-                          className={`border rounded-lg p-4 transition-colors ${
-                            itemStatus === 'linked' || itemStatus === 'skip'
-                              ? 'border-green-500/30 bg-green-50/30 dark:border-green-700/30 dark:bg-green-900/10'
-                              : 'border-border'
-                          }`}
-                          data-testid={`item-card-${item.id}`}
-                        >
-                          {/* Header do Item */}
-                          <div className="flex items-start justify-between gap-4 mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-medium">{item.type}</h4>
-                                {itemStatus === 'linked' && (
-                                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
+                        return (
+                          <tr
+                            key={item.id}
+                            className={`border-b hover:bg-muted/30 transition-colors ${
+                              itemStatus === 'linked' || itemStatus === 'skip'
+                                ? 'bg-green-50/50 dark:bg-green-900/10'
+                                : ''
+                            } ${isSelected ? 'bg-primary/5' : ''}`}
+                            data-testid={`item-row-${item.id}`}
+                          >
+                            <td className="p-3">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleItemSelection(item.id)}
+                              />
+                            </td>
+                            <td className="p-3">
+                              <div>
+                                <div className="font-medium text-sm">{item.type}</div>
+                                {item.description && (
+                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                    {item.description}
+                                  </div>
                                 )}
                               </div>
-                              {item.description && (
-                                <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                              )}
-                              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                                <span>{item.quantity} un.</span>
-                                <span>•</span>
-                                <span>{item.material}</span>
-                                <span>•</span>
-                                <span>{parseFloat(item.calculatedM2).toFixed(2)} m²</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Seleção de Patrocinadores */}
-                          {!item.skipApproval && (
-                            <div className="space-y-2 mt-3 pt-3 border-t">
-                              <div className="flex items-center justify-between mb-2">
-                                <label className="text-sm font-medium">
-                                  Patrocinadores
-                                </label>
-                                {linkedSponsors.length > 0 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    {linkedSponsors.length} selecionado{linkedSponsors.length !== 1 ? 's' : ''}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {eventSponsors.map(sponsor => {
-                                  const isChecked = linkedSponsors.includes(sponsor.id);
-                                  return (
-                                    <div 
-                                      key={sponsor.id} 
-                                      className={`flex items-center space-x-2 p-2 border rounded cursor-pointer hover-elevate ${
-                                        isChecked 
-                                          ? 'border-primary/50 bg-primary/5' 
-                                          : 'border-border'
-                                      }`}
-                                      onClick={() => {
-                                        const newSponsors = isChecked
-                                          ? linkedSponsors.filter(id => id !== sponsor.id)
-                                          : [...linkedSponsors, sponsor.id];
-                                        
-                                        syncItemSponsorsMutation.mutate({
-                                          itemId: item.id,
-                                          sponsorIds: newSponsors
-                                        });
-                                      }}
-                                    >
-                                      <Checkbox
-                                        id={`item-${item.id}-sponsor-${sponsor.id}`}
-                                        checked={isChecked}
-                                        onCheckedChange={() => {}}
-                                        data-testid={`checkbox-item-${item.id}-sponsor-${sponsor.id}`}
-                                      />
-                                      <label
-                                        htmlFor={`item-${item.id}-sponsor-${sponsor.id}`}
-                                        className="text-sm cursor-pointer flex-1"
+                            </td>
+                            <td className="p-3 text-sm">{item.quantity}</td>
+                            <td className="p-3 text-sm">{item.material}</td>
+                            <td className="p-3">
+                              {!item.skipApproval && eventSponsors.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {eventSponsors.map(sponsor => {
+                                    const isLinked = linkedSponsors.includes(sponsor.id);
+                                    return (
+                                      <Button
+                                        key={sponsor.id}
+                                        size="sm"
+                                        variant={isLinked ? "default" : "outline"}
+                                        onClick={() => {
+                                          const newSponsors = isLinked
+                                            ? linkedSponsors.filter(id => id !== sponsor.id)
+                                            : [...linkedSponsors, sponsor.id];
+                                          syncItemSponsorsMutation.mutate({
+                                            itemId: item.id,
+                                            sponsorIds: newSponsors
+                                          });
+                                        }}
+                                        className="h-7 text-xs gap-1"
                                       >
+                                        {isLinked && <Check className="h-3 w-3" />}
                                         {sponsor.name}
-                                      </label>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Checkbox Sem Aprovação */}
-                          <div className="flex items-center space-x-2 pt-3 mt-3 border-t">
-                            <Checkbox
-                              id={`skip-approval-${item.id}`}
-                              checked={item.skipApproval || false}
-                              onCheckedChange={(checked) => {
-                                updateItemSkipApprovalMutation.mutate({
-                                  itemId: item.id,
-                                  skipApproval: !!checked
-                                });
-                              }}
-                              data-testid={`checkbox-skip-approval-${item.id}`}
-                            />
-                            <label
-                              htmlFor={`skip-approval-${item.id}`}
-                              className="text-sm cursor-pointer"
-                            >
-                              Item sem aprovação de patrocinador
-                            </label>
-                          </div>
-                        </div>
-                      );
-                    })}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {!item.skipApproval && eventSponsors.length === 0 && (
+                                <span className="text-xs text-muted-foreground italic">
+                                  Adicione patrocinadores ao evento
+                                </span>
+                              )}
+                              {item.skipApproval && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Sem patrocinador
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="p-3 text-center">
+                              <Checkbox
+                                checked={item.skipApproval || false}
+                                onCheckedChange={(checked) => {
+                                  updateItemSkipApprovalMutation.mutate({
+                                    itemId: item.id,
+                                    skipApproval: !!checked
+                                  });
+                                }}
+                                data-testid={`checkbox-skip-approval-${item.id}`}
+                              />
+                            </td>
+                            <td className="p-3 text-center">
+                              {itemStatus === 'linked' && (
+                                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500 inline" />
+                              )}
+                              {itemStatus === 'skip' && (
+                                <Badge variant="secondary" className="text-xs">OK</Badge>
+                              )}
+                              {itemStatus === 'pending' && (
+                                <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 inline" />
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>

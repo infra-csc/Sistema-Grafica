@@ -11,6 +11,7 @@ import {
   users,
   sponsors,
   eventSponsors,
+  itemSponsors,
   type Event, 
   type InsertEvent,
   type Item,
@@ -31,7 +32,9 @@ import {
   type Sponsor,
   type InsertSponsor,
   type EventSponsor,
-  type InsertEventSponsor
+  type InsertEventSponsor,
+  type ItemSponsor,
+  type InsertItemSponsor
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -108,6 +111,12 @@ export interface IStorage {
   getEventSponsors(eventId: string): Promise<EventSponsor[]>;
   addSponsorToEvent(eventSponsor: InsertEventSponsor): Promise<EventSponsor>;
   removeSponsorFromEvent(eventId: string, sponsorId: string): Promise<boolean>;
+  
+  // Item Sponsors (many-to-many relationship)
+  getItemSponsors(itemId: string): Promise<ItemSponsor[]>;
+  addSponsorToItem(itemSponsor: InsertItemSponsor): Promise<ItemSponsor>;
+  removeSponsorFromItem(itemId: string, sponsorId: string): Promise<boolean>;
+  bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -610,6 +619,50 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Item Sponsors
+  async getItemSponsors(itemId: string): Promise<ItemSponsor[]> {
+    return await db
+      .select()
+      .from(itemSponsors)
+      .where(eq(itemSponsors.itemId, itemId))
+      .orderBy(desc(itemSponsors.createdAt));
+  }
+
+  async addSponsorToItem(insertItemSponsor: InsertItemSponsor): Promise<ItemSponsor> {
+    const [itemSponsor] = await db
+      .insert(itemSponsors)
+      .values(insertItemSponsor)
+      .returning();
+    return itemSponsor;
+  }
+
+  async removeSponsorFromItem(itemId: string, sponsorId: string): Promise<boolean> {
+    const result = await db
+      .delete(itemSponsors)
+      .where(
+        and(
+          eq(itemSponsors.itemId, itemId),
+          eq(itemSponsors.sponsorId, sponsorId)
+        )
+      );
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void> {
+    // Remove all existing sponsors for this item
+    await db.delete(itemSponsors).where(eq(itemSponsors.itemId, itemId));
+    
+    // Add new sponsors
+    if (sponsorIds.length > 0) {
+      await db.insert(itemSponsors).values(
+        sponsorIds.map(sponsorId => ({
+          itemId,
+          sponsorId,
+        }))
+      );
+    }
   }
 }
 

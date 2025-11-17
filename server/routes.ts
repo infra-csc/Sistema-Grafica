@@ -15,6 +15,7 @@ import {
   insertUserSchema,
   insertSponsorSchema,
   insertEventSponsorSchema,
+  insertItemSponsorSchema,
   loginSchema,
   changePasswordSchema
 } from "@shared/schema";
@@ -530,6 +531,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       broadcast({ type: "event_sponsor_removed", eventId, sponsorId });
       res.json({ message: "Patrocinador removido do evento com sucesso" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ ITEM SPONSORS ============
+
+  // Get sponsors for specific item
+  app.get("/api/items/:id/sponsors", requireAuth, async (req, res) => {
+    try {
+      const itemSponsors = await storage.getItemSponsors(req.params.id);
+      res.json(itemSponsors);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Bulk sync item sponsors (replaces all sponsors for an item)
+  app.post("/api/items/:id/sponsors/sync", requireAuth, async (req, res) => {
+    try {
+      const itemId = req.params.id;
+      const { sponsorIds } = req.body;
+
+      if (!Array.isArray(sponsorIds)) {
+        return res.status(400).json({ error: "sponsorIds deve ser um array" });
+      }
+
+      await storage.bulkSyncItemSponsors(itemId, sponsorIds);
+      
+      const item = await storage.getItem(itemId);
+      
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'item',
+        itemId,
+        `Patrocinadores atualizados - ${sponsorIds.length} ${sponsorIds.length === 1 ? 'patrocinador vinculado' : 'patrocinadores vinculados'}`
+      );
+      
+      broadcast({ type: "item_sponsors_updated", itemId, sponsorIds });
+      res.json({ message: "Patrocinadores atualizados com sucesso" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add single sponsor to item
+  app.post("/api/items/:id/sponsors", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertItemSponsorSchema.parse({
+        itemId: req.params.id,
+        sponsorId: req.body.sponsorId,
+      });
+
+      const itemSponsor = await storage.addSponsorToItem(validatedData);
+      
+      const item = await storage.getItem(req.params.id);
+      const sponsor = await storage.getSponsor(validatedData.sponsorId);
+      
+      await createAuditLog(
+        (req as any).userName,
+        'added',
+        'item_sponsor',
+        itemSponsor.id,
+        `Patrocinador "${sponsor?.name}" vinculado ao item ${item?.type || 'N/A'}`
+      );
+      
+      broadcast({ type: "item_sponsor_added", itemSponsor });
+      res.status(201).json(itemSponsor);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Remove sponsor from item
+  app.delete("/api/items/:itemId/sponsors/:sponsorId", requireAuth, async (req, res) => {
+    try {
+      const { itemId, sponsorId } = req.params;
+      const success = await storage.removeSponsorFromItem(itemId, sponsorId);
+      
+      if (!success) {
+        return res.status(404).json({ error: "Vinculação não encontrada" });
+      }
+      
+      const item = await storage.getItem(itemId);
+      const sponsor = await storage.getSponsor(sponsorId);
+      
+      await createAuditLog(
+        (req as any).userName,
+        'removed',
+        'item_sponsor',
+        `${itemId}_${sponsorId}`,
+        `Patrocinador "${sponsor?.name}" removido do item ${item?.type || 'N/A'}`
+      );
+      
+      broadcast({ type: "item_sponsor_removed", itemId, sponsorId });
+      res.json({ message: "Patrocinador removido do item com sucesso" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

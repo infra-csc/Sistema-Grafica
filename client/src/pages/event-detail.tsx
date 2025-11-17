@@ -78,6 +78,8 @@ export default function EventDetail() {
     measurement: "",
     observations: "",
     sponsorId: "",
+    skipApproval: false,
+    selectedSponsorIds: [] as string[],
   });
 
   const { data: event, isLoading: loadingEvent } = useQuery<any>({
@@ -140,18 +142,29 @@ export default function EventDetail() {
       const itemData: any = {
         ...data,
         eventId,
-        area: parseFloat(data.visualWidth),  // Manter area para compatibilidade com backend
-        visual: parseFloat(data.visualHeight),  // Manter visual para compatibilidade com backend
+        area: parseFloat(data.visualWidth),
+        visual: parseFloat(data.visualHeight),
         calculatedM2,
         measurement: data.measurement || `${fileWidth} × ${fileHeight}`,
+        skipApproval: data.skipApproval || false,
       };
       
-      // Remover sponsorId se estiver vazio, enviar null caso contrário
-      if (!data.sponsorId) {
-        delete itemData.sponsorId;
+      // Remover campos que não devem ir para o backend
+      delete itemData.selectedSponsorIds;
+      delete itemData.sponsorId;
+      
+      // Criar item
+      const response = await apiRequest("POST", "/api/items", itemData);
+      const createdItem = await response.json();
+      
+      // Se houver patrocinadores selecionados, vincular ao item
+      if (data.selectedSponsorIds && data.selectedSponsorIds.length > 0) {
+        await apiRequest("POST", `/api/items/${createdItem.id}/sponsors/sync`, {
+          sponsorIds: data.selectedSponsorIds
+        });
       }
       
-      return await apiRequest("POST", "/api/items", itemData);
+      return createdItem;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
@@ -169,6 +182,8 @@ export default function EventDetail() {
         measurement: "",
         observations: "",
         sponsorId: "",
+        skipApproval: false,
+        selectedSponsorIds: [],
       });
       toast({
         title: "Item adicionado",
@@ -976,34 +991,93 @@ export default function EventDetail() {
                     />
                   </div>
 
-                  {/* Seleção de Patrocinador */}
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="sponsorId" className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      Patrocinador (opcional)
-                    </Label>
-                    <Select
-                      value={formData.sponsorId}
-                      onValueChange={(value) => setFormData({ ...formData, sponsorId: value })}
-                    >
-                      <SelectTrigger data-testid="select-sponsor">
-                        <SelectValue placeholder="Selecione o patrocinador" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
-                        {sponsors.map((sponsor) => (
-                          <SelectItem key={sponsor.id} value={sponsor.id}>
-                            {sponsor.name}
-                            {sponsor.company && ` (${sponsor.company})`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {sponsors.length === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Nenhum patrocinador cadastrado. <Link href="/patrocinadores" className="text-primary hover:underline">Cadastre agora</Link>
+                  {/* Seleção de Patrocinadores (múltiplos) */}
+                  <div className="col-span-2 space-y-3 p-4 border rounded-lg bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2 text-base font-semibold">
+                        <Building2 className="h-5 w-5" />
+                        Patrocinadores
+                      </Label>
+                      <Badge variant="outline" className="text-xs">
+                        Opcional
+                      </Badge>
+                    </div>
+                    
+                    {sponsors.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum patrocinador vinculado ao evento. 
+                        <Link href={`/eventos/${eventId}`} className="text-primary hover:underline ml-1">
+                          Vincule patrocinadores ao evento primeiro
+                        </Link>
                       </p>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          Selecione um ou mais patrocinadores para este item
+                        </p>
+                        <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto bg-background">
+                          {sponsors.map((sponsor) => (
+                            <div key={sponsor.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`item-sponsor-${sponsor.id}`}
+                                checked={formData.selectedSponsorIds.includes(sponsor.id)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setFormData({
+                                      ...formData,
+                                      selectedSponsorIds: [...formData.selectedSponsorIds, sponsor.id]
+                                    });
+                                  } else {
+                                    setFormData({
+                                      ...formData,
+                                      selectedSponsorIds: formData.selectedSponsorIds.filter(id => id !== sponsor.id)
+                                    });
+                                  }
+                                }}
+                                data-testid={`checkbox-item-sponsor-${sponsor.id}`}
+                              />
+                              <label
+                                htmlFor={`item-sponsor-${sponsor.id}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                              >
+                                {sponsor.name}
+                                {sponsor.company && (
+                                  <span className="text-muted-foreground ml-1">({sponsor.company})</span>
+                                )}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        {formData.selectedSponsorIds.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {formData.selectedSponsorIds.length} {formData.selectedSponsorIds.length === 1 ? 'patrocinador selecionado' : 'patrocinadores selecionados'}
+                          </p>
+                        )}
+                      </div>
                     )}
+
+                    {/* Checkbox Sem Aprovação */}
+                    <div className="flex items-start space-x-2 pt-2 border-t">
+                      <Checkbox
+                        id="skipApproval"
+                        checked={formData.skipApproval}
+                        onCheckedChange={(checked) => 
+                          setFormData({ ...formData, skipApproval: !!checked })
+                        }
+                        data-testid="checkbox-skip-approval"
+                      />
+                      <div className="grid gap-1.5 leading-none">
+                        <label
+                          htmlFor="skipApproval"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          Sem Aprovação de Patrocinador
+                        </label>
+                        <p className="text-xs text-muted-foreground">
+                          Marque para pular a etapa de aprovação e enviar direto para revisão da Solicitação
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 {formData.fileWidth && formData.fileHeight && formData.quantity && (
@@ -1035,6 +1109,116 @@ export default function EventDetail() {
           </div>
         </div>
       </div>
+
+      {/* Seção de Preparação para Arte - Itens em Rascunho */}
+      {items.filter(item => item.status === 'requested').length > 0 && (
+        <Card className="border-2 border-primary/30 bg-primary/5">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Preparar Envio para Arte</CardTitle>
+                <Badge variant="default" className="ml-2">
+                  {items.filter(item => item.status === 'requested').length} {items.filter(item => item.status === 'requested').length === 1 ? 'item pendente' : 'itens pendentes'}
+                </Badge>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Configure os patrocinadores e envie os itens para Arte quando estiver pronto
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {items
+              .filter(item => item.status === 'requested')
+              .sort((a, b) => a.type.localeCompare(b.type))
+              .map(item => (
+                <div key={item.id} className="p-4 border-2 rounded-lg bg-background">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Package className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold">{item.type}</span>
+                            {item.description && (
+                              <span className="text-sm text-muted-foreground">— {item.description}</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {item.quantity} {item.quantity === 1 ? 'un' : 'uns'} • {item.material} • {item.finish} • {parseFloat(item.calculatedM2).toFixed(2)}m²
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Seleção de Patrocinadores para o Item */}
+                      <div className="pl-[52px] space-y-2">
+                        <Label className="text-xs font-semibold uppercase text-muted-foreground">
+                          Patrocinadores
+                        </Label>
+                        {sponsors.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            Nenhum patrocinador disponível. Vincule patrocinadores ao evento primeiro.
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {sponsors.map((sponsor) => (
+                              <div 
+                                key={sponsor.id} 
+                                className="flex items-center space-x-2 p-2 border rounded-md bg-card"
+                              >
+                                <Checkbox
+                                  id={`prep-${item.id}-${sponsor.id}`}
+                                  checked={false}
+                                  onCheckedChange={(checked) => {
+                                    // TODO: Implementar vinculação de patrocinador
+                                    console.log('Link sponsor', sponsor.id, 'to item', item.id, checked);
+                                  }}
+                                  data-testid={`checkbox-prep-${item.id}-sponsor-${sponsor.id}`}
+                                />
+                                <label
+                                  htmlFor={`prep-${item.id}-${sponsor.id}`}
+                                  className="text-sm font-medium leading-none cursor-pointer flex-1"
+                                >
+                                  {sponsor.name}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Checkbox Sem Aprovação */}
+                        <div className="flex items-start space-x-2 pt-2 border-t mt-3">
+                          <Checkbox
+                            id={`skip-approval-${item.id}`}
+                            checked={item.skipApproval || false}
+                            onCheckedChange={(checked) => {
+                              // TODO: Implementar toggle skipApproval
+                              console.log('Toggle skipApproval for item', item.id, checked);
+                            }}
+                            data-testid={`checkbox-skip-approval-${item.id}`}
+                          />
+                          <div className="grid gap-1 leading-none">
+                            <label
+                              htmlFor={`skip-approval-${item.id}`}
+                              className="text-xs font-medium cursor-pointer"
+                            >
+                              Sem Aprovação de Patrocinador
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                              Pular etapa de aprovação e enviar direto para revisão
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Card de Patrocinadores */}
       <Card>

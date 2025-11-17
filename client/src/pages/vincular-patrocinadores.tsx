@@ -190,11 +190,13 @@ export default function VincularPatrocinadores() {
       }
     },
     onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: ["/api/events"] });
+      // Invalidar e fazer refetch forçado
+      queryClient.removeQueries({ queryKey: ["/api/events"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/events"], type: 'active' });
       setSponsorDialogOpen(false);
       toast({
-        title: "Patrocinadores atualizados!",
-        description: "Os patrocinadores do evento foram atualizados com sucesso",
+        title: "✅ Patrocinadores atualizados!",
+        description: "Os patrocinadores foram vinculados ao evento",
       });
     },
     onError: (error: Error) => {
@@ -370,14 +372,23 @@ export default function VincularPatrocinadores() {
                 </div>
 
                 {/* Patrocinadores do Evento - Badges */}
-                {eventSponsors.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {eventSponsors.map(sponsor => (
-                      <Badge key={sponsor.id} variant="outline" className="gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {sponsor.name}
-                      </Badge>
-                    ))}
+                {eventSponsors.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground">Patrocinadores disponíveis:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {eventSponsors.map(sponsor => (
+                        <Badge key={sponsor.id} variant="default" className="gap-1">
+                          <Building2 className="h-3 w-3" />
+                          {sponsor.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      ⚠️ Adicione patrocinadores ao evento usando o botão acima para começar a vincular items
+                    </p>
                   </div>
                 )}
 
@@ -476,20 +487,11 @@ export default function VincularPatrocinadores() {
                                 )}
                               </div>
                             </td>
-                            <td className="p-3 min-w-[200px]">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Badge variant="outline" className="text-xs gap-1">
-                                    <Package className="h-3 w-3" />
-                                    {item.quantity} un
-                                  </Badge>
-                                  <Badge variant="outline" className="text-xs">
-                                    {parseFloat(item.calculatedM2).toFixed(2)} m²
-                                  </Badge>
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {item.material}
-                                </div>
+                            <td className="p-3 min-w-[180px]">
+                              <div className="text-sm space-y-0.5">
+                                <div className="font-medium">{item.quantity} unidades</div>
+                                <div className="text-xs text-muted-foreground">{item.material}</div>
+                                <div className="text-xs text-muted-foreground">{parseFloat(item.calculatedM2).toFixed(2)} m²</div>
                               </div>
                             </td>
                             <td className="p-3">

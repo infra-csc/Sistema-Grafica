@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
@@ -27,7 +28,9 @@ export default function VincularPatrocinadores() {
   
   // Estados de filtro
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "ready" | "completed">("all");
+  const [eventFilter, setEventFilter] = useState<string>("all");
+  const [sponsorFilter, setSponsorFilter] = useState<string>("all");
+  const [itemFilter, setItemFilter] = useState<string>("all");
   
   // Estado local para rastrear mudanças pendentes
   const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});
@@ -91,6 +94,46 @@ export default function VincularPatrocinadores() {
     return grouped;
   }, [requestedItems]);
 
+  // Lista de tipos únicos de items
+  const itemTypes = useMemo(() => {
+    const types = new Set<string>();
+    requestedItems.forEach(item => types.add(item.type));
+    return Array.from(types).sort();
+  }, [requestedItems]);
+
+  // Função helper para filtrar items (aplicada tanto na lógica de filtros quanto no render)
+  const filterItems = (eventItems: any[], eventName?: string) => {
+    return eventItems.filter(item => {
+      // Filtro de busca (tipo ou descrição do item, ou nome do evento)
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const typeMatch = item.type.toLowerCase().includes(query);
+        const descMatch = item.description?.toLowerCase().includes(query) || false;
+        const eventMatch = eventName?.toLowerCase().includes(query) || false;
+        
+        // Item passa se corresponder tipo, descrição, OU se o evento corresponder
+        if (!typeMatch && !descMatch && !eventMatch) {
+          return false;
+        }
+      }
+
+      // Filtro por tipo de item
+      if (itemFilter !== "all" && item.type !== itemFilter) {
+        return false;
+      }
+
+      // Filtro por patrocinador
+      if (sponsorFilter !== "all") {
+        const itemSponsors = itemSponsorsMap[item.id] || [];
+        if (!itemSponsors.includes(sponsorFilter)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
   // Aplicar filtros
   const filteredEventEntries = useMemo(() => {
     const entries = Object.entries(itemsByEvent);
@@ -99,38 +142,18 @@ export default function VincularPatrocinadores() {
       const event = events.find(e => e.id === eventId);
       if (!event) return false;
 
-      // Filtro de busca (nome do evento ou tipo de item)
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const eventNameMatch = event.name.toLowerCase().includes(query);
-        const itemTypeMatch = eventItems.some(item => 
-          item.type.toLowerCase().includes(query)
-        );
-        if (!eventNameMatch && !itemTypeMatch) return false;
+      // Filtro por evento específico
+      if (eventFilter !== "all" && eventId !== eventFilter) {
+        return false;
       }
 
-      // Filtro de status
-      if (statusFilter !== "all") {
-        const hasMatchingItems = eventItems.some(item => {
-          const itemStatus = getItemStatus(item);
-          const hasPendingChanges = pendingChanges[item.id]?.isDirty;
-          
-          if (statusFilter === "pending") {
-            return itemStatus === 'pending' && !hasPendingChanges;
-          } else if (statusFilter === "ready") {
-            return hasPendingChanges;
-          } else if (statusFilter === "completed") {
-            return itemStatus === 'linked' || itemStatus === 'skip';
-          }
-          return false;
-        });
-        
-        if (!hasMatchingItems) return false;
-      }
+      // Filtrar items usando a função helper
+      const filteredItems = filterItems(eventItems, event.name);
 
-      return true;
+      // Se não há items que passaram no filtro, ocultar o evento
+      return filteredItems.length > 0;
     });
-  }, [itemsByEvent, events, searchQuery, statusFilter, pendingChanges]);
+  }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, itemSponsorsMap]);
 
   // Estado para armazenar sponsors originais (do banco de dados)
   const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});
@@ -438,55 +461,74 @@ export default function VincularPatrocinadores() {
       {/* Filtros */}
       <Card className="mb-6">
         <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            {/* Busca */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por evento ou item..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-                data-testid="input-search-events"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Filtro por Evento */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Evento</label>
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger data-testid="select-event-filter">
+                  <SelectValue placeholder="Selecione evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os eventos</SelectItem>
+                  {events.map(event => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Filtro de Status */}
-            <div className="flex gap-2">
-              <Button
-                variant={statusFilter === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("all")}
-                data-testid="button-filter-all"
-              >
-                Todos
-              </Button>
-              <Button
-                variant={statusFilter === "pending" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("pending")}
-                data-testid="button-filter-pending"
-              >
-                Aguardando
-              </Button>
-              <Button
-                variant={statusFilter === "ready" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("ready")}
-                className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-700 dark:text-yellow-500 border-yellow-500/20"
-                data-testid="button-filter-ready"
-              >
-                Prontos
-              </Button>
-              <Button
-                variant={statusFilter === "completed" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setStatusFilter("completed")}
-                className="bg-green-500/10 hover:bg-green-500/20 text-green-700 dark:text-green-500 border-green-500/20"
-                data-testid="button-filter-completed"
-              >
-                Concluídos
-              </Button>
+            {/* Filtro por Patrocinador */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Patrocinador</label>
+              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+                <SelectTrigger data-testid="select-sponsor-filter">
+                  <SelectValue placeholder="Selecione patrocinador" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                  {sponsors.map(sponsor => (
+                    <SelectItem key={sponsor.id} value={sponsor.id}>
+                      {sponsor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por Item (tipo) */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Item</label>
+              <Select value={itemFilter} onValueChange={setItemFilter}>
+                <SelectTrigger data-testid="select-item-filter">
+                  <SelectValue placeholder="Selecione tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {itemTypes.map(type => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Busca */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Buscar</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Nome..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-search-events"
+                />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -497,7 +539,11 @@ export default function VincularPatrocinadores() {
         {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           const eventSponsors = getEventSponsors(eventId);
-          const progress = calculateProgress(eventItems);
+          
+          // Usar a mesma função de filtro para garantir consistência
+          const displayedItems = filterItems(eventItems, event?.name);
+
+          const progress = calculateProgress(displayedItems);
 
           if (!event) return null;
 
@@ -598,7 +644,7 @@ export default function VincularPatrocinadores() {
                       </tr>
                     </thead>
                     <tbody>
-                      {eventItems.map(item => {
+                      {displayedItems.map(item => {
                         const itemStatus = getItemStatus(item);
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
 

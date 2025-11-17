@@ -358,9 +358,21 @@ export default function VincularPatrocinadores() {
   // Mutation para confirmar e enviar items para Arte
   const confirmItemsMutation = useMutation({
     mutationFn: async (itemIdsToConfirm: string[]) => {
-      for (const itemId of itemIdsToConfirm) {
+      // Filtrar apenas items editáveis e com mudanças pendentes
+      const validItemIds = itemIdsToConfirm.filter(itemId => {
+        const item = visibleItems.find(i => i.id === itemId);
+        if (!item || !getItemEditability(item)) return false;
+        
         const changes = pendingChanges[itemId];
-        if (!changes || !changes.isDirty) continue;
+        return changes && changes.isDirty;
+      });
+
+      if (validItemIds.length === 0) {
+        throw new Error("Nenhum item válido para confirmar");
+      }
+
+      for (const itemId of validItemIds) {
+        const changes = pendingChanges[itemId];
 
         // 1. Sincronizar patrocinadores
         await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
@@ -379,12 +391,14 @@ export default function VincularPatrocinadores() {
           status: nextStatus
         });
       }
+      
+      return validItemIds;
     },
-    onSuccess: async (_, itemIdsToConfirm) => {
+    onSuccess: async (validItemIds) => {
       // Limpar apenas o estado de mudanças pendentes
       setPendingChanges(prev => {
         const newChanges = { ...prev };
-        itemIdsToConfirm.forEach(id => {
+        validItemIds.forEach(id => {
           delete newChanges[id];
         });
         return newChanges;
@@ -395,25 +409,33 @@ export default function VincularPatrocinadores() {
       // para refletir o novo estado salvo
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       
-      // Recarregar os patrocinadores dos items confirmados para atualizar originalSponsorsMap
-      for (const itemId of itemIdsToConfirm) {
-        try {
-          const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
-          const itemSponsors = await response.json();
-          const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
-          
-          setOriginalSponsorsMap(prev => ({
-            ...prev,
-            [itemId]: sponsorIds
-          }));
-        } catch (error) {
-          console.error(`Erro ao recarregar sponsors do item ${itemId}:`, error);
-        }
-      }
+      // Recarregar os patrocinadores dos items confirmados em paralelo usando Promise.all
+      const sponsorResults = await Promise.all(
+        validItemIds.map(async (itemId) => {
+          try {
+            const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
+            const itemSponsors = await response.json();
+            const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
+            return { itemId, sponsorIds };
+          } catch (error) {
+            console.error(`Erro ao recarregar sponsors do item ${itemId}:`, error);
+            return { itemId, sponsorIds: [] };
+          }
+        })
+      );
+      
+      // Atualizar originalSponsorsMap com todos os resultados
+      setOriginalSponsorsMap(prev => {
+        const newMap = { ...prev };
+        sponsorResults.forEach(({ itemId, sponsorIds }) => {
+          newMap[itemId] = sponsorIds;
+        });
+        return newMap;
+      });
       
       toast({
         title: "✅ Items confirmados!",
-        description: `${itemIdsToConfirm.length} item${itemIdsToConfirm.length !== 1 ? 's' : ''} enviado${itemIdsToConfirm.length !== 1 ? 's' : ''} para aprovação`,
+        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} enviado${validItemIds.length !== 1 ? 's' : ''} para aprovação`,
       });
     },
     onError: (error: Error) => {

@@ -8,7 +8,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
 import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus } from "lucide-react";
-import { format } from "date-fns";
+import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function VincularPatrocinadores() {
@@ -22,7 +22,7 @@ export default function VincularPatrocinadores() {
     queryKey: ["/api/items"],
   });
 
-  const { data: events = [] } = useQuery<any[]>({
+  const { data: rawEvents = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
 
@@ -30,11 +30,30 @@ export default function VincularPatrocinadores() {
     queryKey: ["/api/sponsors"],
   });
 
+  // Filtrar apenas eventos futuros (data de início >= hoje)
+  const events = useMemo(() => {
+    const today = startOfDay(new Date());
+    return rawEvents.filter(event => {
+      const eventStartDate = startOfDay(new Date(event.startDate));
+      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
+    });
+  }, [rawEvents]);
+
   // Filtrar apenas items em status "requested"
-  const requestedItems = useMemo(
-    () => items.filter(item => item.status === 'requested'),
-    [items]
-  );
+  const requestedItems = useMemo(() => {
+    const filtered = items.filter(item => item.status === 'requested');
+    console.log('🔍 Debug Vincular Patrocinadores:', {
+      totalItems: items.length,
+      requestedItems: filtered.length,
+      allItemsStatuses: items.map(i => ({ id: i.id, type: i.type, status: i.status })),
+      totalEvents: rawEvents.length,
+      filteredEvents: events.length,
+      eventsWithRequestedItems: Object.keys(
+        filtered.reduce((acc, item) => ({ ...acc, [item.eventId]: true }), {})
+      ).length
+    });
+    return filtered;
+  }, [items, rawEvents, events]);
 
   // Agrupar items por evento
   const itemsByEvent = useMemo(() => {

@@ -60,15 +60,10 @@ export default function VincularPatrocinadores() {
     console.log('🔍 Debug Vincular Patrocinadores:', {
       totalItems: items.length,
       requestedItems: filtered.length,
-      allItemsStatuses: items.map(i => ({ id: i.id, type: i.type, status: i.status })),
-      totalEvents: rawEvents.length,
-      filteredEvents: events.length,
-      eventsWithRequestedItems: Object.keys(
-        filtered.reduce((acc, item) => ({ ...acc, [item.eventId]: true }), {})
-      ).length
+      allItemsStatuses: items.map(i => ({ id: i.id, type: i.type, status: i.status }))
     });
     return filtered;
-  }, [items, rawEvents, events]);
+  }, [items]);
 
   // Agrupar items por evento
   const itemsByEvent = useMemo(() => {

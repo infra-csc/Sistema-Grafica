@@ -640,10 +640,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const allEvents = await storage.getAllEvents();
       
-      // Fetch items for each event and calculate real-time status
+      // Fetch items and sponsors for each event and calculate real-time status
       const eventsWithItems = await Promise.all(
         allEvents.map(async (event) => {
           const eventItems = await storage.getItemsByEvent(event.id);
+          const eventSponsors = await storage.getEventSponsors(event.id);
           
           // Calculate real-time status
           const now = new Date();
@@ -665,6 +666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ...event,
             status: calculatedStatus, // Override with calculated status
             items: eventItems,
+            sponsors: eventSponsors,
           };
         })
       );

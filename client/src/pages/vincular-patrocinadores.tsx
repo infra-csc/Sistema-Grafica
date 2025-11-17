@@ -372,7 +372,7 @@ export default function VincularPatrocinadores() {
                 </div>
 
                 {/* Patrocinadores do Evento - Badges */}
-                {eventSponsors.length > 0 ? (
+                {eventSponsors.length > 0 && (
                   <div className="space-y-2">
                     <div className="text-xs text-muted-foreground">Patrocinadores disponíveis:</div>
                     <div className="flex flex-wrap gap-2">
@@ -383,12 +383,6 @@ export default function VincularPatrocinadores() {
                         </Badge>
                       ))}
                     </div>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-md">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                      ⚠️ Adicione patrocinadores ao evento usando o botão acima para começar a vincular items
-                    </p>
                   </div>
                 )}
 
@@ -487,11 +481,11 @@ export default function VincularPatrocinadores() {
                                 )}
                               </div>
                             </td>
-                            <td className="p-3 min-w-[180px]">
-                              <div className="text-sm space-y-0.5">
-                                <div className="font-medium">{item.quantity} unidades</div>
-                                <div className="text-xs text-muted-foreground">{item.material}</div>
-                                <div className="text-xs text-muted-foreground">{parseFloat(item.calculatedM2).toFixed(2)} m²</div>
+                            <td className="p-3">
+                              <div className="text-sm">
+                                <span className="font-medium">{item.quantity} un</span>
+                                <span className="text-muted-foreground mx-2">•</span>
+                                <span className="text-muted-foreground">{parseFloat(item.calculatedM2).toFixed(2)} m²</span>
                               </div>
                             </td>
                             <td className="p-3">

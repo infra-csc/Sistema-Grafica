@@ -28,6 +28,7 @@ interface TimelineEvent {
   eventId: string;
   itemType?: string;
   itemId?: string;
+  itemDisplayId?: string;
   quantity?: number;
   quantityProduced?: number;
   receivedBy?: string;
@@ -90,6 +91,7 @@ export default function Historico() {
       eventId: item.eventId,
       itemType: item.type,
       itemId: item.id,
+      itemDisplayId: item.displayId,
       quantity: item.quantity,
       userName: itemCreatedLog?.userName,
     });
@@ -106,6 +108,7 @@ export default function Historico() {
         eventId: item.eventId,
         itemType: item.type,
         itemId: item.id,
+        itemDisplayId: item.displayId,
         quantity: item.quantity,
         userName: itemApprovedLog?.userName,
       });
@@ -122,6 +125,7 @@ export default function Historico() {
         eventId: item.eventId,
         itemType: item.type,
         itemId: item.id,
+        itemDisplayId: item.displayId,
         quantity: item.quantity,
         quantityProduced: item.quantityProduced,
       });
@@ -138,6 +142,7 @@ export default function Historico() {
         eventId: item.eventId,
         itemType: item.type,
         itemId: item.id,
+        itemDisplayId: item.displayId,
         receivedBy: item.receivedBy,
         userName: itemDeliveredLog?.userName,
       });
@@ -226,6 +231,7 @@ export default function Historico() {
       case 'item_created':
         return (
           <>
+            <span className="font-mono text-primary font-medium">{event.itemDisplayId}</span>{" "}
             <span className="font-medium">{event.itemType}</span> ({event.quantity} un.) adicionado ao evento{" "}
             <span className="font-medium">{event.eventName}</span>
           </>
@@ -233,6 +239,7 @@ export default function Historico() {
       case 'item_approved':
         return (
           <>
+            <span className="font-mono text-primary font-medium">{event.itemDisplayId}</span>{" "}
             <span className="font-medium">{event.itemType}</span> do evento{" "}
             <span className="font-medium">{event.eventName}</span> foi liberado para produção
           </>
@@ -240,13 +247,15 @@ export default function Historico() {
       case 'production_started':
         return (
           <>
-            Produção de <span className="font-medium">{event.itemType}</span> do evento{" "}
+            Produção de <span className="font-mono text-primary font-medium">{event.itemDisplayId}</span>{" "}
+            <span className="font-medium">{event.itemType}</span> do evento{" "}
             <span className="font-medium">{event.eventName}</span>: {event.quantityProduced}/{event.quantity} un. concluídas
           </>
         );
       case 'item_delivered':
         return (
           <>
+            <span className="font-mono text-primary font-medium">{event.itemDisplayId}</span>{" "}
             <span className="font-medium">{event.itemType}</span> do evento{" "}
             <span className="font-medium">{event.eventName}</span> foi entregue
             {event.receivedBy && ` para ${event.receivedBy}`}

@@ -1397,6 +1397,7 @@ export default function EventDetail() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
+                    <th className="text-left py-3 px-4 font-medium">ID</th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Dimensões</th>
@@ -1419,7 +1420,7 @@ export default function EventDetail() {
                       <Fragment key={item.id}>
                         {showTypeHeader && (
                           <tr key={`group-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
-                            <td colSpan={hasPermission("admin") ? 9 : 8} className="py-2 px-4">
+                            <td colSpan={hasPermission("admin") ? 10 : 9} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-primary rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -1434,6 +1435,11 @@ export default function EventDetail() {
                           className="border-b border-border hover-elevate"
                           data-testid={`row-item-${item.id}`}
                         >
+                          <td className="py-2 px-3">
+                            <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
+                              {item.displayId}
+                            </div>
+                          </td>
                           <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>

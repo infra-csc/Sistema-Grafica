@@ -25,15 +25,15 @@ const menuItems = [
     icon: Home,
   },
   {
-    title: "Arte",
-    url: "/arte",
-    icon: CheckCircle,
-  },
-  {
     title: "Vincular Patrocinadores",
     url: "/vincular-patrocinadores",
     icon: Link2,
     roles: ["arte", "admin"],
+  },
+  {
+    title: "Arte",
+    url: "/arte",
+    icon: CheckCircle,
   },
   {
     title: "Atendimento",

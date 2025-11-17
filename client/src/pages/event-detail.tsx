@@ -80,7 +80,6 @@ export default function EventDetail() {
     observations: "",
     sponsorId: "",
     skipApproval: false,
-    selectedSponsorIds: [] as string[],
   });
 
   const { data: event, isLoading: loadingEvent } = useQuery<any>({
@@ -151,19 +150,11 @@ export default function EventDetail() {
       };
       
       // Remover campos que não devem ir para o backend
-      delete itemData.selectedSponsorIds;
       delete itemData.sponsorId;
       
       // Criar item
       const response = await apiRequest("POST", "/api/items", itemData);
       const createdItem = await response.json();
-      
-      // Se houver patrocinadores selecionados, vincular ao item
-      if (data.selectedSponsorIds && data.selectedSponsorIds.length > 0) {
-        await apiRequest("POST", `/api/items/${createdItem.id}/sponsors/sync`, {
-          sponsorIds: data.selectedSponsorIds
-        });
-      }
       
       return createdItem;
     },
@@ -184,7 +175,6 @@ export default function EventDetail() {
         observations: "",
         sponsorId: "",
         skipApproval: false,
-        selectedSponsorIds: [],
       });
       toast({
         title: "Item adicionado",
@@ -534,7 +524,6 @@ export default function EventDetail() {
       observations: item.observations || "",
       sponsorId: item.sponsorId || "",
       skipApproval: item.skipApproval || false,
-      selectedSponsorIds: [],
     });
     setEditDialogOpen(true);
   };
@@ -560,7 +549,6 @@ export default function EventDetail() {
       observations: "",
       sponsorId: "",
       skipApproval: false,
-      selectedSponsorIds: [],
     });
     setOpen(false);
   };
@@ -1082,95 +1070,6 @@ export default function EventDetail() {
                       rows={3}
                       data-testid="textarea-observations"
                     />
-                  </div>
-
-                  {/* Seleção de Patrocinadores (múltiplos) */}
-                  <div className="col-span-2 space-y-3 p-4 border rounded-lg bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <Label className="flex items-center gap-2 text-base font-semibold">
-                        <Building2 className="h-5 w-5" />
-                        Patrocinadores
-                      </Label>
-                      <Badge variant="outline" className="text-xs">
-                        Opcional
-                      </Badge>
-                    </div>
-                    
-                    {sponsors.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Nenhum patrocinador vinculado ao evento. 
-                        <Link href={`/eventos/${eventId}`} className="text-primary hover:underline ml-1">
-                          Vincule patrocinadores ao evento primeiro
-                        </Link>
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Selecione um ou mais patrocinadores para este item
-                        </p>
-                        <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto bg-background">
-                          {sponsors.map((sponsor) => (
-                            <div key={sponsor.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`item-sponsor-${sponsor.id}`}
-                                checked={formData.selectedSponsorIds.includes(sponsor.id)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setFormData({
-                                      ...formData,
-                                      selectedSponsorIds: [...formData.selectedSponsorIds, sponsor.id]
-                                    });
-                                  } else {
-                                    setFormData({
-                                      ...formData,
-                                      selectedSponsorIds: formData.selectedSponsorIds.filter(id => id !== sponsor.id)
-                                    });
-                                  }
-                                }}
-                                data-testid={`checkbox-item-sponsor-${sponsor.id}`}
-                              />
-                              <label
-                                htmlFor={`item-sponsor-${sponsor.id}`}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                              >
-                                {sponsor.name}
-                                {sponsor.company && (
-                                  <span className="text-muted-foreground ml-1">({sponsor.company})</span>
-                                )}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                        {formData.selectedSponsorIds.length > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            {formData.selectedSponsorIds.length} {formData.selectedSponsorIds.length === 1 ? 'patrocinador selecionado' : 'patrocinadores selecionados'}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Checkbox Sem Aprovação */}
-                    <div className="flex items-start space-x-2 pt-2 border-t">
-                      <Checkbox
-                        id="skipApproval"
-                        checked={formData.skipApproval}
-                        onCheckedChange={(checked) => 
-                          setFormData({ ...formData, skipApproval: !!checked })
-                        }
-                        data-testid="checkbox-skip-approval"
-                      />
-                      <div className="grid gap-1.5 leading-none">
-                        <label
-                          htmlFor="skipApproval"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                        >
-                          Sem Aprovação de Patrocinador
-                        </label>
-                        <p className="text-xs text-muted-foreground">
-                          Marque para pular a etapa de aprovação e enviar direto para revisão da Solicitação
-                        </p>
-                      </div>
-                    </div>
                   </div>
                 </div>
                 {formData.fileWidth && formData.fileHeight && formData.quantity && (

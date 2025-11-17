@@ -348,33 +348,6 @@ export default function VincularPatrocinadores() {
     );
   }
 
-  // Ações em lote
-  const handleBulkLink = (itemIds: string[], sponsorId: string) => {
-    itemIds.forEach(itemId => {
-      const currentSponsors = itemSponsorsMap[itemId] || [];
-      if (!currentSponsors.includes(sponsorId)) {
-        syncItemSponsorsMutation.mutate({
-          itemId,
-          sponsorIds: [...currentSponsors, sponsorId]
-        });
-      }
-    });
-  };
-
-  const handleBulkSkipApproval = (itemIds: string[]) => {
-    itemIds.forEach(itemId => {
-      updateItemSkipApprovalMutation.mutate({
-        itemId,
-        skipApproval: true
-      });
-    });
-  };
-
-  const toggleItemSelection = (itemId: string) => {
-    setSelectedItemIds(prev =>
-      prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
-    );
-  };
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -392,9 +365,6 @@ export default function VincularPatrocinadores() {
           const event = events.find(e => e.id === eventId);
           const eventSponsors = getEventSponsors(eventId);
           const progress = calculateProgress(eventItems);
-          const eventSelectedItems = selectedItemIds.filter(id =>
-            eventItems.some(item => item.id === id)
-          );
 
           if (!event) return null;
 
@@ -443,37 +413,6 @@ export default function VincularPatrocinadores() {
                   </div>
                 )}
 
-                {/* Ações em Lote */}
-                {eventSelectedItems.length > 0 && eventSponsors.length > 0 && (
-                  <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                    <span className="text-sm font-medium">
-                      {eventSelectedItems.length} item{eventSelectedItems.length !== 1 ? 's' : ''} selecionado{eventSelectedItems.length !== 1 ? 's' : ''}:
-                    </span>
-                    <div className="flex gap-2 flex-wrap">
-                      {eventSponsors.map(sponsor => (
-                        <Button
-                          key={sponsor.id}
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleBulkLink(eventSelectedItems, sponsor.id)}
-                          className="gap-1"
-                        >
-                          <Link2 className="h-3 w-3" />
-                          Vincular a {sponsor.name}
-                        </Button>
-                      ))}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleBulkSkipApproval(eventSelectedItems)}
-                        className="gap-1"
-                      >
-                        <X className="h-3 w-3" />
-                        Sem Aprovação
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </CardHeader>
 
               {/* Botão de Confirmação */}
@@ -521,23 +460,6 @@ export default function VincularPatrocinadores() {
                   <table className="w-full">
                     <thead className="border-b bg-muted/30">
                       <tr>
-                        <th className="p-3 text-left w-12">
-                          <Checkbox
-                            checked={eventSelectedItems.length === eventItems.length}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedItemIds(prev => [
-                                  ...prev.filter(id => !eventItems.some(item => item.id === id)),
-                                  ...eventItems.map(item => item.id)
-                                ]);
-                              } else {
-                                setSelectedItemIds(prev =>
-                                  prev.filter(id => !eventItems.some(item => item.id === id))
-                                );
-                              }
-                            }}
-                          />
-                        </th>
                         <th className="p-3 text-left text-xs font-medium text-muted-foreground">Item / Descrição</th>
                         <th className="p-3 text-left text-xs font-medium text-muted-foreground">Detalhes</th>
                         <th className="p-3 text-left text-xs font-medium text-muted-foreground">Patrocinadores</th>
@@ -549,7 +471,6 @@ export default function VincularPatrocinadores() {
                       {eventItems.map(item => {
                         const itemStatus = getItemStatus(item);
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
-                        const isSelected = selectedItemIds.includes(item.id);
 
                         return (
                           <tr
@@ -558,15 +479,9 @@ export default function VincularPatrocinadores() {
                               itemStatus === 'linked' || itemStatus === 'skip'
                                 ? 'bg-green-50/50 dark:bg-green-900/10'
                                 : ''
-                            } ${isSelected ? 'bg-primary/5' : ''}`}
+                            }`}
                             data-testid={`item-row-${item.id}`}
                           >
-                            <td className="p-3">
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => toggleItemSelection(item.id)}
-                              />
-                            </td>
                             <td className="p-3 min-w-[250px]">
                               <div>
                                 <div className="font-semibold text-sm text-foreground">{item.type}</div>

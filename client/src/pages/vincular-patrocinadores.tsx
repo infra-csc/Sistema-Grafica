@@ -243,31 +243,16 @@ export default function VincularPatrocinadores() {
 
   if (requestedItems.length === 0) {
     return (
-      <div className="container mx-auto p-6 max-w-5xl">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-            <span>Fluxo de Trabalho</span>
-            <span>›</span>
-            <span className="font-medium text-foreground">Vincular Patrocinadores</span>
-          </div>
-          <h1 className="text-3xl font-bold mb-2">Vincular Patrocinadores aos Items</h1>
-          <p className="text-muted-foreground">
-            Nesta etapa você vincula os patrocinadores aos items criados pela Solicitação
-          </p>
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Vincular Patrocinadores</h1>
         </div>
 
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-20">
-            <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-4">
-              <CheckCircle2 className="h-10 w-10 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">Tudo pronto!</h3>
-            <p className="text-muted-foreground text-center max-w-md">
-              Não há items aguardando vinculação de patrocinadores no momento.
-            </p>
-            <p className="text-sm text-muted-foreground mt-3">
-              Novos items aparecerão aqui quando forem criados pela equipe de Solicitação
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <CheckCircle2 className="h-12 w-12 text-muted-foreground mb-3" />
+            <p className="text-muted-foreground">
+              Nenhum item aguardando vinculação
             </p>
           </CardContent>
         </Card>
@@ -277,51 +262,9 @@ export default function VincularPatrocinadores() {
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
-      {/* Header com Breadcrumb e Resumo */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-          <span>Fluxo de Trabalho</span>
-          <span>›</span>
-          <span className="font-medium text-foreground">Vincular Patrocinadores</span>
-        </div>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Vincular Patrocinadores aos Items</h1>
-            <p className="text-muted-foreground">
-              Vincule os patrocinadores corretos a cada item antes de enviá-los para aprovação
-            </p>
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-bold text-primary">{requestedItems.length}</div>
-            <div className="text-sm text-muted-foreground">
-              {requestedItems.length === 1 ? 'item aguardando' : 'itens aguardando'}
-            </div>
-          </div>
-        </div>
-
-        {/* Indicadores de Fluxo */}
-        <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-              <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-            </div>
-            <span className="text-sm font-medium">Solicitação criou items</span>
-          </div>
-          <div className="h-px flex-1 bg-border"></div>
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-              <Link2 className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="text-sm font-medium text-primary">Você está aqui: Vincular Patrocinadores</span>
-          </div>
-          <div className="h-px flex-1 bg-border"></div>
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <span className="text-sm text-muted-foreground">Próximo: Solicitação envia para Arte</span>
-          </div>
-        </div>
+      {/* Header Simples */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Vincular Patrocinadores</h1>
       </div>
 
       {/* Cards de Eventos com Items */}
@@ -336,62 +279,39 @@ export default function VincularPatrocinadores() {
           return (
             <Card key={eventId} className="overflow-hidden">
               {/* Header do Evento */}
-              <CardHeader className="bg-muted/30 border-b">
+              <CardHeader className="border-b">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <CardTitle className="text-xl truncate">{event.name}</CardTitle>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenSponsorDialog(event)}
-                        className="shrink-0 gap-2"
-                        data-testid={`button-manage-event-sponsors-${event.id}`}
-                      >
-                        <Building2 className="h-4 w-4" />
-                        Gerenciar Patrocinadores
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-3 text-sm">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        <span>Início: {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Truck className="h-4 w-4" />
-                        <span>Saída Caminhão: {format(new Date(event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
-                      </div>
-                      {eventSponsors.length > 0 && (
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Building2 className="h-4 w-4" />
-                          <span>{eventSponsors.length} {eventSponsors.length === 1 ? 'patrocinador' : 'patrocinadores'}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <Badge variant={progress.completed === progress.total ? "default" : "secondary"} className="text-sm">
-                      {progress.completed} / {progress.total} concluídos
-                    </Badge>
-                    {eventSponsors.length === 0 && (
-                      <Badge variant="destructive" className="text-xs gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        Sem patrocinadores
+                  <div className="flex-1">
+                    <div className="flex items-center gap-4 mb-2">
+                      <CardTitle className="text-lg">{event.name}</CardTitle>
+                      <Badge variant="secondary" className="text-xs">
+                        {progress.completed}/{progress.total}
                       </Badge>
-                    )}
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <span>{format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                      <span>•</span>
+                      <span>Caminhão: {format(new Date(event.truckDepartureDate), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
+                    </div>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenSponsorDialog(event)}
+                    className="gap-2"
+                    data-testid={`button-manage-event-sponsors-${event.id}`}
+                  >
+                    <Building2 className="h-4 w-4" />
+                    Patrocinadores ({eventSponsors.length})
+                  </Button>
                 </div>
               </CardHeader>
 
               <CardContent className="p-6">
                 {eventSponsors.length === 0 ? (
-                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 text-center">
-                    <AlertCircle className="h-12 w-12 text-yellow-600 dark:text-yellow-400 mx-auto mb-3" />
-                    <p className="font-semibold text-yellow-900 dark:text-yellow-100 mb-2">
-                      Este evento não possui patrocinadores vinculados
-                    </p>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                      Adicione patrocinadores ao evento antes de vincular aos items
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">
+                      Adicione patrocinadores ao evento para começar
                     </p>
                   </div>
                 ) : (
@@ -403,68 +323,45 @@ export default function VincularPatrocinadores() {
                       return (
                         <div
                           key={item.id}
-                          className={`border-2 rounded-lg p-5 transition-colors ${
+                          className={`border rounded-lg p-4 transition-colors ${
                             itemStatus === 'linked' || itemStatus === 'skip'
-                              ? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10'
-                              : 'border-border bg-card'
+                              ? 'border-green-500/30 bg-green-50/30 dark:border-green-700/30 dark:bg-green-900/10'
+                              : 'border-border'
                           }`}
                           data-testid={`item-card-${item.id}`}
                         >
                           {/* Header do Item */}
-                          <div className="flex items-start justify-between gap-4 mb-4">
-                            <div className="flex items-start gap-3 flex-1">
-                              <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
-                                itemStatus === 'linked' || itemStatus === 'skip'
-                                  ? 'bg-green-100 dark:bg-green-900'
-                                  : 'bg-muted'
-                              }`}>
-                                {itemStatus === 'linked' || itemStatus === 'skip' ? (
-                                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                ) : (
-                                  <Package className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium">{item.type}</h4>
+                                {itemStatus === 'linked' && (
+                                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
                                 )}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-lg">{item.type}</h4>
-                                {item.description && (
-                                  <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                                )}
-                                <div className="flex items-center gap-2 mt-2">
-                                  <Badge variant="outline" className="font-normal">
-                                    {item.quantity} {item.quantity === 1 ? 'unidade' : 'unidades'}
-                                  </Badge>
-                                  <Badge variant="outline" className="font-normal">
-                                    {item.material}
-                                  </Badge>
-                                  <Badge variant="outline" className="font-normal">
-                                    {parseFloat(item.calculatedM2).toFixed(2)} m²
-                                  </Badge>
-                                </div>
+                              {item.description && (
+                                <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                              )}
+                              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                <span>{item.quantity} un.</span>
+                                <span>•</span>
+                                <span>{item.material}</span>
+                                <span>•</span>
+                                <span>{parseFloat(item.calculatedM2).toFixed(2)} m²</span>
                               </div>
                             </div>
-                            {itemStatus === 'linked' && (
-                              <Badge className="bg-green-600 dark:bg-green-700 shrink-0">
-                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                                Vinculado
-                              </Badge>
-                            )}
-                            {itemStatus === 'skip' && (
-                              <Badge className="bg-blue-600 dark:bg-blue-700 shrink-0">
-                                Sem Aprovação
-                              </Badge>
-                            )}
                           </div>
 
                           {/* Seleção de Patrocinadores */}
                           {!item.skipApproval && (
-                            <div className="space-y-3 pl-[52px]">
-                              <div className="flex items-center justify-between">
-                                <label className="text-sm font-semibold text-foreground">
-                                  Selecione os Patrocinadores:
+                            <div className="space-y-2 mt-3 pt-3 border-t">
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium">
+                                  Patrocinadores
                                 </label>
                                 {linkedSponsors.length > 0 && (
                                   <span className="text-xs text-muted-foreground">
-                                    {linkedSponsors.length} {linkedSponsors.length === 1 ? 'selecionado' : 'selecionados'}
+                                    {linkedSponsors.length} selecionado{linkedSponsors.length !== 1 ? 's' : ''}
                                   </span>
                                 )}
                               </div>
@@ -474,10 +371,10 @@ export default function VincularPatrocinadores() {
                                   return (
                                     <div 
                                       key={sponsor.id} 
-                                      className={`flex items-center space-x-3 p-3 border-2 rounded-lg transition-all cursor-pointer hover-elevate ${
+                                      className={`flex items-center space-x-2 p-2 border rounded cursor-pointer hover-elevate ${
                                         isChecked 
-                                          ? 'border-primary bg-primary/5' 
-                                          : 'border-border bg-background'
+                                          ? 'border-primary/50 bg-primary/5' 
+                                          : 'border-border'
                                       }`}
                                       onClick={() => {
                                         const newSponsors = isChecked
@@ -493,18 +390,15 @@ export default function VincularPatrocinadores() {
                                       <Checkbox
                                         id={`item-${item.id}-sponsor-${sponsor.id}`}
                                         checked={isChecked}
-                                        onCheckedChange={() => {}} // Controlled by div onClick
+                                        onCheckedChange={() => {}}
                                         data-testid={`checkbox-item-${item.id}-sponsor-${sponsor.id}`}
                                       />
                                       <label
                                         htmlFor={`item-${item.id}-sponsor-${sponsor.id}`}
-                                        className="text-sm font-medium leading-tight cursor-pointer flex-1"
+                                        className="text-sm cursor-pointer flex-1"
                                       >
                                         {sponsor.name}
                                       </label>
-                                      {isChecked && (
-                                        <Check className="h-4 w-4 text-primary shrink-0" />
-                                      )}
                                     </div>
                                   );
                                 })}
@@ -513,7 +407,7 @@ export default function VincularPatrocinadores() {
                           )}
 
                           {/* Checkbox Sem Aprovação */}
-                          <div className="flex items-start space-x-3 pt-4 mt-4 border-t pl-[52px]">
+                          <div className="flex items-center space-x-2 pt-3 mt-3 border-t">
                             <Checkbox
                               id={`skip-approval-${item.id}`}
                               checked={item.skipApproval || false}
@@ -525,17 +419,12 @@ export default function VincularPatrocinadores() {
                               }}
                               data-testid={`checkbox-skip-approval-${item.id}`}
                             />
-                            <div className="flex-1">
-                              <label
-                                htmlFor={`skip-approval-${item.id}`}
-                                className="text-sm font-medium cursor-pointer block"
-                              >
-                                Item sem necessidade de aprovação de patrocinador
-                              </label>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Marque esta opção se o item deve pular a etapa de aprovação e ir direto para revisão
-                              </p>
-                            </div>
+                            <label
+                              htmlFor={`skip-approval-${item.id}`}
+                              className="text-sm cursor-pointer"
+                            >
+                              Item sem aprovação de patrocinador
+                            </label>
                           </div>
                         </div>
                       );
@@ -547,26 +436,6 @@ export default function VincularPatrocinadores() {
           );
         })}
       </div>
-
-      {/* Card de Próximos Passos */}
-      <Card className="mt-8 border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-4">
-            <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center shrink-0">
-              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                Próximo Passo: Solicitação Envia para Arte
-              </h3>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Após você vincular os patrocinadores aos items, a equipe de <strong>Solicitação</strong> deve acessar 
-                a página do evento e clicar em <strong>"Enviar para Arte"</strong> para iniciar o processo de aprovação.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Dialog para Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={setSponsorDialogOpen}>

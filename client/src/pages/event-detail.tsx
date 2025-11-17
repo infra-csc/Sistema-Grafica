@@ -63,6 +63,7 @@ export default function EventDetail() {
   const [linkItemsDialogOpen, setLinkItemsDialogOpen] = useState(false);
   const [selectedSponsorForLinking, setSelectedSponsorForLinking] = useState<Sponsor | null>(null);
   const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
+  const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -419,6 +420,94 @@ export default function EventDetail() {
       });
     },
   });
+
+  // Mutation para sincronizar patrocinadores de um item específico
+  const syncItemSponsorsMutation = useMutation({
+    mutationFn: async ({ itemId, sponsorIds }: { itemId: string, sponsorIds: string[] }) => {
+      await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds });
+    },
+    onMutate: async ({ itemId, sponsorIds }) => {
+      // Atualização otimista para UI responsiva
+      setItemSponsorsMap(prev => ({
+        ...prev,
+        [itemId]: sponsorIds
+      }));
+    },
+    onSuccess: async (_, { itemId }) => {
+      // Recarregar sponsors do servidor para garantir sincronização
+      try {
+        const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
+        const itemSponsors = await response.json();
+        const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
+        
+        setItemSponsorsMap(prev => ({
+          ...prev,
+          [itemId]: sponsorIds
+        }));
+      } catch (error) {
+        console.error(`Erro ao recarregar sponsors do item ${itemId}:`, error);
+      }
+      
+      // Invalidar queries relacionadas
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar patrocinadores",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para atualizar skipApproval de um item
+  const updateItemSkipApprovalMutation = useMutation({
+    mutationFn: async ({ itemId, skipApproval }: { itemId: string, skipApproval: boolean }) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, { skipApproval });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar configuração",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Carregar patrocinadores de todos os items em rascunho
+  useEffect(() => {
+    const requestedItems = items.filter(item => item.status === 'requested');
+    
+    // Apenas carregar para items que ainda não temos no map
+    const itemsToLoad = requestedItems.filter(item => !itemSponsorsMap[item.id]);
+    
+    if (itemsToLoad.length > 0) {
+      Promise.all(
+        itemsToLoad.map(async (item) => {
+          try {
+            const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
+            const itemSponsors = await response.json();
+            const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
+            return { itemId: item.id, sponsorIds };
+          } catch (error) {
+            console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
+            return { itemId: item.id, sponsorIds: [] };
+          }
+        })
+      ).then(results => {
+        const newMap = results.reduce((acc, { itemId, sponsorIds }) => ({
+          ...acc,
+          [itemId]: sponsorIds
+        }), {});
+        
+        setItemSponsorsMap(prev => ({ ...prev, ...newMap }));
+      });
+    }
+  }, [items, itemSponsorsMap]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1174,10 +1263,17 @@ export default function EventDetail() {
                               >
                                 <Checkbox
                                   id={`prep-${item.id}-${sponsor.id}`}
-                                  checked={false}
+                                  checked={itemSponsorsMap[item.id]?.includes(sponsor.id) || false}
                                   onCheckedChange={(checked) => {
-                                    // TODO: Implementar vinculação de patrocinador
-                                    console.log('Link sponsor', sponsor.id, 'to item', item.id, checked);
+                                    const currentSponsors = itemSponsorsMap[item.id] || [];
+                                    const newSponsors = checked
+                                      ? [...currentSponsors, sponsor.id]
+                                      : currentSponsors.filter(id => id !== sponsor.id);
+                                    
+                                    syncItemSponsorsMutation.mutate({
+                                      itemId: item.id,
+                                      sponsorIds: newSponsors
+                                    });
                                   }}
                                   data-testid={`checkbox-prep-${item.id}-sponsor-${sponsor.id}`}
                                 />
@@ -1198,8 +1294,10 @@ export default function EventDetail() {
                             id={`skip-approval-${item.id}`}
                             checked={item.skipApproval || false}
                             onCheckedChange={(checked) => {
-                              // TODO: Implementar toggle skipApproval
-                              console.log('Toggle skipApproval for item', item.id, checked);
+                              updateItemSkipApprovalMutation.mutate({
+                                itemId: item.id,
+                                skipApproval: !!checked
+                              });
                             }}
                             data-testid={`checkbox-skip-approval-${item.id}`}
                           />
@@ -1220,6 +1318,31 @@ export default function EventDetail() {
                   </div>
                 </div>
               ))}
+            
+            {/* Botão para enviar todos os items para Arte */}
+            <div className="pt-4 border-t flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                {items.filter(item => item.status === 'requested').length} {items.filter(item => item.status === 'requested').length === 1 ? 'item pronto' : 'itens prontos'} para enviar
+              </p>
+              <Button
+                onClick={() => submitDraftsMutation.mutate()}
+                disabled={submitDraftsMutation.isPending || items.filter(item => item.status === 'requested').length === 0}
+                className="gap-2"
+                data-testid="button-send-all-to-arte"
+              >
+                {submitDraftsMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Confirmar e Enviar Todos para Arte
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

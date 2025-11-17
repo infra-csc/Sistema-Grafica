@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -50,6 +50,12 @@ export default function Atendimento() {
   
   // Seleção múltipla
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  
+  // Map para rastrear patrocinadores de cada item
+  const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
+  
+  // Request ID para evitar race conditions
+  const requestIdRef = useRef(0);
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -62,6 +68,50 @@ export default function Atendimento() {
   const { data: sponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
   });
+
+  // Memoizar awaiting items para evitar fetches desnecessários
+  const awaitingItems = useMemo(() => 
+    items.filter(item => 
+      item.status === 'awaiting_sponsor_approval' && !item.skipApproval
+    ), [items]
+  );
+
+  // Carregar patrocinadores de items pendentes
+  // Sempre recarregar quando awaitingItems muda para garantir dados atualizados
+  useEffect(() => {
+    // Incrementar request ID SEMPRE para invalidar requests anteriores
+    requestIdRef.current += 1;
+    const currentRequestId = requestIdRef.current;
+    
+    if (awaitingItems.length === 0) {
+      setItemSponsorsMap({});
+      return;
+    }
+    
+    // Recarregar todos os sponsors para garantir dados atualizados
+    Promise.all(
+      awaitingItems.map(async (item) => {
+        try {
+          const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
+          const itemSponsors = await response.json();
+          return { itemId: item.id, sponsors: itemSponsors };
+        } catch (error) {
+          console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
+          return { itemId: item.id, sponsors: [] };
+        }
+      })
+    ).then(results => {
+      // Apenas atualizar se este ainda é o último request
+      if (currentRequestId === requestIdRef.current) {
+        const newMap = results.reduce((acc, { itemId, sponsors }) => ({
+          ...acc,
+          [itemId]: sponsors
+        }), {});
+        
+        setItemSponsorsMap(newMap);
+      }
+    });
+  }, [awaitingItems]);
 
   const sponsorApproveMutation = useMutation({
     mutationFn: async (itemId: string) => {
@@ -107,7 +157,11 @@ export default function Atendimento() {
     },
   });
 
-  const pendingItems = items.filter(item => item.status === 'awaiting_sponsor_approval');
+  // Filtrar itens aguardando aprovação de patrocinador
+  // Mostrar apenas items que realmente têm patrocinadores vinculados
+  const pendingItems = awaitingItems.filter(item => 
+    itemSponsorsMap[item.id]?.length > 0
+  );
   
   // Filtros aplicados
   const filteredItems = useMemo(() => {

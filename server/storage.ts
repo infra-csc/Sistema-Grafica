@@ -142,9 +142,9 @@ export class DatabaseStorage implements IStorage {
 
         // Calcular próximo ID baseado nos items existentes
         const maxIdResult = await db.execute(sql`
-          SELECT MAX(CAST(SUBSTRING(display_id FROM 'ITEM-(\\d+)') AS INTEGER)) as max_num
+          SELECT MAX(CAST(SUBSTRING(display_id FROM '#(\\d+)') AS INTEGER)) as max_num
           FROM items
-          WHERE display_id ~ '^ITEM-\\d+$'
+          WHERE display_id ~ '^#\\d+$'
         `);
 
         const maxNum = maxIdResult.rows[0]?.max_num;
@@ -252,9 +252,9 @@ export class DatabaseStorage implements IStorage {
     const result = await db.execute(sql`SELECT nextval('item_display_id_seq') as next_id`);
     const nextNumber = Number(result.rows[0].next_id);
     
-    // Formatar com zero-padding (ex: 58 -> ITEM-0058)
-    // Suporta até ITEM-9999 (4 dígitos)
-    return `ITEM-${String(nextNumber).padStart(4, '0')}`;
+    // Formatar com zero-padding (ex: 58 -> #0058)
+    // Suporta até #9999 (4 dígitos)
+    return `#${String(nextNumber).padStart(4, '0')}`;
   }
 
   async createItem(insertItem: InsertItem): Promise<Item> {

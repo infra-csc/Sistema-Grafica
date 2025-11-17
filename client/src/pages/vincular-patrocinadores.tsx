@@ -285,17 +285,6 @@ export default function VincularPatrocinadores() {
       {/* Header Simples */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Vincular Patrocinadores</h1>
-        
-        {/* DEBUG INFO */}
-        <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded text-sm">
-          <p><strong>🔍 DEBUG:</strong></p>
-          <p>Total Items: {items.length}</p>
-          <p>Items Requested: {requestedItems.length}</p>
-          <p>Total Eventos (raw): {rawEvents.length}</p>
-          <p>Eventos Filtrados: {events.length}</p>
-          <p>Items por Evento: {JSON.stringify(Object.keys(itemsByEvent))}</p>
-          <p>Requested Items: {requestedItems.map(i => `${i.type} (${i.status})`).join(', ')}</p>
-        </div>
       </div>
 
       {/* Cards de Eventos com Items */}
@@ -339,14 +328,7 @@ export default function VincularPatrocinadores() {
               </CardHeader>
 
               <CardContent className="p-6">
-                {eventSponsors.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p className="text-sm">
-                      Adicione patrocinadores ao evento para começar
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
+                <div className="space-y-4">
                     {eventItems.map(item => {
                       const itemStatus = getItemStatus(item);
                       const linkedSponsors = itemSponsorsMap[item.id] || [];
@@ -460,8 +442,7 @@ export default function VincularPatrocinadores() {
                         </div>
                       );
                     })}
-                  </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           );

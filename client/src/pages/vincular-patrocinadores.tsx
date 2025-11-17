@@ -354,24 +354,30 @@ export default function VincularPatrocinadores() {
       }
     },
     onSuccess: (_, itemIdsToConfirm) => {
-      // Atualizar originalSponsorsMap com os novos valores confirmados
-      itemIdsToConfirm.forEach(itemId => {
-        const changes = pendingChanges[itemId];
-        if (changes) {
-          setOriginalSponsorsMap(prev => ({
-            ...prev,
-            [itemId]: changes.sponsorIds
-          }));
-        }
-      });
-
-      // Limpar estado local apenas dos items confirmados
+      // Limpar estado local dos items confirmados
       setPendingChanges(prev => {
         const newChanges = { ...prev };
         itemIdsToConfirm.forEach(id => {
           delete newChanges[id];
         });
         return newChanges;
+      });
+
+      // Remover items confirmados dos mapas locais (pois saíram do status 'requested')
+      setItemSponsorsMap(prev => {
+        const newMap = { ...prev };
+        itemIdsToConfirm.forEach(id => {
+          delete newMap[id];
+        });
+        return newMap;
+      });
+
+      setOriginalSponsorsMap(prev => {
+        const newMap = { ...prev };
+        itemIdsToConfirm.forEach(id => {
+          delete newMap[id];
+        });
+        return newMap;
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });

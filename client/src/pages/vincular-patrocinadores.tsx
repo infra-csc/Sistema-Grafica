@@ -102,35 +102,55 @@ export default function VincularPatrocinadores() {
     return filtered;
   }, [rawEvents]);
 
-  // Filtrar apenas items em status "requested"
-  const requestedItems = useMemo(() => {
-    const filtered = items.filter(item => item.status === 'requested');
+  // Mostrar TODOS os items de eventos futuros (visibilidade)
+  // Editável apenas se status: requested, awaiting_sponsor_approval, sponsor_approved, awaiting_creator_review
+  const visibleItems = useMemo(() => {
+    const today = startOfDay(new Date());
+    
+    // Pegar todos os items cujo evento ainda não passou
+    const filtered = items.filter(item => {
+      const event = rawEvents.find(e => e.id === item.eventId);
+      if (!event) return false;
+      
+      const eventStartDate = startOfDay(new Date(event.startDate));
+      const eventNotPassed = isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
+      
+      return eventNotPassed;
+    });
+    
     console.log('🔍 Debug Vincular Patrocinadores:', {
       totalItems: items.length,
-      requestedItems: filtered.length,
-      allItemsStatuses: items.map(i => ({ id: i.id, type: i.type, status: i.status }))
+      visibleItems: filtered.length,
+      allItemsStatuses: filtered.map(i => ({ id: i.id, type: i.type, status: i.status }))
     });
+    
     return filtered;
-  }, [items]);
+  }, [items, rawEvents]);
+  
+  // Determinar quais items são editáveis (baseado no status)
+  const getItemEditability = (item: any) => {
+    const editableStatuses = ['requested', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_creator_review'];
+    return editableStatuses.includes(item.status);
+  };
 
   // Agrupar items por evento
   const itemsByEvent = useMemo(() => {
     const grouped: Record<string, any[]> = {};
-    requestedItems.forEach(item => {
+    visibleItems.forEach(item => {
       if (!grouped[item.eventId]) {
         grouped[item.eventId] = [];
       }
       grouped[item.eventId].push(item);
     });
     return grouped;
-  }, [requestedItems]);
+  }, [visibleItems]);
 
   // Lista de tipos únicos de items
   const itemTypes = useMemo(() => {
     const types = new Set<string>();
-    requestedItems.forEach(item => types.add(item.type));
+    visibleItems.forEach(item => types.add(item.type));
     return Array.from(types).sort();
-  }, [requestedItems]);
+  }, [visibleItems]);
 
   // Função helper para filtrar items (aplicada tanto na lógica de filtros quanto no render)
   const filterItems = (eventItems: any[], eventName?: string) => {
@@ -360,8 +380,8 @@ export default function VincularPatrocinadores() {
         });
       }
     },
-    onSuccess: (_, itemIdsToConfirm) => {
-      // Limpar estado local dos items confirmados
+    onSuccess: async (_, itemIdsToConfirm) => {
+      // Limpar apenas o estado de mudanças pendentes
       setPendingChanges(prev => {
         const newChanges = { ...prev };
         itemIdsToConfirm.forEach(id => {
@@ -370,28 +390,30 @@ export default function VincularPatrocinadores() {
         return newChanges;
       });
 
-      // Remover items confirmados dos mapas locais (pois saíram do status 'requested')
-      setItemSponsorsMap(prev => {
-        const newMap = { ...prev };
-        itemIdsToConfirm.forEach(id => {
-          delete newMap[id];
-        });
-        return newMap;
-      });
-
-      setOriginalSponsorsMap(prev => {
-        const newMap = { ...prev };
-        itemIdsToConfirm.forEach(id => {
-          delete newMap[id];
-        });
-        return newMap;
-      });
-
+      // NÃO removemos dos mapas locais - os items continuam visíveis e editáveis
+      // até serem aprovados pelo criador. Apenas atualizamos o originalSponsorsMap
+      // para refletir o novo estado salvo
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      
+      // Recarregar os patrocinadores dos items confirmados para atualizar originalSponsorsMap
+      for (const itemId of itemIdsToConfirm) {
+        try {
+          const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
+          const itemSponsors = await response.json();
+          const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
+          
+          setOriginalSponsorsMap(prev => ({
+            ...prev,
+            [itemId]: sponsorIds
+          }));
+        } catch (error) {
+          console.error(`Erro ao recarregar sponsors do item ${itemId}:`, error);
+        }
+      }
       
       toast({
         title: "✅ Items confirmados!",
-        description: `${itemIdsToConfirm.length} item${itemIdsToConfirm.length !== 1 ? 's' : ''} enviado${itemIdsToConfirm.length !== 1 ? 's' : ''} para Arte`,
+        description: `${itemIdsToConfirm.length} item${itemIdsToConfirm.length !== 1 ? 's' : ''} enviado${itemIdsToConfirm.length !== 1 ? 's' : ''} para aprovação`,
       });
     },
     onError: (error: Error) => {

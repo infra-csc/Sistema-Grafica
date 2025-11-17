@@ -675,6 +675,7 @@ export default function VincularPatrocinadores() {
                   <table className="w-full">
                     <thead className="border-b bg-muted/30">
                       <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">ID</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Item</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Detalhes</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Patrocinadores</th>
@@ -698,6 +699,11 @@ export default function VincularPatrocinadores() {
                             }`}
                             data-testid={`item-row-${item.id}`}
                           >
+                            <td className="px-3 py-2">
+                              <div className="text-xs font-mono font-medium text-primary whitespace-nowrap" data-testid={`text-display-id-${item.id}`}>
+                                {item.displayId}
+                              </div>
+                            </td>
                             <td className="px-3 py-2 min-w-[200px]">
                               <div>
                                 <div className="font-medium text-sm text-foreground">{item.type}</div>

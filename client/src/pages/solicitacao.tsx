@@ -317,6 +317,7 @@ export default function Solicitacao() {
                         data-testid="checkbox-select-all"
                       />
                     </th>
+                    <th className="text-left py-3 px-4 font-medium">ID</th>
                     <th className="text-left py-3 px-4 font-medium">Nome</th>
                     <th className="text-left py-3 px-4 font-medium">Tipo</th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
@@ -340,7 +341,7 @@ export default function Solicitacao() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-purple-500/10 to-purple-500/5 border-t-4 border-purple-500/30">
-                            <td colSpan={11} className="py-2 px-4">
+                            <td colSpan={12} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-purple-500 rounded-full"></div>
                                 <div className="text-sm font-bold text-purple-600 uppercase tracking-wider">
@@ -374,6 +375,11 @@ export default function Solicitacao() {
                               onCheckedChange={() => toggleItemSelection(item.id)}
                               data-testid={`checkbox-item-${item.id}`}
                             />
+                          </td>
+                          <td className="py-2 px-4">
+                            <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
+                              {item.displayId}
+                            </div>
                           </td>
                           <td className="py-2 px-4">
                             <div className="text-sm font-medium">{item.name || "—"}</div>

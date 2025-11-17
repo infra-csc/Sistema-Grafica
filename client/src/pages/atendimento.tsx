@@ -371,6 +371,7 @@ export default function Atendimento() {
                         data-testid="checkbox-select-all"
                       />
                     </th>
+                    <th className="text-left py-3 px-4 font-medium">ID</th>
                     <th className="text-left py-3 px-4 font-medium">Evento</th>
                     <th className="text-left py-3 px-4 font-medium">Tipo</th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
@@ -391,7 +392,7 @@ export default function Atendimento() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={8} className="py-2 px-4">
+                            <td colSpan={9} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-primary rounded-full"></div>
                                 <div className="text-sm font-bold text-primary uppercase tracking-wider">
@@ -425,6 +426,11 @@ export default function Atendimento() {
                               onCheckedChange={() => toggleItemSelection(item.id)}
                               data-testid={`checkbox-item-${item.id}`}
                             />
+                          </td>
+                          <td className="py-2 px-4">
+                            <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
+                              {item.displayId}
+                            </div>
                           </td>
                           <td className="py-2 px-4 text-sm text-muted-foreground">
                             {event?.name || "—"}

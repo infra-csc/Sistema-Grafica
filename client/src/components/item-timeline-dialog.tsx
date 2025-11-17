@@ -72,6 +72,11 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
           <div className="bg-muted/50 p-4 rounded-lg space-y-3">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="text-xs font-mono font-medium text-primary" data-testid="text-display-id">
+                    {item.displayId}
+                  </div>
+                </div>
                 <h3 className="font-semibold text-lg">{item.type}</h3>
                 {item.description && (
                   <p className="text-sm text-muted-foreground mt-0.5">{item.description}</p>

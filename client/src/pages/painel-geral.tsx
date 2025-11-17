@@ -316,6 +316,7 @@ export default function PainelGeral() {
               <table className="w-full">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
+                    <th className="text-left py-3 px-4 font-medium">ID</th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-center py-3 px-4 font-medium">Quantidade</th>
                     <th className="text-left py-3 px-4 font-medium">Dimensões</th>
@@ -344,7 +345,7 @@ export default function PainelGeral() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={8} className="py-3 px-4">
+                            <td colSpan={9} className="py-3 px-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
@@ -372,7 +373,7 @@ export default function PainelGeral() {
                         )}
                         {showTypeHeader && (
                           <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={8} className="py-1.5 px-4">
+                            <td colSpan={9} className="py-1.5 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
                                 <div className="text-sm font-bold text-foreground">
@@ -387,6 +388,11 @@ export default function PainelGeral() {
                           className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
                           data-testid={`row-item-${item.id}`}
                         >
+                          <td className="py-2 px-3">
+                            <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
+                              {item.displayId}
+                            </div>
+                          </td>
                           <td className="py-2 px-3">
                             {item.description ? (
                               <div className="text-sm text-foreground">{item.description}</div>

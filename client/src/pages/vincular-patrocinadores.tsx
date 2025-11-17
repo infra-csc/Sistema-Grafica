@@ -209,16 +209,16 @@ export default function VincularPatrocinadores() {
   // Estado para armazenar sponsors originais (do banco de dados)
   const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});
 
-  // Carregar sponsors de todos os items requested
+  // Carregar sponsors de todos os items visíveis (não apenas requested)
   useEffect(() => {
-    if (requestedItems.length === 0) {
+    if (visibleItems.length === 0) {
       setItemSponsorsMap({});
       setOriginalSponsorsMap({});
       return;
     }
 
     Promise.all(
-      requestedItems.map(async (item) => {
+      visibleItems.map(async (item) => {
         try {
           const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
           const itemSponsors = await response.json();
@@ -238,7 +238,7 @@ export default function VincularPatrocinadores() {
       setItemSponsorsMap(newMap);
       setOriginalSponsorsMap(newMap); // Salvar também como original
     });
-  }, [requestedItems]);
+  }, [visibleItems]);
 
   // Helper para comparar arrays de sponsor IDs
   const areSponsorsEqual = (a: string[], b: string[]): boolean => {

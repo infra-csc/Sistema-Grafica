@@ -45,6 +45,8 @@ const getSponsorColor = (sponsorId: string, allSponsors: any[]) => {
 };
 
 export default function VincularPatrocinadores() {
+  console.log('🚀 VincularPatrocinadores: Componente iniciando...');
+  
   const { toast } = useToast();
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
@@ -76,6 +78,13 @@ export default function VincularPatrocinadores() {
 
   const { data: sponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
+  });
+
+  console.log('📊 Queries carregadas:', {
+    items: items?.length ?? 0,
+    rawEvents: rawEvents?.length ?? 0,
+    sponsors: sponsors?.length ?? 0,
+    itemsLoading
   });
 
   // Filtrar apenas eventos futuros (data de início >= hoje)

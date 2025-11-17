@@ -202,11 +202,41 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(items.createdAt));
   }
 
+  private async generateNextDisplayId(): Promise<string> {
+    // Buscar o maior displayId existente
+    const result = await db
+      .select({ displayId: items.displayId })
+      .from(items)
+      .orderBy(desc(items.displayId))
+      .limit(1);
+    
+    if (result.length === 0 || !result[0].displayId) {
+      return 'ITEM-001';
+    }
+    
+    // Extrair número do displayId (ex: ITEM-057 -> 57)
+    const lastId = result[0].displayId;
+    const match = lastId.match(/ITEM-(\d+)/);
+    
+    if (!match) {
+      return 'ITEM-001';
+    }
+    
+    const lastNumber = parseInt(match[1], 10);
+    const nextNumber = lastNumber + 1;
+    
+    // Formatar com zero-padding (ex: 58 -> ITEM-058)
+    return `ITEM-${String(nextNumber).padStart(3, '0')}`;
+  }
+
   async createItem(insertItem: InsertItem): Promise<Item> {
+    const displayId = await this.generateNextDisplayId();
+    
     const [item] = await db
       .insert(items)
       .values({
         ...insertItem,
+        displayId,
         area: String(insertItem.area),
         visual: String(insertItem.visual),
         calculatedM2: String(insertItem.calculatedM2),
@@ -220,8 +250,26 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
     
-    const normalizedItems = insertItems.map(item => ({
+    // Gerar displayIds sequenciais para todos os items
+    const displayIds: string[] = [];
+    for (let i = 0; i < insertItems.length; i++) {
+      // Para items em bulk, gerar IDs sequenciais
+      if (i === 0) {
+        displayIds.push(await this.generateNextDisplayId());
+      } else {
+        // Incrementar do último gerado
+        const lastId = displayIds[i - 1];
+        const match = lastId.match(/ITEM-(\d+)/);
+        if (match) {
+          const nextNumber = parseInt(match[1], 10) + 1;
+          displayIds.push(`ITEM-${String(nextNumber).padStart(3, '0')}`);
+        }
+      }
+    }
+    
+    const normalizedItems = insertItems.map((item, index) => ({
       ...item,
+      displayId: displayIds[index],
       area: String(item.area),
       visual: String(item.visual),
       calculatedM2: String(item.calculatedM2),

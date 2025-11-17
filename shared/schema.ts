@@ -50,6 +50,7 @@ export const itemSponsors = pgTable("item_sponsors", {
 // Items table
 export const items = pgTable("items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  displayId: text("display_id").notNull().unique(), // ID legível para usuários (ex: ITEM-001, ITEM-002)
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   type: text("type").notNull(), // "2x1", "rolo", "palco", etc
   description: text("description"), // Descrição personalizada do item
@@ -264,6 +265,7 @@ export const insertEventSchema = createInsertSchema(events).omit({
 
 export const insertItemSchema = createInsertSchema(items).omit({
   id: true,
+  displayId: true, // Gerado automaticamente no backend
   createdAt: true,
   updatedAt: true,
 }).extend({

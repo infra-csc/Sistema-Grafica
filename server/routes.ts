@@ -1187,8 +1187,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Check if skipApproval flag is set
+      const shouldSkipApproval = currentItem.skipApproval === true;
+      const nextStatus = shouldSkipApproval ? "awaiting_creator_review" : "awaiting_sponsor_approval";
+      
       const item = await storage.updateItem(req.params.id, {
-        status: "awaiting_sponsor_approval",
+        status: nextStatus,
         approvalThumbUrl,
       });
       
@@ -1198,25 +1202,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const event = await storage.getEvent(item.eventId);
       
-      await createAuditLog(
-        req.userName!,
-        'updated',
-        'item',
-        item.id,
-        `Item "${item.type}" enviado para aprovação do patrocinador`
-      );
-      
-      // Notifica Atendimento para aprovar com patrocinador
-      const notification = await storage.createNotification({
-        type: "itemAdded",
-        message: `Novo item aguardando aprovação do patrocinador: ${item.type} - Evento: ${event?.name}`,
-        eventId: item.eventId,
-        itemId: item.id,
-        targetRoles: ["atendimento"],
-      });
-      
-      broadcast({ type: "item_updated", item });
-      broadcast({ type: "notification_created", notification });
+      if (shouldSkipApproval) {
+        // Pula aprovação do patrocinador e vai direto para revisão da Solicitação
+        await createAuditLog(
+          req.userName!,
+          'updated',
+          'item',
+          item.id,
+          `Item "${item.type}" enviado para revisão da Solicitação (sem aprovação de patrocinador)`
+        );
+        
+        // Notifica Solicitação para revisar
+        const notification = await storage.createNotification({
+          type: "itemAdded",
+          message: `Novo item aguardando revisão da Solicitação: ${item.type} - Evento: ${event?.name}`,
+          eventId: item.eventId,
+          itemId: item.id,
+          targetRoles: ["solicitacao"],
+        });
+        
+        broadcast({ type: "item_updated", item });
+        broadcast({ type: "notification_created", notification });
+      } else {
+        // Fluxo padrão: vai para aprovação do patrocinador
+        await createAuditLog(
+          req.userName!,
+          'updated',
+          'item',
+          item.id,
+          `Item "${item.type}" enviado para aprovação do patrocinador`
+        );
+        
+        // Notifica Atendimento para aprovar com patrocinador
+        const notification = await storage.createNotification({
+          type: "itemAdded",
+          message: `Novo item aguardando aprovação do patrocinador: ${item.type} - Evento: ${event?.name}`,
+          eventId: item.eventId,
+          itemId: item.id,
+          targetRoles: ["atendimento"],
+        });
+        
+        broadcast({ type: "item_updated", item });
+        broadcast({ type: "notification_created", notification });
+      }
       
       res.json(item);
     } catch (error: any) {

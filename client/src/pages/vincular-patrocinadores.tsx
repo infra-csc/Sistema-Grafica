@@ -8,7 +8,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
 import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus } from "lucide-react";
-import { format, isAfter, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function VincularPatrocinadores() {
@@ -22,22 +22,13 @@ export default function VincularPatrocinadores() {
     queryKey: ["/api/items"],
   });
 
-  const { data: rawEvents = [] } = useQuery<any[]>({
+  const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
 
   const { data: sponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
   });
-
-  // Filtrar apenas eventos futuros (data de início >= hoje)
-  const events = useMemo(() => {
-    const today = startOfDay(new Date());
-    return rawEvents.filter(event => {
-      const eventStartDate = startOfDay(new Date(event.startDate));
-      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
-    });
-  }, [rawEvents]);
 
   // Filtrar apenas items em status "requested"
   const requestedItems = useMemo(

@@ -19,6 +19,30 @@ type ItemChanges = {
   isDirty: boolean;
 };
 
+// Paleta de cores para patrocinadores
+const SPONSOR_COLORS = [
+  { bg: "bg-blue-500/10", text: "text-blue-700 dark:text-blue-400", border: "border-blue-500/20" },
+  { bg: "bg-emerald-500/10", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-500/20" },
+  { bg: "bg-violet-500/10", text: "text-violet-700 dark:text-violet-400", border: "border-violet-500/20" },
+  { bg: "bg-orange-500/10", text: "text-orange-700 dark:text-orange-400", border: "border-orange-500/20" },
+  { bg: "bg-pink-500/10", text: "text-pink-700 dark:text-pink-400", border: "border-pink-500/20" },
+  { bg: "bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-400", border: "border-cyan-500/20" },
+  { bg: "bg-amber-500/10", text: "text-amber-700 dark:text-amber-400", border: "border-amber-500/20" },
+  { bg: "bg-rose-500/10", text: "text-rose-700 dark:text-rose-400", border: "border-rose-500/20" },
+  { bg: "bg-indigo-500/10", text: "text-indigo-700 dark:text-indigo-400", border: "border-indigo-500/20" },
+  { bg: "bg-teal-500/10", text: "text-teal-700 dark:text-teal-400", border: "border-teal-500/20" },
+];
+
+// Função para obter cor consistente de um patrocinador
+const getSponsorColor = (sponsorId: string, allSponsors: any[]) => {
+  const index = allSponsors.findIndex(s => s.id === sponsorId);
+  // Se não encontrar, usar cor padrão (primeira cor)
+  if (index === -1) {
+    return SPONSOR_COLORS[0];
+  }
+  return SPONSOR_COLORS[index % SPONSOR_COLORS.length];
+};
+
 export default function VincularPatrocinadores() {
   const { toast } = useToast();
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
@@ -579,15 +603,22 @@ export default function VincularPatrocinadores() {
                   </Button>
                 </div>
 
-                {/* Patrocinadores do Evento - Badges Compactos */}
+                {/* Patrocinadores do Evento - Badges Compactos com Cores */}
                 {eventSponsors.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    {eventSponsors.map(sponsor => (
-                      <Badge key={sponsor.id} variant="secondary" className="text-xs gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {sponsor.name}
-                      </Badge>
-                    ))}
+                    {eventSponsors.map(sponsor => {
+                      const colors = getSponsorColor(sponsor.id, sponsors);
+                      return (
+                        <Badge 
+                          key={sponsor.id} 
+                          variant="secondary" 
+                          className={`text-xs gap-1 ${colors.bg} ${colors.text} ${colors.border}`}
+                        >
+                          <Building2 className="h-3 w-3" />
+                          {sponsor.name}
+                        </Badge>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -681,6 +712,7 @@ export default function VincularPatrocinadores() {
                                 <div className="space-y-0.5">
                                   {eventSponsors.map(sponsor => {
                                     const isLinked = linkedSponsors.includes(sponsor.id);
+                                    const colors = getSponsorColor(sponsor.id, sponsors);
                                     return (
                                       <div key={sponsor.id} className="flex items-center gap-1.5">
                                         <Checkbox
@@ -723,7 +755,7 @@ export default function VincularPatrocinadores() {
                                           }}
                                           data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                         />
-                                        <label className="text-xs cursor-pointer">
+                                        <label className={`text-xs cursor-pointer font-medium ${colors.text}`}>
                                           {sponsor.name}
                                         </label>
                                       </div>

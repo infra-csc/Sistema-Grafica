@@ -39,6 +39,14 @@ export const eventSponsors = pgTable("event_sponsors", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Item-Sponsors relationship table (many-to-many)
+export const itemSponsors = pgTable("item_sponsors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  sponsorId: varchar("sponsor_id").notNull().references(() => sponsors.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // Items table
 export const items = pgTable("items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -61,7 +69,7 @@ export const items = pgTable("items", {
   quantityProduced: integer("quantity_produced"),
   receivedBy: text("received_by"),
   deliveryPhotoUrl: text("delivery_photo_url"),
-  sponsorId: varchar("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }), // Patrocinador específico desta peça
+  skipApproval: boolean("skip_approval").notNull().default(false), // Se true, pula fase de aprovação de patrocinador
   approvalThumbUrl: text("approval_thumb_url"), // Thumb/link leve para aprovação
   finalFileUrl: text("final_file_url"), // Link do arquivo final (Drive, S3, etc)
   sponsorApprovedBy: text("sponsor_approved_by"), // Nome do aprovador do patrocinador
@@ -166,6 +174,7 @@ export const eventsRelations = relations(events, ({ many }) => ({
 
 export const sponsorsRelations = relations(sponsors, ({ many }) => ({
   eventSponsors: many(eventSponsors),
+  itemSponsors: many(itemSponsors),
 }));
 
 export const eventSponsorsRelations = relations(eventSponsors, ({ one }) => ({
@@ -179,15 +188,23 @@ export const eventSponsorsRelations = relations(eventSponsors, ({ one }) => ({
   }),
 }));
 
+export const itemSponsorsRelations = relations(itemSponsors, ({ one }) => ({
+  item: one(items, {
+    fields: [itemSponsors.itemId],
+    references: [items.id],
+  }),
+  sponsor: one(sponsors, {
+    fields: [itemSponsors.sponsorId],
+    references: [sponsors.id],
+  }),
+}));
+
 export const itemsRelations = relations(items, ({ one, many }) => ({
   event: one(events, {
     fields: [items.eventId],
     references: [events.id],
   }),
-  sponsor: one(sponsors, {
-    fields: [items.sponsorId],
-    references: [sponsors.id],
-  }),
+  itemSponsors: many(itemSponsors),
   notifications: many(notifications),
   productionUpdates: many(productionUpdates),
   comments: many(comments),
@@ -290,6 +307,11 @@ export const insertEventSponsorSchema = createInsertSchema(eventSponsors).omit({
   createdAt: true,
 });
 
+export const insertItemSponsorSchema = createInsertSchema(itemSponsors).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -362,3 +384,6 @@ export type InsertSponsor = z.infer<typeof insertSponsorSchema>;
 
 export type EventSponsor = typeof eventSponsors.$inferSelect;
 export type InsertEventSponsor = z.infer<typeof insertEventSponsorSchema>;
+
+export type ItemSponsor = typeof itemSponsors.$inferSelect;
+export type InsertItemSponsor = z.infer<typeof insertItemSponsorSchema>;

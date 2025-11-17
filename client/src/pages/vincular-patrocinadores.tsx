@@ -189,8 +189,8 @@ export default function VincularPatrocinadores() {
         await apiRequest("DELETE", `/api/events/${eventId}/sponsors/${sponsorId}`);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["/api/events"] });
       setSponsorDialogOpen(false);
       toast({
         title: "Patrocinadores atualizados!",
@@ -437,9 +437,8 @@ export default function VincularPatrocinadores() {
                             }}
                           />
                         </th>
-                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Item</th>
-                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Qtd</th>
-                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Material</th>
+                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Item / Descrição</th>
+                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Detalhes</th>
                         <th className="p-3 text-left text-xs font-medium text-muted-foreground">Patrocinadores</th>
                         <th className="p-3 text-center text-xs font-medium text-muted-foreground">Sem Aprovação</th>
                         <th className="p-3 text-center text-xs font-medium text-muted-foreground">Status</th>
@@ -467,18 +466,32 @@ export default function VincularPatrocinadores() {
                                 onCheckedChange={() => toggleItemSelection(item.id)}
                               />
                             </td>
-                            <td className="p-3">
+                            <td className="p-3 min-w-[250px]">
                               <div>
-                                <div className="font-medium text-sm">{item.type}</div>
+                                <div className="font-semibold text-sm text-foreground">{item.type}</div>
                                 {item.description && (
-                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                  <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                                     {item.description}
                                   </div>
                                 )}
                               </div>
                             </td>
-                            <td className="p-3 text-sm">{item.quantity}</td>
-                            <td className="p-3 text-sm">{item.material}</td>
+                            <td className="p-3 min-w-[200px]">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 text-sm">
+                                  <Badge variant="outline" className="text-xs gap-1">
+                                    <Package className="h-3 w-3" />
+                                    {item.quantity} un
+                                  </Badge>
+                                  <Badge variant="outline" className="text-xs">
+                                    {parseFloat(item.calculatedM2).toFixed(2)} m²
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {item.material}
+                                </div>
+                              </div>
+                            </td>
                             <td className="p-3">
                               {!item.skipApproval && eventSponsors.length > 0 && (
                                 <div className="flex flex-wrap gap-1">

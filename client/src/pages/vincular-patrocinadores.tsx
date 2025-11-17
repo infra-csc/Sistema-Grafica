@@ -58,6 +58,12 @@ export default function VincularPatrocinadores() {
   
   // Estado local para rastrear mudanças pendentes
   const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});
+  
+  // Estados para seleção em lote
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [bulkApplyDialogOpen, setBulkApplyDialogOpen] = useState(false);
+  const [bulkSelectedSponsors, setBulkSelectedSponsors] = useState<string[]>([]);
+  const [bulkSkipApproval, setBulkSkipApproval] = useState(false);
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -431,6 +437,79 @@ export default function VincularPatrocinadores() {
   const getEventSponsors = (eventId: string) => {
     const sponsorIds = eventSponsorMap[eventId] || [];
     return sponsors.filter(sponsor => sponsorIds.includes(sponsor.id));
+  };
+
+  // Funções para seleção em lote
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllItemsInEvent = (eventItems: any[]) => {
+    const eventItemIds = eventItems.map(item => item.id);
+    const allSelected = eventItemIds.every(id => selectedItemIds.has(id));
+    
+    setSelectedItemIds(prev => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        eventItemIds.forEach(id => newSet.delete(id));
+      } else {
+        eventItemIds.forEach(id => newSet.add(id));
+      }
+      return newSet;
+    });
+  };
+
+  const handleOpenBulkApplyDialog = () => {
+    setBulkSelectedSponsors([]);
+    setBulkSkipApproval(false);
+    setBulkApplyDialogOpen(true);
+  };
+
+  const handleApplyBulkSponsors = () => {
+    const itemsToUpdate = Array.from(selectedItemIds);
+    
+    // Aplicar patrocinadores aos items selecionados
+    itemsToUpdate.forEach(itemId => {
+      const originalSponsors = originalSponsorsMap[itemId] || [];
+      const originalSkipApproval = items.find(i => i.id === itemId)?.skipApproval || false;
+      
+      const hasChanges = 
+        !areSponsorsEqual(bulkSelectedSponsors, originalSponsors) ||
+        bulkSkipApproval !== originalSkipApproval;
+      
+      if (hasChanges) {
+        setPendingChanges(prev => ({
+          ...prev,
+          [itemId]: {
+            sponsorIds: bulkSelectedSponsors,
+            skipApproval: bulkSkipApproval,
+            isDirty: true
+          }
+        }));
+        
+        setItemSponsorsMap(prev => ({
+          ...prev,
+          [itemId]: bulkSelectedSponsors
+        }));
+      }
+    });
+
+    // Limpar seleção e fechar modal
+    setSelectedItemIds(new Set());
+    setBulkApplyDialogOpen(false);
+    
+    toast({
+      title: "✅ Aplicado com sucesso!",
+      description: `Patrocinadores aplicados a ${itemsToUpdate.length} item${itemsToUpdate.length !== 1 ? 's' : ''}`,
+    });
   };
 
   // Calcular progresso

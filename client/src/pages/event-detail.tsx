@@ -444,6 +444,8 @@ export default function EventDetail() {
       measurement: item.measurement || "",
       observations: item.observations || "",
       sponsorId: item.sponsorId || "",
+      skipApproval: item.skipApproval || false,
+      selectedSponsorIds: [],
     });
     setEditDialogOpen(true);
   };
@@ -468,6 +470,8 @@ export default function EventDetail() {
       measurement: "",
       observations: "",
       sponsorId: "",
+      skipApproval: false,
+      selectedSponsorIds: [],
     });
     setOpen(false);
   };

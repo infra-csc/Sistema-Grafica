@@ -45,8 +45,6 @@ const getSponsorColor = (sponsorId: string, allSponsors: any[]) => {
 };
 
 export default function VincularPatrocinadores() {
-  console.log('🚀 VincularPatrocinadores: Componente iniciando...');
-  
   const { toast } = useToast();
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
@@ -78,13 +76,6 @@ export default function VincularPatrocinadores() {
 
   const { data: sponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
-  });
-
-  console.log('📊 Queries carregadas:', {
-    items: items?.length ?? 0,
-    rawEvents: rawEvents?.length ?? 0,
-    sponsors: sponsors?.length ?? 0,
-    itemsLoading
   });
 
   // Filtrar apenas eventos futuros (data de início >= hoje)
@@ -217,16 +208,14 @@ export default function VincularPatrocinadores() {
 
   // Estado para armazenar sponsors originais (do banco de dados)
   const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});
-  const [sponsorsLoaded, setSponsorsLoaded] = useState(false);
 
   // Carregar sponsors de todos os items visíveis (não apenas requested)
   useEffect(() => {
-    if (itemsLoading || visibleItems.length === 0) {
-      setSponsorsLoaded(true);
+    if (itemsLoading || !visibleItems || visibleItems.length === 0) {
       return;
     }
 
-    setSponsorsLoaded(false);
+    let cancelled = false;
     
     Promise.all(
       visibleItems.map(async (item) => {
@@ -241,19 +230,23 @@ export default function VincularPatrocinadores() {
         }
       })
     ).then(results => {
+      if (cancelled) return;
+      
       const newMap = results.reduce((acc, { itemId, sponsorIds }) => ({
         ...acc,
         [itemId]: sponsorIds
       }), {});
       
       setItemSponsorsMap(newMap);
-      setOriginalSponsorsMap(newMap); // Salvar também como original
-      setSponsorsLoaded(true);
+      setOriginalSponsorsMap(newMap);
     }).catch(error => {
       console.error('Erro ao carregar sponsors:', error);
-      setSponsorsLoaded(true);
     });
-  }, [visibleItems, itemsLoading]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleItems.length, itemsLoading]);
 
   // Helper para comparar arrays de sponsor IDs
   const areSponsorsEqual = (a: string[], b: string[]): boolean => {

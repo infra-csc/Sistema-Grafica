@@ -3,28 +3,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X } from "lucide-react";
-import { format } from "date-fns";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus } from "lucide-react";
+import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function VincularPatrocinadores() {
   const { toast } = useToast();
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
+  const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
+  const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
+  const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
-  const { data: events = [] } = useQuery<any[]>({
+  const { data: rawEvents = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
 
   const { data: sponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
   });
+
+  // Filtrar apenas eventos futuros (data de início >= hoje)
+  const events = useMemo(() => {
+    const today = startOfDay(new Date());
+    return rawEvents.filter(event => {
+      const eventStartDate = startOfDay(new Date(event.startDate));
+      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
+    });
+  }, [rawEvents]);
 
   // Filtrar apenas items em status "requested"
   const requestedItems = useMemo(
@@ -134,6 +147,62 @@ export default function VincularPatrocinadores() {
       });
     },
   });
+
+  // Mutation para gerenciar patrocinadores do evento
+  const manageEventSponsorsMutation = useMutation({
+    mutationFn: async ({ eventId, currentSponsors, newSponsors }: { 
+      eventId: string, 
+      currentSponsors: string[], 
+      newSponsors: string[] 
+    }) => {
+      const toAdd = newSponsors.filter(id => !currentSponsors.includes(id));
+      const toRemove = currentSponsors.filter(id => !newSponsors.includes(id));
+      
+      // Adicionar novos patrocinadores
+      for (const sponsorId of toAdd) {
+        await apiRequest("POST", `/api/events/${eventId}/sponsors`, { sponsorId });
+      }
+      
+      // Remover patrocinadores desmarcados
+      for (const sponsorId of toRemove) {
+        await apiRequest("DELETE", `/api/events/${eventId}/sponsors/${sponsorId}`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setSponsorDialogOpen(false);
+      toast({
+        title: "Patrocinadores atualizados!",
+        description: "Os patrocinadores do evento foram atualizados com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao atualizar patrocinadores",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleOpenSponsorDialog = (event: any) => {
+    setSelectedEventForSponsors(event);
+    const eventSponsors = getEventSponsors(event.id);
+    setSelectedSponsorIds(eventSponsors.map(s => s.id));
+    setSponsorDialogOpen(true);
+  };
+
+  const handleSaveEventSponsors = () => {
+    if (!selectedEventForSponsors) return;
+    
+    const currentSponsors = getEventSponsors(selectedEventForSponsors.id).map(s => s.id);
+    
+    manageEventSponsorsMutation.mutate({
+      eventId: selectedEventForSponsors.id,
+      currentSponsors,
+      newSponsors: selectedSponsorIds,
+    });
+  };
 
   const getEventSponsors = (eventId: string) => {
     const event = events.find(e => e.id === eventId);
@@ -270,7 +339,19 @@ export default function VincularPatrocinadores() {
               <CardHeader className="bg-muted/30 border-b">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-xl mb-3 truncate">{event.name}</CardTitle>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <CardTitle className="text-xl truncate">{event.name}</CardTitle>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenSponsorDialog(event)}
+                        className="shrink-0 gap-2"
+                        data-testid={`button-manage-event-sponsors-${event.id}`}
+                      >
+                        <Building2 className="h-4 w-4" />
+                        Gerenciar Patrocinadores
+                      </Button>
+                    </div>
                     <div className="flex flex-wrap gap-3 text-sm">
                       <div className="flex items-center gap-1.5 text-muted-foreground">
                         <Calendar className="h-4 w-4" />
@@ -280,6 +361,12 @@ export default function VincularPatrocinadores() {
                         <Truck className="h-4 w-4" />
                         <span>Saída Caminhão: {format(new Date(event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                       </div>
+                      {eventSponsors.length > 0 && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Building2 className="h-4 w-4" />
+                          <span>{eventSponsors.length} {eventSponsors.length === 1 ? 'patrocinador' : 'patrocinadores'}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
@@ -480,6 +567,90 @@ export default function VincularPatrocinadores() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog para Gerenciar Patrocinadores do Evento */}
+      <Dialog open={sponsorDialogOpen} onOpenChange={setSponsorDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Gerenciar Patrocinadores do Evento
+            </DialogTitle>
+            <DialogDescription>
+              {selectedEventForSponsors && (
+                <span>Selecione os patrocinadores para <strong>{selectedEventForSponsors.name}</strong></span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[400px] overflow-y-auto">
+            {sponsors.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Nenhum patrocinador cadastrado no sistema
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {sponsors.map((sponsor) => (
+                  <div 
+                    key={sponsor.id} 
+                    className={`flex items-center space-x-3 p-3 border-2 rounded-lg transition-all cursor-pointer hover-elevate ${
+                      selectedSponsorIds.includes(sponsor.id)
+                        ? 'border-primary bg-primary/5' 
+                        : 'border-border bg-background'
+                    }`}
+                    onClick={() => {
+                      if (selectedSponsorIds.includes(sponsor.id)) {
+                        setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                      } else {
+                        setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                      }
+                    }}
+                  >
+                    <Checkbox
+                      id={`event-sponsor-${sponsor.id}`}
+                      checked={selectedSponsorIds.includes(sponsor.id)}
+                      onCheckedChange={() => {}} // Controlled by div onClick
+                      data-testid={`checkbox-event-sponsor-${sponsor.id}`}
+                    />
+                    <label
+                      htmlFor={`event-sponsor-${sponsor.id}`}
+                      className="text-sm font-medium leading-tight cursor-pointer flex-1"
+                    >
+                      {sponsor.name}
+                      {sponsor.company && (
+                        <span className="text-muted-foreground ml-1">({sponsor.company})</span>
+                      )}
+                    </label>
+                    {selectedSponsorIds.includes(sponsor.id) && (
+                      <Check className="h-4 w-4 text-primary shrink-0" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center justify-between pt-4 border-t">
+            <p className="text-sm text-muted-foreground">
+              {selectedSponsorIds.length} {selectedSponsorIds.length === 1 ? 'patrocinador selecionado' : 'patrocinadores selecionados'}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSponsorDialogOpen(false)}
+                disabled={manageEventSponsorsMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveEventSponsors}
+                disabled={manageEventSponsorsMutation.isPending}
+                data-testid="button-save-event-sponsors"
+              >
+                {manageEventSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

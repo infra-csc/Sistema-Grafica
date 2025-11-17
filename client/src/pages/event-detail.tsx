@@ -44,7 +44,7 @@ const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
 const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
 export default function EventDetail() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const [, params] = useRoute("/eventos/:id");
   const eventId = params?.id;
   const [open, setOpen] = useState(false);
@@ -122,6 +122,9 @@ export default function EventDetail() {
   const sponsors = allSponsors.filter(sponsor => 
     eventSponsors.some(es => es.sponsorId === sponsor.id)
   );
+
+  // Check if user can manage this event (admin or event creator)
+  const canManageEvent = hasPermission("admin") || (event && user && event.createdBy === user.id);
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -296,6 +299,37 @@ export default function EventDetail() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  const submitDraftsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/items/submit`);
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      toast({
+        title: "Itens enviados para Arte",
+        description: `${data.count} ${data.count === 1 ? 'item foi enviado' : 'itens foram enviados'} com sucesso`,
+      });
+    },
+    onError: (error: any) => {
+      const message = error.message || "Erro desconhecido";
+      
+      if (message.includes("Nenhum item em rascunho")) {
+        toast({
+          title: "Nenhum item para enviar",
+          description: "Não há itens em rascunho neste evento",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erro ao enviar itens",
+          description: message,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -1129,6 +1163,102 @@ export default function EventDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Card de Itens em Rascunho */}
+      {items.filter(item => item.status === 'draft').length > 0 && (
+        <Card className="border-2 border-dashed border-muted-foreground/30 bg-muted/20">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-muted-foreground" />
+                <CardTitle className="text-lg">Itens em Rascunho</CardTitle>
+                <Badge variant="secondary" className="ml-2">
+                  {items.filter(item => item.status === 'draft').length} {items.filter(item => item.status === 'draft').length === 1 ? 'item' : 'itens'}
+                </Badge>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Revise os itens abaixo e envie todos para Arte quando estiver pronto
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 mb-4">
+              {items
+                .filter(item => item.status === 'draft')
+                .sort((a, b) => a.type.localeCompare(b.type))
+                .map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-card hover-elevate" data-testid={`draft-item-${item.id}`}>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm">{item.type}</span>
+                          {item.description && <span className="text-sm text-muted-foreground truncate">— {item.description}</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.quantity} {item.quantity === 1 ? 'unidade' : 'unidades'} • {item.material} • {item.finish} • {parseFloat(item.calculatedM2).toFixed(2)}m²
+                        </div>
+                      </div>
+                    </div>
+                    {canManageEvent && (
+                      <div className="flex items-center gap-1 ml-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleEditItem(item)}
+                          data-testid={`button-edit-draft-${item.id}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 hover:bg-destructive/10"
+                          onClick={() => setDeletingItemId(item.id)}
+                          data-testid={`button-delete-draft-${item.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border-2 border-dashed border-primary/30">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-sm font-semibold">Pronto para enviar?</p>
+                  <p className="text-xs text-muted-foreground">
+                    {items.filter(item => item.status === 'draft').length} {items.filter(item => item.status === 'draft').length === 1 ? 'item será enviado' : 'itens serão enviados'} para Arte
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => submitDraftsMutation.mutate()}
+                disabled={submitDraftsMutation.isPending}
+                size="lg"
+                data-testid="button-submit-drafts"
+              >
+                {submitDraftsMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Enviar Tudo para Arte
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

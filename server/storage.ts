@@ -53,6 +53,7 @@ export interface IStorage {
   createItem(item: InsertItem): Promise<Item>;
   createBulkItems(items: InsertItem[]): Promise<Item[]>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
+  updateItemWithStatusCheck(id: string, fromStatus: string, toStatus: string): Promise<Item | null>;
   approveItem(id: string): Promise<Item | undefined>;
   startProduction(id: string, quantityProduced: number): Promise<Item | undefined>;
   markItemAsDelivered(id: string, receivedBy: string, photoUrl?: string): Promise<Item | undefined>;
@@ -243,6 +244,21 @@ export class DatabaseStorage implements IStorage {
       .where(eq(items.id, id))
       .returning();
     return item || undefined;
+  }
+
+  async updateItemWithStatusCheck(id: string, fromStatus: string, toStatus: string): Promise<Item | null> {
+    const [item] = await db
+      .update(items)
+      .set({ 
+        status: toStatus as any,
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(items.id, id),
+        eq(items.status, fromStatus as any)
+      ))
+      .returning();
+    return item || null;
   }
 
   async approveItem(id: string): Promise<Item | undefined> {

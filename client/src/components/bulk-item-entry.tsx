@@ -181,7 +181,6 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
         measurement: row.measurement || `${row.fileWidth} × ${row.fileHeight}`,
         observations: row.observations || "",
         calculatedM2: row.calculatedM2,
-        status: "requested",
       }));
 
     if (validItems.length === 0) {

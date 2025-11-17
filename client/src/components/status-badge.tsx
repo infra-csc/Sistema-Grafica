@@ -7,6 +7,11 @@ interface StatusBadgeProps {
 }
 
 const statusConfig = {
+  draft: {
+    label: "Rascunho",
+    color: "bg-muted/80 text-muted-foreground border-muted-foreground/30",
+    icon: Clock,
+  },
   created: {
     label: "Criado",
     color: "bg-status-pending/20 text-status-pending border-status-pending",

@@ -711,6 +711,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Submit all draft items to Arte
+  app.post("/api/events/:id/items/submit", requireAuth, async (req, res) => {
+    try {
+      const userRole = (req as any).userRole;
+      const userId = (req as any).userId;
+      const eventId = req.params.id;
+      
+      // Buscar evento para validação
+      const event = await storage.getEvent(eventId);
+      if (!event) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+      
+      // Check authorization: admin can submit any event, others can only submit their own events
+      const isAdmin = userRole === 'admin';
+      const isOwner = event.createdBy === userId;
+      
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ error: "Acesso negado. Você só pode enviar itens de eventos que você criou" });
+      }
+      
+      // Buscar todos os itens em rascunho deste evento
+      const allItems = await storage.getItemsByEvent(eventId);
+      const draftItems = allItems.filter(item => item.status === 'draft');
+      
+      if (draftItems.length === 0) {
+        return res.status(400).json({ error: "Nenhum item em rascunho para enviar" });
+      }
+      
+      // Atomic status transition: only update if status is still 'draft'
+      // This prevents race conditions where status might have changed between read and update
+      const updatePromises = draftItems.map(item => 
+        storage.updateItemWithStatusCheck(item.id, 'draft', 'requested')
+      );
+      const updatedItems = await Promise.all(updatePromises);
+      
+      // Filter out failed updates (items that returned null)
+      const successfulUpdates = updatedItems.filter((item): item is Item => item !== null);
+      const failedCount = updatedItems.length - successfulUpdates.length;
+      
+      // If any updates failed, return conflict error
+      if (failedCount > 0) {
+        return res.status(409).json({ 
+          error: "Alguns itens mudaram de status durante a operação. Recarregue a página e tente novamente.",
+          failedCount,
+          successCount: successfulUpdates.length
+        });
+      }
+      
+      // All updates successful - create audit log with actual count
+      await createAuditLog(
+        (req as any).userName,
+        'created',
+        'item',
+        eventId,
+        `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item enviado' : 'itens enviados'} para Arte no evento "${event.name}"`
+      );
+      
+      // Notify Arte profile with actual count
+      await storage.createNotification({
+        type: 'itemsSubmitted',
+        message: `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'novo item' : 'novos itens'} ${successfulUpdates.length === 1 ? 'foi enviado' : 'foram enviados'} para Arte no evento "${event.name}"`,
+        targetRoles: ['arte', 'admin'],
+        eventId,
+      });
+      
+      broadcast({ 
+        type: "items_submitted", 
+        eventId,
+        count: successfulUpdates.length,
+        items: successfulUpdates 
+      });
+      
+      res.json({ 
+        success: true, 
+        count: successfulUpdates.length,
+        items: successfulUpdates 
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============ ITEMS ============
 
   // Get all items with event data

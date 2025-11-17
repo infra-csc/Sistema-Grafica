@@ -204,7 +204,7 @@ export default function VincularPatrocinadores() {
       // Se não há items que passaram no filtro, ocultar o evento
       return filteredItems.length > 0;
     });
-  }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, itemSponsorsMap]);
+  }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter]);
 
   // Estado para armazenar sponsors originais (do banco de dados)
   const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});

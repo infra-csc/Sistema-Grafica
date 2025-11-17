@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter } from "lucide-react";
 import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -23,6 +24,10 @@ export default function VincularPatrocinadores() {
   const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
+  
+  // Estados de filtro
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "ready" | "completed">("all");
   
   // Estado local para rastrear mudanças pendentes
   const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});
@@ -86,10 +91,55 @@ export default function VincularPatrocinadores() {
     return grouped;
   }, [requestedItems]);
 
+  // Aplicar filtros
+  const filteredEventEntries = useMemo(() => {
+    const entries = Object.entries(itemsByEvent);
+    
+    return entries.filter(([eventId, eventItems]) => {
+      const event = events.find(e => e.id === eventId);
+      if (!event) return false;
+
+      // Filtro de busca (nome do evento ou tipo de item)
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const eventNameMatch = event.name.toLowerCase().includes(query);
+        const itemTypeMatch = eventItems.some(item => 
+          item.type.toLowerCase().includes(query)
+        );
+        if (!eventNameMatch && !itemTypeMatch) return false;
+      }
+
+      // Filtro de status
+      if (statusFilter !== "all") {
+        const hasMatchingItems = eventItems.some(item => {
+          const itemStatus = getItemStatus(item);
+          const hasPendingChanges = pendingChanges[item.id]?.isDirty;
+          
+          if (statusFilter === "pending") {
+            return itemStatus === 'pending' && !hasPendingChanges;
+          } else if (statusFilter === "ready") {
+            return hasPendingChanges;
+          } else if (statusFilter === "completed") {
+            return itemStatus === 'linked' || itemStatus === 'skip';
+          }
+          return false;
+        });
+        
+        if (!hasMatchingItems) return false;
+      }
+
+      return true;
+    });
+  }, [itemsByEvent, events, searchQuery, statusFilter, pendingChanges]);
+
+  // Estado para armazenar sponsors originais (do banco de dados)
+  const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});
+
   // Carregar sponsors de todos os items requested
   useEffect(() => {
     if (requestedItems.length === 0) {
       setItemSponsorsMap({});
+      setOriginalSponsorsMap({});
       return;
     }
 
@@ -112,8 +162,17 @@ export default function VincularPatrocinadores() {
       }), {});
       
       setItemSponsorsMap(newMap);
+      setOriginalSponsorsMap(newMap); // Salvar também como original
     });
   }, [requestedItems]);
+
+  // Helper para comparar arrays de sponsor IDs
+  const areSponsorsEqual = (a: string[], b: string[]): boolean => {
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((id, index) => id === sortedB[index]);
+  };
 
   // Mutation para sincronizar patrocinadores
   const syncItemSponsorsMutation = useMutation({
@@ -132,7 +191,13 @@ export default function VincularPatrocinadores() {
         const itemSponsors = await response.json();
         const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
         
+        // Atualizar tanto o mapa atual quanto o original
         setItemSponsorsMap(prev => ({
+          ...prev,
+          [itemId]: sponsorIds
+        }));
+        
+        setOriginalSponsorsMap(prev => ({
           ...prev,
           [itemId]: sponsorIds
         }));
@@ -240,6 +305,17 @@ export default function VincularPatrocinadores() {
       }
     },
     onSuccess: (_, itemIdsToConfirm) => {
+      // Atualizar originalSponsorsMap com os novos valores confirmados
+      itemIdsToConfirm.forEach(itemId => {
+        const changes = pendingChanges[itemId];
+        if (changes) {
+          setOriginalSponsorsMap(prev => ({
+            ...prev,
+            [itemId]: changes.sponsorIds
+          }));
+        }
+      });
+
       // Limpar estado local apenas dos items confirmados
       setPendingChanges(prev => {
         const newChanges = { ...prev };
@@ -359,9 +435,66 @@ export default function VincularPatrocinadores() {
         </p>
       </div>
 
+      {/* Filtros */}
+      <Card className="mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Busca */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por evento ou item..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-events"
+              />
+            </div>
+
+            {/* Filtro de Status */}
+            <div className="flex gap-2">
+              <Button
+                variant={statusFilter === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("all")}
+                data-testid="button-filter-all"
+              >
+                Todos
+              </Button>
+              <Button
+                variant={statusFilter === "pending" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("pending")}
+                data-testid="button-filter-pending"
+              >
+                Aguardando
+              </Button>
+              <Button
+                variant={statusFilter === "ready" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("ready")}
+                className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-700 dark:text-yellow-500 border-yellow-500/20"
+                data-testid="button-filter-ready"
+              >
+                Prontos
+              </Button>
+              <Button
+                variant={statusFilter === "completed" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setStatusFilter("completed")}
+                className="bg-green-500/10 hover:bg-green-500/20 text-green-700 dark:text-green-500 border-green-500/20"
+                data-testid="button-filter-completed"
+              >
+                Concluídos
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Cards de Eventos - Matriz Visual */}
-      <div className="space-y-8">
-        {Object.entries(itemsByEvent).map(([eventId, eventItems]) => {
+      <div className="space-y-6">
+        {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           const eventSponsors = getEventSponsors(eventId);
           const progress = calculateProgress(eventItems);
@@ -370,74 +503,71 @@ export default function VincularPatrocinadores() {
 
           return (
             <Card key={eventId}>
-              {/* Header do Evento */}
-              <CardHeader className="border-b space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <CardTitle className="text-lg">{event.name}</CardTitle>
-                      <Badge variant="secondary" className="text-xs">
-                        {progress.completed}/{progress.total} items
+              {/* Header do Evento - Compacto */}
+              <CardHeader className="border-b p-4 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CardTitle className="text-base truncate">{event.name}</CardTitle>
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {progress.completed}/{progress.total}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
                       <span>{format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
                       <span>•</span>
-                      <span>Caminhão: {format(new Date(event.truckDepartureDate), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
+                      <Truck className="h-3 w-3" />
+                      <span>{format(new Date(event.truckDepartureDate), "dd/MM HH:mm", { locale: ptBR })}</span>
                     </div>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleOpenSponsorDialog(event)}
-                    className="gap-2"
+                    className="gap-1.5 shrink-0"
                     data-testid={`button-manage-event-sponsors-${event.id}`}
                   >
-                    <Building2 className="h-4 w-4" />
-                    {eventSponsors.length === 0 ? 'Adicionar Patrocinadores' : `${eventSponsors.length} Patrocinador${eventSponsors.length !== 1 ? 'es' : ''}`}
+                    <Building2 className="h-3.5 w-3.5" />
+                    {eventSponsors.length === 0 ? 'Adicionar' : `${eventSponsors.length} Pat.`}
                   </Button>
                 </div>
 
-                {/* Patrocinadores do Evento - Badges */}
+                {/* Patrocinadores do Evento - Badges Compactos */}
                 {eventSponsors.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-xs text-muted-foreground">Patrocinadores disponíveis:</div>
-                    <div className="flex flex-wrap gap-2">
-                      {eventSponsors.map(sponsor => (
-                        <Badge key={sponsor.id} variant="default" className="gap-1">
-                          <Building2 className="h-3 w-3" />
-                          {sponsor.name}
-                        </Badge>
-                      ))}
-                    </div>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {eventSponsors.map(sponsor => (
+                      <Badge key={sponsor.id} variant="secondary" className="text-xs gap-1">
+                        <Building2 className="h-3 w-3" />
+                        {sponsor.name}
+                      </Badge>
+                    ))}
                   </div>
                 )}
 
               </CardHeader>
 
-              {/* Botão de Confirmação */}
+              {/* Botão de Confirmação - Compacto */}
               {Object.keys(pendingChanges).filter(id => 
                 eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
               ).length > 0 && (
-                <div className="px-6 py-4 bg-primary/5 border-y border-primary/20">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-sm">
+                <div className="px-4 py-3 bg-yellow-500/5 border-y border-yellow-500/20">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm">
+                      <span className="font-semibold text-yellow-700 dark:text-yellow-500">
                         {Object.keys(pendingChanges).filter(id => 
                           eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
                         ).length} item{Object.keys(pendingChanges).filter(id => 
                           eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
                         ).length !== 1 ? 's' : ''} pronto{Object.keys(pendingChanges).filter(id => 
                           eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                        ).length !== 1 ? 's' : ''} para confirmar
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Confirme para enviar os items para Arte
-                      </div>
+                        ).length !== 1 ? 's' : ''}
+                      </span>
+                      <span className="text-muted-foreground ml-2">→ Clique para confirmar</span>
                     </div>
                     <Button
-                      size="default"
-                      className="gap-2"
+                      size="sm"
+                      className="gap-2 shrink-0"
                       onClick={() => {
                         const dirtyItemIds = Object.keys(pendingChanges).filter(id => 
                           eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
@@ -448,23 +578,23 @@ export default function VincularPatrocinadores() {
                       data-testid="button-confirm-send-to-arte"
                     >
                       <CheckCircle2 className="h-4 w-4" />
-                      {confirmItemsMutation.isPending ? "Confirmando..." : "Confirmar e Enviar para Arte"}
+                      {confirmItemsMutation.isPending ? "Confirmando..." : "Confirmar"}
                     </Button>
                   </div>
                 </div>
               )}
 
-              {/* Tabela de Items */}
+              {/* Tabela de Items - Compacta */}
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="border-b bg-muted/30">
                       <tr>
-                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Item / Descrição</th>
-                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Detalhes</th>
-                        <th className="p-3 text-left text-xs font-medium text-muted-foreground">Patrocinadores</th>
-                        <th className="p-3 text-center text-xs font-medium text-muted-foreground">Sem Aprovação</th>
-                        <th className="p-3 text-center text-xs font-medium text-muted-foreground">Status</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Item</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Detalhes</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Patrocinadores</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Sem Aprov.</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -482,34 +612,31 @@ export default function VincularPatrocinadores() {
                             }`}
                             data-testid={`item-row-${item.id}`}
                           >
-                            <td className="p-3 min-w-[250px]">
+                            <td className="px-3 py-2 min-w-[200px]">
                               <div>
-                                <div className="font-semibold text-sm text-foreground">{item.type}</div>
+                                <div className="font-medium text-sm text-foreground">{item.type}</div>
                                 {item.description && (
-                                  <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                                  <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                                     {item.description}
                                   </div>
                                 )}
                               </div>
                             </td>
-                            <td className="p-3">
-                              <div className="text-sm">
+                            <td className="px-3 py-2">
+                              <div className="text-xs">
                                 <span className="font-medium">{item.quantity} un</span>
-                                <span className="text-muted-foreground mx-2">•</span>
+                                <span className="text-muted-foreground mx-1.5">•</span>
                                 <span className="text-muted-foreground">{parseFloat(item.calculatedM2).toFixed(2)} m²</span>
                               </div>
                             </td>
-                            <td className="p-3">
+                            <td className="px-3 py-2">
                               {/* Seleção múltipla com CHECKBOXES */}
                               {!item.skipApproval && eventSponsors.length > 0 && (
-                                <div className="space-y-1">
-                                  <div className="text-xs text-muted-foreground mb-2">
-                                    Selecione os patrocinadores (até 6-7):
-                                  </div>
+                                <div className="space-y-0.5">
                                   {eventSponsors.map(sponsor => {
                                     const isLinked = linkedSponsors.includes(sponsor.id);
                                     return (
-                                      <div key={sponsor.id} className="flex items-center gap-2">
+                                      <div key={sponsor.id} className="flex items-center gap-1.5">
                                         <Checkbox
                                           checked={isLinked}
                                           onCheckedChange={(checked) => {
@@ -517,15 +644,30 @@ export default function VincularPatrocinadores() {
                                               ? [...linkedSponsors, sponsor.id]
                                               : linkedSponsors.filter(id => id !== sponsor.id);
                                             
-                                            // Atualizar estado local
-                                            setPendingChanges(prev => ({
-                                              ...prev,
-                                              [item.id]: {
-                                                sponsorIds: newSponsors,
-                                                skipApproval: item.skipApproval || false,
-                                                isDirty: true
+                                            const originalSponsors = originalSponsorsMap[item.id] || [];
+                                            const originalSkipApproval = item.skipApproval || false;
+                                            const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? originalSkipApproval;
+                                            
+                                            const hasChanges = 
+                                              !areSponsorsEqual(newSponsors, originalSponsors) ||
+                                              currentSkipApproval !== originalSkipApproval;
+                                            
+                                            // Atualizar estado local - se não houver mudanças, REMOVER do pendingChanges
+                                            setPendingChanges(prev => {
+                                              if (!hasChanges) {
+                                                const newChanges = { ...prev };
+                                                delete newChanges[item.id];
+                                                return newChanges;
                                               }
-                                            }));
+                                              return {
+                                                ...prev,
+                                                [item.id]: {
+                                                  sponsorIds: newSponsors,
+                                                  skipApproval: currentSkipApproval,
+                                                  isDirty: true
+                                                }
+                                              };
+                                            });
                                             
                                             // Atualizar mapa de patrocinadores (visual)
                                             setItemSponsorsMap(prev => ({
@@ -535,15 +677,15 @@ export default function VincularPatrocinadores() {
                                           }}
                                           data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                         />
-                                        <label className="text-sm cursor-pointer">
+                                        <label className="text-xs cursor-pointer">
                                           {sponsor.name}
                                         </label>
                                       </div>
                                     );
                                   })}
                                   {linkedSponsors.length > 0 && (
-                                    <div className="text-xs text-primary font-medium mt-2">
-                                      {linkedSponsors.length} selecionado{linkedSponsors.length !== 1 ? 's' : ''}
+                                    <div className="text-xs text-primary font-medium mt-1">
+                                      ✓ {linkedSponsors.length} selecionado{linkedSponsors.length !== 1 ? 's' : ''}
                                     </div>
                                   )}
                                 </div>
@@ -559,41 +701,57 @@ export default function VincularPatrocinadores() {
                                 </Badge>
                               )}
                             </td>
-                            <td className="p-3 text-center">
+                            <td className="px-3 py-2 text-center">
                               <Checkbox
                                 checked={item.skipApproval || false}
                                 onCheckedChange={(checked) => {
-                                  // Atualizar estado local
-                                  setPendingChanges(prev => ({
-                                    ...prev,
-                                    [item.id]: {
-                                      sponsorIds: pendingChanges[item.id]?.sponsorIds || linkedSponsors,
-                                      skipApproval: !!checked,
-                                      isDirty: true
+                                  const originalSponsors = originalSponsorsMap[item.id] || [];
+                                  const originalSkipApproval = item.skipApproval || false;
+                                  const currentSponsors = pendingChanges[item.id]?.sponsorIds || linkedSponsors;
+                                  const newSkipApproval = !!checked;
+                                  
+                                  const hasChanges = 
+                                    !areSponsorsEqual(currentSponsors, originalSponsors) ||
+                                    newSkipApproval !== originalSkipApproval;
+                                  
+                                  // Atualizar estado local - se não houver mudanças, REMOVER do pendingChanges
+                                  setPendingChanges(prev => {
+                                    if (!hasChanges) {
+                                      const newChanges = { ...prev };
+                                      delete newChanges[item.id];
+                                      return newChanges;
                                     }
-                                  }));
+                                    return {
+                                      ...prev,
+                                      [item.id]: {
+                                        sponsorIds: currentSponsors,
+                                        skipApproval: newSkipApproval,
+                                        isDirty: true
+                                      }
+                                    };
+                                  });
                                 }}
                                 data-testid={`checkbox-skip-approval-${item.id}`}
                               />
                             </td>
-                            <td className="p-3 text-center">
+                            <td className="px-3 py-2 text-center">
                               {pendingChanges[item.id]?.isDirty ? (
-                                <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20">
-                                  Pronto para confirmar
+                                <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20 text-xs">
+                                  Pronto
                                 </Badge>
                               ) : itemStatus === 'linked' ? (
-                                <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Confirmado
+                                <Badge variant="default" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 text-xs gap-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  OK
                                 </Badge>
                               ) : itemStatus === 'skip' ? (
-                                <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Confirmado
+                                <Badge variant="default" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 text-xs gap-1">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  OK
                                 </Badge>
                               ) : (
                                 <Badge variant="secondary" className="text-xs">
-                                  Pendente
+                                  Aguardando
                                 </Badge>
                               )}
                             </td>

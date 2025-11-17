@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users } from "lucide-react";
 import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -645,6 +646,42 @@ export default function VincularPatrocinadores() {
         </CardContent>
       </Card>
 
+      {/* Botão de Aplicar em Lote */}
+      {selectedItemIds.size > 0 && (
+        <Card className="mb-6 border-primary/50 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+                    <span className="text-sm font-bold text-primary">{selectedItemIds.size}</span>
+                  </div>
+                  <span className="font-medium">
+                    {selectedItemIds.size} item{selectedItemIds.size !== 1 ? 's' : ''} selecionado{selectedItemIds.size !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedItemIds(new Set())}
+                  data-testid="button-clear-selection"
+                >
+                  Limpar seleção
+                </Button>
+              </div>
+              <Button
+                onClick={handleOpenBulkApplyDialog}
+                className="gap-2"
+                data-testid="button-apply-bulk-sponsors"
+              >
+                <Users className="h-4 w-4" />
+                Aplicar Patrocinadores
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Cards de Eventos - Matriz Visual */}
       <div className="space-y-6">
         {filteredEventEntries.map(([eventId, eventItems]) => {
@@ -754,6 +791,13 @@ export default function VincularPatrocinadores() {
                   <table className="w-full">
                     <thead className="border-b bg-muted/30">
                       <tr>
+                        <th className="px-3 py-2 text-center w-[50px]">
+                          <Checkbox
+                            checked={displayedItems.length > 0 && displayedItems.every(item => selectedItemIds.has(item.id))}
+                            onCheckedChange={() => toggleAllItemsInEvent(displayedItems)}
+                            data-testid={`checkbox-select-all-${event.id}`}
+                          />
+                        </th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">ID</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Item</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Detalhes</th>
@@ -778,6 +822,13 @@ export default function VincularPatrocinadores() {
                             }`}
                             data-testid={`item-row-${item.id}`}
                           >
+                            <td className="px-3 py-2 text-center">
+                              <Checkbox
+                                checked={selectedItemIds.has(item.id)}
+                                onCheckedChange={() => toggleItemSelection(item.id)}
+                                data-testid={`checkbox-item-${item.id}`}
+                              />
+                            </td>
                             <td className="px-3 py-2">
                               <div className="text-xs font-mono font-medium text-primary whitespace-nowrap" data-testid={`text-display-id-${item.id}`}>
                                 {item.displayId}
@@ -1017,6 +1068,112 @@ export default function VincularPatrocinadores() {
                 data-testid="button-save-event-sponsors"
               >
                 {manageEventSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para Aplicar Patrocinadores em Lote */}
+      <Dialog open={bulkApplyDialogOpen} onOpenChange={setBulkApplyDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Aplicar Patrocinadores em Lote
+            </DialogTitle>
+            <DialogDescription>
+              Selecione os patrocinadores para aplicar aos {selectedItemIds.size} items selecionados
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Lista de Patrocinadores */}
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              {sponsors.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Nenhum patrocinador cadastrado no sistema
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {sponsors.map((sponsor) => {
+                    const colors = getSponsorColor(sponsor.id, sponsors);
+                    return (
+                      <div 
+                        key={sponsor.id} 
+                        className={`flex items-center space-x-3 p-3 border-2 rounded-lg transition-all cursor-pointer hover-elevate ${
+                          bulkSelectedSponsors.includes(sponsor.id)
+                            ? `border-primary ${colors.bg}` 
+                            : 'border-border bg-background'
+                        }`}
+                        onClick={() => {
+                          if (bulkSelectedSponsors.includes(sponsor.id)) {
+                            setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
+                          } else {
+                            setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
+                          }
+                        }}
+                      >
+                        <Checkbox
+                          id={`bulk-sponsor-${sponsor.id}`}
+                          checked={bulkSelectedSponsors.includes(sponsor.id)}
+                          onCheckedChange={() => {}}
+                          data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
+                        />
+                        <label
+                          htmlFor={`bulk-sponsor-${sponsor.id}`}
+                          className={`text-sm font-medium leading-tight cursor-pointer flex-1 ${colors.text}`}
+                        >
+                          {sponsor.name}
+                          {sponsor.company && (
+                            <span className="text-muted-foreground ml-1">({sponsor.company})</span>
+                          )}
+                        </label>
+                        {bulkSelectedSponsors.includes(sponsor.id) && (
+                          <Check className="h-4 w-4 text-primary shrink-0" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Opção Skip Approval */}
+            <div className="flex items-center justify-between p-3 border-2 rounded-lg bg-muted/30">
+              <div className="flex-1">
+                <label htmlFor="bulk-skip-approval" className="text-sm font-medium cursor-pointer">
+                  Pular aprovação de patrocinadores
+                </label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Items irão direto para produção sem aprovação
+                </p>
+              </div>
+              <Switch
+                id="bulk-skip-approval"
+                checked={bulkSkipApproval}
+                onCheckedChange={setBulkSkipApproval}
+                data-testid="switch-bulk-skip-approval"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t">
+            <p className="text-sm text-muted-foreground">
+              {bulkSelectedSponsors.length} {bulkSelectedSponsors.length === 1 ? 'patrocinador selecionado' : 'patrocinadores selecionados'}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setBulkApplyDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleApplyBulkSponsors}
+                data-testid="button-confirm-bulk-apply"
+              >
+                Aplicar
               </Button>
             </div>
           </div>

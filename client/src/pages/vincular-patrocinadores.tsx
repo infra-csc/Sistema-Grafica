@@ -11,13 +11,21 @@ import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, B
 import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+type ItemChanges = {
+  sponsorIds: string[];
+  skipApproval: boolean;
+  isDirty: boolean;
+};
+
 export default function VincularPatrocinadores() {
   const { toast } = useToast();
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  
+  // Estado local para rastrear mudanças pendentes
+  const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -202,6 +210,55 @@ export default function VincularPatrocinadores() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao atualizar patrocinadores",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para confirmar e enviar items para Arte
+  const confirmItemsMutation = useMutation({
+    mutationFn: async (itemIdsToConfirm: string[]) => {
+      for (const itemId of itemIdsToConfirm) {
+        const changes = pendingChanges[itemId];
+        if (!changes || !changes.isDirty) continue;
+
+        // 1. Sincronizar patrocinadores
+        await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
+          sponsorIds: changes.sponsorIds
+        });
+
+        // 2. Atualizar skipApproval e status
+        const nextStatus = changes.skipApproval 
+          ? "awaiting_creator_review" 
+          : "awaiting_sponsor_approval";
+        
+        await apiRequest("PATCH", `/api/items/${itemId}`, {
+          skipApproval: changes.skipApproval,
+          status: nextStatus
+        });
+      }
+    },
+    onSuccess: (_, itemIdsToConfirm) => {
+      // Limpar estado local apenas dos items confirmados
+      setPendingChanges(prev => {
+        const newChanges = { ...prev };
+        itemIdsToConfirm.forEach(id => {
+          delete newChanges[id];
+        });
+        return newChanges;
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      
+      toast({
+        title: "✅ Items confirmados!",
+        description: `${itemIdsToConfirm.length} item${itemIdsToConfirm.length !== 1 ? 's' : ''} enviado${itemIdsToConfirm.length !== 1 ? 's' : ''} para Arte`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao confirmar items",
         description: error.message,
         variant: "destructive",
       });
@@ -419,6 +476,45 @@ export default function VincularPatrocinadores() {
                 )}
               </CardHeader>
 
+              {/* Botão de Confirmação */}
+              {Object.keys(pendingChanges).filter(id => 
+                eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+              ).length > 0 && (
+                <div className="px-6 py-4 bg-primary/5 border-y border-primary/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-sm">
+                        {Object.keys(pendingChanges).filter(id => 
+                          eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                        ).length} item{Object.keys(pendingChanges).filter(id => 
+                          eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                        ).length !== 1 ? 's' : ''} pronto{Object.keys(pendingChanges).filter(id => 
+                          eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                        ).length !== 1 ? 's' : ''} para confirmar
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Confirme para enviar os items para Arte
+                      </div>
+                    </div>
+                    <Button
+                      size="default"
+                      className="gap-2"
+                      onClick={() => {
+                        const dirtyItemIds = Object.keys(pendingChanges).filter(id => 
+                          eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                        );
+                        confirmItemsMutation.mutate(dirtyItemIds);
+                      }}
+                      disabled={confirmItemsMutation.isPending}
+                      data-testid="button-confirm-send-to-arte"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      {confirmItemsMutation.isPending ? "Confirmando..." : "Confirmar e Enviar para Arte"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {/* Tabela de Items */}
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -489,31 +585,52 @@ export default function VincularPatrocinadores() {
                               </div>
                             </td>
                             <td className="p-3">
+                              {/* Seleção múltipla com CHECKBOXES */}
                               {!item.skipApproval && eventSponsors.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
+                                <div className="space-y-1">
+                                  <div className="text-xs text-muted-foreground mb-2">
+                                    Selecione os patrocinadores (até 6-7):
+                                  </div>
                                   {eventSponsors.map(sponsor => {
                                     const isLinked = linkedSponsors.includes(sponsor.id);
                                     return (
-                                      <Button
-                                        key={sponsor.id}
-                                        size="sm"
-                                        variant={isLinked ? "default" : "outline"}
-                                        onClick={() => {
-                                          const newSponsors = isLinked
-                                            ? linkedSponsors.filter(id => id !== sponsor.id)
-                                            : [...linkedSponsors, sponsor.id];
-                                          syncItemSponsorsMutation.mutate({
-                                            itemId: item.id,
-                                            sponsorIds: newSponsors
-                                          });
-                                        }}
-                                        className="h-7 text-xs gap-1"
-                                      >
-                                        {isLinked && <Check className="h-3 w-3" />}
-                                        {sponsor.name}
-                                      </Button>
+                                      <div key={sponsor.id} className="flex items-center gap-2">
+                                        <Checkbox
+                                          checked={isLinked}
+                                          onCheckedChange={(checked) => {
+                                            const newSponsors = checked
+                                              ? [...linkedSponsors, sponsor.id]
+                                              : linkedSponsors.filter(id => id !== sponsor.id);
+                                            
+                                            // Atualizar estado local
+                                            setPendingChanges(prev => ({
+                                              ...prev,
+                                              [item.id]: {
+                                                sponsorIds: newSponsors,
+                                                skipApproval: item.skipApproval || false,
+                                                isDirty: true
+                                              }
+                                            }));
+                                            
+                                            // Atualizar mapa de patrocinadores (visual)
+                                            setItemSponsorsMap(prev => ({
+                                              ...prev,
+                                              [item.id]: newSponsors
+                                            }));
+                                          }}
+                                          data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
+                                        />
+                                        <label className="text-sm cursor-pointer">
+                                          {sponsor.name}
+                                        </label>
+                                      </div>
                                     );
                                   })}
+                                  {linkedSponsors.length > 0 && (
+                                    <div className="text-xs text-primary font-medium mt-2">
+                                      {linkedSponsors.length} selecionado{linkedSponsors.length !== 1 ? 's' : ''}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               {!item.skipApproval && eventSponsors.length === 0 && (
@@ -531,23 +648,38 @@ export default function VincularPatrocinadores() {
                               <Checkbox
                                 checked={item.skipApproval || false}
                                 onCheckedChange={(checked) => {
-                                  updateItemSkipApprovalMutation.mutate({
-                                    itemId: item.id,
-                                    skipApproval: !!checked
-                                  });
+                                  // Atualizar estado local
+                                  setPendingChanges(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      sponsorIds: pendingChanges[item.id]?.sponsorIds || linkedSponsors,
+                                      skipApproval: !!checked,
+                                      isDirty: true
+                                    }
+                                  }));
                                 }}
                                 data-testid={`checkbox-skip-approval-${item.id}`}
                               />
                             </td>
                             <td className="p-3 text-center">
-                              {itemStatus === 'linked' && (
-                                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-500 inline" />
-                              )}
-                              {itemStatus === 'skip' && (
-                                <Badge variant="secondary" className="text-xs">OK</Badge>
-                              )}
-                              {itemStatus === 'pending' && (
-                                <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 inline" />
+                              {pendingChanges[item.id]?.isDirty ? (
+                                <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20">
+                                  Pronto para confirmar
+                                </Badge>
+                              ) : itemStatus === 'linked' ? (
+                                <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Confirmado
+                                </Badge>
+                              ) : itemStatus === 'skip' ? (
+                                <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Confirmado
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs">
+                                  Pendente
+                                </Badge>
                               )}
                             </td>
                           </tr>

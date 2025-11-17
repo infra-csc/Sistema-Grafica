@@ -24,6 +24,7 @@ The system features a professional light mode theme with a clean white backgroun
 
 ### Feature Specifications
 - **Modules**: General Panel (Dashboard), Events, Items (Event Detail), Art Approval, Printing Control, Templates, Calendar, History, Sponsors, Vincular Patrocinadores (Arte-only).
+- **Display ID System**: Sequential item identification system using format ITEM-0001 to ITEM-9999, automatically generated via PostgreSQL sequence with lazy initialization. Visible in all item tables and detail views across the application (Painel Geral, Arte, Gráfica, Solicitação, Atendimento, Vincular Patrocinadores, and Timeline modal). Provides clear, human-readable tracking throughout the production workflow.
 - **Notifications**: Automated for event creation, item additions, art approval, and deadline alerts (48h, 24h, 12h before truck departure) targeted to specific user roles.
 - **Item Statuses**: `requested`, `awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_creator_review`, `ready_for_production`, `approved`, `inProduction`, `produced`, `delivered`.
 - **Event Statuses**: `created`, `completed`, `urgent`.

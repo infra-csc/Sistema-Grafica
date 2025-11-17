@@ -23,13 +23,15 @@ The system features a professional light mode theme with a clean white backgroun
 - **Date Handling**: `startDate` (date only), `truckDepartureDate` (datetime-local).
 
 ### Feature Specifications
-- **Modules**: General Panel (Dashboard), Events, Items (Event Detail), Art Approval, Printing Control, Templates, Calendar, History, Sponsors.
+- **Modules**: General Panel (Dashboard), Events, Items (Event Detail), Art Approval, Printing Control, Templates, Calendar, History, Sponsors, Vincular Patrocinadores (Arte-only).
 - **Notifications**: Automated for event creation, item additions, art approval, and deadline alerts (48h, 24h, 12h before truck departure) targeted to specific user roles.
 - **Item Statuses**: `requested`, `awaiting_sponsor_approval`, `sponsor_approved`, `awaiting_creator_review`, `ready_for_production`, `approved`, `inProduction`, `produced`, `delivered`.
 - **Event Statuses**: `created`, `completed`, `urgent`.
 - **User Authentication & Access Control**: Full login/logout, Bcryptjs for passwords, mandatory first-time password change, user management (Admin), 5 user profiles (Admin, Solicitation, Art, Graphics, Atendimento) with route protection and `hasPermission()` checks.
-- **Multi-Stage Approval Workflow**: Events can have multiple sponsors; items link to a single sponsor (optional); sponsor approval required before creator review; Arte uploads approval thumbs and final files; creator reviews and releases to production. Draft review system allows bulk submission of new items to Arte.
-- **Sponsor Management**: Full CRUD for sponsors (admin-only); events support multi-sponsor selection; items support single sponsor selection. Client management has been removed in favor of direct sponsor linking.
+- **Multi-Stage Approval Workflow**: Events can have multiple sponsors; items support many-to-many sponsor linking (done by Arte profile); sponsor approval required before creator review; Arte uploads approval thumbs and final files; creator reviews and releases to production. Draft review system allows bulk submission of new items to Arte.
+- **Sponsor Linking Workflow**: Solicitação creates items (status: requested) WITHOUT sponsor assignment → Arte links sponsors via dedicated page `/vincular-patrocinadores` → Solicitação sends items to Arte (status change) → Normal approval workflow continues.
+- **Sponsor Management**: Full CRUD for sponsors (admin-only); events support multi-sponsor selection; items support many-to-many sponsor selection (via Arte profile only). Client management has been removed in favor of direct sponsor linking.
+- **Vincular Patrocinadores Page**: Dedicated page accessible only to Arte and Admin profiles where Arte team links sponsors to requested items before they enter production workflow. Organizes items by event for easy batch processing.
 - **Audit Logs**: Automatic logging of significant actions (event/item creation, approval, delivery) including user, timestamp, action, entity type/ID, and details, viewable in History and Event Details.
 - **Admin Edit/Delete**: Functionality for Admin users to edit and delete events and items with corresponding audit logs and confirmation dialogs.
 - **Event Priority System**: Events can have priorities (Low, Medium, High, Urgent), displayed visually with badges and influencing calendar coloring.

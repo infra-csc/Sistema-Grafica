@@ -680,6 +680,7 @@ export default function VincularPatrocinadores() {
                       {displayedItems.map(item => {
                         const itemStatus = getItemStatus(item);
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
+                        const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
 
                         return (
                           <tr
@@ -710,7 +711,7 @@ export default function VincularPatrocinadores() {
                             </td>
                             <td className="px-3 py-2">
                               {/* Seleção múltipla com CHECKBOXES */}
-                              {!item.skipApproval && eventSponsors.length > 0 && (
+                              {!currentSkipApproval && eventSponsors.length > 0 && (
                                 <div className="space-y-0.5">
                                   {eventSponsors.map(sponsor => {
                                     const isLinked = linkedSponsors.includes(sponsor.id);
@@ -770,12 +771,12 @@ export default function VincularPatrocinadores() {
                                   )}
                                 </div>
                               )}
-                              {!item.skipApproval && eventSponsors.length === 0 && (
+                              {!currentSkipApproval && eventSponsors.length === 0 && (
                                 <span className="text-xs text-muted-foreground italic">
                                   Adicione patrocinadores ao evento
                                 </span>
                               )}
-                              {item.skipApproval && (
+                              {currentSkipApproval && (
                                 <Badge variant="secondary" className="text-xs">
                                   Sem patrocinador
                                 </Badge>
@@ -783,7 +784,7 @@ export default function VincularPatrocinadores() {
                             </td>
                             <td className="px-3 py-2 text-center">
                               <Checkbox
-                                checked={item.skipApproval || false}
+                                checked={currentSkipApproval}
                                 onCheckedChange={(checked) => {
                                   const originalSponsors = originalSponsorsMap[item.id] || [];
                                   const originalSkipApproval = item.skipApproval || false;

@@ -120,6 +120,47 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  private displayIdSequenceInitialized: Promise<void> | null = null;
+
+  private async ensureDisplayIdSequence(): Promise<void> {
+    // Lazy initialization - apenas inicializa uma vez
+    if (this.displayIdSequenceInitialized) {
+      return this.displayIdSequenceInitialized;
+    }
+
+    this.displayIdSequenceInitialized = (async () => {
+      try {
+        // Verificar se sequence já existe
+        const seqExists = await db.execute(sql`
+          SELECT 1 FROM pg_sequences 
+          WHERE schemaname = 'public' AND sequencename = 'item_display_id_seq'
+        `);
+
+        if (seqExists.rows.length > 0) {
+          return; // Sequence já existe
+        }
+
+        // Calcular próximo ID baseado nos items existentes
+        const maxIdResult = await db.execute(sql`
+          SELECT MAX(CAST(SUBSTRING(display_id FROM 'ITEM-(\\d+)') AS INTEGER)) as max_num
+          FROM items
+          WHERE display_id ~ '^ITEM-\\d+$'
+        `);
+
+        const maxNum = maxIdResult.rows[0]?.max_num;
+        const startValue = maxNum != null && Number(maxNum) > 0 ? Number(maxNum) + 1 : 1;
+
+        // Criar sequence com valor inicial dinâmico
+        await db.execute(sql`CREATE SEQUENCE item_display_id_seq START WITH ${startValue}`);
+      } catch (error) {
+        console.error('Erro ao criar sequence item_display_id_seq:', error);
+        throw error; // Re-throw para que a promise seja rejeitada
+      }
+    })();
+
+    return this.displayIdSequenceInitialized;
+  }
+
   // Events
   async getEvent(id: string): Promise<Event | undefined> {
     const [event] = await db.select().from(events).where(eq(events.id, id));
@@ -203,30 +244,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   private async generateNextDisplayId(): Promise<string> {
-    // Buscar o maior displayId existente
-    const result = await db
-      .select({ displayId: items.displayId })
-      .from(items)
-      .orderBy(desc(items.displayId))
-      .limit(1);
+    // Garantir que a sequence existe antes de usar (lazy initialization)
+    await this.ensureDisplayIdSequence();
     
-    if (result.length === 0 || !result[0].displayId) {
-      return 'ITEM-001';
-    }
+    // Usar sequence PostgreSQL para garantir thread-safety
+    // A sequence é auto-incrementada atomicamente, sem race conditions
+    const result = await db.execute(sql`SELECT nextval('item_display_id_seq') as next_id`);
+    const nextNumber = Number(result.rows[0].next_id);
     
-    // Extrair número do displayId (ex: ITEM-057 -> 57)
-    const lastId = result[0].displayId;
-    const match = lastId.match(/ITEM-(\d+)/);
-    
-    if (!match) {
-      return 'ITEM-001';
-    }
-    
-    const lastNumber = parseInt(match[1], 10);
-    const nextNumber = lastNumber + 1;
-    
-    // Formatar com zero-padding (ex: 58 -> ITEM-058)
-    return `ITEM-${String(nextNumber).padStart(3, '0')}`;
+    // Formatar com zero-padding (ex: 58 -> ITEM-0058)
+    // Suporta até ITEM-9999 (4 dígitos)
+    return `ITEM-${String(nextNumber).padStart(4, '0')}`;
   }
 
   async createItem(insertItem: InsertItem): Promise<Item> {
@@ -250,21 +278,11 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
     
-    // Gerar displayIds sequenciais para todos os items
+    // Gerar displayIds sequencialmente usando a mesma função de createItem
+    // Isso garante consistência e robustez (sequence é atômica)
     const displayIds: string[] = [];
     for (let i = 0; i < insertItems.length; i++) {
-      // Para items em bulk, gerar IDs sequenciais
-      if (i === 0) {
-        displayIds.push(await this.generateNextDisplayId());
-      } else {
-        // Incrementar do último gerado
-        const lastId = displayIds[i - 1];
-        const match = lastId.match(/ITEM-(\d+)/);
-        if (match) {
-          const nextNumber = parseInt(match[1], 10) + 1;
-          displayIds.push(`ITEM-${String(nextNumber).padStart(3, '0')}`);
-        }
-      }
+      displayIds.push(await this.generateNextDisplayId());
     }
     
     const normalizedItems = insertItems.map((item, index) => ({

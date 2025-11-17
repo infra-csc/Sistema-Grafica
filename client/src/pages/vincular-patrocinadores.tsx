@@ -341,6 +341,8 @@ export default function VincularPatrocinadores() {
         });
 
         // 2. Atualizar skipApproval e status
+        // Se skipApproval = true, pula aprovação de patrocinador mas ainda passa por revisão do criador
+        // Se skipApproval = false, vai para aprovação do patrocinador primeiro
         const nextStatus = changes.skipApproval 
           ? "awaiting_creator_review" 
           : "awaiting_sponsor_approval";

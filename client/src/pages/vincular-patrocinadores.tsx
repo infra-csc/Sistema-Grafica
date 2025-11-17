@@ -33,10 +33,25 @@ export default function VincularPatrocinadores() {
   // Filtrar apenas eventos futuros (data de início >= hoje)
   const events = useMemo(() => {
     const today = startOfDay(new Date());
-    return rawEvents.filter(event => {
+    console.log('📅 FILTRO DE EVENTOS - Data de hoje:', today);
+    
+    const filtered = rawEvents.filter(event => {
       const eventStartDate = startOfDay(new Date(event.startDate));
-      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
+      const shouldShow = isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
+      
+      console.log(`  📌 Evento "${event.name}":`, {
+        startDate: event.startDate,
+        startDateParsed: eventStartDate,
+        shouldShow,
+        isAfter: isAfter(eventStartDate, today),
+        isSameDay: eventStartDate.getTime() === today.getTime()
+      });
+      
+      return shouldShow;
     });
+    
+    console.log(`✅ ${filtered.length} de ${rawEvents.length} eventos passaram no filtro`);
+    return filtered;
   }, [rawEvents]);
 
   // Filtrar apenas items em status "requested"

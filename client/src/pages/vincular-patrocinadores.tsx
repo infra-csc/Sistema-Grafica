@@ -815,8 +815,9 @@ export default function VincularPatrocinadores() {
                       <tr>
                         <th className="px-3 py-2 text-center w-[50px]">
                           <Checkbox
-                            checked={displayedItems.length > 0 && displayedItems.every(item => selectedItemIds.has(item.id))}
-                            onCheckedChange={() => toggleAllItemsInEvent(displayedItems)}
+                            checked={displayedItems.filter(item => getItemEditability(item)).length > 0 && displayedItems.filter(item => getItemEditability(item)).every(item => selectedItemIds.has(item.id))}
+                            onCheckedChange={() => toggleAllItemsInEvent(displayedItems.filter(item => getItemEditability(item)))}
+                            disabled={displayedItems.filter(item => getItemEditability(item)).length === 0}
                             data-testid={`checkbox-select-all-${event.id}`}
                           />
                         </th>
@@ -833,6 +834,7 @@ export default function VincularPatrocinadores() {
                         const itemStatus = getItemStatus(item);
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
                         const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
+                        const isEditable = getItemEditability(item);
 
                         return (
                           <tr
@@ -841,13 +843,14 @@ export default function VincularPatrocinadores() {
                               itemStatus === 'linked' || itemStatus === 'skip'
                                 ? 'bg-green-50/50 dark:bg-green-900/10'
                                 : ''
-                            }`}
+                            } ${!isEditable ? 'opacity-60' : ''}`}
                             data-testid={`item-row-${item.id}`}
                           >
                             <td className="px-3 py-2 text-center">
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
-                                onCheckedChange={() => toggleItemSelection(item.id)}
+                                onCheckedChange={() => isEditable && toggleItemSelection(item.id)}
+                                disabled={!isEditable}
                                 data-testid={`checkbox-item-${item.id}`}
                               />
                             </td>
@@ -884,7 +887,10 @@ export default function VincularPatrocinadores() {
                                       <div key={sponsor.id} className="flex items-center gap-1.5">
                                         <Checkbox
                                           checked={isLinked}
+                                          disabled={!isEditable}
                                           onCheckedChange={(checked) => {
+                                            if (!isEditable) return;
+                                            
                                             const newSponsors = checked
                                               ? [...linkedSponsors, sponsor.id]
                                               : linkedSponsors.filter(id => id !== sponsor.id);
@@ -922,7 +928,7 @@ export default function VincularPatrocinadores() {
                                           }}
                                           data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                         />
-                                        <label className={`text-xs cursor-pointer font-medium ${colors.text}`}>
+                                        <label className={`text-xs font-medium ${colors.text} ${!isEditable ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
                                           {sponsor.name}
                                         </label>
                                       </div>
@@ -949,7 +955,10 @@ export default function VincularPatrocinadores() {
                             <td className="px-3 py-2 text-center">
                               <Checkbox
                                 checked={currentSkipApproval}
+                                disabled={!isEditable}
                                 onCheckedChange={(checked) => {
+                                  if (!isEditable) return;
+                                  
                                   const originalSponsors = originalSponsorsMap[item.id] || [];
                                   const originalSkipApproval = item.skipApproval || false;
                                   const currentSponsors = pendingChanges[item.id]?.sponsorIds || linkedSponsors;
@@ -980,7 +989,12 @@ export default function VincularPatrocinadores() {
                               />
                             </td>
                             <td className="px-3 py-2 text-center">
-                              {pendingChanges[item.id]?.isDirty ? (
+                              {!isEditable ? (
+                                <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 text-xs gap-1">
+                                  <Check className="h-3 w-3" />
+                                  Aprovado
+                                </Badge>
+                              ) : pendingChanges[item.id]?.isDirty ? (
                                 <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20 text-xs">
                                   Pronto
                                 </Badge>

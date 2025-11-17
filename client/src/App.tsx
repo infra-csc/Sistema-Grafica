@@ -27,6 +27,7 @@ import Grafica from "@/pages/grafica";
 import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
 import Historico from "@/pages/historico";
+import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -124,6 +125,9 @@ function Router() {
       </Route>
       <Route path="/arte">
         {() => <ProtectedRoute component={Arte} />}
+      </Route>
+      <Route path="/vincular-patrocinadores">
+        {() => <RoleProtectedRoute component={VincularPatrocinadores} allowedRoles={["arte", "admin"]} />}
       </Route>
       <Route path="/atendimento">
         {() => <RoleProtectedRoute component={Atendimento} allowedRoles={["atendimento", "admin"]} />}

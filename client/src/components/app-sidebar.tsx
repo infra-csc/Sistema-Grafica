@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck } from "lucide-react";
+import { Calendar, CheckCircle, Factory, FileText, Home, Layers, LayoutDashboard, Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck, Link2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -28,6 +28,12 @@ const menuItems = [
     title: "Arte",
     url: "/arte",
     icon: CheckCircle,
+  },
+  {
+    title: "Vincular Patrocinadores",
+    url: "/vincular-patrocinadores",
+    icon: Link2,
+    roles: ["arte", "admin"],
   },
   {
     title: "Atendimento",

@@ -1203,127 +1203,22 @@ export default function EventDetail() {
         </div>
       </div>
 
-      {/* Seção de Preparação para Arte - Itens em Rascunho */}
+      {/* Botão para enviar todos os items para Arte */}
       {items.filter(item => item.status === 'requested').length > 0 && (
-        <Card className="border-2 border-primary/30 bg-primary/5">
-          <CardHeader>
+        <Card className="border-2 border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Preparar Envio para Arte</CardTitle>
-                <Badge variant="default" className="ml-2">
-                  {items.filter(item => item.status === 'requested').length} {items.filter(item => item.status === 'requested').length === 1 ? 'item pendente' : 'itens pendentes'}
-                </Badge>
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Configure os patrocinadores e envie os itens para Arte quando estiver pronto
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {items
-              .filter(item => item.status === 'requested')
-              .sort((a, b) => a.type.localeCompare(b.type))
-              .map(item => (
-                <div key={item.id} className="p-4 border-2 rounded-lg bg-background">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Package className="h-5 w-5 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold">{item.type}</span>
-                            {item.description && (
-                              <span className="text-sm text-muted-foreground">— {item.description}</span>
-                            )}
-                          </div>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {item.quantity} {item.quantity === 1 ? 'un' : 'uns'} • {item.material} • {item.finish} • {parseFloat(item.calculatedM2).toFixed(2)}m²
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Seleção de Patrocinadores para o Item */}
-                      <div className="pl-[52px] space-y-2">
-                        <Label className="text-xs font-semibold uppercase text-muted-foreground">
-                          Patrocinadores
-                        </Label>
-                        {sponsors.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">
-                            Nenhum patrocinador disponível. Vincule patrocinadores ao evento primeiro.
-                          </p>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-2">
-                            {sponsors.map((sponsor) => (
-                              <div 
-                                key={sponsor.id} 
-                                className="flex items-center space-x-2 p-2 border rounded-md bg-card"
-                              >
-                                <Checkbox
-                                  id={`prep-${item.id}-${sponsor.id}`}
-                                  checked={itemSponsorsMap[item.id]?.includes(sponsor.id) || false}
-                                  onCheckedChange={(checked) => {
-                                    const currentSponsors = itemSponsorsMap[item.id] || [];
-                                    const newSponsors = checked
-                                      ? [...currentSponsors, sponsor.id]
-                                      : currentSponsors.filter(id => id !== sponsor.id);
-                                    
-                                    syncItemSponsorsMutation.mutate({
-                                      itemId: item.id,
-                                      sponsorIds: newSponsors
-                                    });
-                                  }}
-                                  data-testid={`checkbox-prep-${item.id}-sponsor-${sponsor.id}`}
-                                />
-                                <label
-                                  htmlFor={`prep-${item.id}-${sponsor.id}`}
-                                  className="text-sm font-medium leading-none cursor-pointer flex-1"
-                                >
-                                  {sponsor.name}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Checkbox Sem Aprovação */}
-                        <div className="flex items-start space-x-2 pt-2 border-t mt-3">
-                          <Checkbox
-                            id={`skip-approval-${item.id}`}
-                            checked={item.skipApproval || false}
-                            onCheckedChange={(checked) => {
-                              updateItemSkipApprovalMutation.mutate({
-                                itemId: item.id,
-                                skipApproval: !!checked
-                              });
-                            }}
-                            data-testid={`checkbox-skip-approval-${item.id}`}
-                          />
-                          <div className="grid gap-1 leading-none">
-                            <label
-                              htmlFor={`skip-approval-${item.id}`}
-                              className="text-xs font-medium cursor-pointer"
-                            >
-                              Sem Aprovação de Patrocinador
-                            </label>
-                            <p className="text-xs text-muted-foreground">
-                              Pular etapa de aprovação e enviar direto para revisão
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-900">
+                    {items.filter(item => item.status === 'requested').length} {items.filter(item => item.status === 'requested').length === 1 ? 'item aguardando' : 'itens aguardando'} vinculação de patrocinadores
+                  </p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    A equipe de Arte deve vincular os patrocinadores antes de você enviar os items para aprovação.
+                  </p>
                 </div>
-              ))}
-            
-            {/* Botão para enviar todos os items para Arte */}
-            <div className="pt-4 border-t flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {items.filter(item => item.status === 'requested').length} {items.filter(item => item.status === 'requested').length === 1 ? 'item pronto' : 'itens prontos'} para enviar
-              </p>
+              </div>
               <Button
                 onClick={() => submitDraftsMutation.mutate()}
                 disabled={submitDraftsMutation.isPending || items.filter(item => item.status === 'requested').length === 0}
@@ -1338,7 +1233,7 @@ export default function EventDetail() {
                 ) : (
                   <>
                     <Check className="h-4 w-4" />
-                    Confirmar e Enviar Todos para Arte
+                    Enviar para Arte
                   </>
                 )}
               </Button>

@@ -542,11 +542,21 @@ export default function VincularPatrocinadores() {
     const changes = pendingChanges[item.id];
     const linkedSponsors = itemSponsorsMap[item.id] || [];
     
-    // Se há mudanças pendentes, verificar skipApproval nelas
-    if (changes?.skipApproval) return 'skip';
+    // Se há mudanças pendentes (não salvas), verificar skipApproval nelas
+    if (changes?.isDirty && changes?.skipApproval) return 'skip';
     
-    if (linkedSponsors.length === 0) return 'pending';
-    return 'linked';
+    // Se há mudanças pendentes (não salvas) e tem patrocinadores, mostrar como linked
+    if (changes?.isDirty && linkedSponsors.length > 0) return 'linked';
+    
+    // Se não há mudanças pendentes, verificar o estado atual
+    // Só marcar como 'skip' ou 'linked' se o item ainda está em status 'requested'
+    // (itens em outros status já foram processados)
+    if (item.status === 'requested') {
+      if (item.skipApproval) return 'skip';
+      if (linkedSponsors.length > 0) return 'linked';
+    }
+    
+    return 'pending';
   };
 
   const calculateProgress = (eventItems: any[]) => {

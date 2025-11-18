@@ -539,8 +539,12 @@ export default function VincularPatrocinadores() {
 
   // Calcular progresso
   const getItemStatus = (item: any) => {
+    const changes = pendingChanges[item.id];
     const linkedSponsors = itemSponsorsMap[item.id] || [];
-    if (item.skipApproval) return 'skip';
+    
+    // Se há mudanças pendentes, verificar skipApproval nelas
+    if (changes?.skipApproval) return 'skip';
+    
     if (linkedSponsors.length === 0) return 'pending';
     return 'linked';
   };

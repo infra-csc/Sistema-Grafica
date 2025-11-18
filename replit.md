@@ -8,12 +8,13 @@ NORTE is a comprehensive graphic production management system designed for NORTE
   - Solicitado (requested): Yellow
   - Aguardando Patrocinador (awaiting_sponsor_approval): Orange
   - Patrocinador Aprovou (sponsor_approved): Blue
-  - Aguardando Criador (awaiting_creator_review): Purple
+  - Aguardando Direção de Arte (awaiting_creator_review): Purple
   - Pronto p/ Produção (ready_for_production): Cyan
   - Liberado (approved): Green
   - Em Produção (inProduction): Production color
-  - Produzido (produced): Emerald
-  - Entregue (delivered): Completed color
+  - Produzido (produced): Teal (distinct from green)
+  - Entregue (delivered): Completed green
+- **Terminology Update**: Renamed "Aguardando Criador" to "Aguardando Direção de Arte" to better reflect the art approval workflow.
 - **Status Badge Bug Fix**: Corrected issue where items with `skip_approval=true` in database were incorrectly showing as "Pronto" (pending) in Vincular Patrocinadores page. Badge status now correctly checks only original database values.
 - **Painel Geral Data Loading**: Fixed query key from `/api/items/global` to `/api/items` to properly load all items with event data.
 - **Display ID Visibility**: Confirmed Display IDs (#XXXX format) are properly displayed across all views including Painel Geral, with monospace font and primary color styling.

@@ -7,12 +7,11 @@ NORTE is a comprehensive graphic production management system designed for NORTE
 - **Enhanced Audit Logging System**: Comprehensive improvements to status transition tracking:
   - **Status Translation Helper**: Complete `translateStatus()` function covers all 15+ status codes (including draft, canceled, archived, legacy statuses) with Portuguese labels
   - **Accurate Transition Logging**: All status-change endpoints (PATCH /items/:id, submit-for-approval, sponsor-approve, submit-final-file, creator-review, deliver, bulk-submit) now log transitions using persisted values (before/after comparison) in format "Status alterado: [Portuguese Label] → [Portuguese Label]"
-  - **Visual History Highlighting**: Timeline in item details dialog detects status transitions via regex and renders with:
-    - Status origin in outline badge with muted background
-    - Bold primary-colored arrow (→) separator
-    - Status destination in default badge (highlighted)
-    - Supplemental info (e.g., "aprovado pelo patrocinador") in italics with proper parentheses
-  - **Backward Compatible**: Legacy status codes properly translated and displayed
+  - **Visual History Highlighting**: Timeline in item details dialog detects and renders multiple log formats:
+    - **New format** ("Status alterado: X → Y"): Origin badge (outline/muted) + arrow (→) + destination badge (highlighted) + supplemental info in italics
+    - **Legacy approved format** ("aprovado para produção/pelo patrocinador"): Status badge showing final state ("Pronto p/ Produção" or "Aguardando Finalização")
+    - **Legacy delivered format** ("entregue - Recebido por: X"): Badge "Entregue" + recipient info in italics
+  - **Backward Compatible**: All legacy log formats from historical data are properly detected and rendered with colored badges, ensuring consistent visual experience across old and new audit entries
 - **Complete Workflow Status Restructure**: Implemented comprehensive status system with distinct colors for each workflow stage to eliminate confusion:
   1. **Solicitado** (requested): Yellow - Item criado
   2. **Aguardando Vinculação** (awaiting_linking): Orange - Precisa vincular patrocinadores

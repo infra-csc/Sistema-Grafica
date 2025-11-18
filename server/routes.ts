@@ -923,23 +923,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ============ ITEMS ============
 
-  // Get all items with event data
+  // Get all items with event data and sponsors
   app.get("/api/items", async (req, res) => {
     try {
       const allItems = await storage.getAllItems();
       
-      // Fetch event for each item
-      const itemsWithEvents = await Promise.all(
+      // Fetch event and sponsors for each item
+      const itemsWithEventsAndSponsors = await Promise.all(
         allItems.map(async (item) => {
           const event = await storage.getEvent(item.eventId);
+          
+          // Buscar sponsors do item
+          const itemSponsors = await storage.getItemSponsors(item.id);
+          
+          // Fazer lookup dos dados completos dos sponsors
+          const sponsors = await Promise.all(
+            itemSponsors.map(async (is: any) => {
+              const sponsor = await storage.getSponsor(is.sponsorId);
+              return sponsor;
+            })
+          );
+          
           return {
             ...item,
             event,
+            sponsors: sponsors.filter(Boolean), // Remove nulls
           };
         })
       );
       
-      res.json(itemsWithEvents);
+      res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

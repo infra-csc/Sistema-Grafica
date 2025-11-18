@@ -58,8 +58,6 @@ export default function EventDetail() {
   const [customTypeInput, setCustomTypeInput] = useState("");
   const [customMaterialInput, setCustomMaterialInput] = useState("");
   const [customFinishInput, setCustomFinishInput] = useState("");
-  const [sponsorsDialogOpen, setSponsorsDialogOpen] = useState(false);
-  const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [linkItemsDialogOpen, setLinkItemsDialogOpen] = useState(false);
   const [selectedSponsorForLinking, setSelectedSponsorForLinking] = useState<Sponsor | null>(null);
   const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
@@ -339,46 +337,6 @@ export default function EventDetail() {
     },
   });
 
-  const manageSponsorsMutation = useMutation({
-    mutationFn: async (sponsorIds: string[]) => {
-      // Buscar patrocinadores atuais do evento
-      const currentSponsorsRes = await apiRequest("GET", `/api/events/${eventId}/sponsors`);
-      const currentSponsors = await currentSponsorsRes.json();
-      const currentSponsorIds = currentSponsors.map((es: any) => es.sponsorId);
-      
-      // Calcular operações necessárias
-      const toRemove = currentSponsorIds.filter((id: string) => !sponsorIds.includes(id));
-      const toAdd = sponsorIds.filter((id: string) => !currentSponsorIds.includes(id));
-      
-      // Executar todas as operações em paralelo
-      const operations = [
-        ...toRemove.map((sponsorId: string) =>
-          apiRequest("DELETE", `/api/events/${eventId}/sponsors/${sponsorId}`)
-        ),
-        ...toAdd.map((sponsorId: string) =>
-          apiRequest("POST", `/api/events/${eventId}/sponsors`, { sponsorId })
-        ),
-      ];
-      
-      await Promise.all(operations);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId, "sponsors"] });
-      setSponsorsDialogOpen(false);
-      toast({
-        title: "Patrocinadores atualizados",
-        description: "Os patrocinadores do evento foram atualizados com sucesso",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao atualizar patrocinadores",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const linkItemsToSponsorMutation = useMutation({
     mutationFn: async ({ itemIds, sponsorId }: { itemIds: string[], sponsorId: string }) => {
       const operations = itemIds.map((id) =>
@@ -551,17 +509,6 @@ export default function EventDetail() {
       skipApproval: false,
     });
     setOpen(false);
-  };
-
-  const handleOpenSponsorsDialog = () => {
-    // Inicializar com os patrocinadores atuais do evento
-    const currentSponsorIds = sponsors.map(s => s.id);
-    setSelectedSponsorIds(currentSponsorIds);
-    setSponsorsDialogOpen(true);
-  };
-
-  const handleSaveSponsors = () => {
-    manageSponsorsMutation.mutate(selectedSponsorIds);
   };
 
   if (loadingEvent || loadingItems) {
@@ -1140,134 +1087,6 @@ export default function EventDetail() {
           </CardContent>
         </Card>
       )}
-
-      {/* Card de Patrocinadores */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Patrocinadores do Evento
-            </CardTitle>
-            <Dialog open={sponsorsDialogOpen} onOpenChange={setSponsorsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" onClick={handleOpenSponsorsDialog} data-testid="button-manage-sponsors">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Gerenciar Patrocinadores
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Gerenciar Patrocinadores do Evento</DialogTitle>
-                  <DialogDescription>
-                    Selecione os patrocinadores associados a este evento
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  {allSponsors.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Nenhum patrocinador cadastrado. <Link href="/patrocinadores" className="text-primary hover:underline">Cadastre agora</Link>
-                    </p>
-                  ) : (
-                    <div className="border rounded-md p-3 space-y-2 max-h-60 overflow-y-auto">
-                      {allSponsors.map((sponsor) => (
-                        <div key={sponsor.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`event-sponsor-${sponsor.id}`}
-                            checked={selectedSponsorIds.includes(sponsor.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
-                              } else {
-                                setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
-                              }
-                            }}
-                            data-testid={`checkbox-event-sponsor-${sponsor.id}`}
-                          />
-                          <label
-                            htmlFor={`event-sponsor-${sponsor.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                          >
-                            {sponsor.name}
-                            {sponsor.company && <span className="text-muted-foreground ml-1">({sponsor.company})</span>}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex gap-2 justify-end">
-                    <Button type="button" variant="outline" onClick={() => setSponsorsDialogOpen(false)} data-testid="button-cancel-sponsors">
-                      Cancelar
-                    </Button>
-                    <Button 
-                      type="button"
-                      onClick={handleSaveSponsors}
-                      disabled={manageSponsorsMutation.isPending}
-                      data-testid="button-save-sponsors"
-                    >
-                      {manageSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {sponsors.length === 0 ? (
-            <div className="text-center py-8">
-              <Building2 className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-sm text-muted-foreground">Nenhum patrocinador vinculado a este evento</p>
-              <p className="text-xs text-muted-foreground mt-1">Clique em "Gerenciar Patrocinadores" para adicionar</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {sponsors.map((sponsor) => {
-                const linkedItemsCount = items.filter(item => item.sponsorId === sponsor.id).length;
-                return (
-                  <div 
-                    key={sponsor.id} 
-                    className="flex items-center justify-between p-4 border rounded-lg bg-card hover-elevate"
-                    data-testid={`card-sponsor-${sponsor.id}`}
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Building2 className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{sponsor.name}</div>
-                        {sponsor.company && (
-                          <div className="text-xs text-muted-foreground truncate">{sponsor.company}</div>
-                        )}
-                        {linkedItemsCount > 0 && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <Badge variant="secondary" className="text-xs px-2 py-0">
-                              {linkedItemsCount} {linkedItemsCount === 1 ? 'item vinculado' : 'itens vinculados'}
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedSponsorForLinking(sponsor);
-                        setLinkItemsDialogOpen(true);
-                      }}
-                      className="ml-2 flex-shrink-0"
-                      data-testid={`button-link-items-${sponsor.id}`}
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Vincular Itens
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Card de Itens em Rascunho */}
       {items.filter(item => item.status === 'draft').length > 0 && (

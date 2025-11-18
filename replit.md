@@ -4,6 +4,19 @@
 NORTE is a comprehensive graphic production management system designed for NORTE Marketing Esportivo. Its primary purpose is to replace Excel-based workflows, significantly enhancing agility, control, and traceability across the entire production lifecycle: Request → Art → Printing → Delivery. The system aims to streamline operations, provide real-time oversight, and ensure timely communication and automatic notifications at every stage. Key ambitions include improving operational efficiency, ensuring timely project completion, and providing a robust, scalable platform for managing graphic production.
 
 ## Recent Changes (November 18, 2025)
+- **Event Detail Page - Item Details Dialog**: Implemented comprehensive item details dialog with clickable table rows:
+  - **Clickable Rows**: Item table rows open detailed information dialog on click (cursor-pointer styling)
+  - **Dialog Structure**: Display ID (monospace, primary color), StatusBadge, event metadata, comprehensive cards for specifications, production data, sponsors, observations, and action history timeline
+  - **Sponsor Display**: Card showing sponsor names in badges (NO logos) with count in title, only appears when sponsors are linked
+  - **Stop Propagation**: Edit/Delete admin buttons use `e.stopPropagation()` to prevent opening details dialog
+  - **Audit History**: Timeline view with formatted dates, action badges, user attribution, and detailed log messages
+  - **Responsive Layout**: Max-width 6xl dialog with grid layout for cards, optimized for desktop viewing
+- **Data Fetching Improvements**: All item endpoints now include sponsor data in response:
+  - `/api/items` (Painel Geral)
+  - `/api/items/:eventId` (Event Detail)
+  - `/api/items/pending` (Arte Approval)
+  - `/api/items/approved` (Gráfica)
+- **Sponsor Display Cleanup**: Removed sponsor badges from event detail page table (now shows "—" in Patrocinador column), sponsors visible only in details dialog
 - **Enhanced Audit Logging System**: Comprehensive improvements to status transition tracking:
   - **Status Translation Helper**: Complete `translateStatus()` function covers all 15+ status codes (including draft, canceled, archived, legacy statuses) with Portuguese labels
   - **Accurate Transition Logging**: All status-change endpoints (PATCH /items/:id, submit-for-approval, sponsor-approve, submit-final-file, creator-review, deliver, bulk-submit) now log transitions using persisted values (before/after comparison) in format "Status alterado: [Portuguese Label] → [Portuguese Label]"

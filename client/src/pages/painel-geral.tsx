@@ -16,6 +16,9 @@ export default function PainelGeral() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [sponsorFilter, setSponsorFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("all");
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
   const { data: items = [], isLoading } = useQuery<any[]>({
@@ -28,10 +31,18 @@ export default function PainelGeral() {
     placeholderData: [],
   });
 
+  const { data: sponsors = [] } = useQuery<any[]>({
+    queryKey: ["/api/sponsors"],
+    placeholderData: [],
+  });
+
   const { data: auditLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/audit-logs"],
     placeholderData: [],
   });
+
+  // Pegar tipos únicos dos itens
+  const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
 
   const filteredItems = items
     .filter((item) => {
@@ -41,7 +52,23 @@ export default function PainelGeral() {
         item.displayId?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-      return matchesSearch && matchesStatus && matchesEvent;
+      const matchesType = typeFilter === "all" || item.type === typeFilter;
+      
+      // Filtro por patrocinador (verifica se o item tem o patrocinador selecionado)
+      const matchesSponsor = sponsorFilter === "all" || 
+        (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => s.id === sponsorFilter));
+      
+      // Filtro por data (próximos 10 dias a partir da data do evento)
+      const matchesDate = dateFilter === "all" || (() => {
+        if (!item.event?.startDate) return false;
+        const eventDate = new Date(item.event.startDate);
+        const today = new Date();
+        const diffTime = eventDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 10;
+      })();
+      
+      return matchesSearch && matchesStatus && matchesEvent && matchesType && matchesSponsor && matchesDate;
     })
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
@@ -262,7 +289,8 @@ export default function PainelGeral() {
           <CardTitle className="text-lg">Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex flex-col gap-4">
+            {/* Linha 1: Busca */}
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -273,19 +301,81 @@ export default function PainelGeral() {
                 data-testid="input-search"
               />
             </div>
-            <Select value={eventFilter} onValueChange={setEventFilter}>
-              <SelectTrigger className="w-full md:w-[250px]" data-testid="select-event-filter">
-                <SelectValue placeholder="Todos os eventos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os eventos</SelectItem>
-                {events.map((event) => (
-                  <SelectItem key={event.id} value={event.id}>
-                    {event.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            
+            {/* Linha 2: Selects */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger data-testid="select-event-filter">
+                  <SelectValue placeholder="Evento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os eventos</SelectItem>
+                  {events.map((event) => (
+                    <SelectItem key={event.id} value={event.id}>
+                      {event.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger data-testid="select-type-filter">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {uniqueTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+                <SelectTrigger data-testid="select-sponsor-filter">
+                  <SelectValue placeholder="Patrocinador" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                  {sponsors.map((sponsor: any) => (
+                    <SelectItem key={sponsor.id} value={sponsor.id}>
+                      {sponsor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger data-testid="select-status-filter">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="requested">Solicitado</SelectItem>
+                  <SelectItem value="awaiting_linking">Aguardando Vinculação</SelectItem>
+                  <SelectItem value="awaiting_submission">Aguardando Envio</SelectItem>
+                  <SelectItem value="awaiting_approval">Aguardando Aprovação</SelectItem>
+                  <SelectItem value="awaiting_finalization">Aguardando Finalização</SelectItem>
+                  <SelectItem value="awaiting_final_review">Aguardando Revisão Final</SelectItem>
+                  <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
+                  <SelectItem value="approved">Liberado</SelectItem>
+                  <SelectItem value="inProduction">Em Produção</SelectItem>
+                  <SelectItem value="produced">Produzido</SelectItem>
+                  <SelectItem value="delivered">Entregue</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger data-testid="select-date-filter">
+                  <SelectValue placeholder="Data" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as datas</SelectItem>
+                  <SelectItem value="next10days">Próximos 10 dias</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -323,6 +413,7 @@ export default function PainelGeral() {
                         <tr className="border-b bg-muted/50">
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">ID</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Tipo</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Descrição</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Arquivo</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Visual</th>
                           <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">Qtd</th>
@@ -347,6 +438,13 @@ export default function PainelGeral() {
                                 </td>
                                 <td className="py-3 px-4">
                                   <span className="font-semibold text-sm">{item.type}</span>
+                                </td>
+                                <td className="py-3 px-4 max-w-xs">
+                                  {item.description ? (
+                                    <span className="text-sm text-muted-foreground truncate block">{item.description}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs italic">—</span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4">
                                   {item.fileWidth && item.fileHeight ? (

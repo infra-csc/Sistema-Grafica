@@ -1253,12 +1253,19 @@ export default function EventDetail() {
                           <td className="py-2 px-3 text-sm">{item.material}</td>
                           <td className="py-2 px-3 text-sm">{item.finish}</td>
                           <td className="py-2 px-3 text-sm">
-                            {item.sponsorId ? (
-                              <div className="flex items-center gap-1">
-                                <Building2 className="h-3 w-3 text-muted-foreground" />
-                                <span className="truncate max-w-[120px]">
-                                  {allSponsors.find(s => s.id === item.sponsorId)?.name || "—"}
-                                </span>
+                            {item.sponsors && item.sponsors.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {item.sponsors.map((sponsorData: any, idx: number) => {
+                                  const sponsorName = typeof sponsorData === 'object' && sponsorData.name 
+                                    ? sponsorData.name 
+                                    : allSponsors.find((s: any) => s.id === (typeof sponsorData === 'object' ? sponsorData.id : sponsorData))?.name || 'Desconhecido';
+                                  
+                                  return (
+                                    <Badge key={idx} variant="secondary" className="text-xs">
+                                      {sponsorName}
+                                    </Badge>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <span className="text-muted-foreground text-xs">—</span>

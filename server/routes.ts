@@ -597,7 +597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Patrocinadores atualizados - ${sponsorIds.length} ${sponsorIds.length === 1 ? 'patrocinador vinculado' : 'patrocinadores vinculados'}`
       );
       
-      broadcast({ type: "item_sponsors_updated", itemId, sponsorIds });
+      broadcast({ type: "item_updated", item });
       res.json({ message: "Patrocinadores atualizados com sucesso" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

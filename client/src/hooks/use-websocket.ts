@@ -64,6 +64,8 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
             }
+            // Invalidate global items query (used by Painel Geral)
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             break;
             

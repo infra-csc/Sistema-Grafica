@@ -546,16 +546,14 @@ export default function VincularPatrocinadores() {
     // O badge "Pronto" é mostrado separadamente quando pendingChanges[item.id]?.isDirty é true
     
     // Verificar o estado SALVO no banco de dados (não pendente)
-    // Só marcar como 'skip' ou 'linked' se o item ainda está em status 'requested'
-    // (itens em outros status já foram processados e confirmados)
-    if (item.status === 'requested') {
-      // Usar os valores do banco, não do estado local
-      const originalSponsors = originalSponsorsMap[item.id] || [];
-      const originalSkipApproval = item.skipApproval || false;
-      
-      if (originalSkipApproval) return 'skip';
-      if (originalSponsors.length > 0) return 'linked';
-    }
+    // Usar os valores do banco, não do estado local
+    const originalSponsors = originalSponsorsMap[item.id] || [];
+    const originalSkipApproval = item.skipApproval || false;
+    
+    // Verificar skipApproval e patrocinadores vinculados independente do status
+    // Isso funciona tanto para items 'requested' quanto para items já confirmados
+    if (originalSkipApproval) return 'skip';
+    if (originalSponsors.length > 0) return 'linked';
     
     return 'pending';
   };

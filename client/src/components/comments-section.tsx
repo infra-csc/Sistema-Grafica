@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Comment } from "@shared/schema";
+import { StatusBadge } from "@/components/status-badge";
 
 interface CommentsSectionProps {
   itemId: string;
@@ -148,9 +149,12 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
                 data-testid={`comment-${comment.id}`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-1">
+                  <div className="flex items-center gap-2 flex-1 flex-wrap">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm">{comment.userName}</span>
+                    {comment.itemStatus && (
+                      <StatusBadge status={comment.itemStatus} />
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(comment.createdAt), {
                         addSuffix: true,

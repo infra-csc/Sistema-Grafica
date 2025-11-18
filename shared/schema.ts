@@ -142,6 +142,7 @@ export const comments = pgTable("comments", {
   userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
   userName: text("user_name").notNull(), // Denormalized for deleted users
   content: text("content").notNull(),
+  itemStatus: text("item_status"), // Status do item quando o comentário foi feito
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

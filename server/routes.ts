@@ -1834,9 +1834,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a comment
   app.post("/api/items/:itemId/comments", async (req, res) => {
     try {
+      // Buscar item para pegar o status atual
+      const item = await storage.getItem(req.params.itemId);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
       const validatedData = insertCommentSchema.parse({
         ...req.body,
         itemId: req.params.itemId,
+        itemStatus: item.status, // Captura o status atual do item
       });
       
       const comment = await storage.createComment(validatedData);

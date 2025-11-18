@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { calculateM2 } from "@/lib/calculateM2";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { CommentsSection } from "@/components/comments-section";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
@@ -1516,6 +1517,11 @@ export default function EventDetail() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Comentários */}
+                <div>
+                  <CommentsSection itemId={selectedItemForDetails.id} itemType={selectedItemForDetails.type} />
+                </div>
               </div>
             </>
           )}

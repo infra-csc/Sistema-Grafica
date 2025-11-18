@@ -958,55 +958,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get pending items (for Arte module) - MUST come BEFORE /:eventId route
+  // Get pending items with event and sponsors (for Arte module) - MUST come BEFORE /:eventId route
   app.get("/api/items/pending", async (req, res) => {
     try {
       const pendingItems = await storage.getPendingItems();
       
-      // Fetch event for each item
-      const itemsWithEvents = await Promise.all(
+      // Fetch event and sponsors for each item
+      const itemsWithEventsAndSponsors = await Promise.all(
         pendingItems.map(async (item) => {
           const event = await storage.getEvent(item.eventId);
+          
+          // Buscar sponsors do item
+          const itemSponsors = await storage.getItemSponsors(item.id);
+          
+          // Fazer lookup dos dados completos dos sponsors
+          const sponsors = await Promise.all(
+            itemSponsors.map(async (is: any) => {
+              const sponsor = await storage.getSponsor(is.sponsorId);
+              return sponsor;
+            })
+          );
+          
           return {
             ...item,
             event,
+            sponsors: sponsors.filter(Boolean), // Remove nulls
           };
         })
       );
       
-      res.json(itemsWithEvents);
+      res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Get approved items (for Gráfica module) - MUST come BEFORE /:eventId route
+  // Get approved items with event and sponsors (for Gráfica module) - MUST come BEFORE /:eventId route
   app.get("/api/items/approved", async (req, res) => {
     try {
       const approvedItems = await storage.getApprovedItems();
       
-      // Fetch event for each item
-      const itemsWithEvents = await Promise.all(
+      // Fetch event and sponsors for each item
+      const itemsWithEventsAndSponsors = await Promise.all(
         approvedItems.map(async (item) => {
           const event = await storage.getEvent(item.eventId);
+          
+          // Buscar sponsors do item
+          const itemSponsors = await storage.getItemSponsors(item.id);
+          
+          // Fazer lookup dos dados completos dos sponsors
+          const sponsors = await Promise.all(
+            itemSponsors.map(async (is: any) => {
+              const sponsor = await storage.getSponsor(is.sponsorId);
+              return sponsor;
+            })
+          );
+          
           return {
             ...item,
             event,
+            sponsors: sponsors.filter(Boolean), // Remove nulls
           };
         })
       );
       
-      res.json(itemsWithEvents);
+      res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Get items by event - MUST come AFTER specific routes like /pending and /approved
+  // Get items by event with sponsors - MUST come AFTER specific routes like /pending and /approved
   app.get("/api/items/:eventId", async (req, res) => {
     try {
       const items = await storage.getItemsByEvent(req.params.eventId);
-      res.json(items);
+      
+      // Buscar sponsors para cada item
+      const itemsWithSponsors = await Promise.all(
+        items.map(async (item) => {
+          // Buscar sponsors do item
+          const itemSponsors = await storage.getItemSponsors(item.id);
+          
+          // Fazer lookup dos dados completos dos sponsors
+          const sponsors = await Promise.all(
+            itemSponsors.map(async (is: any) => {
+              const sponsor = await storage.getSponsor(is.sponsorId);
+              return sponsor;
+            })
+          );
+          
+          return {
+            ...item,
+            sponsors: sponsors.filter(Boolean), // Remove nulls
+          };
+        })
+      );
+      
+      res.json(itemsWithSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

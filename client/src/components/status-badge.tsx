@@ -38,7 +38,7 @@ const statusConfig = {
     icon: CheckCircle,
   },
   awaiting_creator_review: {
-    label: "Aguardando Criador",
+    label: "Aguardando Direção de Arte",
     color: "bg-purple-500/20 text-purple-700 dark:text-purple-500 border-purple-500",
     icon: Clock,
   },
@@ -59,7 +59,7 @@ const statusConfig = {
   },
   produced: {
     label: "Produzido",
-    color: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-500 border-emerald-500",
+    color: "bg-teal-500/20 text-teal-700 dark:text-teal-400 border-teal-500",
     icon: CheckCircle,
   },
   delivered: {

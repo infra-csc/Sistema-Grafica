@@ -713,9 +713,34 @@ export default function PainelGeral() {
                                             {formatDateTime(log.createdAt)}
                                           </span>
                                         </div>
-                                        {log.details && (
-                                          <p className="text-xs text-muted-foreground leading-relaxed">{log.details}</p>
-                                        )}
+                                        {log.details && (() => {
+                                          // Detectar transição de status
+                                          const statusTransitionMatch = log.details.match(/Status alterado:\s*(.+?)\s*→\s*(.+?)(?:\s*\((.+)\)|$)/);
+                                          
+                                          if (statusTransitionMatch) {
+                                            const [, fromStatus, toStatus, extraInfo] = statusTransitionMatch;
+                                            
+                                            return (
+                                              <div className="flex items-center gap-2 flex-wrap text-xs">
+                                                <span className="text-muted-foreground font-medium">Status:</span>
+                                                <Badge variant="outline" className="bg-muted/30 text-xs">
+                                                  {fromStatus.trim()}
+                                                </Badge>
+                                                <span className="text-primary font-bold">→</span>
+                                                <Badge variant="default" className="text-xs">
+                                                  {toStatus.trim()}
+                                                </Badge>
+                                                {extraInfo && (
+                                                  <span className="text-muted-foreground italic">
+                                                    ({extraInfo.trim()})
+                                                  </span>
+                                                )}
+                                              </div>
+                                            );
+                                          }
+                                          
+                                          return <p className="text-xs text-muted-foreground leading-relaxed">{log.details}</p>;
+                                        })()}
                                       </div>
                                     </div>
                                   ))}

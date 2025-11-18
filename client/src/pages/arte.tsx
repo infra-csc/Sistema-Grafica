@@ -811,7 +811,7 @@ export default function Arte() {
       </Card>
 
       <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Detalhes do Item</DialogTitle>
             <DialogDescription>
@@ -819,7 +819,7 @@ export default function Arte() {
             </DialogDescription>
           </DialogHeader>
           {selectedItem && (
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Evento</p>

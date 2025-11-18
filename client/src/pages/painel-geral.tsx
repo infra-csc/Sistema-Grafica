@@ -45,15 +45,20 @@ export default function PainelGeral() {
     })
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  // Agrupar itens por evento
+  // Agrupar itens por evento (usando eventId como chave única)
   const groupedItems = filteredItems.reduce((acc, item) => {
+    const eventKey = item.eventId || "no-event";
     const eventName = item.event?.name || "Sem Evento";
-    if (!acc[eventName]) {
-      acc[eventName] = [];
+    if (!acc[eventKey]) {
+      acc[eventKey] = {
+        eventId: item.eventId,
+        eventName: eventName,
+        items: []
+      };
     }
-    acc[eventName].push(item);
+    acc[eventKey].items.push(item);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {} as Record<string, { eventId: string | null, eventName: string, items: any[] }>);
 
   const stats = {
     total: filteredItems.length,
@@ -298,20 +303,22 @@ export default function PainelGeral() {
             </CardContent>
           </Card>
         ) : (
-          Object.entries(groupedItems).map(([eventName, eventItems]) => (
-            <Card key={eventName}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  {eventName}
-                  <Badge variant="secondary" className="ml-2">
-                    {eventItems.length} {eventItems.length === 1 ? 'item' : 'itens'}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {eventItems.map((item) => (
+          Object.entries(groupedItems).map(([eventKey, eventData]) => {
+            const groupData = eventData as { eventId: string | null, eventName: string, items: any[] };
+            return (
+              <Card key={eventKey}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    {groupData.eventName}
+                    <Badge variant="secondary" className="ml-2">
+                      {groupData.items.length} {groupData.items.length === 1 ? 'item' : 'itens'}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {groupData.items.map((item: any) => (
                     <Dialog key={item.id}>
                       <DialogTrigger asChild>
                         <div
@@ -476,7 +483,8 @@ export default function PainelGeral() {
                 </div>
               </CardContent>
             </Card>
-          ))
+          );
+        })
         )}
       </div>
     </div>

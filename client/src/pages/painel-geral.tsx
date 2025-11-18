@@ -4,12 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, ChevronDown, ChevronUp, Calendar, User, Package2, MessageSquare, History } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CommentsSection } from "@/components/comments-section";
-import type { Item } from "@shared/schema";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -17,7 +16,7 @@ export default function PainelGeral() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [selectedItem, setSelectedItem] = useState<any>(null);
 
   const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -46,6 +45,16 @@ export default function PainelGeral() {
     })
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
+  // Agrupar itens por evento
+  const groupedItems = filteredItems.reduce((acc, item) => {
+    const eventName = item.event?.name || "Sem Evento";
+    if (!acc[eventName]) {
+      acc[eventName] = [];
+    }
+    acc[eventName].push(item);
+    return acc;
+  }, {} as Record<string, any[]>);
+
   const stats = {
     total: filteredItems.length,
     requested: filteredItems.filter(i => i.status === 'requested').length,
@@ -59,16 +68,6 @@ export default function PainelGeral() {
     inProduction: filteredItems.filter(i => i.status === 'inProduction').length,
     produced: filteredItems.filter(i => i.status === 'produced').length,
     delivered: filteredItems.filter(i => i.status === 'delivered').length,
-  };
-
-  const toggleItemExpansion = (itemId: string) => {
-    const newExpanded = new Set(expandedItems);
-    if (newExpanded.has(itemId)) {
-      newExpanded.delete(itemId);
-    } else {
-      newExpanded.add(itemId);
-    }
-    setExpandedItems(newExpanded);
   };
 
   const getItemLogs = (itemId: string) => {
@@ -93,7 +92,7 @@ export default function PainelGeral() {
         </p>
       </div>
 
-      {/* Dashboard - 11 Status Cards */}
+      {/* Dashboard - 12 Status Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         <Card 
           className={`cursor-pointer hover-elevate ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
@@ -286,8 +285,8 @@ export default function PainelGeral() {
         </CardContent>
       </Card>
 
-      {/* Items - Cards Expandíveis */}
-      <div className="space-y-3">
+      {/* Items - Agrupados por Evento */}
+      <div className="space-y-6">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -299,176 +298,185 @@ export default function PainelGeral() {
             </CardContent>
           </Card>
         ) : (
-          filteredItems.map((item) => {
-            const isExpanded = expandedItems.has(item.id);
-            const itemLogs = getItemLogs(item.id);
-
-            return (
-              <Card key={item.id} className="overflow-hidden" data-testid={`card-item-${item.id}`}>
-                <Collapsible open={isExpanded} onOpenChange={() => toggleItemExpansion(item.id)}>
-                  {/* Header do Card (Sempre visível) */}
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover-elevate">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div className="flex-shrink-0">
-                            <div className="text-lg font-mono font-bold text-primary" data-testid={`text-display-id-${item.id}`}>
+          Object.entries(groupedItems).map(([eventName, eventItems]) => (
+            <Card key={eventName}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  {eventName}
+                  <Badge variant="secondary" className="ml-2">
+                    {eventItems.length} {eventItems.length === 1 ? 'item' : 'itens'}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {eventItems.map((item) => (
+                    <Dialog key={item.id}>
+                      <DialogTrigger asChild>
+                        <div
+                          className="flex items-center justify-between p-3 rounded-lg border hover-elevate cursor-pointer"
+                          data-testid={`item-row-${item.id}`}
+                        >
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
                               {item.displayId}
                             </div>
+                            <Badge variant="outline" className="font-semibold">
+                              {item.type}
+                            </Badge>
+                            {item.description && (
+                              <span className="text-sm text-muted-foreground truncate hidden md:block">
+                                {item.description}
+                              </span>
+                            )}
                           </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="outline" className="font-semibold">
-                                {item.type}
-                              </Badge>
-                              {item.event && (
-                                <Badge variant="secondary" className="text-xs">
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  {item.event.name}
-                                </Badge>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <StatusBadge status={item.status} />
+                            <div className="text-right hidden sm:block">
+                              <div className="text-sm font-semibold">
+                                {item.quantity} un.
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {item.calculatedM2} m²
+                              </div>
+                            </div>
+                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      </DialogTrigger>
+
+                      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-3">
+                            <span className="font-mono text-primary">{item.displayId}</span>
+                            <Badge variant="outline">{item.type}</Badge>
+                            <StatusBadge status={item.status} />
+                          </DialogTitle>
+                          {item.event && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Calendar className="h-4 w-4" />
+                              {item.event.name}
+                            </div>
+                          )}
+                        </DialogHeader>
+
+                        <div className="space-y-6 mt-4">
+                          {/* Especificações, Produção, Observações */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 bg-muted/30 rounded-lg">
+                            <div className="space-y-3">
+                              <h4 className="font-semibold text-sm text-muted-foreground uppercase">Especificações</h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <span className="text-muted-foreground">Material:</span>
+                                  <span className="ml-2 font-medium">{item.material}</span>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Acabamento:</span>
+                                  <span className="ml-2 font-medium">{item.finish}</span>
+                                </div>
+                                {item.visualWidth && item.visualHeight && (
+                                  <div>
+                                    <span className="text-muted-foreground">Visual:</span>
+                                    <span className="ml-2 font-medium">{item.visualWidth} × {item.visualHeight}</span>
+                                  </div>
+                                )}
+                                {item.fileWidth && item.fileHeight && (
+                                  <div>
+                                    <span className="text-muted-foreground">Arquivo:</span>
+                                    <span className="ml-2 font-medium">{item.fileWidth} × {item.fileHeight}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <h4 className="font-semibold text-sm text-muted-foreground uppercase">Produção</h4>
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <span className="text-muted-foreground">Solicitado:</span>
+                                  <span className="ml-2 font-medium">{item.quantity} un.</span>
+                                </div>
+                                {item.quantityProduced !== null && (
+                                  <div>
+                                    <span className="text-muted-foreground">Produzido:</span>
+                                    <span className="ml-2 font-medium text-status-production">{item.quantityProduced} un.</span>
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-muted-foreground">Total m²:</span>
+                                  <span className="ml-2 font-medium">{item.calculatedM2}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <h4 className="font-semibold text-sm text-muted-foreground uppercase">Observações</h4>
+                              {item.observations ? (
+                                <p className="text-sm">{item.observations}</p>
+                              ) : (
+                                <p className="text-sm text-muted-foreground italic">Nenhuma observação</p>
                               )}
                             </div>
-                            {item.description && (
-                              <p className="text-sm text-muted-foreground mt-1 truncate">
-                                {item.description}
-                              </p>
-                            )}
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <StatusBadge status={item.status} />
-                          <div className="text-right hidden md:block">
-                            <div className="text-sm font-semibold">
-                              {item.quantity} un.
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {item.calculatedM2} m²
-                            </div>
-                          </div>
-                          {isExpanded ? (
-                            <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                          ) : (
-                            <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
-
-                  {/* Conteúdo Expandível */}
-                  <CollapsibleContent>
-                    <CardContent className="space-y-6 pt-0">
-                      {/* Detalhes Completos */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 bg-muted/30 rounded-lg">
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm text-muted-foreground uppercase">Especificações</h4>
-                          <div className="space-y-2 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Material:</span>
-                              <span className="ml-2 font-medium">{item.material}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Acabamento:</span>
-                              <span className="ml-2 font-medium">{item.finish}</span>
-                            </div>
-                            {item.visualWidth && item.visualHeight && (
-                              <div>
-                                <span className="text-muted-foreground">Visual:</span>
-                                <span className="ml-2 font-medium">{item.visualWidth} × {item.visualHeight}</span>
-                              </div>
-                            )}
-                            {item.fileWidth && item.fileHeight && (
-                              <div>
-                                <span className="text-muted-foreground">Arquivo:</span>
-                                <span className="ml-2 font-medium">{item.fileWidth} × {item.fileHeight}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm text-muted-foreground uppercase">Produção</h4>
-                          <div className="space-y-2 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Solicitado:</span>
-                              <span className="ml-2 font-medium">{item.quantity} un.</span>
-                            </div>
-                            {item.quantityProduced !== null && (
-                              <div>
-                                <span className="text-muted-foreground">Produzido:</span>
-                                <span className="ml-2 font-medium text-status-production">{item.quantityProduced} un.</span>
-                              </div>
-                            )}
-                            <div>
-                              <span className="text-muted-foreground">Total m²:</span>
-                              <span className="ml-2 font-medium">{item.calculatedM2}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm text-muted-foreground uppercase">Observações</h4>
-                          {item.observations ? (
-                            <p className="text-sm">{item.observations}</p>
-                          ) : (
-                            <p className="text-sm text-muted-foreground italic">Nenhuma observação</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Timeline de Histórico */}
-                      {itemLogs.length > 0 && (
-                        <div className="p-4 bg-muted/30 rounded-lg">
-                          <h4 className="font-semibold text-sm text-muted-foreground uppercase mb-4 flex items-center gap-2">
-                            <History className="h-4 w-4" />
-                            Histórico de Ações
-                          </h4>
-                          <div className="space-y-3">
-                            {itemLogs.map((log) => (
-                              <div key={log.id} className="flex items-start gap-3 text-sm">
-                                <div className="flex-shrink-0 mt-0.5">
-                                  <div className="h-2 w-2 rounded-full bg-primary"></div>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <Badge variant="outline" className="text-xs">
-                                      {log.action === 'created' && 'Criado'}
-                                      {log.action === 'updated' && 'Atualizado'}
-                                      {log.action === 'deleted' && 'Deletado'}
-                                      {log.action === 'approved' && 'Aprovado'}
-                                      {log.action === 'produced' && 'Produzido'}
-                                      {log.action === 'delivered' && 'Entregue'}
-                                    </Badge>
-                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                      <User className="h-3 w-3" />
-                                      {log.userName}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {formatDateTime(log.createdAt)}
-                                    </span>
+                          {/* Timeline de Histórico */}
+                          {getItemLogs(item.id).length > 0 && (
+                            <div className="p-4 bg-muted/30 rounded-lg">
+                              <h4 className="font-semibold text-sm text-muted-foreground uppercase mb-4 flex items-center gap-2">
+                                <History className="h-4 w-4" />
+                                Histórico de Ações
+                              </h4>
+                              <div className="space-y-3">
+                                {getItemLogs(item.id).map((log) => (
+                                  <div key={log.id} className="flex items-start gap-3 text-sm">
+                                    <div className="flex-shrink-0 mt-0.5">
+                                      <div className="h-2 w-2 rounded-full bg-primary"></div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge variant="outline" className="text-xs">
+                                          {log.action === 'created' && 'Criado'}
+                                          {log.action === 'updated' && 'Atualizado'}
+                                          {log.action === 'deleted' && 'Deletado'}
+                                          {log.action === 'approved' && 'Aprovado'}
+                                          {log.action === 'produced' && 'Produzido'}
+                                          {log.action === 'delivered' && 'Entregue'}
+                                        </Badge>
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                          <User className="h-3 w-3" />
+                                          {log.userName}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {formatDateTime(log.createdAt)}
+                                        </span>
+                                      </div>
+                                      {log.details && (
+                                        <p className="text-xs text-muted-foreground mt-1">{log.details}</p>
+                                      )}
+                                    </div>
                                   </div>
-                                  {log.details && (
-                                    <p className="text-xs text-muted-foreground mt-1">{log.details}</p>
-                                  )}
-                                </div>
+                                ))}
                               </div>
-                            ))}
+                            </div>
+                          )}
+
+                          {/* Comentários */}
+                          <div className="border-t pt-6">
+                            <h4 className="font-semibold text-sm text-muted-foreground uppercase mb-4 flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4" />
+                              Comentários
+                            </h4>
+                            <CommentsSection itemId={item.id} itemType={item.type} />
                           </div>
                         </div>
-                      )}
-
-                      {/* Comentários */}
-                      <div>
-                        <CommentsSection itemId={item.id} itemType={item.type} />
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Collapsible>
-              </Card>
-            );
-          })
+                      </DialogContent>
+                    </Dialog>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))
         )}
       </div>
     </div>

@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2 } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History } from "lucide-react";
 import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -38,6 +38,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import { calculateM2 } from "@/lib/calculateM2";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
@@ -62,6 +64,7 @@ export default function EventDetail() {
   const [selectedSponsorForLinking, setSelectedSponsorForLinking] = useState<Sponsor | null>(null);
   const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
+  const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -122,6 +125,25 @@ export default function EventDetail() {
   const sponsors = allSponsors.filter(sponsor => 
     eventSponsors.some(es => es.sponsorId === sponsor.id)
   );
+
+  // Buscar audit logs para histórico
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
+    placeholderData: (previousData: any) => previousData,
+    refetchOnWindowFocus: false,
+  });
+
+  // Helper para formatar data/hora
+  const formatDateTime = (date: string | Date) => {
+    return format(new Date(date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  };
+
+  // Helper para filtrar logs de um item específico
+  const getItemLogs = (itemId: string) => {
+    return auditLogs
+      .filter((log: any) => log.entityType === 'item' && log.entityId === itemId)
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  };
 
   // Check if user can manage this event (admin or event creator)
   const canManageEvent = hasPermission("admin") || (event && user && event.createdBy === user.id);
@@ -1213,8 +1235,9 @@ export default function EventDetail() {
                         )}
                         <tr
                           key={item.id}
-                          className="border-b border-border hover-elevate"
+                          className="border-b border-border hover-elevate cursor-pointer"
                           data-testid={`row-item-${item.id}`}
+                          onClick={() => setSelectedItemForDetails(item)}
                         >
                           <td className="py-2 px-3">
                             <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
@@ -1253,23 +1276,7 @@ export default function EventDetail() {
                           <td className="py-2 px-3 text-sm">{item.material}</td>
                           <td className="py-2 px-3 text-sm">{item.finish}</td>
                           <td className="py-2 px-3 text-sm">
-                            {item.sponsors && item.sponsors.length > 0 ? (
-                              <div className="flex flex-wrap gap-1.5">
-                                {item.sponsors.map((sponsorData: any, idx: number) => {
-                                  const sponsorName = typeof sponsorData === 'object' && sponsorData.name 
-                                    ? sponsorData.name 
-                                    : allSponsors.find((s: any) => s.id === (typeof sponsorData === 'object' ? sponsorData.id : sponsorData))?.name || 'Desconhecido';
-                                  
-                                  return (
-                                    <Badge key={idx} variant="secondary" className="text-xs">
-                                      {sponsorName}
-                                    </Badge>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
+                            <span className="text-muted-foreground text-xs">—</span>
                           </td>
                           <td className="py-2 px-3">
                             <StatusBadge status={item.status} />
@@ -1280,7 +1287,10 @@ export default function EventDetail() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon"
-                                  onClick={() => handleEditItem(item)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditItem(item);
+                                  }}
                                   data-testid={`button-edit-item-${item.id}`}
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
@@ -1288,7 +1298,10 @@ export default function EventDetail() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon"
-                                  onClick={() => handleDeleteItem(item.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteItem(item.id);
+                                  }}
                                   data-testid={`button-delete-item-${item.id}`}
                                 >
                                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -1306,6 +1319,208 @@ export default function EventDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog de Detalhes do Item */}
+      <Dialog open={!!selectedItemForDetails} onOpenChange={(open) => !open && setSelectedItemForDetails(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          {selectedItemForDetails && (
+            <>
+              <DialogHeader className="pb-4 border-b">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <DialogTitle className="text-2xl font-bold mb-3 flex items-center gap-3">
+                      <span className="font-mono text-primary">{selectedItemForDetails.displayId}</span>
+                      <StatusBadge status={selectedItemForDetails.status} />
+                    </DialogTitle>
+                    {event && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        <span className="font-medium">{event.name}</span>
+                        {event.startDate && (
+                          <>
+                            <span className="mx-2">•</span>
+                            <span>{new Date(event.startDate).toLocaleDateString('pt-BR')}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-base px-4 py-2 shrink-0">
+                    {selectedItemForDetails.type}
+                  </Badge>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-6 mt-6">
+                {/* Grid de informações principais */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Card: Especificações */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                        <Package2 className="h-4 w-4" />
+                        Especificações
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground block text-xs mb-1">Material</span>
+                          <span className="font-semibold">{selectedItemForDetails.material}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-xs mb-1">Acabamento</span>
+                          <span className="font-semibold">{selectedItemForDetails.finish}</span>
+                        </div>
+                        {selectedItemForDetails.visualWidth && selectedItemForDetails.visualHeight && (
+                          <div>
+                            <span className="text-muted-foreground block text-xs mb-1">Dimensão Visual</span>
+                            <span className="font-semibold">{selectedItemForDetails.visualWidth} × {selectedItemForDetails.visualHeight}</span>
+                          </div>
+                        )}
+                        {selectedItemForDetails.fileWidth && selectedItemForDetails.fileHeight && (
+                          <div>
+                            <span className="text-muted-foreground block text-xs mb-1">Dimensão Arquivo</span>
+                            <span className="font-semibold">{selectedItemForDetails.fileWidth} × {selectedItemForDetails.fileHeight}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Card: Produção */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                        Produção
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground block text-xs mb-1">Quantidade Solicitada</span>
+                          <span className="font-semibold text-lg">{selectedItemForDetails.quantity} un.</span>
+                        </div>
+                        {selectedItemForDetails.quantityProduced !== null && (
+                          <div>
+                            <span className="text-muted-foreground block text-xs mb-1">Quantidade Produzida</span>
+                            <span className="font-semibold text-lg text-status-production">{selectedItemForDetails.quantityProduced} un.</span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground block text-xs mb-1">Total m²</span>
+                          <span className="font-semibold text-lg text-primary">{selectedItemForDetails.calculatedM2}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Patrocinadores e Observações */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Card: Patrocinadores */}
+                  {selectedItemForDetails.sponsors && selectedItemForDetails.sponsors.length > 0 && (() => {
+                    const itemSponsorNames = selectedItemForDetails.sponsors
+                      .map((sponsorData: any) => {
+                        if (typeof sponsorData === 'object' && sponsorData.name) {
+                          return sponsorData.name;
+                        }
+                        const sponsorId = typeof sponsorData === 'object' ? sponsorData.id : sponsorData;
+                        const sponsor = sponsors.find((s: any) => s.id === sponsorId);
+                        return sponsor?.name || 'Patrocinador desconhecido';
+                      })
+                      .filter(Boolean);
+                    
+                    if (itemSponsorNames.length === 0) return null;
+                    
+                    return (
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                            Patrocinadores ({itemSponsorNames.length})
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2">
+                            {itemSponsorNames.map((name: string, idx: number) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* Card: Observações */}
+                  <Card className={!selectedItemForDetails.sponsors || selectedItemForDetails.sponsors.length === 0 ? 'md:col-span-2' : ''}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                        Observações
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedItemForDetails.observations ? (
+                        <p className="text-sm leading-relaxed">{selectedItemForDetails.observations}</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">Nenhuma observação registrada</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Timeline de Histórico */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                      <History className="h-4 w-4" />
+                      Histórico de Ações
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {getItemLogs(selectedItemForDetails.id).length > 0 ? (
+                      <div className="space-y-3">
+                        {getItemLogs(selectedItemForDetails.id).map((log) => (
+                          <div key={log.id} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
+                            <div className="flex-shrink-0 mt-1">
+                              <div className="h-2.5 w-2.5 rounded-full bg-primary"></div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <Badge variant="outline" className="text-xs font-medium">
+                                  {log.action === 'created' && 'Criado'}
+                                  {log.action === 'updated' && 'Atualizado'}
+                                  {log.action === 'deleted' && 'Deletado'}
+                                  {log.action === 'approved' && 'Aprovado'}
+                                  {log.action === 'produced' && 'Produzido'}
+                                  {log.action === 'delivered' && 'Entregue'}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {log.userName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatDateTime(log.createdAt)}
+                                </span>
+                              </div>
+                              {log.details && (
+                                <p className="text-sm text-muted-foreground mt-1">{log.details}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Nenhum histórico disponível</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deletingItemId} onOpenChange={() => setDeletingItemId(null)}>
         <AlertDialogContent>

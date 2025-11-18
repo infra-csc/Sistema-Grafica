@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink } from "lucide-react";
+import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink, Truck } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CommentsSection } from "@/components/comments-section";
@@ -405,6 +405,23 @@ export default function PainelGeral() {
                       {groupData.items.length} {groupData.items.length === 1 ? 'item' : 'itens'}
                     </Badge>
                   </CardTitle>
+                  {/* Datas do Evento */}
+                  {groupData.items[0]?.event && (
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-2">
+                      {groupData.items[0].event.startDate && (
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>Evento: {format(new Date(groupData.items[0].event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                        </div>
+                      )}
+                      {groupData.items[0].event.truckDepartureDate && (
+                        <div className="flex items-center gap-1.5">
+                          <Truck className="h-3.5 w-3.5" />
+                          <span>Saída caminhão: {format(new Date(groupData.items[0].event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
@@ -414,8 +431,6 @@ export default function PainelGeral() {
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">ID</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Tipo</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Descrição</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Data Evento</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Saída Caminhão</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Arquivo</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Visual</th>
                           <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">Qtd</th>
@@ -446,20 +461,6 @@ export default function PainelGeral() {
                                     <span className="text-sm text-muted-foreground truncate block">{item.description}</span>
                                   ) : (
                                     <span className="text-muted-foreground text-xs italic">—</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 whitespace-nowrap">
-                                  {item.event?.startDate ? (
-                                    <span className="text-sm">{format(new Date(item.event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">—</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 whitespace-nowrap">
-                                  {item.event?.truckDepartureDate ? (
-                                    <span className="text-sm">{format(new Date(item.event.truckDepartureDate), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">—</span>
                                   )}
                                 </td>
                                 <td className="py-3 px-4">

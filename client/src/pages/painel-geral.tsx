@@ -22,7 +22,7 @@ export default function PainelGeral() {
   const [timelineDialogOpen, setTimelineDialogOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/items", "global"],
+    queryKey: ["/api/items"],
     placeholderData: [],
   });
 

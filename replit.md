@@ -7,6 +7,7 @@ NORTE is a comprehensive graphic production management system designed for NORTE
 - **Enhanced Audit Logging System**: Comprehensive improvements to status transition tracking:
   - **Status Translation Helper**: Complete `translateStatus()` function covers all 15+ status codes (including draft, canceled, archived, legacy statuses) with Portuguese labels
   - **Accurate Transition Logging**: All status-change endpoints (PATCH /items/:id, submit-for-approval, sponsor-approve, submit-final-file, creator-review, deliver, bulk-submit) now log transitions using persisted values (before/after comparison) in format "Status alterado: [Portuguese Label] → [Portuguese Label]"
+  - **Creation Audit Logs**: Both individual item creation (POST /api/items) and bulk creation (POST /api/items/bulk) now create audit logs with action 'created' showing who created each item and when
   - **Visual History Highlighting**: Timeline in item details dialog detects and renders multiple log formats:
     - **New format** ("Status alterado: X → Y"): Origin badge (outline/muted) + arrow (→) + destination badge (highlighted) + supplemental info in italics
     - **Legacy approved format** ("aprovado para produção/pelo patrocinador"): Status badge showing final state ("Pronto p/ Produção" or "Aguardando Finalização")

@@ -1091,6 +1091,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create all items in bulk
       const createdItems = await storage.createBulkItems(validatedItems);
       
+      // Create audit log for each item created
+      for (const item of createdItems) {
+        await createAuditLog(
+          (req as any).userName,
+          'created',
+          'item',
+          item.id,
+          `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
+        );
+      }
+      
       // Get event for notification
       const firstItem = createdItems[0];
       const event = firstItem ? await storage.getEvent(firstItem.eventId) : null;

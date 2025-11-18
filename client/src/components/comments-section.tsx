@@ -3,7 +3,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { MessageSquare, Send, Trash2, User } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -18,10 +17,12 @@ interface CommentsSectionProps {
 
 export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
   const [newComment, setNewComment] = useState("");
-  const [userName, setUserName] = useState(() => {
-    return localStorage.getItem("userName") || "";
-  });
   const { toast } = useToast();
+
+  // Buscar o usuário logado
+  const { data: currentUser } = useQuery<{ name: string } | null>({
+    queryKey: ["/api/auth/me"],
+  });
 
   const { data: comments = [], isLoading } = useQuery<Comment[]>({
     queryKey: ["/api/items", itemId, "comments"],
@@ -34,12 +35,11 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
 
   const createMutation = useMutation({
     mutationFn: async (content: string) => {
-      const currentUserName = userName || "Usuário";
-      localStorage.setItem("userName", currentUserName);
+      const userName = currentUser?.name || "Usuário";
       
       return apiRequest("POST", `/api/items/${itemId}/comments`, {
         content,
-        userName: currentUserName,
+        userName: userName,
       });
     },
     onSuccess: () => {
@@ -82,14 +82,17 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-    if (!userName.trim()) {
+    
+    // Bloquear se usuário não estiver carregado
+    if (!currentUser) {
       toast({
-        title: "Nome obrigatório",
-        description: "Por favor, informe seu nome para comentar.",
+        title: "Aguarde",
+        description: "Carregando informações do usuário...",
         variant: "destructive",
       });
       return;
     }
+    
     createMutation.mutate(newComment);
   };
 
@@ -104,15 +107,9 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
       <CardContent className="space-y-4">
         {/* Form to add comment */}
         <form onSubmit={handleSubmit} className="space-y-3">
-          <Input
-            placeholder="Seu nome"
-            value={userName}
-            onChange={(e) => setUserName(e.target.value)}
-            data-testid="input-user-name"
-          />
           <div className="flex gap-2">
             <Textarea
-              placeholder="Adicione um comentário..."
+              placeholder={`Comentar como ${currentUser?.name || "Usuário"}...`}
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               className="flex-1"
@@ -121,7 +118,7 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
             />
             <Button
               type="submit"
-              disabled={createMutation.isPending || !newComment.trim()}
+              disabled={createMutation.isPending || !newComment.trim() || !currentUser}
               size="icon"
               className="shrink-0"
               data-testid="button-send-comment"

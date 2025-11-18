@@ -537,127 +537,200 @@ export default function PainelGeral() {
                               </tr>
                             </DialogTrigger>
 
-                      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center gap-3">
-                            <span className="font-mono text-primary">{item.displayId}</span>
-                            <Badge variant="outline">{item.type}</Badge>
-                            <StatusBadge status={item.status} />
-                          </DialogTitle>
-                          {item.event && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Calendar className="h-4 w-4" />
-                              {item.event.name}
-                            </div>
-                          )}
-                        </DialogHeader>
-
-                        <div className="space-y-6 mt-4">
-                          {/* Especificações, Produção, Observações */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 bg-muted/30 rounded-lg">
-                            <div className="space-y-3">
-                              <h4 className="font-semibold text-sm text-muted-foreground uppercase">Especificações</h4>
-                              <div className="space-y-2 text-sm">
-                                <div>
-                                  <span className="text-muted-foreground">Material:</span>
-                                  <span className="ml-2 font-medium">{item.material}</span>
+                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader className="pb-4 border-b">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <DialogTitle className="text-2xl font-bold mb-3 flex items-center gap-3">
+                                <span className="font-mono text-primary">{item.displayId}</span>
+                                <StatusBadge status={item.status} />
+                              </DialogTitle>
+                              {item.event && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Calendar className="h-4 w-4" />
+                                  <span className="font-medium">{item.event.name}</span>
+                                  <span className="mx-2">•</span>
+                                  <span>{new Date(item.event.startDate).toLocaleDateString('pt-BR')}</span>
                                 </div>
-                                <div>
-                                  <span className="text-muted-foreground">Acabamento:</span>
-                                  <span className="ml-2 font-medium">{item.finish}</span>
-                                </div>
-                                {item.visualWidth && item.visualHeight && (
-                                  <div>
-                                    <span className="text-muted-foreground">Visual:</span>
-                                    <span className="ml-2 font-medium">{item.visualWidth} × {item.visualHeight}</span>
-                                  </div>
-                                )}
-                                {item.fileWidth && item.fileHeight && (
-                                  <div>
-                                    <span className="text-muted-foreground">Arquivo:</span>
-                                    <span className="ml-2 font-medium">{item.fileWidth} × {item.fileHeight}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="space-y-3">
-                              <h4 className="font-semibold text-sm text-muted-foreground uppercase">Produção</h4>
-                              <div className="space-y-2 text-sm">
-                                <div>
-                                  <span className="text-muted-foreground">Solicitado:</span>
-                                  <span className="ml-2 font-medium">{item.quantity} un.</span>
-                                </div>
-                                {item.quantityProduced !== null && (
-                                  <div>
-                                    <span className="text-muted-foreground">Produzido:</span>
-                                    <span className="ml-2 font-medium text-status-production">{item.quantityProduced} un.</span>
-                                  </div>
-                                )}
-                                <div>
-                                  <span className="text-muted-foreground">Total m²:</span>
-                                  <span className="ml-2 font-medium">{item.calculatedM2}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="space-y-3">
-                              <h4 className="font-semibold text-sm text-muted-foreground uppercase">Observações</h4>
-                              {item.observations ? (
-                                <p className="text-sm">{item.observations}</p>
-                              ) : (
-                                <p className="text-sm text-muted-foreground italic">Nenhuma observação</p>
                               )}
                             </div>
+                            <Badge variant="outline" className="text-base px-4 py-2 shrink-0">
+                              {item.type}
+                            </Badge>
+                          </div>
+                        </DialogHeader>
+
+                        <div className="space-y-6 mt-6">
+                          {/* Grid de informações principais */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Card: Especificações */}
+                            <Card>
+                              <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                                  <Package2 className="h-4 w-4" />
+                                  Especificações
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground block text-xs mb-1">Material</span>
+                                    <span className="font-semibold">{item.material}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground block text-xs mb-1">Acabamento</span>
+                                    <span className="font-semibold">{item.finish}</span>
+                                  </div>
+                                  {item.visualWidth && item.visualHeight && (
+                                    <div>
+                                      <span className="text-muted-foreground block text-xs mb-1">Dimensão Visual</span>
+                                      <span className="font-semibold">{item.visualWidth} × {item.visualHeight}</span>
+                                    </div>
+                                  )}
+                                  {item.fileWidth && item.fileHeight && (
+                                    <div>
+                                      <span className="text-muted-foreground block text-xs mb-1">Dimensão Arquivo</span>
+                                      <span className="font-semibold">{item.fileWidth} × {item.fileHeight}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* Card: Produção */}
+                            <Card>
+                              <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                                  Produção
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-3">
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground block text-xs mb-1">Quantidade Solicitada</span>
+                                    <span className="font-semibold text-lg">{item.quantity} un.</span>
+                                  </div>
+                                  {item.quantityProduced !== null && (
+                                    <div>
+                                      <span className="text-muted-foreground block text-xs mb-1">Quantidade Produzida</span>
+                                      <span className="font-semibold text-lg text-status-production">{item.quantityProduced} un.</span>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <span className="text-muted-foreground block text-xs mb-1">Total m²</span>
+                                    <span className="font-semibold text-lg text-primary">{item.calculatedM2}</span>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+
+                          {/* Patrocinadores e Observações */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Card: Patrocinadores */}
+                            {item.sponsors && item.sponsors.length > 0 && (() => {
+                              // Fazer lookup dos sponsors pelos IDs
+                              const itemSponsorNames = item.sponsors
+                                .map((sponsorData: any) => {
+                                  // Se já tem o objeto completo, usar diretamente
+                                  if (sponsorData.name) return sponsorData.name;
+                                  // Senão, fazer lookup pelo ID
+                                  const sponsor = sponsors.find((s: any) => s.id === sponsorData.id);
+                                  return sponsor?.name || 'Patrocinador desconhecido';
+                                })
+                                .filter(Boolean);
+                              
+                              if (itemSponsorNames.length === 0) return null;
+                              
+                              return (
+                                <Card>
+                                  <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                                      Patrocinadores
+                                    </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="flex flex-wrap gap-2">
+                                      {itemSponsorNames.map((name: string, idx: number) => (
+                                        <Badge key={idx} variant="secondary" className="text-xs">
+                                          {name}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              );
+                            })()}
+
+                            {/* Card: Observações */}
+                            <Card className={!item.sponsors || item.sponsors.length === 0 ? 'md:col-span-2' : ''}>
+                              <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                                  Observações
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                {item.observations ? (
+                                  <p className="text-sm leading-relaxed">{item.observations}</p>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground italic">Nenhuma observação registrada</p>
+                                )}
+                              </CardContent>
+                            </Card>
                           </div>
 
                           {/* Timeline de Histórico */}
-                          {getItemLogs(item.id).length > 0 && (
-                            <div className="p-4 bg-muted/30 rounded-lg">
-                              <h4 className="font-semibold text-sm text-muted-foreground uppercase mb-4 flex items-center gap-2">
+                          <Card>
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2">
                                 <History className="h-4 w-4" />
                                 Histórico de Ações
-                              </h4>
-                              <div className="space-y-3">
-                                {getItemLogs(item.id).map((log) => (
-                                  <div key={log.id} className="flex items-start gap-3 text-sm">
-                                    <div className="flex-shrink-0 mt-0.5">
-                                      <div className="h-2 w-2 rounded-full bg-primary"></div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <Badge variant="outline" className="text-xs">
-                                          {log.action === 'created' && 'Criado'}
-                                          {log.action === 'updated' && 'Atualizado'}
-                                          {log.action === 'deleted' && 'Deletado'}
-                                          {log.action === 'approved' && 'Aprovado'}
-                                          {log.action === 'produced' && 'Produzido'}
-                                          {log.action === 'delivered' && 'Entregue'}
-                                        </Badge>
-                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                          <User className="h-3 w-3" />
-                                          {log.userName}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {formatDateTime(log.createdAt)}
-                                        </span>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              {getItemLogs(item.id).length > 0 ? (
+                                <div className="space-y-3">
+                                  {getItemLogs(item.id).map((log) => (
+                                    <div key={log.id} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
+                                      <div className="flex-shrink-0 mt-1">
+                                        <div className="h-2.5 w-2.5 rounded-full bg-primary"></div>
                                       </div>
-                                      {log.details && (
-                                        <p className="text-xs text-muted-foreground mt-1">{log.details}</p>
-                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                                          <Badge variant="outline" className="text-xs font-medium">
+                                            {log.action === 'created' && 'Criado'}
+                                            {log.action === 'updated' && 'Atualizado'}
+                                            {log.action === 'deleted' && 'Deletado'}
+                                            {log.action === 'approved' && 'Aprovado'}
+                                            {log.action === 'produced' && 'Produzido'}
+                                            {log.action === 'delivered' && 'Entregue'}
+                                          </Badge>
+                                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                            <User className="h-3 w-3" />
+                                            {log.userName}
+                                          </span>
+                                          <span className="text-xs text-muted-foreground">
+                                            {formatDateTime(log.createdAt)}
+                                          </span>
+                                        </div>
+                                        {log.details && (
+                                          <p className="text-xs text-muted-foreground leading-relaxed">{log.details}</p>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-center py-8 text-muted-foreground">
+                                  <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                                  <p className="text-sm">Nenhuma ação registrada ainda</p>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
 
                           {/* Comentários */}
-                          <div className="border-t pt-6">
-                            <h4 className="font-semibold text-sm text-muted-foreground uppercase mb-4 flex items-center gap-2">
-                              <MessageSquare className="h-4 w-4" />
-                              Comentários
-                            </h4>
+                          <div>
                             <CommentsSection itemId={item.id} itemType={item.type} />
                           </div>
                         </div>

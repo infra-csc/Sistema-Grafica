@@ -714,7 +714,7 @@ export default function PainelGeral() {
                                           </span>
                                         </div>
                                         {log.details && (() => {
-                                          // Detectar transição de status
+                                          // Detectar transição de status (novo formato)
                                           const statusTransitionMatch = log.details.match(/Status alterado:\s*(.+?)\s*→\s*(.+?)(?:\s*\((.+)\)|$)/);
                                           
                                           if (statusTransitionMatch) {
@@ -737,6 +737,41 @@ export default function PainelGeral() {
                                                 )}
                                               </div>
                                             );
+                                          }
+                                          
+                                          // Detectar formato antigo: "aprovado para produção" ou "aprovado pelo patrocinador"
+                                          if (log.action === 'approved') {
+                                            const approvedMatch = log.details.match(/aprovado (para produção|pelo patrocinador)/i);
+                                            if (approvedMatch) {
+                                              const toStatus = approvedMatch[1] === 'para produção' ? 'Pronto p/ Produção' : 'Aguardando Finalização';
+                                              return (
+                                                <div className="flex items-center gap-2 flex-wrap text-xs">
+                                                  <span className="text-muted-foreground font-medium">Status:</span>
+                                                  <Badge variant="default" className="text-xs">
+                                                    {toStatus}
+                                                  </Badge>
+                                                </div>
+                                              );
+                                            }
+                                          }
+                                          
+                                          // Detectar formato antigo: "entregue - Recebido por: X"
+                                          if (log.action === 'delivered') {
+                                            const deliveredMatch = log.details.match(/entregue\s*-\s*Recebido por:\s*(.+)/i);
+                                            if (deliveredMatch) {
+                                              const receivedBy = deliveredMatch[1].trim();
+                                              return (
+                                                <div className="flex items-center gap-2 flex-wrap text-xs">
+                                                  <span className="text-muted-foreground font-medium">Status:</span>
+                                                  <Badge variant="default" className="text-xs">
+                                                    Entregue
+                                                  </Badge>
+                                                  <span className="text-muted-foreground italic">
+                                                    (Recebido por: {receivedBy})
+                                                  </span>
+                                                </div>
+                                              );
+                                            }
                                           }
                                           
                                           return <p className="text-xs text-muted-foreground leading-relaxed">{log.details}</p>;

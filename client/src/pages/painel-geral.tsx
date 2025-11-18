@@ -303,7 +303,7 @@ export default function PainelGeral() {
             </div>
             
             {/* Linha 2: Selects */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <Select value={eventFilter} onValueChange={setEventFilter}>
                 <SelectTrigger data-testid="select-event-filter">
                   <SelectValue placeholder="Evento" />
@@ -332,19 +332,21 @@ export default function PainelGeral() {
                 </SelectContent>
               </Select>
 
-              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-                <SelectTrigger data-testid="select-sponsor-filter">
-                  <SelectValue placeholder="Patrocinador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os patrocinadores</SelectItem>
-                  {sponsors.map((sponsor: any) => (
-                    <SelectItem key={sponsor.id} value={sponsor.id}>
-                      {sponsor.name}
-                    </SelectItem>
-                  ))}
+              <div className="lg:col-span-2">
+                <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+                  <SelectTrigger data-testid="select-sponsor-filter" className="text-left whitespace-normal leading-tight min-h-9">
+                    <SelectValue placeholder="Patrocinador" className="whitespace-normal break-words" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                    {sponsors.map((sponsor: any) => (
+                      <SelectItem key={sponsor.id} value={sponsor.id}>
+                        {sponsor.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
+              </div>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger data-testid="select-status-filter">

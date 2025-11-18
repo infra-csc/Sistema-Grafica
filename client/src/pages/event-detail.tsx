@@ -1049,44 +1049,6 @@ export default function EventDetail() {
         </div>
       </div>
 
-      {/* Botão para enviar todos os items para Arte */}
-      {items.filter(item => item.status === 'requested').length > 0 && (
-        <Card className="border-2 border-blue-200 bg-blue-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-blue-900">
-                    {items.filter(item => item.status === 'requested').length} {items.filter(item => item.status === 'requested').length === 1 ? 'item aguardando' : 'itens aguardando'} vinculação de patrocinadores
-                  </p>
-                  <p className="text-sm text-blue-700 mt-1">
-                    A equipe de Arte deve vincular os patrocinadores antes de você enviar os items para aprovação.
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => submitDraftsMutation.mutate()}
-                disabled={submitDraftsMutation.isPending || items.filter(item => item.status === 'requested').length === 0}
-                className="gap-2"
-                data-testid="button-send-all-to-arte"
-              >
-                {submitDraftsMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Enviar para Arte
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Card de Itens em Rascunho */}
       {items.filter(item => item.status === 'draft').length > 0 && (

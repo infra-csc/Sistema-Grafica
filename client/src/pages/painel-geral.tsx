@@ -316,70 +316,63 @@ export default function PainelGeral() {
                     </Badge>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {groupData.items.map((item: any) => (
-                    <Dialog key={item.id}>
-                      <DialogTrigger asChild>
-                        <div
-                          className="flex flex-col p-3 rounded-lg border hover-elevate cursor-pointer gap-2"
-                          data-testid={`item-row-${item.id}`}
-                        >
-                          {/* Linha 1: ID + Tipo + Status */}
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className="font-mono font-bold text-primary text-sm flex-shrink-0" data-testid={`text-display-id-${item.id}`}>
-                                {item.displayId}
-                              </div>
-                              <div className="font-semibold text-sm truncate">
-                                {item.type}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <StatusBadge status={item.status} />
-                              <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          </div>
-
-                          {/* Linha 2: Dimensões + Quantidade + m² */}
-                          <div className="flex items-center gap-4 flex-wrap text-xs">
-                            {/* Arquivo */}
-                            {item.fileWidth && item.fileHeight && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-muted-foreground font-medium">Arquivo:</span>
-                                <span className="font-semibold">{item.fileWidth} × {item.fileHeight}</span>
-                              </div>
-                            )}
-
-                            {/* Visual */}
-                            {item.visualWidth && item.visualHeight && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-muted-foreground font-medium">Visual:</span>
-                                <span className="font-semibold">{item.visualWidth} × {item.visualHeight}</span>
-                              </div>
-                            )}
-
-                            {/* Quantidade */}
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground font-medium">Qtd:</span>
-                              <span className="font-bold text-sm">{item.quantity} un.</span>
-                            </div>
-
-                            {/* m² */}
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground font-medium">m²:</span>
-                              <span className="font-bold text-primary text-sm">{item.calculatedM2}</span>
-                            </div>
-
-                            {/* Descrição */}
-                            {item.description && (
-                              <div className="hidden md:block flex-1 min-w-0 text-muted-foreground italic truncate">
-                                {item.description}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </DialogTrigger>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">ID</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Tipo</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Arquivo</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Visual</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">Qtd</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">m²</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupData.items.map((item: any, index: number) => (
+                          <Dialog key={item.id}>
+                            <DialogTrigger asChild>
+                              <tr
+                                className={`border-b hover-elevate cursor-pointer transition-colors ${
+                                  index % 2 === 0 ? 'bg-background' : 'bg-muted/20'
+                                }`}
+                                data-testid={`item-row-${item.id}`}
+                              >
+                                <td className="py-3 px-4">
+                                  <span className="font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
+                                    {item.displayId}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="font-semibold text-sm">{item.type}</span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  {item.fileWidth && item.fileHeight ? (
+                                    <span className="text-sm">{item.fileWidth} × {item.fileHeight}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  {item.visualWidth && item.visualHeight ? (
+                                    <span className="text-sm">{item.visualWidth} × {item.visualHeight}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className="font-bold text-sm">{item.quantity} un.</span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className="font-bold text-primary text-sm">{item.calculatedM2}</span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <StatusBadge status={item.status} />
+                                </td>
+                              </tr>
+                            </DialogTrigger>
 
                       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
@@ -508,7 +501,9 @@ export default function PainelGeral() {
                       </DialogContent>
                     </Dialog>
                   ))}
-                </div>
+                      </tbody>
+                    </table>
+                  </div>
               </CardContent>
             </Card>
           );

@@ -4,6 +4,12 @@
 NORTE is a comprehensive graphic production management system designed for NORTE Marketing Esportivo. Its primary purpose is to replace Excel-based workflows, significantly enhancing agility, control, and traceability across the entire production lifecycle: Request → Art → Printing → Delivery. The system aims to streamline operations, provide real-time oversight, and ensure timely communication and automatic notifications at every stage. Key ambitions include improving operational efficiency, ensuring timely project completion, and providing a robust, scalable platform for managing graphic production.
 
 ## Recent Changes (November 18, 2025)
+- **Comments with Status Tracking**: Enhanced comments system to show workflow stage when comment was made:
+  - **Schema Update**: Added `itemStatus` field to comments table to store item status at comment creation time
+  - **Endpoint Update**: POST /api/items/:id/comments now captures current item status automatically
+  - **Visual Display**: CommentsSection component displays StatusBadge alongside each comment showing workflow stage
+  - **Event Detail Integration**: Added CommentsSection to item details dialog in Event Detail page
+  - **Clear Context**: Users can now see exactly which workflow stage each discussion/comment belongs to
 - **Event Detail Page - Item Details Dialog**: Implemented comprehensive item details dialog with clickable table rows:
   - **Clickable Rows**: Item table rows open detailed information dialog on click (cursor-pointer styling)
   - **Dialog Structure**: Display ID (monospace, primary color), StatusBadge, event metadata, comprehensive cards for specifications, production data, sponsors, observations, and action history timeline

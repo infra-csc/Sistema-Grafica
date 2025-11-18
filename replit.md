@@ -4,6 +4,15 @@
 NORTE is a comprehensive graphic production management system designed for NORTE Marketing Esportivo. Its primary purpose is to replace Excel-based workflows, significantly enhancing agility, control, and traceability across the entire production lifecycle: Request → Art → Printing → Delivery. The system aims to streamline operations, provide real-time oversight, and ensure timely communication and automatic notifications at every stage. Key ambitions include improving operational efficiency, ensuring timely project completion, and providing a robust, scalable platform for managing graphic production.
 
 ## Recent Changes (November 18, 2025)
+- **Enhanced Audit Logging System**: Comprehensive improvements to status transition tracking:
+  - **Status Translation Helper**: Complete `translateStatus()` function covers all 15+ status codes (including draft, canceled, archived, legacy statuses) with Portuguese labels
+  - **Accurate Transition Logging**: All status-change endpoints (PATCH /items/:id, submit-for-approval, sponsor-approve, submit-final-file, creator-review, deliver, bulk-submit) now log transitions using persisted values (before/after comparison) in format "Status alterado: [Portuguese Label] → [Portuguese Label]"
+  - **Visual History Highlighting**: Timeline in item details dialog detects status transitions via regex and renders with:
+    - Status origin in outline badge with muted background
+    - Bold primary-colored arrow (→) separator
+    - Status destination in default badge (highlighted)
+    - Supplemental info (e.g., "aprovado pelo patrocinador") in italics with proper parentheses
+  - **Backward Compatible**: Legacy status codes properly translated and displayed
 - **Complete Workflow Status Restructure**: Implemented comprehensive status system with distinct colors for each workflow stage to eliminate confusion:
   1. **Solicitado** (requested): Yellow - Item criado
   2. **Aguardando Vinculação** (awaiting_linking): Orange - Precisa vincular patrocinadores

@@ -58,14 +58,27 @@ export default function PainelGeral() {
       const matchesSponsor = sponsorFilter === "all" || 
         (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => s.id === sponsorFilter));
       
-      // Filtro por data (próximos 10 dias a partir da data do evento)
+      // Filtro por data (várias opções)
       const matchesDate = dateFilter === "all" || (() => {
         if (!item.event?.startDate) return false;
         const eventDate = new Date(item.event.startDate);
         const today = new Date();
-        const diffTime = eventDate.getTime() - today.getTime();
+        today.setHours(0, 0, 0, 0);
+        const eventDateOnly = new Date(eventDate);
+        eventDateOnly.setHours(0, 0, 0, 0);
+        const diffTime = eventDateOnly.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays >= 0 && diffDays <= 10;
+        
+        switch(dateFilter) {
+          case 'today': return diffDays === 0;
+          case 'next3days': return diffDays >= 0 && diffDays <= 3;
+          case 'next7days': return diffDays >= 0 && diffDays <= 7;
+          case 'next10days': return diffDays >= 0 && diffDays <= 10;
+          case 'next15days': return diffDays >= 0 && diffDays <= 15;
+          case 'next30days': return diffDays >= 0 && diffDays <= 30;
+          case 'overdue': return diffDays < 0;
+          default: return true;
+        }
       })();
       
       return matchesSearch && matchesStatus && matchesEvent && matchesType && matchesSponsor && matchesDate;
@@ -374,7 +387,13 @@ export default function PainelGeral() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as datas</SelectItem>
+                  <SelectItem value="overdue">Atrasados</SelectItem>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="next3days">Próximos 3 dias</SelectItem>
+                  <SelectItem value="next7days">Próximos 7 dias</SelectItem>
                   <SelectItem value="next10days">Próximos 10 dias</SelectItem>
+                  <SelectItem value="next15days">Próximos 15 dias</SelectItem>
+                  <SelectItem value="next30days">Próximos 30 dias</SelectItem>
                 </SelectContent>
               </Select>
             </div>

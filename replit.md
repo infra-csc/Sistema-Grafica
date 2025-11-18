@@ -12,7 +12,7 @@ NORTE is a comprehensive graphic production management system designed for NORTE
   - Pronto p/ Produção (ready_for_production): Cyan
   - Liberado (approved): Green
   - Em Produção (inProduction): Production color
-  - Produzido (produced): Indigo (azul-roxo, bem distinto do verde)
+  - Produzido (produced): Fuchsia/Magenta (rosa, bem distinto do verde em ambos os modos)
   - Entregue (delivered): Completed green
 - **Terminology Update**: Renamed "Aguardando Criador" to "Aguardando Revisão Final" to better reflect the final review step before production.
 - **Status Badge Bug Fix**: Corrected issue where items with `skip_approval=true` in database were incorrectly showing as "Pronto" (pending) in Vincular Patrocinadores page. Badge status now correctly checks only original database values.

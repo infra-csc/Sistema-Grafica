@@ -59,7 +59,7 @@ const statusConfig = {
   },
   produced: {
     label: "Produzido",
-    color: "bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border-indigo-500",
+    color: "bg-fuchsia-500/20 text-fuchsia-700 dark:text-fuchsia-400 border-fuchsia-500",
     icon: CheckCircle,
   },
   delivered: {

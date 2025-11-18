@@ -86,12 +86,29 @@ export default function PainelGeral() {
   // Items para calcular stats (SEM filtro de status - números fixos nos cards)
   const statsItems = items.filter(applyBaseFilters);
 
+  // Função para verificar se o item corresponde ao status selecionado (incluindo status antigos)
+  const matchesStatusFilter = (item: any, filter: string) => {
+    if (filter === "all") return true;
+    
+    // Mapeamento de status antigos para novos
+    const statusMap: Record<string, string[]> = {
+      'awaiting_approval': ['awaiting_approval', 'awaiting_sponsor_approval'],
+      'awaiting_finalization': ['awaiting_finalization', 'sponsor_approved'],
+      'awaiting_final_review': ['awaiting_final_review', 'awaiting_creator_review'],
+    };
+    
+    // Se o filtro tem mapeamento, aceita qualquer um dos status
+    if (statusMap[filter]) {
+      return statusMap[filter].includes(item.status);
+    }
+    
+    // Senão, comparação exata
+    return item.status === filter;
+  };
+
   // Items para exibir na tabela (COM filtro de status)
   const filteredItems = statsItems
-    .filter((item) => {
-      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-      return matchesStatus;
-    })
+    .filter((item) => matchesStatusFilter(item, statusFilter))
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   // Agrupar itens por evento (usando eventId como chave única)

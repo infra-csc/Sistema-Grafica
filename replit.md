@@ -24,10 +24,16 @@ NORTE is a comprehensive graphic production management system designed for NORTE
   - **Integrated Details**: Each modal shows complete item information including specifications, production data, observations, audit log timeline, and comments section
   - **Smart Filtering**: Search by event/type/ID, event dropdown filter, and click-to-filter status cards
   - **Type Safety**: Proper TypeScript typing for grouped items with eventId-based unique keys
-  - **Compact Item Layout**: Optimized for 50-60 items per event with horizontal row displaying: Display ID, Type, Description, File dimensions (desktop), Status badge, Quantity (bold), and m² (emphasized). Uses tight spacing (p-3, gap-3) and responsive design (file dimensions hidden on mobile).
+  - **Responsive Item Layout**: Fully optimized for mobile-to-desktop with progressive disclosure:
+    - **Mobile (< 768px)**: Display ID, Type (truncated 150px), Quantity, m², Status (short labels like "Ag. Vinculação"), flex-wrap to 2 lines if needed
+    - **Tablet (≥ 768px)**: + File dimensions, Type expands, Status full labels ("Aguardando Vinculação")
+    - **Desktop (≥ 1024px)**: + Description, all info visible in single row
+    - **StatusBadge Responsive**: Short labels on mobile (40-50% space savings), full labels on tablet+
+    - **Layout Strategy**: flex-wrap with flex-shrink-0 on critical fields (ID, Qty, m²), Type uses max-w-[150px] md:max-w-none md:flex-1 for responsive expansion
+    - **No Horizontal Overflow**: Validated at 320px width with proper wrapping and truncation
+- **Display ID Migration**: Successfully migrated 57 items from legacy "ITEM-XXXX" format to new "#XXXX" format via SQL update. Display IDs properly displayed across all views with monospace font and primary color styling.
 - **Status Badge Bug Fix**: Corrected issue where items with `skip_approval=true` in database were incorrectly showing as "Pronto" (pending) in Vincular Patrocinadores page.
 - **Painel Geral Data Loading**: Fixed query key from `/api/items/global` to `/api/items` to properly load all items with event data.
-- **Display ID Visibility**: Display IDs (#XXXX format) properly displayed across all views with monospace font and primary color styling.
 
 ## User Preferences
 I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.

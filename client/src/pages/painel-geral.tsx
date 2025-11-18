@@ -414,6 +414,8 @@ export default function PainelGeral() {
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">ID</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Tipo</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Descrição</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Data Evento</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Saída Caminhão</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Arquivo</th>
                           <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Visual</th>
                           <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">Qtd</th>
@@ -444,6 +446,20 @@ export default function PainelGeral() {
                                     <span className="text-sm text-muted-foreground truncate block">{item.description}</span>
                                   ) : (
                                     <span className="text-muted-foreground text-xs italic">—</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  {item.event?.startDate ? (
+                                    <span className="text-sm">{format(new Date(item.event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  {item.event?.truckDepartureDate ? (
+                                    <span className="text-sm">{format(new Date(item.event.truckDepartureDate), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
                                   )}
                                 </td>
                                 <td className="py-3 px-4">

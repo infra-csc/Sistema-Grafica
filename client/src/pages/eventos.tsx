@@ -869,8 +869,8 @@ export default function Eventos() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardFooter className="border-t pt-2 pb-3 flex-row items-center gap-3">
-                    <div className="flex flex-col gap-1 flex-1 min-w-0 pr-3">
+                  <CardFooter className="border-t pt-2 pb-3 flex-row flex-wrap items-center gap-3">
+                    <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
                       <div className="flex items-center justify-between text-xs gap-2">
                         <span className="text-muted-foreground font-medium whitespace-nowrap">
                           {event.items?.filter((item: any) => item.status === 'delivered').length || 0}/{itemCount} concluídos
@@ -890,7 +890,7 @@ export default function Eventos() {
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="flex items-center gap-2">
                       <Button 
                         variant="ghost" 
                         size="icon"

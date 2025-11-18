@@ -21,6 +21,7 @@ import {
 import { Fragment, useState } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CommentsSection } from "@/components/comments-section";
 
 export default function Arte() {
   const { toast } = useToast();
@@ -1038,6 +1039,11 @@ export default function Arte() {
                   </div>
                 </div>
               )}
+
+              {/* Comentários */}
+              <div className="border-t pt-4">
+                <CommentsSection itemId={selectedItem.id} itemType={selectedItem.type} />
+              </div>
               
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={() => setSelectedItem(null)}>

@@ -9,6 +9,7 @@ NORTE is a comprehensive graphic production management system designed for NORTE
   - **Endpoint Update**: POST /api/items/:id/comments now captures current item status automatically
   - **Visual Display**: CommentsSection component displays StatusBadge alongside each comment showing workflow stage
   - **Event Detail Integration**: Added CommentsSection to item details dialog in Event Detail page
+  - **Arte Page Integration**: Added CommentsSection to item details dialog in Arte page
   - **Clear Context**: Users can now see exactly which workflow stage each discussion/comment belongs to
 - **Event Detail Page - Item Details Dialog**: Implemented comprehensive item details dialog with clickable table rows:
   - **Clickable Rows**: Item table rows open detailed information dialog on click (cursor-pointer styling)

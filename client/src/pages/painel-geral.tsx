@@ -322,47 +322,61 @@ export default function PainelGeral() {
                     <Dialog key={item.id}>
                       <DialogTrigger asChild>
                         <div
-                          className="flex flex-wrap items-center p-3 rounded-lg border hover-elevate cursor-pointer gap-2"
+                          className="flex flex-col p-3 rounded-lg border hover-elevate cursor-pointer gap-2"
                           data-testid={`item-row-${item.id}`}
                         >
-                          {/* ID (sempre fixo) */}
-                          <div className="font-mono font-bold text-primary text-sm flex-shrink-0" data-testid={`text-display-id-${item.id}`}>
-                            {item.displayId}
-                          </div>
-
-                          {/* Tipo (trunca em mobile, expande em desktop) */}
-                          <div className="font-semibold text-sm min-w-0 max-w-[150px] md:max-w-none md:flex-1 truncate">
-                            {item.type}
-                          </div>
-
-                          {/* Arquivo */}
-                          {item.fileWidth && item.fileHeight && (
-                            <div className="hidden md:flex text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                              {item.fileWidth} × {item.fileHeight}
+                          {/* Linha 1: ID + Tipo + Status */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="font-mono font-bold text-primary text-sm flex-shrink-0" data-testid={`text-display-id-${item.id}`}>
+                                {item.displayId}
+                              </div>
+                              <div className="font-semibold text-sm truncate">
+                                {item.type}
+                              </div>
                             </div>
-                          )}
-
-                          {/* Quantidade + m² */}
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <div className="text-sm font-bold whitespace-nowrap">
-                              {item.quantity} un.
-                            </div>
-                            <div className="text-sm font-bold text-primary whitespace-nowrap">
-                              {item.calculatedM2} m²
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <StatusBadge status={item.status} />
+                              <ExternalLink className="h-4 w-4 text-muted-foreground" />
                             </div>
                           </div>
 
-                          {/* Descrição (em desktop+) */}
-                          {item.description && (
-                            <div className="hidden lg:block flex-1 min-w-0 text-xs text-muted-foreground truncate">
-                              {item.description}
-                            </div>
-                          )}
+                          {/* Linha 2: Dimensões + Quantidade + m² */}
+                          <div className="flex items-center gap-4 flex-wrap text-xs">
+                            {/* Arquivo */}
+                            {item.fileWidth && item.fileHeight && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-muted-foreground font-medium">Arquivo:</span>
+                                <span className="font-semibold">{item.fileWidth} × {item.fileHeight}</span>
+                              </div>
+                            )}
 
-                          {/* Status + Icon */}
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <StatusBadge status={item.status} />
-                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                            {/* Visual */}
+                            {item.visualWidth && item.visualHeight && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-muted-foreground font-medium">Visual:</span>
+                                <span className="font-semibold">{item.visualWidth} × {item.visualHeight}</span>
+                              </div>
+                            )}
+
+                            {/* Quantidade */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground font-medium">Qtd:</span>
+                              <span className="font-bold text-sm">{item.quantity} un.</span>
+                            </div>
+
+                            {/* m² */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground font-medium">m²:</span>
+                              <span className="font-bold text-primary text-sm">{item.calculatedM2}</span>
+                            </div>
+
+                            {/* Descrição */}
+                            {item.description && (
+                              <div className="hidden md:block flex-1 min-w-0 text-muted-foreground italic truncate">
+                                {item.description}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </DialogTrigger>

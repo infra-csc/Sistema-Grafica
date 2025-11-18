@@ -322,34 +322,49 @@ export default function PainelGeral() {
                     <Dialog key={item.id}>
                       <DialogTrigger asChild>
                         <div
-                          className="flex items-center justify-between p-3 rounded-lg border hover-elevate cursor-pointer"
+                          className="flex items-center justify-between p-3 rounded-lg border hover-elevate cursor-pointer gap-3"
                           data-testid={`item-row-${item.id}`}
                         >
-                          <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
-                              {item.displayId}
-                            </div>
-                            <Badge variant="outline" className="font-semibold">
+                          {/* ID */}
+                          <div className="flex-shrink-0 font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
+                            {item.displayId}
+                          </div>
+                          
+                          {/* Tipo e Descrição */}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm">
                               {item.type}
-                            </Badge>
+                            </div>
                             {item.description && (
-                              <span className="text-sm text-muted-foreground truncate hidden md:block">
+                              <div className="text-xs text-muted-foreground truncate">
                                 {item.description}
-                              </span>
+                              </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            <StatusBadge status={item.status} />
-                            <div className="text-right hidden sm:block">
-                              <div className="text-sm font-semibold">
-                                {item.quantity} un.
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {item.calculatedM2} m²
-                              </div>
+
+                          {/* Arquivo */}
+                          {item.fileWidth && item.fileHeight && (
+                            <div className="hidden md:flex flex-shrink-0 text-xs text-muted-foreground">
+                              {item.fileWidth} × {item.fileHeight}
                             </div>
-                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          )}
+
+                          {/* Status */}
+                          <div className="flex-shrink-0">
+                            <StatusBadge status={item.status} />
                           </div>
+
+                          {/* Quantidade e m² */}
+                          <div className="flex-shrink-0 text-right min-w-[80px]">
+                            <div className="text-sm font-bold">
+                              {item.quantity} un.
+                            </div>
+                            <div className="text-xs text-muted-foreground font-semibold">
+                              {item.calculatedM2} m²
+                            </div>
+                          </div>
+
+                          <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         </div>
                       </DialogTrigger>
 

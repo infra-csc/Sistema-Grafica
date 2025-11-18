@@ -4,20 +4,22 @@
 NORTE is a comprehensive graphic production management system designed for NORTE Marketing Esportivo. Its primary purpose is to replace Excel-based workflows, significantly enhancing agility, control, and traceability across the entire production lifecycle: Request → Art → Printing → Delivery. The system aims to streamline operations, provide real-time oversight, and ensure timely communication and automatic notifications at every stage. Key ambitions include improving operational efficiency, ensuring timely project completion, and providing a robust, scalable platform for managing graphic production.
 
 ## Recent Changes (November 18, 2025)
-- **Status Badge Colors**: Implemented distinct colors for all workflow statuses to eliminate confusion. Each stage now has a unique visual appearance:
-  - Solicitado (requested): Yellow
-  - Aguardando Patrocinador (awaiting_sponsor_approval): Orange
-  - Patrocinador Aprovou (sponsor_approved): Blue
-  - Aguardando Revisão Final (awaiting_creator_review): Purple
-  - Pronto p/ Produção (ready_for_production): Cyan
-  - Liberado (approved): Green
-  - Em Produção (inProduction): Production color
-  - Produzido (produced): Fuchsia/Magenta (rosa, bem distinto do verde em ambos os modos)
-  - Entregue (delivered): Completed green
-- **Terminology Update**: Renamed "Aguardando Criador" to "Aguardando Revisão Final" to better reflect the final review step before production.
-- **Status Badge Bug Fix**: Corrected issue where items with `skip_approval=true` in database were incorrectly showing as "Pronto" (pending) in Vincular Patrocinadores page. Badge status now correctly checks only original database values.
+- **Complete Workflow Status Restructure**: Implemented comprehensive status system with distinct colors for each workflow stage to eliminate confusion:
+  1. **Solicitado** (requested): Yellow - Item criado
+  2. **Aguardando Vinculação** (awaiting_linking): Orange - Precisa vincular patrocinadores
+  3. **Aguardando Envio** (awaiting_submission): Blue - Vinculação feita, Arte precisa enviar aprovação
+  4. **Aguardando Aprovação** (awaiting_approval): Rose/Pink - Arte enviou, aguardando patrocinador aprovar
+  5. **Aguardando Finalização** (awaiting_finalization): Purple - Patrocinador aprovou, Arte precisa finalizar
+  6. **Aguardando Revisão Final** (awaiting_final_review): Violet - Arte finalizou, Solicitação revisa
+  7. **Pronto p/ Produção** (ready_for_production): Cyan - Aprovado para produção
+  8. **Liberado** (approved): Green - Liberado pela Arte
+  9. **Em Produção** (inProduction): Production color - Em processo de produção
+  10. **Produzido** (produced): Fuchsia/Magenta - Item produzido
+  11. **Entregue** (delivered): Emerald - Item entregue
+- **Backward Compatibility**: Status antigos (awaiting_sponsor_approval, sponsor_approved, awaiting_creator_review) mantidos para compatibilidade com dados existentes.
+- **Status Badge Bug Fix**: Corrected issue where items with `skip_approval=true` in database were incorrectly showing as "Pronto" (pending) in Vincular Patrocinadores page.
 - **Painel Geral Data Loading**: Fixed query key from `/api/items/global` to `/api/items` to properly load all items with event data.
-- **Display ID Visibility**: Confirmed Display IDs (#XXXX format) are properly displayed across all views including Painel Geral, with monospace font and primary color styling.
+- **Display ID Visibility**: Display IDs (#XXXX format) properly displayed across all views with monospace font and primary color styling.
 
 ## User Preferences
 I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.

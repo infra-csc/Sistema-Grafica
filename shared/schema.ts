@@ -65,7 +65,7 @@ export const items = pgTable("items", {
   finish: text("finish").notNull(),
   measurement: text("measurement").notNull(), // Can be edited, starts as area x visual
   calculatedM2: decimal("calculated_m2", { precision: 10, scale: 2 }).notNull(),
-  status: text("status").notNull().default("draft"), // draft, requested, awaiting_sponsor_approval, sponsor_approved, awaiting_creator_review, ready_for_production, approved, inProduction, produced, delivered
+  status: text("status").notNull().default("draft"), // draft, requested, awaiting_linking, awaiting_submission, awaiting_approval, awaiting_finalization, awaiting_final_review, ready_for_production, approved, inProduction, produced, delivered
   observations: text("observations"),
   quantityProduced: integer("quantity_produced"),
   receivedBy: text("received_by"),

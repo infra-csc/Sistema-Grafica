@@ -629,12 +629,12 @@ export default function PainelGeral() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Card: Patrocinadores */}
                             {item.sponsors && item.sponsors.length > 0 && (() => {
-                              // Fazer lookup dos sponsors completos pelos IDs
-                              const itemSponsors = item.sponsors
-                                .map((sponsorData: any, idx: number) => {
-                                  // Se já tem o objeto completo com todos os dados, usar diretamente
-                                  if (typeof sponsorData === 'object' && sponsorData.name && sponsorData.logoUrl !== undefined) {
-                                    return sponsorData;
+                              // Fazer lookup dos sponsors pelos IDs para pegar os nomes
+                              const itemSponsorNames = item.sponsors
+                                .map((sponsorData: any) => {
+                                  // Se já tem o nome, usar diretamente
+                                  if (typeof sponsorData === 'object' && sponsorData.name) {
+                                    return sponsorData.name;
                                   }
                                   
                                   // Determinar o ID para lookup
@@ -643,45 +643,26 @@ export default function PainelGeral() {
                                   // Fazer lookup pelo ID
                                   const sponsor = sponsors.find((s: any) => s.id === sponsorId);
                                   
-                                  // Se encontrou, retornar
-                                  if (sponsor) return sponsor;
-                                  
-                                  // FALLBACK: Se não encontrou, criar objeto com dados disponíveis
-                                  return {
-                                    id: sponsorId || `fallback-${idx}`,
-                                    name: (typeof sponsorData === 'object' && sponsorData.name) 
-                                      ? sponsorData.name 
-                                      : 'Patrocinador desconhecido',
-                                    logoUrl: null
-                                  };
-                                });
+                                  // Retornar nome ou fallback
+                                  return sponsor?.name || 'Patrocinador desconhecido';
+                                })
+                                .filter(Boolean);
                               
-                              if (itemSponsors.length === 0) return null;
+                              if (itemSponsorNames.length === 0) return null;
                               
                               return (
                                 <Card>
                                   <CardHeader className="pb-3">
                                     <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
-                                      Patrocinadores ({itemSponsors.length})
+                                      Patrocinadores ({itemSponsorNames.length})
                                     </CardTitle>
                                   </CardHeader>
                                   <CardContent>
-                                    <div className="flex flex-wrap gap-3">
-                                      {itemSponsors.map((sponsor: any, idx: number) => (
-                                        <div key={sponsor.id || `sponsor-${idx}`} className="flex items-center gap-2 bg-muted/30 rounded-md px-3 py-2 border border-border">
-                                          {sponsor.logoUrl ? (
-                                            <img 
-                                              src={sponsor.logoUrl} 
-                                              alt={sponsor.name}
-                                              className="h-8 w-8 object-contain rounded"
-                                            />
-                                          ) : (
-                                            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
-                                              {sponsor.name?.substring(0, 2).toUpperCase() || '??'}
-                                            </div>
-                                          )}
-                                          <span className="text-sm font-medium">{sponsor.name || 'Patrocinador desconhecido'}</span>
-                                        </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {itemSponsorNames.map((name: string, idx: number) => (
+                                        <Badge key={idx} variant="secondary" className="text-xs">
+                                          {name}
+                                        </Badge>
                                       ))}
                                     </div>
                                   </CardContent>

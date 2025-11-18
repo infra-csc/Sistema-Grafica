@@ -30,6 +30,7 @@ NORTE is a comprehensive graphic production management system designed for NORTE
   - **Event Grouping**: Items are grouped by event using unique eventId keys (prevents collisions from duplicate event names), displaying event name with item count badges
   - **Dialog-based Item Details**: Items open in modal dialogs instead of inline expansion for better visualization and focus
   - **Integrated Details**: Each modal shows complete item information including specifications, production data, observations, audit log timeline, and comments section
+  - **Sponsor Display with Logos**: Card de patrocinadores mostra logos (32x32px, object-contain) ao lado dos nomes; fallback com iniciais para patrocinadores sem logo; contador de patrocinadores no título; layout responsivo com flex-wrap
   - **Smart Filtering**: Search by event/type/ID, event dropdown filter, and click-to-filter status cards
   - **Type Safety**: Proper TypeScript typing for grouped items with eventId-based unique keys
   - **Responsive Item Layout**: Fully optimized for mobile-to-desktop with progressive disclosure:

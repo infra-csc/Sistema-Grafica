@@ -44,44 +44,53 @@ export default function PainelGeral() {
   // Pegar tipos únicos dos itens
   const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
 
-  const filteredItems = items
+  // Função auxiliar para aplicar filtros (exceto status)
+  const applyBaseFilters = (item: any) => {
+    const matchesSearch = 
+      item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.displayId?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+    const matchesType = typeFilter === "all" || item.type === typeFilter;
+    
+    // Filtro por patrocinador (verifica se o item tem o patrocinador selecionado)
+    const matchesSponsor = sponsorFilter === "all" || 
+      (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => s.id === sponsorFilter));
+    
+    // Filtro por data (várias opções)
+    const matchesDate = dateFilter === "all" || (() => {
+      if (!item.event?.startDate) return false;
+      const eventDate = new Date(item.event.startDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const eventDateOnly = new Date(eventDate);
+      eventDateOnly.setHours(0, 0, 0, 0);
+      const diffTime = eventDateOnly.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      switch(dateFilter) {
+        case 'today': return diffDays === 0;
+        case 'next3days': return diffDays >= 0 && diffDays <= 3;
+        case 'next7days': return diffDays >= 0 && diffDays <= 7;
+        case 'next10days': return diffDays >= 0 && diffDays <= 10;
+        case 'next15days': return diffDays >= 0 && diffDays <= 15;
+        case 'next30days': return diffDays >= 0 && diffDays <= 30;
+        case 'overdue': return diffDays < 0;
+        default: return true;
+      }
+    })();
+    
+    return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
+  };
+
+  // Items para calcular stats (SEM filtro de status - números fixos nos cards)
+  const statsItems = items.filter(applyBaseFilters);
+
+  // Items para exibir na tabela (COM filtro de status)
+  const filteredItems = statsItems
     .filter((item) => {
-      const matchesSearch = 
-        item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.displayId?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-      const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-      const matchesType = typeFilter === "all" || item.type === typeFilter;
-      
-      // Filtro por patrocinador (verifica se o item tem o patrocinador selecionado)
-      const matchesSponsor = sponsorFilter === "all" || 
-        (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => s.id === sponsorFilter));
-      
-      // Filtro por data (várias opções)
-      const matchesDate = dateFilter === "all" || (() => {
-        if (!item.event?.startDate) return false;
-        const eventDate = new Date(item.event.startDate);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const eventDateOnly = new Date(eventDate);
-        eventDateOnly.setHours(0, 0, 0, 0);
-        const diffTime = eventDateOnly.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        switch(dateFilter) {
-          case 'today': return diffDays === 0;
-          case 'next3days': return diffDays >= 0 && diffDays <= 3;
-          case 'next7days': return diffDays >= 0 && diffDays <= 7;
-          case 'next10days': return diffDays >= 0 && diffDays <= 10;
-          case 'next15days': return diffDays >= 0 && diffDays <= 15;
-          case 'next30days': return diffDays >= 0 && diffDays <= 30;
-          case 'overdue': return diffDays < 0;
-          default: return true;
-        }
-      })();
-      
-      return matchesSearch && matchesStatus && matchesEvent && matchesType && matchesSponsor && matchesDate;
+      return matchesStatus;
     })
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
@@ -100,19 +109,20 @@ export default function PainelGeral() {
     return acc;
   }, {} as Record<string, { eventId: string | null, eventName: string, items: any[] }>);
 
+  // Stats baseados APENAS nos filtros dropdown (não muda ao clicar nos cards)
   const stats = {
-    total: filteredItems.length,
-    requested: filteredItems.filter(i => i.status === 'requested').length,
-    awaitingLinking: filteredItems.filter(i => i.status === 'awaiting_linking').length,
-    awaitingSubmission: filteredItems.filter(i => i.status === 'awaiting_submission').length,
-    awaitingApproval: filteredItems.filter(i => i.status === 'awaiting_approval' || i.status === 'awaiting_sponsor_approval').length,
-    awaitingFinalization: filteredItems.filter(i => i.status === 'awaiting_finalization' || i.status === 'sponsor_approved').length,
-    awaitingFinalReview: filteredItems.filter(i => i.status === 'awaiting_final_review' || i.status === 'awaiting_creator_review').length,
-    readyForProduction: filteredItems.filter(i => i.status === 'ready_for_production').length,
-    approved: filteredItems.filter(i => i.status === 'approved').length,
-    inProduction: filteredItems.filter(i => i.status === 'inProduction').length,
-    produced: filteredItems.filter(i => i.status === 'produced').length,
-    delivered: filteredItems.filter(i => i.status === 'delivered').length,
+    total: statsItems.length,
+    requested: statsItems.filter(i => i.status === 'requested').length,
+    awaitingLinking: statsItems.filter(i => i.status === 'awaiting_linking').length,
+    awaitingSubmission: statsItems.filter(i => i.status === 'awaiting_submission').length,
+    awaitingApproval: statsItems.filter(i => i.status === 'awaiting_approval' || i.status === 'awaiting_sponsor_approval').length,
+    awaitingFinalization: statsItems.filter(i => i.status === 'awaiting_finalization' || i.status === 'sponsor_approved').length,
+    awaitingFinalReview: statsItems.filter(i => i.status === 'awaiting_final_review' || i.status === 'awaiting_creator_review').length,
+    readyForProduction: statsItems.filter(i => i.status === 'ready_for_production').length,
+    approved: statsItems.filter(i => i.status === 'approved').length,
+    inProduction: statsItems.filter(i => i.status === 'inProduction').length,
+    produced: statsItems.filter(i => i.status === 'produced').length,
+    delivered: statsItems.filter(i => i.status === 'delivered').length,
   };
 
   const getItemLogs = (itemId: string) => {
@@ -138,17 +148,17 @@ export default function PainelGeral() {
       </div>
 
       {/* Dashboard - 12 Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         <Card 
           className={`cursor-pointer hover-elevate ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
           onClick={() => setStatusFilter('all')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Total</CardTitle>
-            <Package2 className="h-4 w-4 text-muted-foreground" />
+            <Package2 className="h-3.5 w-3.5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="stat-total">{stats.total}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold" data-testid="stat-total">{stats.total}</div>
           </CardContent>
         </Card>
 
@@ -156,12 +166,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'requested' ? 'ring-2 ring-yellow-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'requested' ? 'all' : 'requested')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Solicitado</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-yellow-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-yellow-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{stats.requested}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-yellow-700 dark:text-yellow-400">{stats.requested}</div>
           </CardContent>
         </Card>
 
@@ -169,12 +179,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_linking' ? 'ring-2 ring-orange-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_linking' ? 'all' : 'awaiting_linking')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Aguard. Vinculação</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-orange-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-orange-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-700 dark:text-orange-400">{stats.awaitingLinking}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-orange-700 dark:text-orange-400">{stats.awaitingLinking}</div>
           </CardContent>
         </Card>
 
@@ -182,12 +192,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_submission' ? 'ring-2 ring-blue-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_submission' ? 'all' : 'awaiting_submission')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Aguard. Envio</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-blue-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-blue-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">{stats.awaitingSubmission}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-blue-700 dark:text-blue-400">{stats.awaitingSubmission}</div>
           </CardContent>
         </Card>
 
@@ -195,12 +205,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'ring-2 ring-rose-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'all' : 'awaiting_approval')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Aguard. Aprovação</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-rose-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-rose-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-rose-700 dark:text-rose-400">{stats.awaitingApproval}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-rose-700 dark:text-rose-400">{stats.awaitingApproval}</div>
           </CardContent>
         </Card>
 
@@ -208,12 +218,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'ring-2 ring-purple-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'all' : 'awaiting_finalization')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Aguard. Finalização</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-purple-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-purple-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">{stats.awaitingFinalization}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-purple-700 dark:text-purple-400">{stats.awaitingFinalization}</div>
           </CardContent>
         </Card>
 
@@ -221,12 +231,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'ring-2 ring-violet-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'all' : 'awaiting_final_review')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Aguard. Revisão</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-violet-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-violet-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-violet-700 dark:text-violet-400">{stats.awaitingFinalReview}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-violet-700 dark:text-violet-400">{stats.awaitingFinalReview}</div>
           </CardContent>
         </Card>
 
@@ -234,12 +244,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'ready_for_production' ? 'ring-2 ring-cyan-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'ready_for_production' ? 'all' : 'ready_for_production')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Pronto Produção</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-cyan-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-cyan-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">{stats.readyForProduction}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-cyan-700 dark:text-cyan-400">{stats.readyForProduction}</div>
           </CardContent>
         </Card>
 
@@ -247,12 +257,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'approved' ? 'ring-2 ring-green-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Liberado</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-green-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-700 dark:text-green-400">{stats.approved}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-green-700 dark:text-green-400">{stats.approved}</div>
           </CardContent>
         </Card>
 
@@ -260,12 +270,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'inProduction' ? 'ring-2 ring-status-production' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'inProduction' ? 'all' : 'inProduction')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Em Produção</CardTitle>
-            <Package2 className="h-4 w-4 text-status-production" />
+            <Package2 className="h-3.5 w-3.5 text-status-production" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-status-production">{stats.inProduction}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-status-production">{stats.inProduction}</div>
           </CardContent>
         </Card>
 
@@ -273,12 +283,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'produced' ? 'ring-2 ring-fuchsia-500' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'produced' ? 'all' : 'produced')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Produzido</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-fuchsia-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-fuchsia-500"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-fuchsia-700 dark:text-fuchsia-400">{stats.produced}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-fuchsia-700 dark:text-fuchsia-400">{stats.produced}</div>
           </CardContent>
         </Card>
 
@@ -286,12 +296,12 @@ export default function PainelGeral() {
           className={`cursor-pointer hover-elevate ${statusFilter === 'delivered' ? 'ring-2 ring-emerald-600' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'delivered' ? 'all' : 'delivered')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium">Entregue</CardTitle>
-            <div className="h-3 w-3 rounded-full bg-emerald-600"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-emerald-600"></div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{stats.delivered}</div>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{stats.delivered}</div>
           </CardContent>
         </Card>
       </div>

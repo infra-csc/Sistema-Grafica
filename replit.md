@@ -3,6 +3,21 @@
 ## Overview
 NORTE is a comprehensive graphic production management system designed for NORTE Marketing Esportivo. Its primary purpose is to replace Excel-based workflows, significantly enhancing agility, control, and traceability across the entire production lifecycle: Request → Art → Printing → Delivery. The system aims to streamline operations, provide real-time oversight, and ensure timely communication and automatic notifications at every stage. Key ambitions include improving operational efficiency, ensuring timely project completion, and providing a robust, scalable platform for managing graphic production.
 
+## Recent Changes (November 18, 2025)
+- **Status Badge Colors**: Implemented distinct colors for all workflow statuses to eliminate confusion. Each stage now has a unique visual appearance:
+  - Solicitado (requested): Yellow
+  - Aguardando Patrocinador (awaiting_sponsor_approval): Orange
+  - Patrocinador Aprovou (sponsor_approved): Blue
+  - Aguardando Criador (awaiting_creator_review): Purple
+  - Pronto p/ Produção (ready_for_production): Cyan
+  - Liberado (approved): Green
+  - Em Produção (inProduction): Production color
+  - Produzido (produced): Emerald
+  - Entregue (delivered): Completed color
+- **Status Badge Bug Fix**: Corrected issue where items with `skip_approval=true` in database were incorrectly showing as "Pronto" (pending) in Vincular Patrocinadores page. Badge status now correctly checks only original database values.
+- **Painel Geral Data Loading**: Fixed query key from `/api/items/global` to `/api/items` to properly load all items with event data.
+- **Display ID Visibility**: Confirmed Display IDs (#XXXX format) are properly displayed across all views including Painel Geral, with monospace font and primary color styling.
+
 ## User Preferences
 I prefer concise and clear explanations. I want iterative development with frequent, small updates rather than large, infrequent ones. Always ask for confirmation before making significant changes to the codebase or architectural decisions. Do not make changes to the `shared/schema.ts` file without explicit instruction.
 

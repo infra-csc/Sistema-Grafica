@@ -24,6 +24,7 @@ NORTE is a comprehensive graphic production management system designed for NORTE
   - **Integrated Details**: Each modal shows complete item information including specifications, production data, observations, audit log timeline, and comments section
   - **Smart Filtering**: Search by event/type/ID, event dropdown filter, and click-to-filter status cards
   - **Type Safety**: Proper TypeScript typing for grouped items with eventId-based unique keys
+  - **Compact Item Layout**: Optimized for 50-60 items per event with horizontal row displaying: Display ID, Type, Description, File dimensions (desktop), Status badge, Quantity (bold), and m² (emphasized). Uses tight spacing (p-3, gap-3) and responsive design (file dimensions hidden on mobile).
 - **Status Badge Bug Fix**: Corrected issue where items with `skip_approval=true` in database were incorrectly showing as "Pronto" (pending) in Vincular Patrocinadores page.
 - **Painel Geral Data Loading**: Fixed query key from `/api/items/global` to `/api/items` to properly load all items with event data.
 - **Display ID Visibility**: Display IDs (#XXXX format) properly displayed across all views with monospace font and primary color styling.

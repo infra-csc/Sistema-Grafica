@@ -24,12 +24,32 @@ const statusConfig = {
   },
   requested: {
     label: "Solicitado",
-    color: "bg-status-pending/20 text-status-pending border-status-pending",
+    color: "bg-yellow-500/20 text-yellow-700 dark:text-yellow-500 border-yellow-500",
     icon: Clock,
+  },
+  awaiting_sponsor_approval: {
+    label: "Aguardando Patrocinador",
+    color: "bg-orange-500/20 text-orange-700 dark:text-orange-500 border-orange-500",
+    icon: Clock,
+  },
+  sponsor_approved: {
+    label: "Patrocinador Aprovou",
+    color: "bg-blue-500/20 text-blue-700 dark:text-blue-500 border-blue-500",
+    icon: CheckCircle,
+  },
+  awaiting_creator_review: {
+    label: "Aguardando Criador",
+    color: "bg-purple-500/20 text-purple-700 dark:text-purple-500 border-purple-500",
+    icon: Clock,
+  },
+  ready_for_production: {
+    label: "Pronto p/ Produção",
+    color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-500 border-cyan-500",
+    icon: CheckCircle,
   },
   approved: {
     label: "Liberado",
-    color: "bg-status-inProgress/20 text-status-inProgress border-status-inProgress",
+    color: "bg-green-500/20 text-green-700 dark:text-green-500 border-green-500",
     icon: CheckCircle,
   },
   inProduction: {
@@ -39,7 +59,7 @@ const statusConfig = {
   },
   produced: {
     label: "Produzido",
-    color: "bg-status-completed/20 text-status-completed border-status-completed",
+    color: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-500 border-emerald-500",
     icon: CheckCircle,
   },
   delivered: {

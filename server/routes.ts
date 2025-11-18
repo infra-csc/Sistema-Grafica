@@ -57,6 +57,33 @@ function broadcast(data: any) {
   });
 }
 
+// Helper to translate status to Portuguese
+function translateStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    draft: "Rascunho",
+    requested: "Solicitado",
+    awaiting_linking: "Aguardando Vinculação",
+    awaiting_submission: "Aguardando Envio",
+    awaiting_approval: "Aguardando Aprovação",
+    awaiting_finalization: "Aguardando Finalização",
+    awaiting_final_review: "Aguardando Revisão Final",
+    awaiting_review: "Aguardando Revisão",
+    in_review: "Em Revisão",
+    ready_for_production: "Pronto para Produção",
+    approved: "Liberado",
+    inProduction: "Em Produção",
+    produced: "Produzido",
+    delivered: "Entregue",
+    canceled: "Cancelado",
+    archived: "Arquivado",
+    // Legacy status compatibility
+    awaiting_sponsor_approval: "Aguardando Aprovação",
+    sponsor_approved: "Aguardando Finalização",
+    awaiting_creator_review: "Aguardando Revisão Final",
+  };
+  return statusMap[status] || status;
+}
+
 // Helper to create audit logs
 async function createAuditLog(
   userName: string,
@@ -866,7 +893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'created',
         'item',
         eventId,
-        `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item enviado' : 'itens enviados'} para Arte no evento "${event.name}"`
+        `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → ${translateStatus('requested')} (${successfulUpdates.length === 1 ? 'enviado' : 'enviados'} para Arte)`
       );
       
       // Notify Arte profile with actual count
@@ -1093,18 +1120,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertItemSchema.partial().parse(req.body);
       
+      // Pegar item atual antes de atualizar
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
       // Se está atualizando o sponsorId, validar que pertence ao evento
       if (validatedData.sponsorId) {
-        const currentItem = await storage.getItem(req.params.id);
-        if (currentItem) {
-          const eventSponsors = await storage.getEventSponsors(currentItem.eventId);
-          const sponsorBelongsToEvent = eventSponsors.some(es => es.sponsorId === validatedData.sponsorId);
-          
-          if (!sponsorBelongsToEvent) {
-            return res.status(400).json({ 
-              error: "O patrocinador selecionado não está vinculado a este evento" 
-            });
-          }
+        const eventSponsors = await storage.getEventSponsors(currentItem.eventId);
+        const sponsorBelongsToEvent = eventSponsors.some(es => es.sponsorId === validatedData.sponsorId);
+        
+        if (!sponsorBelongsToEvent) {
+          return res.status(400).json({ 
+            error: "O patrocinador selecionado não está vinculado a este evento" 
+          });
         }
       }
       
@@ -1113,13 +1143,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Item not found" });
       }
       
-      // Create audit log
+      // Create audit log - check if status changed (compare actual persisted status)
+      let auditDetails = `Item "${item.type}" atualizado`;
+      if (item.status !== currentItem.status) {
+        auditDetails = `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}`;
+      }
+      
       await createAuditLog(
         (req as any).userName,
         'updated',
         'item',
         item.id,
-        `Item "${item.type}" atualizado`
+        auditDetails
       );
       
       // Recalculate event status if item status changed
@@ -1211,7 +1246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'updated',
           'item',
           item.id,
-          `Item "${item.type}" enviado para revisão da Solicitação (sem aprovação de patrocinador)`
+          `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)} (sem aprovação de patrocinador)`
         );
         
         // Notifica Solicitação para revisar
@@ -1232,7 +1267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'updated',
           'item',
           item.id,
-          `Item "${item.type}" enviado para aprovação do patrocinador`
+          `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)}`
         );
         
         // Notifica Atendimento para aprovar com patrocinador
@@ -1291,7 +1326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'approved',
         'item',
         item.id,
-        `Item "${item.type}" aprovado pelo patrocinador`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("sponsor_approved")} (aprovado pelo patrocinador)`
       );
       
       // Notifica Arte para finalizar o layout e adicionar arquivo final
@@ -1355,7 +1390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'updated',
         'item',
         item.id,
-        `Item "${item.type}" - arquivo final adicionado pela Arte`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_creator_review")} (arquivo final adicionado)`
       );
       
       // Notifica Solicitação para revisão final
@@ -1412,7 +1447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'approved',
         'item',
         item.id,
-        `Item "${item.type}" revisado e liberado para produção pelo criador do evento`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`
       );
       
       // Notifica Arte e Gráfica que o item está liberado para produção
@@ -1505,6 +1540,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "receivedBy is required" });
       }
       
+      // Pegar status anterior antes de atualizar
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
       const item = await storage.markItemAsDelivered(req.params.id, receivedBy, photoUrl);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
@@ -1518,7 +1559,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'delivered',
         'item',
         item.id,
-        `Item "${item.type}" entregue - Recebido por: ${receivedBy}`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("delivered")} (Recebido por: ${receivedBy})`
       );
       
       // Recalculate event status - might become "completed"

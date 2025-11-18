@@ -322,49 +322,48 @@ export default function PainelGeral() {
                     <Dialog key={item.id}>
                       <DialogTrigger asChild>
                         <div
-                          className="flex items-center justify-between p-3 rounded-lg border hover-elevate cursor-pointer gap-3"
+                          className="flex flex-wrap items-center p-3 rounded-lg border hover-elevate cursor-pointer gap-2"
                           data-testid={`item-row-${item.id}`}
                         >
-                          {/* ID */}
-                          <div className="flex-shrink-0 font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
+                          {/* ID (sempre fixo) */}
+                          <div className="font-mono font-bold text-primary text-sm flex-shrink-0" data-testid={`text-display-id-${item.id}`}>
                             {item.displayId}
                           </div>
-                          
-                          {/* Tipo e Descrição */}
-                          <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-sm">
-                              {item.type}
-                            </div>
-                            {item.description && (
-                              <div className="text-xs text-muted-foreground truncate">
-                                {item.description}
-                              </div>
-                            )}
+
+                          {/* Tipo (trunca em mobile, expande em desktop) */}
+                          <div className="font-semibold text-sm min-w-0 max-w-[150px] md:max-w-none md:flex-1 truncate">
+                            {item.type}
                           </div>
 
                           {/* Arquivo */}
                           {item.fileWidth && item.fileHeight && (
-                            <div className="hidden md:flex flex-shrink-0 text-xs text-muted-foreground">
+                            <div className="hidden md:flex text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
                               {item.fileWidth} × {item.fileHeight}
                             </div>
                           )}
 
-                          {/* Status */}
-                          <div className="flex-shrink-0">
-                            <StatusBadge status={item.status} />
-                          </div>
-
-                          {/* Quantidade e m² */}
-                          <div className="flex-shrink-0 text-right min-w-[80px]">
-                            <div className="text-sm font-bold">
+                          {/* Quantidade + m² */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="text-sm font-bold whitespace-nowrap">
                               {item.quantity} un.
                             </div>
-                            <div className="text-xs text-muted-foreground font-semibold">
+                            <div className="text-sm font-bold text-primary whitespace-nowrap">
                               {item.calculatedM2} m²
                             </div>
                           </div>
 
-                          <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          {/* Descrição (em desktop+) */}
+                          {item.description && (
+                            <div className="hidden lg:block flex-1 min-w-0 text-xs text-muted-foreground truncate">
+                              {item.description}
+                            </div>
+                          )}
+
+                          {/* Status + Icon */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <StatusBadge status={item.status} />
+                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          </div>
                         </div>
                       </DialogTrigger>
 

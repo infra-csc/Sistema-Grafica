@@ -369,15 +369,11 @@ export default function VincularPatrocinadores() {
         });
 
         // 2. Atualizar skipApproval e status
-        // Se skipApproval = true, pula aprovação de patrocinador mas ainda passa por revisão do criador
-        // Se skipApproval = false, vai para aprovação do patrocinador primeiro
-        const nextStatus = changes.skipApproval 
-          ? "awaiting_creator_review" 
-          : "awaiting_sponsor_approval";
-        
+        // Após vincular patrocinadores, o item sempre vai para Arte (awaiting_submission)
+        // Arte então decidirá o próximo passo (enviar para aprovação ou pular)
         await apiRequest("PATCH", `/api/items/${itemId}`, {
           skipApproval: changes.skipApproval,
-          status: nextStatus
+          status: "awaiting_submission"
         });
       }
       
@@ -423,8 +419,8 @@ export default function VincularPatrocinadores() {
       });
       
       toast({
-        title: "✅ Items confirmados!",
-        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} enviado${validItemIds.length !== 1 ? 's' : ''} para aprovação`,
+        title: "✅ Items enviados para Arte!",
+        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} enviado${validItemIds.length !== 1 ? 's' : ''} para Arte`,
       });
     },
     onError: (error: Error) => {
@@ -825,7 +821,7 @@ export default function VincularPatrocinadores() {
                       data-testid="button-confirm-send-to-arte"
                     >
                       <CheckCircle2 className="h-4 w-4" />
-                      {confirmItemsMutation.isPending ? "Confirmando..." : "Confirmar"}
+                      {confirmItemsMutation.isPending ? "Enviando..." : "Enviar para Arte"}
                     </Button>
                   </div>
                 </div>
@@ -874,8 +870,8 @@ export default function VincularPatrocinadores() {
                             <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
-                                onCheckedChange={() => isEditable && toggleItemSelection(item.id)}
-                                disabled={!isEditable}
+                                onCheckedChange={() => isEditable && linkedSponsors.length === 0 && toggleItemSelection(item.id)}
+                                disabled={!isEditable || linkedSponsors.length > 0}
                                 data-testid={`checkbox-item-${item.id}`}
                               />
                             </td>

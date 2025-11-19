@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send } from "lucide-react";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatusBadge } from "@/components/status-badge";
@@ -344,11 +344,10 @@ export default function VincularPatrocinadores() {
     },
   });
 
-  // Mutation para confirmar e enviar items para Arte
-  const confirmItemsMutation = useMutation({
-    mutationFn: async (itemIdsToConfirm: string[]) => {
-      // Filtrar apenas items editáveis e com mudanças pendentes
-      const validItemIds = itemIdsToConfirm.filter(itemId => {
+  // Mutation 1: Salvar vinculação (patrocinadores + skipApproval) SEM mudar status
+  const saveLinkingMutation = useMutation({
+    mutationFn: async (itemIdsToSave: string[]) => {
+      const validItemIds = itemIdsToSave.filter(itemId => {
         const item = visibleItems.find(i => i.id === itemId);
         if (!item || !getItemEditability(item)) return false;
         
@@ -357,7 +356,7 @@ export default function VincularPatrocinadores() {
       });
 
       if (validItemIds.length === 0) {
-        throw new Error("Nenhum item válido para confirmar");
+        throw new Error("Nenhum item válido para salvar");
       }
 
       for (const itemId of validItemIds) {
@@ -368,19 +367,16 @@ export default function VincularPatrocinadores() {
           sponsorIds: changes.sponsorIds
         });
 
-        // 2. Atualizar skipApproval e status
-        // Após vincular patrocinadores, o item sempre vai para Arte (awaiting_submission)
-        // Arte então decidirá o próximo passo (enviar para aprovação ou pular)
+        // 2. Atualizar APENAS skipApproval, NÃO mudar o status
         await apiRequest("PATCH", `/api/items/${itemId}`, {
-          skipApproval: changes.skipApproval,
-          status: "awaiting_submission"
+          skipApproval: changes.skipApproval
         });
       }
       
       return validItemIds;
     },
     onSuccess: async (validItemIds) => {
-      // Limpar apenas o estado de mudanças pendentes
+      // Limpar pendingChanges
       setPendingChanges(prev => {
         const newChanges = { ...prev };
         validItemIds.forEach(id => {
@@ -389,12 +385,9 @@ export default function VincularPatrocinadores() {
         return newChanges;
       });
 
-      // NÃO removemos dos mapas locais - os items continuam visíveis e editáveis
-      // até serem aprovados pelo criador. Apenas atualizamos o originalSponsorsMap
-      // para refletir o novo estado salvo
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       
-      // Recarregar os patrocinadores dos items confirmados em paralelo usando Promise.all
+      // Recarregar patrocinadores
       const sponsorResults = await Promise.all(
         validItemIds.map(async (itemId) => {
           try {
@@ -409,7 +402,6 @@ export default function VincularPatrocinadores() {
         })
       );
       
-      // Atualizar originalSponsorsMap com todos os resultados
       setOriginalSponsorsMap(prev => {
         const newMap = { ...prev };
         sponsorResults.forEach(({ itemId, sponsorIds }) => {
@@ -419,13 +411,53 @@ export default function VincularPatrocinadores() {
       });
       
       toast({
+        title: "✅ Vinculação confirmada!",
+        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} confirmado${validItemIds.length !== 1 ? 's' : ''}. Clique em "Enviar para Arte" para avançar.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao salvar vinculação",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation 2: Enviar items para Arte (mudar status)
+  const sendToArteMutation = useMutation({
+    mutationFn: async (itemIdsToSend: string[]) => {
+      const validItemIds = itemIdsToSend.filter(itemId => {
+        const item = visibleItems.find(i => i.id === itemId);
+        if (!item || !getItemEditability(item)) return false;
+        
+        // Item deve estar em status que ainda não foi enviado para Arte
+        return item.status === "requested" || item.status === "awaiting_linking";
+      });
+
+      if (validItemIds.length === 0) {
+        throw new Error("Nenhum item válido para enviar");
+      }
+
+      for (const itemId of validItemIds) {
+        await apiRequest("PATCH", `/api/items/${itemId}`, {
+          status: "awaiting_submission"
+        });
+      }
+      
+      return validItemIds;
+    },
+    onSuccess: async (validItemIds) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      
+      toast({
         title: "✅ Items enviados para Arte!",
         description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} enviado${validItemIds.length !== 1 ? 's' : ''} para Arte`,
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao confirmar items",
+        title: "Erro ao enviar para Arte",
         description: error.message,
         variant: "destructive",
       });
@@ -790,7 +822,7 @@ export default function VincularPatrocinadores() {
 
               </CardHeader>
 
-              {/* Botão de Confirmação - Compacto */}
+              {/* Botão 1: Confirmar Vinculação (salvar patrocinadores) */}
               {Object.keys(pendingChanges).filter(id => 
                 eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
               ).length > 0 && (
@@ -802,11 +834,11 @@ export default function VincularPatrocinadores() {
                           eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
                         ).length} item{Object.keys(pendingChanges).filter(id => 
                           eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                        ).length !== 1 ? 's' : ''} pronto{Object.keys(pendingChanges).filter(id => 
+                        ).length !== 1 ? 's' : ''} com altera{Object.keys(pendingChanges).filter(id => 
                           eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                        ).length !== 1 ? 's' : ''}
+                        ).length !== 1 ? 'ções' : 'ção'}
                       </span>
-                      <span className="text-muted-foreground ml-2">→ Clique para confirmar</span>
+                      <span className="text-muted-foreground ml-2">→ Clique para salvar</span>
                     </div>
                     <Button
                       size="sm"
@@ -815,17 +847,56 @@ export default function VincularPatrocinadores() {
                         const dirtyItemIds = Object.keys(pendingChanges).filter(id => 
                           eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
                         );
-                        confirmItemsMutation.mutate(dirtyItemIds);
+                        saveLinkingMutation.mutate(dirtyItemIds);
                       }}
-                      disabled={confirmItemsMutation.isPending}
-                      data-testid="button-confirm-send-to-arte"
+                      disabled={saveLinkingMutation.isPending}
+                      data-testid="button-save-linking"
                     >
-                      <CheckCircle2 className="h-4 w-4" />
-                      {confirmItemsMutation.isPending ? "Enviando..." : "Enviar para Arte"}
+                      <Save className="h-4 w-4" />
+                      {saveLinkingMutation.isPending ? "Salvando..." : "Confirmar Vinculação"}
                     </Button>
                   </div>
                 </div>
               )}
+
+              {/* Botão 2: Enviar para Arte (mudar status) */}
+              {(() => {
+                const confirmedButNotSent = eventItems.filter(item => {
+                  const hasPendingChanges = pendingChanges[item.id]?.isDirty;
+                  const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
+                  const linkedSponsors = itemSponsorsMap[item.id] || [];
+                  const hasLinkedSponsorsOrSkip = linkedSponsors.length > 0 || item.skipApproval;
+                  
+                  return !hasPendingChanges && isInVinculacaoStatus && hasLinkedSponsorsOrSkip;
+                });
+
+                return confirmedButNotSent.length > 0 && (
+                  <div className="px-4 py-3 bg-blue-500/5 border-y border-blue-500/20">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm">
+                        <span className="font-semibold text-blue-700 dark:text-blue-500">
+                          {confirmedButNotSent.length} item{confirmedButNotSent.length !== 1 ? 's' : ''} confirmado{confirmedButNotSent.length !== 1 ? 's' : ''}
+                        </span>
+                        <span className="text-muted-foreground ml-2">→ Pronto para Arte</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="gap-2 shrink-0"
+                        onClick={() => {
+                          const itemIds = confirmedButNotSent.map(item => item.id);
+                          sendToArteMutation.mutate(itemIds);
+                        }}
+                        disabled={sendToArteMutation.isPending}
+                        data-testid="button-send-to-arte"
+                      >
+                        <Send className="h-4 w-4" />
+                        {sendToArteMutation.isPending ? "Enviando..." : "Enviar para Arte"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Tabela de Items - Compacta */}
               <CardContent className="p-0">

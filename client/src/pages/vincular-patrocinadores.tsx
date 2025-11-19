@@ -1262,37 +1262,39 @@ export default function VincularPatrocinadores() {
           </DialogHeader>
           {selectedItemForDetails && (
             <div className="space-y-2">
-              {/* Informações do Evento */}
-              <Card>
-                <CardHeader className="px-4 py-2">
-                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Evento</CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
-                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                    <span className="text-muted-foreground text-xs">Nome do Evento</span>
-                    <span className="font-semibold text-right">{selectedItemForDetails.event?.name}</span>
-                  </div>
-                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                    <span className="text-muted-foreground text-xs">Data de Início</span>
-                    <span className="font-semibold">
-                      {selectedItemForDetails.event?.startDate 
-                        ? format(new Date(selectedItemForDetails.event.startDate), "dd/MM/yyyy", { locale: ptBR })
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-baseline py-1">
-                    <span className="text-muted-foreground text-xs">Saída do Caminhão</span>
-                    <span className="font-semibold">
-                      {selectedItemForDetails.event?.truckDepartureDate 
-                        ? format(new Date(selectedItemForDetails.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                        : "—"}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Grid 2 Colunas: Evento e Especificações */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {/* Informações do Evento */}
+                <Card>
+                  <CardHeader className="px-4 py-2">
+                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Evento</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
+                    <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                      <span className="text-muted-foreground text-xs">Nome do Evento</span>
+                      <span className="font-semibold text-right">{selectedItemForDetails.event?.name}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                      <span className="text-muted-foreground text-xs">Data de Início</span>
+                      <span className="font-semibold">
+                        {selectedItemForDetails.event?.startDate 
+                          ? format(new Date(selectedItemForDetails.event.startDate), "dd/MM/yyyy", { locale: ptBR })
+                          : "—"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline py-1">
+                      <span className="text-muted-foreground text-xs">Saída do Caminhão</span>
+                      <span className="font-semibold">
+                        {selectedItemForDetails.event?.truckDepartureDate 
+                          ? format(new Date(selectedItemForDetails.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                          : "—"}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              {/* Especificações */}
-              <Card>
+                {/* Especificações */}
+                <Card>
                 <CardHeader className="px-4 py-2">
                   <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Especificações</CardTitle>
                 </CardHeader>
@@ -1315,8 +1317,9 @@ export default function VincularPatrocinadores() {
                   </div>
                 </CardContent>
               </Card>
+              </div>
 
-              {/* Dados de Produção */}
+              {/* Dados de Produção - Linha Inteira */}
               <Card>
                 <CardHeader className="px-4 py-2">
                   <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Dados de Produção</CardTitle>

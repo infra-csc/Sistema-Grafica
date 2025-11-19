@@ -93,6 +93,33 @@ const UI_STATUS_CONFIG = {
   }
 };
 
+// Etapas do fluxo de trabalho (5 etapas principais)
+const WORKFLOW_STEPS = [
+  { id: 1, label: 'Vinculação', short: 'Vinc.' },
+  { id: 2, label: 'Aprovação', short: 'Aprov.' },
+  { id: 3, label: 'Revisão', short: 'Rev.' },
+  { id: 4, label: 'Produção', short: 'Prod.' },
+  { id: 5, label: 'Entrega', short: 'Entr.' }
+];
+
+// Mapear status do item para etapa do fluxo
+const getWorkflowStep = (status: string): number => {
+  const stepMap: Record<string, number> = {
+    'requested': 1,
+    'awaiting_linking': 1,
+    'awaiting_submission': 2,
+    'awaiting_sponsor_approval': 2,
+    'sponsor_approved': 2,
+    'awaiting_creator_review': 3,
+    'ready_for_production': 4,
+    'released': 4,
+    'in_production': 4,
+    'produced': 4,
+    'delivered': 5
+  };
+  return stepMap[status] || 1;
+};
+
 // Paleta de cores para patrocinadores
 const SPONSOR_COLORS = [
   { bg: "bg-blue-500/10", text: "text-blue-700 dark:text-blue-400", border: "border-blue-500/20" },
@@ -931,11 +958,49 @@ export default function VincularPatrocinadores() {
                     const linkedSponsors = itemSponsorsMap[item.id] || [];
                     const isExpanded = expandedItems.has(item.id);
                     const isLocked = uiStatus === 'ENVIADO';
+                    const currentStep = getWorkflowStep(item.status);
                     
                     return (
                       <Card key={item.id} className={`overflow-hidden ${isLocked ? 'opacity-75' : ''}`}>
+                        {/* Barra de Progresso do Fluxo */}
+                        <div className="px-3 pt-2 pb-1">
+                          <div className="flex items-center justify-between gap-1">
+                            {WORKFLOW_STEPS.map((step, index) => (
+                              <div key={step.id} className="flex items-center flex-1">
+                                {/* Círculo da etapa */}
+                                <div className="flex flex-col items-center">
+                                  <div
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold transition-all ${
+                                      step.id < currentStep
+                                        ? 'bg-primary text-primary-foreground'
+                                        : step.id === currentStep
+                                        ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2'
+                                        : 'bg-muted text-muted-foreground'
+                                    }`}
+                                  >
+                                    {step.id < currentStep ? <Check className="h-3 w-3" /> : step.id}
+                                  </div>
+                                  <span className={`text-[9px] mt-0.5 ${step.id === currentStep ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                                    {step.short}
+                                  </span>
+                                </div>
+                                {/* Linha conectora */}
+                                {index < WORKFLOW_STEPS.length - 1 && (
+                                  <div className="flex-1 h-0.5 mx-1 rounded">
+                                    <div
+                                      className={`h-full rounded transition-all ${
+                                        step.id < currentStep ? 'bg-primary' : 'bg-muted'
+                                      }`}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
                         {/* Linha do Item */}
-                        <div className="p-2">
+                        <div className="px-2 pb-2">
                           <div className="flex items-center justify-between gap-2">
                             {/* Info do Item */}
                             <div className="flex items-center gap-3 flex-1 min-w-0">

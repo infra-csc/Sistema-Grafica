@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History } from "lucide-react";
 import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatusBadge } from "@/components/status-badge";
@@ -1267,7 +1267,10 @@ export default function VincularPatrocinadores() {
                 {/* Informações do Evento */}
                 <Card>
                   <CardHeader className="px-4 py-2">
-                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Evento</CardTitle>
+                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Evento
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
                     <div className="flex justify-between items-baseline py-1 border-b border-border/40">
@@ -1296,7 +1299,10 @@ export default function VincularPatrocinadores() {
                 {/* Especificações */}
                 <Card>
                 <CardHeader className="px-4 py-2">
-                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Especificações</CardTitle>
+                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Especificações
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
                   <div className="flex justify-between items-baseline py-1 border-b border-border/40">
@@ -1322,7 +1328,10 @@ export default function VincularPatrocinadores() {
               {/* Dados de Produção - Linha Inteira */}
               <Card>
                 <CardHeader className="px-4 py-2">
-                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Dados de Produção</CardTitle>
+                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                    <Package className="h-3.5 w-3.5" />
+                    Dados de Produção
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
                   <div className="flex justify-between items-baseline py-1 border-b border-border/40">
@@ -1356,7 +1365,8 @@ export default function VincularPatrocinadores() {
               {selectedItemForDetails.sponsors && selectedItemForDetails.sponsors.length > 0 && (
                 <Card>
                   <CardHeader className="px-4 py-2">
-                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">
+                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                      <Building2 className="h-3.5 w-3.5" />
                       Patrocinadores ({selectedItemForDetails.sponsors.length})
                     </CardTitle>
                   </CardHeader>
@@ -1376,7 +1386,10 @@ export default function VincularPatrocinadores() {
               {selectedItemForDetails.observations && (
                 <Card>
                   <CardHeader className="px-4 py-2">
-                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Observações</CardTitle>
+                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                      <FileText className="h-3.5 w-3.5" />
+                      Observações
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 py-2 pt-0">
                     <p className="text-sm whitespace-pre-wrap">{selectedItemForDetails.observations}</p>
@@ -1387,7 +1400,10 @@ export default function VincularPatrocinadores() {
               {/* Histórico de Ações */}
               <Card>
                 <CardHeader className="px-4 py-2">
-                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Histórico de Ações</CardTitle>
+                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                    <History className="h-3.5 w-3.5" />
+                    Histórico de Ações
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 py-2 pt-0">
                   <div className="relative">

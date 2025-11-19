@@ -1481,36 +1481,57 @@ export default function EventDetail() {
                   </CardHeader>
                   <CardContent>
                     {getItemLogs(selectedItemForDetails.id).length > 0 ? (
-                      <div className="space-y-3">
-                        {getItemLogs(selectedItemForDetails.id).map((log) => (
-                          <div key={log.id} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
-                            <div className="flex-shrink-0 mt-1">
-                              <div className="h-2.5 w-2.5 rounded-full bg-primary"></div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <Badge variant="outline" className="text-xs font-medium">
-                                  {log.action === 'created' && 'Criado'}
-                                  {log.action === 'updated' && 'Atualizado'}
-                                  {log.action === 'deleted' && 'Deletado'}
-                                  {log.action === 'approved' && 'Aprovado'}
-                                  {log.action === 'produced' && 'Produzido'}
-                                  {log.action === 'delivered' && 'Entregue'}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  {log.userName}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDateTime(log.createdAt)}
-                                </span>
+                      <div className="relative">
+                        <div className="space-y-4">
+                          {getItemLogs(selectedItemForDetails.id).map((log, index, array) => {
+                            const actionLabels: Record<string, string> = {
+                              'created': 'Criado',
+                              'updated': 'Atualizado',
+                              'deleted': 'Deletado',
+                              'approved': 'Aprovado',
+                              'rejected': 'Rejeitado',
+                              'produced': 'Produzido',
+                              'delivered': 'Entregue',
+                              'linked': 'Vinculado',
+                              'unlinked': 'Desvinculado',
+                              'status_changed': 'Status Alterado',
+                              'sponsor_linked': 'Patrocinador Vinculado',
+                              'sponsor_unlinked': 'Patrocinador Desvinculado'
+                            };
+                            const actionLabel = actionLabels[log.action] || log.action;
+
+                            return (
+                              <div key={log.id} className="relative flex gap-3">
+                                {/* Timeline line */}
+                                {index < array.length - 1 && (
+                                  <div className="absolute left-2 top-6 bottom-0 w-px bg-border"></div>
+                                )}
+                                
+                                {/* Timeline dot */}
+                                <div className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/20 ring-2 ring-primary mt-0.5"></div>
+                                
+                                {/* Content */}
+                                <div className="flex-1 pb-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="secondary" className="text-xs font-medium">
+                                      {actionLabel}
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <User className="h-3 w-3" />
+                                      {log.userName}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatDateTime(log.createdAt)}
+                                  </div>
+                                  {log.details && (
+                                    <p className="text-sm mt-1.5 text-foreground/80">{log.details}</p>
+                                  )}
+                                </div>
                               </div>
-                              {log.details && (
-                                <p className="text-sm text-muted-foreground mt-1">{log.details}</p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                            );
+                          })}
+                        </div>
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground italic">Nenhum histórico disponível</p>

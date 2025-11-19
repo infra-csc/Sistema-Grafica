@@ -1393,34 +1393,66 @@ export default function VincularPatrocinadores() {
                   <CardTitle className="text-sm font-medium">Histórico de Ações</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {auditLogs
-                      .filter((log: any) => log.entityId === selectedItemForDetails.id)
-                      .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                      .map((log: any) => (
-                        <div key={log.id} className="flex gap-3 text-sm">
-                          <div className="flex-shrink-0 w-2 h-2 bg-primary rounded-full mt-1.5"></div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-muted-foreground">
-                                {log.timestamp 
-                                  ? format(new Date(log.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                                  : "Data não disponível"}
-                              </span>
-                              <Badge variant="outline" className="text-xs">
-                                {log.action}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                por {log.userName}
-                              </span>
-                            </div>
-                            {log.details && (
-                              <p className="text-xs text-muted-foreground mt-1">{log.details}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    {auditLogs.filter((log: any) => log.entityId === selectedItemForDetails.id).length === 0 && (
+                  <div className="relative">
+                    {auditLogs.filter((log: any) => log.entityId === selectedItemForDetails.id).length > 0 ? (
+                      <div className="space-y-4">
+                        {auditLogs
+                          .filter((log: any) => log.entityId === selectedItemForDetails.id)
+                          .sort((a: any, b: any) => {
+                            const dateA = new Date(a.createdAt || a.timestamp).getTime();
+                            const dateB = new Date(b.createdAt || b.timestamp).getTime();
+                            return dateB - dateA;
+                          })
+                          .map((log: any, index: number, array: any[]) => {
+                            const timestamp = log.createdAt || log.timestamp;
+                            const actionLabels: Record<string, string> = {
+                              'created': 'Criado',
+                              'updated': 'Atualizado',
+                              'approved': 'Aprovado',
+                              'rejected': 'Rejeitado',
+                              'delivered': 'Entregue',
+                              'linked': 'Vinculado',
+                              'unlinked': 'Desvinculado',
+                              'status_changed': 'Status Alterado',
+                              'sponsor_linked': 'Patrocinador Vinculado',
+                              'sponsor_unlinked': 'Patrocinador Desvinculado'
+                            };
+                            const actionLabel = actionLabels[log.action] || log.action;
+
+                            return (
+                              <div key={log.id} className="relative flex gap-3">
+                                {/* Timeline line */}
+                                {index < array.length - 1 && (
+                                  <div className="absolute left-2 top-6 bottom-0 w-px bg-border"></div>
+                                )}
+                                
+                                {/* Timeline dot */}
+                                <div className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/20 ring-2 ring-primary mt-0.5"></div>
+                                
+                                {/* Content */}
+                                <div className="flex-1 pb-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="secondary" className="text-xs font-medium">
+                                      {actionLabel}
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground">
+                                      por {log.userName}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {timestamp 
+                                      ? format(new Date(timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                                      : "Sem registro de horário"}
+                                  </div>
+                                  {log.details && (
+                                    <p className="text-sm mt-1.5 text-foreground/80">{log.details}</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
                       <p className="text-sm text-muted-foreground">Nenhum histórico disponível</p>
                     )}
                   </div>

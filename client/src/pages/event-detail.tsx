@@ -1352,18 +1352,18 @@ export default function EventDetail() {
                 </div>
               </DialogHeader>
 
-              <div className="space-y-6 mt-6">
+              <div className="space-y-3 mt-4">
                 {/* Grid de informações principais */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {/* Card: Especificações */}
                   <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-medium uppercase text-muted-foreground flex items-center gap-2">
                         <Package2 className="h-4 w-4" />
                         Especificações
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-2 pt-3">
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <span className="text-muted-foreground block text-xs mb-1">Material</span>
@@ -1391,12 +1391,12 @@ export default function EventDetail() {
 
                   {/* Card: Produção */}
                   <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-medium uppercase text-muted-foreground">
                         Produção
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-2 pt-3">
                       <div className="grid grid-cols-2 gap-3 text-sm">
                         <div>
                           <span className="text-muted-foreground block text-xs mb-1">Quantidade Solicitada</span>
@@ -1418,7 +1418,7 @@ export default function EventDetail() {
                 </div>
 
                 {/* Patrocinadores e Observações */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {/* Card: Patrocinadores */}
                   {selectedItemForDetails.sponsors && selectedItemForDetails.sponsors.length > 0 && (() => {
                     const itemSponsorNames = selectedItemForDetails.sponsors
@@ -1436,12 +1436,12 @@ export default function EventDetail() {
                     
                     return (
                       <Card>
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-xs font-medium uppercase text-muted-foreground">
                             Patrocinadores ({itemSponsorNames.length})
                           </CardTitle>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pt-3">
                           <div className="flex flex-wrap gap-2">
                             {itemSponsorNames.map((name: string, idx: number) => (
                               <Badge key={idx} variant="secondary" className="text-xs">
@@ -1456,12 +1456,12 @@ export default function EventDetail() {
 
                   {/* Card: Observações */}
                   <Card className={!selectedItemForDetails.sponsors || selectedItemForDetails.sponsors.length === 0 ? 'md:col-span-2' : ''}>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-medium uppercase text-muted-foreground">
                         Observações
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-3">
                       {selectedItemForDetails.observations ? (
                         <p className="text-sm leading-relaxed">{selectedItemForDetails.observations}</p>
                       ) : (
@@ -1473,16 +1473,16 @@ export default function EventDetail() {
 
                 {/* Timeline de Histórico */}
                 <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs font-medium uppercase text-muted-foreground flex items-center gap-2">
                       <History className="h-4 w-4" />
                       Histórico de Ações
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-3">
                     {getItemLogs(selectedItemForDetails.id).length > 0 ? (
                       <div className="relative">
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           {getItemLogs(selectedItemForDetails.id).map((log, index, array) => {
                             const actionLabels: Record<string, string> = {
                               'created': 'Criado',

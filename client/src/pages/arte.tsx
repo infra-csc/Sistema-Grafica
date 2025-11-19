@@ -819,63 +819,63 @@ export default function Arte() {
             </DialogDescription>
           </DialogHeader>
           {selectedItem && (
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Evento</p>
+                  <p className="text-xs text-muted-foreground">Evento</p>
                   <p className="text-sm font-semibold">{selectedItem.event?.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Tipo</p>
+                  <p className="text-xs text-muted-foreground">Tipo</p>
                   <p className="text-sm font-semibold">{selectedItem.type}</p>
                 </div>
               </div>
 
               {selectedItem.description && (
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Descrição</p>
+                  <p className="text-xs text-muted-foreground">Descrição</p>
                   <p className="text-sm font-semibold">{selectedItem.description}</p>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Material</p>
+                  <p className="text-xs text-muted-foreground">Material</p>
                   <p className="text-sm font-semibold">{selectedItem.material}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Acabamento</p>
+                  <p className="text-xs text-muted-foreground">Acabamento</p>
                   <p className="text-sm font-semibold">{selectedItem.finish}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Quantidade</p>
+                  <p className="text-xs text-muted-foreground">Quantidade</p>
                   <p className="text-sm font-semibold">{selectedItem.quantity}</p>
                 </div>
                 {selectedItem.quantityProduced !== null && selectedItem.quantityProduced > 0 && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Quantidade Produzida</p>
+                    <p className="text-xs text-muted-foreground">Quantidade Produzida</p>
                     <p className="text-sm font-semibold text-status-production">{selectedItem.quantityProduced}</p>
                   </div>
                 )}
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Área × Visual</p>
+                  <p className="text-xs text-muted-foreground">Área × Visual</p>
                   <p className="text-sm font-semibold">{selectedItem.area} × {selectedItem.visual}</p>
                 </div>
                 {selectedItem.measurement && selectedItem.measurement !== `${selectedItem.area} × ${selectedItem.visual}` && (
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Medida</p>
+                    <p className="text-xs text-muted-foreground">Medida</p>
                     <p className="text-sm font-semibold">{selectedItem.measurement}</p>
                   </div>
                 )}
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">m² Total</p>
+                  <p className="text-xs text-muted-foreground">m² Total</p>
                   <p className="text-sm font-semibold">{selectedItem.calculatedM2}</p>
                 </div>
               </div>
 
               {selectedItem.observations && (
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Observações</p>
+                  <p className="text-xs text-muted-foreground mb-1">Observações</p>
                   <p className="text-sm">{selectedItem.observations}</p>
                 </div>
               )}

@@ -1042,92 +1042,6 @@ export default function VincularPatrocinadores() {
 
               </CardHeader>
 
-              {/* Botão 1: Confirmar Vinculação (salvar patrocinadores) */}
-              {Object.keys(pendingChanges).filter(id => 
-                eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-              ).length > 0 && (
-                <div className="px-4 py-3 bg-yellow-500/10 border-y border-yellow-500/30">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-                        <span className="font-semibold text-yellow-700 dark:text-yellow-500">
-                          {Object.keys(pendingChanges).filter(id => 
-                            eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                          ).length} item{Object.keys(pendingChanges).filter(id => 
-                            eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                          ).length !== 1 ? 's' : ''} editado{Object.keys(pendingChanges).filter(id => 
-                            eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                          ).length !== 1 ? 's' : ''} (não salvo{Object.keys(pendingChanges).filter(id => 
-                            eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                          ).length !== 1 ? 's' : ''})
-                        </span>
-                      </div>
-                      <span className="text-muted-foreground text-xs mt-0.5 block">Salve antes de enviar para Arte</span>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="gap-2 shrink-0"
-                      onClick={() => {
-                        const dirtyItemIds = Object.keys(pendingChanges).filter(id => 
-                          eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                        );
-                        saveLinkingMutation.mutate(dirtyItemIds);
-                      }}
-                      disabled={saveLinkingMutation.isPending}
-                      data-testid="button-save-linking"
-                    >
-                      <Save className="h-4 w-4" />
-                      {saveLinkingMutation.isPending ? "Salvando..." : "Salvar Vinculação"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Botão 2: Enviar para Arte (mudar status) */}
-              {(() => {
-                const confirmedButNotSent = eventItems.filter(item => {
-                  const hasPendingChanges = pendingChanges[item.id]?.isDirty;
-                  const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
-                  // IMPORTANTE: Usar originalSponsorsMap (estado SALVO no banco), não itemSponsorsMap (estado local/não salvo)
-                  const originalLinkedSponsors = originalSponsorsMap[item.id] || [];
-                  const hasLinkedSponsorsOrSkip = originalLinkedSponsors.length > 0 || item.skipApproval;
-                  
-                  return !hasPendingChanges && isInVinculacaoStatus && hasLinkedSponsorsOrSkip;
-                });
-
-                return confirmedButNotSent.length > 0 && (
-                  <div className="px-4 py-3 bg-blue-500/10 border-y border-blue-500/30">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-500" />
-                          <span className="font-semibold text-blue-700 dark:text-blue-500">
-                            {confirmedButNotSent.length} item{confirmedButNotSent.length !== 1 ? 's' : ''} salvo{confirmedButNotSent.length !== 1 ? 's' : ''} e pronto{confirmedButNotSent.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        <span className="text-muted-foreground text-xs mt-0.5 block">Clique para enviar para Arte</span>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="gap-2 shrink-0"
-                        onClick={() => {
-                          const itemIds = confirmedButNotSent.map(item => item.id);
-                          sendToArteMutation.mutate(itemIds);
-                        }}
-                        disabled={sendToArteMutation.isPending}
-                        data-testid="button-send-to-arte"
-                      >
-                        <Send className="h-4 w-4" />
-                        {sendToArteMutation.isPending ? "Enviando..." : "Enviar para Arte"}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })()}
-
               {/* Tabela de Items - Compacta */}
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -1185,20 +1099,7 @@ export default function VincularPatrocinadores() {
                             </td>
                             <td className="px-3 py-2 min-w-[200px]">
                               <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-sm text-foreground">{item.type}</span>
-                                  {/* Tags inline de estado */}
-                                  {pendingChanges[item.id]?.isDirty && (
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/30">
-                                      EDITADO
-                                    </Badge>
-                                  )}
-                                  {!pendingChanges[item.id]?.isDirty && (itemStatus === 'linked' || itemStatus === 'skip') && (
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30">
-                                      SALVO
-                                    </Badge>
-                                  )}
-                                </div>
+                                <span className="font-medium text-sm text-foreground">{item.type}</span>
                                 {item.description && (
                                   <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                                     {item.description}
@@ -1327,56 +1228,50 @@ export default function VincularPatrocinadores() {
                             </td>
                             <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-2">
-                                {/* Badge de Status */}
-                                {!isEditable ? (
-                                  <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 text-xs gap-1">
-                                    <Check className="h-3 w-3" />
-                                    Aprovado
-                                  </Badge>
-                                ) : pendingChanges[item.id]?.isDirty ? (
-                                  <>
-                                    <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20 text-xs">
-                                      Pronto
-                                    </Badge>
-                                    {/* Mini-botão: Salvar */}
-                                    <Button
-                                      size="sm"
-                                      variant="default"
-                                      className="gap-1 text-xs"
-                                      onClick={() => saveLinkingMutation.mutate([item.id])}
-                                      disabled={saveLinkingMutation.isPending}
-                                      data-testid={`button-save-item-${item.id}`}
-                                    >
-                                      <Save className="h-3 w-3" />
-                                      Salvar
-                                    </Button>
-                                  </>
-                                ) : itemStatus === 'linked' || itemStatus === 'skip' ? (
-                                  <>
-                                    <Badge variant="default" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 text-xs gap-1">
-                                      <CheckCircle2 className="h-3 w-3" />
-                                      OK
-                                    </Badge>
-                                    {/* Mini-botão: Enviar para Arte */}
-                                    {(item.status === "requested" || item.status === "awaiting_linking") && (
-                                      <Button
-                                        size="sm"
-                                        variant="default"
-                                        className="gap-1 text-xs"
-                                        onClick={() => sendToArteMutation.mutate([item.id])}
-                                        disabled={sendToArteMutation.isPending}
-                                        data-testid={`button-send-item-${item.id}`}
-                                      >
-                                        <Send className="h-3 w-3" />
-                                        Enviar
-                                      </Button>
-                                    )}
-                                  </>
-                                ) : (
-                                  <Badge variant="secondary" className="text-xs">
-                                    Aguardando
-                                  </Badge>
-                                )}
+                                {/* Badge única baseada em itemUIStates */}
+                                {(() => {
+                                  const uiStatus = itemUIStates[item.id] || 'PENDENTE';
+                                  const config = UI_STATUS_CONFIG[uiStatus];
+                                  const Icon = config.icon;
+                                  
+                                  return (
+                                    <>
+                                      <Badge variant="secondary" className={`text-xs gap-1 ${config.badgeClass}`} data-testid={`badge-status-${item.id}`}>
+                                        <Icon className="h-3 w-3" />
+                                        {config.label}
+                                      </Badge>
+                                      
+                                      {/* Botão de ação baseado no estado */}
+                                      {uiStatus === 'RASCUNHO' && isEditable && (
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          className="gap-1 text-xs"
+                                          onClick={() => saveLinkingMutation.mutate([item.id])}
+                                          disabled={saveLinkingMutation.isPending}
+                                          data-testid={`button-save-item-${item.id}`}
+                                        >
+                                          <Save className="h-3 w-3" />
+                                          Salvar
+                                        </Button>
+                                      )}
+                                      
+                                      {uiStatus === 'PRONTO' && isEditable && (
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          className="gap-1 text-xs"
+                                          onClick={() => sendToArteMutation.mutate([item.id])}
+                                          disabled={sendToArteMutation.isPending}
+                                          data-testid={`button-send-item-${item.id}`}
+                                        >
+                                          <Send className="h-3 w-3" />
+                                          Enviar
+                                        </Button>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             </td>
                           </tr>
@@ -1389,10 +1284,6 @@ export default function VincularPatrocinadores() {
             </Card>
           );
         })}
-      </div>
-      
-          </div>
-        </div>
       </div>
       
       {/* Dialog para Gerenciar Patrocinadores do Evento */}

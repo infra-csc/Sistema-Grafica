@@ -1266,8 +1266,8 @@ export default function VincularPatrocinadores() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {/* Informações do Evento */}
                 <Card>
-                  <CardHeader className="px-4 py-2">
-                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                  <CardHeader className="px-4 py-2 bg-blue-50/50 dark:bg-blue-950/20">
+                    <CardTitle className="text-xs font-semibold uppercase text-blue-700 dark:text-blue-400 flex items-center gap-2">
                       <Calendar className="h-3.5 w-3.5" />
                       Evento
                     </CardTitle>
@@ -1298,8 +1298,8 @@ export default function VincularPatrocinadores() {
 
                 {/* Especificações */}
                 <Card>
-                <CardHeader className="px-4 py-2">
-                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                <CardHeader className="px-4 py-2 bg-purple-50/50 dark:bg-purple-950/20">
+                  <CardTitle className="text-xs font-semibold uppercase text-purple-700 dark:text-purple-400 flex items-center gap-2">
                     <ClipboardList className="h-3.5 w-3.5" />
                     Especificações
                   </CardTitle>
@@ -1327,8 +1327,8 @@ export default function VincularPatrocinadores() {
 
               {/* Dados de Produção - Linha Inteira */}
               <Card>
-                <CardHeader className="px-4 py-2">
-                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                <CardHeader className="px-4 py-2 bg-emerald-50/50 dark:bg-emerald-950/20">
+                  <CardTitle className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                     <Package className="h-3.5 w-3.5" />
                     Dados de Produção
                   </CardTitle>
@@ -1364,8 +1364,8 @@ export default function VincularPatrocinadores() {
               {/* Patrocinadores */}
               {selectedItemForDetails.sponsors && selectedItemForDetails.sponsors.length > 0 && (
                 <Card>
-                  <CardHeader className="px-4 py-2">
-                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                  <CardHeader className="px-4 py-2 bg-orange-50/50 dark:bg-orange-950/20">
+                    <CardTitle className="text-xs font-semibold uppercase text-orange-700 dark:text-orange-400 flex items-center gap-2">
                       <Building2 className="h-3.5 w-3.5" />
                       Patrocinadores ({selectedItemForDetails.sponsors.length})
                     </CardTitle>
@@ -1385,8 +1385,8 @@ export default function VincularPatrocinadores() {
               {/* Observações */}
               {selectedItemForDetails.observations && (
                 <Card>
-                  <CardHeader className="px-4 py-2">
-                    <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                  <CardHeader className="px-4 py-2 bg-amber-50/50 dark:bg-amber-950/20">
+                    <CardTitle className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 flex items-center gap-2">
                       <FileText className="h-3.5 w-3.5" />
                       Observações
                     </CardTitle>
@@ -1399,8 +1399,8 @@ export default function VincularPatrocinadores() {
 
               {/* Histórico de Ações */}
               <Card>
-                <CardHeader className="px-4 py-2">
-                  <CardTitle className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
+                <CardHeader className="px-4 py-2 bg-slate-50/50 dark:bg-slate-950/20">
+                  <CardTitle className="text-xs font-semibold uppercase text-slate-700 dark:text-slate-400 flex items-center gap-2">
                     <History className="h-3.5 w-3.5" />
                     Histórico de Ações
                   </CardTitle>

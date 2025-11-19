@@ -1269,27 +1269,27 @@ export default function VincularPatrocinadores() {
                     {/* Etapa 1: Solicitado */}
                     <div className="flex flex-col items-center gap-1 flex-1">
                       <div className={`rounded-full p-1 ${
-                        ['draft', 'requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
+                        ['requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
                           ? 'bg-blue-500 text-white' 
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                       }`}>
-                        {['awaiting_linking', 'awaiting_submission', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
+                        {['requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
                           <CheckCircle2 className="h-3 w-3" />
-                        ) : ['draft', 'requested'].includes(selectedItemForDetails.status) ? (
+                        ) : selectedItemForDetails.status === 'draft' ? (
                           <CircleDot className="h-3 w-3" />
                         ) : (
                           <Circle className="h-3 w-3" />
                         )}
                       </div>
                       <span className={`text-center ${
-                        ['draft', 'requested'].includes(selectedItemForDetails.status) ? 'font-semibold text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
+                        selectedItemForDetails.status === 'draft' ? 'font-semibold text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
                       }`}>
                         Solicitado
                       </span>
                     </div>
 
                     <div className={`h-[2px] flex-1 ${
-                      ['awaiting_linking', 'awaiting_submission', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
+                      ['requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
                         ? 'bg-blue-500' 
                         : 'bg-gray-200 dark:bg-gray-700'
                     }`} />
@@ -1297,20 +1297,20 @@ export default function VincularPatrocinadores() {
                     {/* Etapa 2: Arte */}
                     <div className="flex flex-col items-center gap-1 flex-1">
                       <div className={`rounded-full p-1 ${
-                        ['awaiting_linking', 'awaiting_submission', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
+                        ['requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
                           ? 'bg-purple-500 text-white' 
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                       }`}>
                         {['awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
                           <CheckCircle2 className="h-3 w-3" />
-                        ) : ['awaiting_linking', 'awaiting_submission'].includes(selectedItemForDetails.status) ? (
+                        ) : ['requested', 'awaiting_linking', 'awaiting_submission'].includes(selectedItemForDetails.status) ? (
                           <CircleDot className="h-3 w-3" />
                         ) : (
                           <Circle className="h-3 w-3" />
                         )}
                       </div>
                       <span className={`text-center ${
-                        ['awaiting_linking', 'awaiting_submission'].includes(selectedItemForDetails.status) ? 'font-semibold text-purple-600 dark:text-purple-400' : 'text-muted-foreground'
+                        ['requested', 'awaiting_linking', 'awaiting_submission'].includes(selectedItemForDetails.status) ? 'font-semibold text-purple-600 dark:text-purple-400' : 'text-muted-foreground'
                       }`}>
                         Arte
                       </span>

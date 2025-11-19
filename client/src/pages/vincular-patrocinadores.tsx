@@ -536,9 +536,36 @@ export default function VincularPatrocinadores() {
   };
 
   const handleApplyBulkSponsors = () => {
-    const itemsToUpdate = Array.from(selectedItemIds);
+    const allSelectedItems = Array.from(selectedItemIds);
     
-    // Aplicar patrocinadores aos items selecionados
+    // FILTRAR: NÃO aplicar em lote em items que JÁ têm patrocinadores vinculados
+    const itemsAlreadyLinked: string[] = [];
+    const itemsToUpdate: string[] = [];
+    
+    allSelectedItems.forEach(itemId => {
+      const linkedSponsors = itemSponsorsMap[itemId] || [];
+      const hasPendingChanges = pendingChanges[itemId]?.isDirty;
+      
+      // Item já tem patrocinadores vinculados (individual) OU mudanças pendentes
+      if (linkedSponsors.length > 0 || hasPendingChanges) {
+        itemsAlreadyLinked.push(itemId);
+      } else {
+        itemsToUpdate.push(itemId);
+      }
+    });
+    
+    // Se todos os items já estão vinculados, avisar e não fazer nada
+    if (itemsToUpdate.length === 0) {
+      toast({
+        title: "⚠️ Nenhum item para atualizar",
+        description: "Todos os items selecionados já têm patrocinadores vinculados individualmente.",
+        variant: "destructive",
+      });
+      setBulkApplyDialogOpen(false);
+      return;
+    }
+    
+    // Aplicar patrocinadores APENAS aos items que ainda não têm vinculação
     itemsToUpdate.forEach(itemId => {
       const originalSponsors = originalSponsorsMap[itemId] || [];
       const originalSkipApproval = items.find(i => i.id === itemId)?.skipApproval || false;
@@ -568,9 +595,14 @@ export default function VincularPatrocinadores() {
     setSelectedItemIds(new Set());
     setBulkApplyDialogOpen(false);
     
+    // Mensagem de sucesso com aviso se alguns items foram ignorados
+    const message = itemsAlreadyLinked.length > 0
+      ? `${itemsToUpdate.length} item${itemsToUpdate.length !== 1 ? 's' : ''} atualizado${itemsToUpdate.length !== 1 ? 's' : ''}. ${itemsAlreadyLinked.length} item${itemsAlreadyLinked.length !== 1 ? 's' : ''} ignorado${itemsAlreadyLinked.length !== 1 ? 's' : ''} (já vinculado${itemsAlreadyLinked.length !== 1 ? 's' : ''} individualmente).`
+      : `Patrocinadores aplicados a ${itemsToUpdate.length} item${itemsToUpdate.length !== 1 ? 's' : ''}`;
+    
     toast({
       title: "✅ Aplicado com sucesso!",
-      description: `Patrocinadores aplicados a ${itemsToUpdate.length} item${itemsToUpdate.length !== 1 ? 's' : ''}`,
+      description: message,
     });
   };
 

@@ -860,10 +860,29 @@ export default function VincularPatrocinadores() {
             </CardContent>
           </Card>
 
-          {/* TODO: Tabela de items para vincular */}
-          <div className="text-center py-8 text-muted-foreground">
-            Tabela de items será implementada aqui
-          </div>
+          {/* Tabela de items para vincular */}
+          {itemsParaVincular.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <CheckCircle2 className="h-12 w-12 text-green-500 mb-3" />
+                <p className="text-lg font-semibold mb-1">Tudo vinculado!</p>
+                <p className="text-sm text-muted-foreground">
+                  Não há items aguardando vinculação de patrocinadores
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-6">
+                <p className="text-sm text-muted-foreground">
+                  {itemsParaVincular.length} item{itemsParaVincular.length !== 1 ? 's' : ''} aguardando vinculação
+                </p>
+                <div className="text-xs text-muted-foreground mt-2">
+                  (Tabela em implementação...)
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ABA 2: Enviar para Arte */}
@@ -908,10 +927,29 @@ export default function VincularPatrocinadores() {
             </CardContent>
           </Card>
 
-          {/* TODO: Tabela de items para enviar */}
-          <div className="text-center py-8 text-muted-foreground">
-            Tabela de items será implementada aqui
-          </div>
+          {/* Tabela de items para enviar */}
+          {itemsParaEnviar.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <AlertCircle className="h-12 w-12 text-muted-foreground mb-3" />
+                <p className="text-lg font-semibold mb-1">Nenhum item pronto</p>
+                <p className="text-sm text-muted-foreground">
+                  Vincule patrocinadores na Etapa 1 primeiro
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="p-6">
+                <p className="text-sm text-muted-foreground">
+                  {itemsParaEnviar.length} item{itemsParaEnviar.length !== 1 ? 's' : ''} pronto{itemsParaEnviar.length !== 1 ? 's' : ''} para envio
+                </p>
+                <div className="text-xs text-muted-foreground mt-2">
+                  (Tabela em implementação...)
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 

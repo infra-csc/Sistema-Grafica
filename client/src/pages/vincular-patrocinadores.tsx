@@ -868,10 +868,7 @@ export default function VincularPatrocinadores() {
                                 ? 'bg-green-50/50 dark:bg-green-900/10'
                                 : ''
                             } ${!isEditable ? 'opacity-60' : ''}`}
-                            onClick={() => {
-                              console.log('TR CLICKED! Setting item:', item);
-                              setSelectedItemForDetails(item);
-                            }}
+                            onClick={() => setSelectedItemForDetails(item)}
                             data-testid={`item-row-${item.id}`}
                           >
                             <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -1406,7 +1403,9 @@ export default function VincularPatrocinadores() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs text-muted-foreground">
-                                {format(new Date(log.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                {log.timestamp 
+                                  ? format(new Date(log.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                                  : "Data não disponível"}
                               </span>
                               <Badge variant="outline" className="text-xs">
                                 {log.action}

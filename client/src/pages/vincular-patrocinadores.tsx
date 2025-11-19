@@ -1309,12 +1309,10 @@ export default function VincularPatrocinadores() {
                     <span className="text-muted-foreground text-xs">Acabamento</span>
                     <span className="font-semibold text-right">{selectedItemForDetails.finish}</span>
                   </div>
-                  {selectedItemForDetails.description && (
-                    <div className="flex justify-between items-baseline py-1">
-                      <span className="text-muted-foreground text-xs">Descrição</span>
-                      <span className="font-semibold text-right">{selectedItemForDetails.description}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between items-baseline py-1">
+                    <span className="text-muted-foreground text-xs">Descrição</span>
+                    <span className="font-semibold text-right">{selectedItemForDetails.description || "—"}</span>
+                  </div>
                 </CardContent>
               </Card>
 

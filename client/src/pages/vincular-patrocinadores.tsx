@@ -1243,7 +1243,7 @@ export default function VincularPatrocinadores() {
 
       {/* Dialog de Detalhes do Item */}
       <Dialog open={!!selectedItemForDetails} onOpenChange={(open) => !open && setSelectedItemForDetails(null)}>
-        <DialogContent className="max-w-full sm:max-w-6xl">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <DialogTitle>Detalhes do Item</DialogTitle>
@@ -1261,7 +1261,7 @@ export default function VincularPatrocinadores() {
             </DialogDescription>
           </DialogHeader>
           {selectedItemForDetails && (
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="space-y-4">
               {/* Informações do Evento */}
               <Card>
                 <CardHeader className="pb-3">

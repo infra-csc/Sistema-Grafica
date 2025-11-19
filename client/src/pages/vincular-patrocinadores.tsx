@@ -22,6 +22,74 @@ type ItemChanges = {
   isDirty: boolean;
 };
 
+// Estados UI simplificados
+type UIStatus = 'RASCUNHO' | 'PRONTO' | 'ENVIADO' | 'PENDENTE';
+
+// Função para determinar estado UI de um item (FONTE ÚNICA DE VERDADE)
+const getItemUIStatus = (
+  item: any, 
+  originalSponsors: string[], 
+  pendingChange?: ItemChanges
+): UIStatus => {
+  // 1. Se tem mudanças pendentes não salvas → RASCUNHO
+  if (pendingChange?.isDirty) {
+    return 'RASCUNHO';
+  }
+  
+  // 2. Se status indica que já foi enviado → ENVIADO
+  const sentStatuses = [
+    'awaiting_submission',
+    'awaiting_sponsor_approval', 
+    'sponsor_approved',
+    'awaiting_creator_review',
+    'ready_for_production',
+    'released',
+    'in_production',
+    'produced',
+    'delivered'
+  ];
+  if (sentStatuses.includes(item.status)) {
+    return 'ENVIADO';
+  }
+  
+  // 3. Se tem sponsors salvos E status permite envio → PRONTO
+  const canSendStatuses = ['requested', 'awaiting_linking'];
+  if (canSendStatuses.includes(item.status) && originalSponsors.length > 0) {
+    return 'PRONTO';
+  }
+  
+  // 4. Caso contrário → PENDENTE (sem sponsors vinculados)
+  return 'PENDENTE';
+};
+
+// Cores para cada status UI
+const UI_STATUS_CONFIG = {
+  RASCUNHO: {
+    label: 'Rascunho',
+    icon: Circle,
+    badgeClass: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20',
+    chipClass: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+  },
+  PRONTO: {
+    label: 'Pronto',
+    icon: CheckCircle2,
+    badgeClass: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
+    chipClass: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+  },
+  ENVIADO: {
+    label: 'Enviado',
+    icon: Send,
+    badgeClass: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
+    chipClass: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+  },
+  PENDENTE: {
+    label: 'Pendente',
+    icon: AlertCircle,
+    badgeClass: 'bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-500/20',
+    chipClass: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+  }
+};
+
 // Paleta de cores para patrocinadores
 const SPONSOR_COLORS = [
   { bg: "bg-blue-500/10", text: "text-blue-700 dark:text-blue-400", border: "border-blue-500/20" },
@@ -189,6 +257,31 @@ export default function VincularPatrocinadores() {
       return filteredItems.length > 0;
     });
   }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, originalSponsorsMap]);
+
+  // ===== FONTE ÚNICA DE VERDADE: Computar estados UI de todos os items =====
+  const itemUIStates = useMemo(() => {
+    const states: Record<string, UIStatus> = {};
+    visibleItems.forEach(item => {
+      const originalSponsors = originalSponsorsMap[item.id] || [];
+      const pendingChange = pendingChanges[item.id];
+      states[item.id] = getItemUIStatus(item, originalSponsors, pendingChange);
+    });
+    return states;
+  }, [visibleItems, originalSponsorsMap, pendingChanges]);
+
+  // ===== Contadores globais baseados nos estados UI =====
+  const statusCounts = useMemo(() => {
+    const counts = {
+      RASCUNHO: 0,
+      PRONTO: 0,
+      ENVIADO: 0,
+      PENDENTE: 0
+    };
+    Object.values(itemUIStates).forEach(status => {
+      counts[status]++;
+    });
+    return counts;
+  }, [itemUIStates]);
 
   // Carregar sponsors de todos os items visíveis (não apenas requested)
   useEffect(() => {
@@ -634,49 +727,6 @@ export default function VincularPatrocinadores() {
     return { completed, total: eventItems.length };
   };
 
-  // Calcular estatísticas globais para o painel de resumo
-  const globalStats = useMemo(() => {
-    const allEditableItems = visibleItems.filter(item => getItemEditability(item));
-    
-    // Items editados (com mudanças não salvas)
-    const editedItems = allEditableItems.filter(item => 
-      pendingChanges[item.id]?.isDirty
-    );
-    
-    // Items salvos e prontos para enviar (não editados, em status vinculação, com sponsors ou skip)
-    const savedItems = allEditableItems.filter(item => {
-      const hasPendingChanges = pendingChanges[item.id]?.isDirty;
-      const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
-      const savedSponsors = originalSponsorsMap[item.id] || [];
-      const hasLinkedSponsorsOrSkip = savedSponsors.length > 0 || item.skipApproval;
-      
-      return !hasPendingChanges && isInVinculacaoStatus && hasLinkedSponsorsOrSkip;
-    });
-    
-    // Items já enviados (outros status)
-    const sentItems = allEditableItems.filter(item => 
-      !['requested', 'awaiting_linking'].includes(item.status)
-    );
-    
-    // Items aguardando (sem vinculação, sem pendingChanges)
-    const waitingItems = allEditableItems.filter(item => {
-      const hasPendingChanges = pendingChanges[item.id]?.isDirty;
-      const savedSponsors = originalSponsorsMap[item.id] || [];
-      const hasLinkedSponsorsOrSkip = savedSponsors.length > 0 || item.skipApproval;
-      const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
-      
-      return isInVinculacaoStatus && !hasPendingChanges && !hasLinkedSponsorsOrSkip;
-    });
-    
-    return {
-      total: allEditableItems.length,
-      edited: editedItems.length,
-      saved: savedItems.length,
-      sent: sentItems.length,
-      waiting: waitingItems.length,
-    };
-  }, [visibleItems, pendingChanges, originalSponsorsMap]);
-
   if (itemsLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -709,146 +759,93 @@ export default function VincularPatrocinadores() {
 
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Painel Lateral Fixo - Resumo e Ações */}
-      <div className="w-80 border-r bg-muted/30 flex flex-col overflow-hidden">
-        <div className="p-6 border-b">
-          <h1 className="text-xl font-bold">Vincular Patrocinadores</h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Painel de controle
-          </p>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* Estatísticas */}
-          <Card>
-            <CardHeader className="p-4 pb-3">
-              <CardTitle className="text-sm font-medium">Resumo Geral</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-3">
-              {/* Total */}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Total</span>
-                </div>
-                <span className="text-lg font-bold">{globalStats.total}</span>
-              </div>
+    <div className="container mx-auto p-6 max-w-7xl">
+      {/* Header com título e resumo compacto */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-1">Vincular Patrocinadores</h1>
+        <p className="text-sm text-muted-foreground">
+          Adicione patrocinadores aos items e envie para aprovação
+        </p>
+      </div>
+
+      {/* Resumo e Ações Globais - Header Compacto */}
+      <Card className="mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            {/* Chips de Contadores */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground mr-2">Resumo:</span>
               
-              {/* Aguardando */}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border">
-                <div className="flex items-center gap-2">
-                  <Circle className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Aguardando</span>
-                </div>
-                <span className="text-lg font-bold text-muted-foreground">{globalStats.waiting}</span>
-              </div>
-              
-              {/* Editados */}
-              {globalStats.edited > 0 && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-yellow-600" />
-                    <span className="text-sm text-yellow-700 dark:text-yellow-500 font-medium">Editados</span>
-                  </div>
-                  <span className="text-lg font-bold text-yellow-700 dark:text-yellow-500">{globalStats.edited}</span>
-                </div>
+              {statusCounts.RASCUNHO > 0 && (
+                <Badge variant="secondary" className={`gap-1.5 ${UI_STATUS_CONFIG.RASCUNHO.chipClass}`} data-testid="chip-rascunho">
+                  <Circle className="h-3 w-3 fill-current" />
+                  {statusCounts.RASCUNHO} Rascunho{statusCounts.RASCUNHO !== 1 ? 's' : ''}
+                </Badge>
               )}
               
-              {/* Salvos */}
-              {globalStats.saved > 0 && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm text-blue-700 dark:text-blue-500 font-medium">Prontos</span>
-                  </div>
-                  <span className="text-lg font-bold text-blue-700 dark:text-blue-500">{globalStats.saved}</span>
-                </div>
+              {statusCounts.PRONTO > 0 && (
+                <Badge variant="secondary" className={`gap-1.5 ${UI_STATUS_CONFIG.PRONTO.chipClass}`} data-testid="chip-pronto">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {statusCounts.PRONTO} Pronto{statusCounts.PRONTO !== 1 ? 's' : ''}
+                </Badge>
               )}
               
-              {/* Enviados */}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                <div className="flex items-center gap-2">
-                  <Send className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-700 dark:text-green-500">Enviados</span>
-                </div>
-                <span className="text-lg font-bold text-green-700 dark:text-green-500">{globalStats.sent}</span>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Ações Rápidas */}
-          <Card>
-            <CardHeader className="p-4 pb-3">
-              <CardTitle className="text-sm font-medium">Ações Rápidas</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-2">
-              {/* Salvar Vinculação */}
-              {globalStats.edited > 0 && (
+              <Badge variant="secondary" className={`gap-1.5 ${UI_STATUS_CONFIG.ENVIADO.chipClass}`} data-testid="chip-enviado">
+                <Send className="h-3 w-3" />
+                {statusCounts.ENVIADO} Enviado{statusCounts.ENVIADO !== 1 ? 's' : ''}
+              </Badge>
+              
+              {statusCounts.PENDENTE > 0 && (
+                <Badge variant="secondary" className={`gap-1.5 ${UI_STATUS_CONFIG.PENDENTE.chipClass}`} data-testid="chip-pendente">
+                  <AlertCircle className="h-3 w-3" />
+                  {statusCounts.PENDENTE} Pendente{statusCounts.PENDENTE !== 1 ? 's' : ''}
+                </Badge>
+              )}
+            </div>
+
+            {/* Botões de Ação Global */}
+            <div className="flex flex-wrap items-center gap-2">
+              {statusCounts.RASCUNHO > 0 && (
                 <Button
-                  className="w-full gap-2"
                   size="sm"
+                  variant="default"
+                  className="gap-2"
                   onClick={() => {
-                    const dirtyItemIds = Object.keys(pendingChanges).filter(id => 
-                      visibleItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                    );
-                    saveLinkingMutation.mutate(dirtyItemIds);
+                    const rascunhoIds = visibleItems
+                      .filter(item => itemUIStates[item.id] === 'RASCUNHO')
+                      .map(item => item.id);
+                    saveLinkingMutation.mutate(rascunhoIds);
                   }}
                   disabled={saveLinkingMutation.isPending}
                   data-testid="button-save-all"
                 >
                   <Save className="h-4 w-4" />
-                  {saveLinkingMutation.isPending ? "Salvando..." : `Salvar ${globalStats.edited} Item${globalStats.edited !== 1 ? 's' : ''}`}
+                  Salvar Tudo
                 </Button>
               )}
               
-              {/* Enviar para Arte */}
-              {globalStats.saved > 0 && (
+              {statusCounts.PRONTO > 0 && (
                 <Button
-                  className="w-full gap-2"
                   size="sm"
                   variant="default"
+                  className="gap-2"
                   onClick={() => {
-                    const itemsToSend = visibleItems.filter(item => {
-                      const hasPendingChanges = pendingChanges[item.id]?.isDirty;
-                      const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
-                      const savedSponsors = originalSponsorsMap[item.id] || [];
-                      const hasLinkedSponsorsOrSkip = savedSponsors.length > 0 || item.skipApproval;
-                      
-                      return !hasPendingChanges && isInVinculacaoStatus && hasLinkedSponsorsOrSkip;
-                    }).map(item => item.id);
-                    
-                    sendToArteMutation.mutate(itemsToSend);
+                    const prontoIds = visibleItems
+                      .filter(item => itemUIStates[item.id] === 'PRONTO')
+                      .map(item => item.id);
+                    sendToArteMutation.mutate(prontoIds);
                   }}
                   disabled={sendToArteMutation.isPending}
                   data-testid="button-send-all"
                 >
                   <Send className="h-4 w-4" />
-                  {sendToArteMutation.isPending ? "Enviando..." : `Enviar ${globalStats.saved} Item${globalStats.saved !== 1 ? 's' : ''}`}
+                  Enviar Selecionados
                 </Button>
               )}
-              
-              {globalStats.edited === 0 && globalStats.saved === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  Nenhuma ação pendente
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-      
-      {/* Painel Principal - Conteúdo Scrollável */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Items para Vincular</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Vincule patrocinadores aos items ou marque como "sem aprovação"
-          </p>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-6xl mx-auto space-y-6">
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filtros */}
       <Card className="mb-6">

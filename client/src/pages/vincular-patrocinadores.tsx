@@ -886,7 +886,7 @@ export default function VincularPatrocinadores() {
       </div>
 
       {/* Acordeões por Evento */}
-      <Accordion type="multiple" defaultValue={filteredEventEntries.map(([eventId]) => eventId)} className="space-y-3">
+      <Accordion type="multiple" className="space-y-3">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           if (!event) return null;

@@ -11,7 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
 import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History } from "lucide-react";
-import { format, isAfter, startOfDay } from "date-fns";
+import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatusBadge } from "@/components/status-badge";
 import { CommentsSection } from "@/components/comments-section";
@@ -1293,6 +1293,22 @@ export default function VincularPatrocinadores() {
                           : "—"}
                       </span>
                     </div>
+                    {selectedItemForDetails.event?.truckDepartureDate && (() => {
+                      const hoursUntilDeparture = differenceInHours(new Date(selectedItemForDetails.event.truckDepartureDate), new Date());
+                      if (hoursUntilDeparture > 0 && hoursUntilDeparture < 48) {
+                        const daysRemaining = Math.floor(hoursUntilDeparture / 24);
+                        const hoursRemaining = hoursUntilDeparture % 24;
+                        return (
+                          <div className="pt-2 mt-1 border-t border-border/40">
+                            <Badge variant="destructive" className="text-xs font-semibold">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              URGENTE - {daysRemaining > 0 ? `${daysRemaining}d ` : ''}{hoursRemaining}h restantes
+                            </Badge>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </CardContent>
                 </Card>
 

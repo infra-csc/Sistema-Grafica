@@ -885,17 +885,46 @@ export default function VincularPatrocinadores() {
         )}
       </div>
 
-      {/* Lista de Items */}
-      <div className="space-y-2">
+      {/* Acordeões por Evento */}
+      <Accordion type="multiple" defaultValue={filteredEventEntries.map(([eventId]) => eventId)} className="space-y-3">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           if (!event) return null;
 
           const eventSponsors = getEventSponsors(eventId);
+          const eventCompleted = eventItems.every(item => itemUIStates[item.id] === 'ENVIADO');
+          const eventProgress = eventItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
           
           return (
-            <div key={eventId}>
-              {eventItems.map((item) => {
+            <AccordionItem key={eventId} value={eventId} className="border-0">
+              <AccordionTrigger className="hidden">
+                <div className="flex items-center justify-between w-full pr-4">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <div className="text-left">
+                      <div className="font-semibold text-sm">{event.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(event.startDate), "dd 'de' MMMM", { locale: ptBR })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {eventCompleted ? (
+                      <Badge variant="secondary" className={UI_STATUS_CONFIG.ENVIADO.chipClass}>
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Concluído
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        {eventProgress}/{eventItems.length}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pb-0">
+                <div className="space-y-2">
+                  {eventItems.map((item) => {
                     const uiStatus = itemUIStates[item.id] || 'PENDENTE';
                     const config = UI_STATUS_CONFIG[uiStatus];
                     const Icon = config.icon;
@@ -1027,10 +1056,12 @@ export default function VincularPatrocinadores() {
                       </Card>
                     );
                   })}
-            </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
           );
         })}
-      </div>
+      </Accordion>
 
       {/* Dialogs e Modals */}
       <Card className="mb-6">

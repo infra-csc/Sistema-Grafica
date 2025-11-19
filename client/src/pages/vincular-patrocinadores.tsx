@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown } from "lucide-react";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatusBadge } from "@/components/status-badge";
@@ -781,11 +783,48 @@ export default function VincularPatrocinadores() {
   }
 
 
+  // Calcular progresso
+  const totalItems = visibleItems.length;
+  const completedItems = visibleItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
+  const progressPercent = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+
+  // Estado para controlar items expandidos
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  const toggleItemExpansion = (itemId: string) => {
+    setExpandedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      {/* Header simples */}
+    <div className="container mx-auto p-6 max-w-5xl">
+      {/* Header com Progresso */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">Vincular Patrocinadores</h1>
+        <h1 className="text-2xl font-bold mb-4">Vincular Patrocinadores</h1>
+        
+        {/* Barra de Progresso */}
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">Progresso</span>
+                <span className="text-muted-foreground">
+                  {completedItems} de {totalItems} itens concluídos
+                </span>
+              </div>
+              <Progress value={progressPercent} className="h-2" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Badges de Status */}
         <div className="flex flex-wrap gap-2">
           {statusCounts.PENDENTE > 0 && (
             <Badge variant="secondary" className={UI_STATUS_CONFIG.PENDENTE.chipClass}>
@@ -810,92 +849,148 @@ export default function VincularPatrocinadores() {
         </div>
       </div>
 
-      {/* Ações globais */}
+      {/* Botões de Ação Global */}
       {(statusCounts.RASCUNHO > 0 || statusCounts.PRONTO > 0) && (
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-2">
-              {statusCounts.RASCUNHO > 0 && (
-                <Button
-                  onClick={() => {
-                    const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
-                    saveLinkingMutation.mutate(ids);
-                  }}
-                  disabled={saveLinkingMutation.isPending}
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Salvar Tudo ({statusCounts.RASCUNHO})
-                </Button>
-              )}
-              {statusCounts.PRONTO > 0 && (
-                <Button
-                  onClick={() => {
-                    const ids = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO').map(i => i.id);
-                    sendToArteMutation.mutate(ids);
-                  }}
-                  disabled={sendToArteMutation.isPending}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Enviar Todos ({statusCounts.PRONTO})
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-wrap gap-2 mb-6">
+          {statusCounts.RASCUNHO > 0 && (
+            <Button
+              onClick={() => {
+                const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
+                saveLinkingMutation.mutate(ids);
+              }}
+              disabled={saveLinkingMutation.isPending}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Salvar Tudo ({statusCounts.RASCUNHO})
+            </Button>
+          )}
+          {statusCounts.PRONTO > 0 && (
+            <Button
+              onClick={() => {
+                const ids = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO').map(i => i.id);
+                sendToArteMutation.mutate(ids);
+              }}
+              disabled={sendToArteMutation.isPending}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Enviar Todos ({statusCounts.PRONTO})
+            </Button>
+          )}
+        </div>
       )}
 
-      {/* Tabela de Items Agrupados por Evento */}
-      <div className="space-y-6">
+      {/* Acordeões por Evento */}
+      <Accordion type="multiple" className="space-y-4">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           if (!event) return null;
 
           const eventSponsors = getEventSponsors(eventId);
+          const eventCompleted = eventItems.every(item => itemUIStates[item.id] === 'ENVIADO');
+          const eventProgress = eventItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
           
           return (
-            <Card key={eventId}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{event.name}</CardTitle>
-                  <span className="text-sm text-muted-foreground">{eventItems.length} items</span>
+            <AccordionItem key={eventId} value={eventId} className="border rounded-lg">
+              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                <div className="flex items-center justify-between w-full pr-4">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                    <div className="text-left">
+                      <div className="font-semibold">{event.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(new Date(event.startDate), "dd 'de' MMMM", { locale: ptBR })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {eventCompleted ? (
+                      <Badge variant="secondary" className={UI_STATUS_CONFIG.ENVIADO.chipClass}>
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Concluído
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        {eventProgress}/{eventItems.length}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="border-b bg-muted/30">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground w-[80px]">ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground min-w-[150px]">Item</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Patrocinadores</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground w-[100px]">Status</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground w-[120px]">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {eventItems.map((item) => {
-                        const uiStatus = itemUIStates[item.id] || 'PENDENTE';
-                        const config = UI_STATUS_CONFIG[uiStatus];
-                        const Icon = config.icon;
-                        const linkedSponsors = itemSponsorsMap[item.id] || [];
-                        
-                        return (
-                          <tr key={item.id} className="border-b hover:bg-muted/50">
-                            <td className="px-4 py-3 text-xs font-mono text-primary font-medium">{item.displayId}</td>
-                            <td className="px-4 py-3">
-                              <div className="text-sm font-medium">{item.type}</div>
-                              {item.description && (
-                                <div className="text-xs text-muted-foreground">{item.description}</div>
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-4">
+                <div className="space-y-2 mt-2">
+                  {eventItems.map((item) => {
+                    const uiStatus = itemUIStates[item.id] || 'PENDENTE';
+                    const config = UI_STATUS_CONFIG[uiStatus];
+                    const Icon = config.icon;
+                    const linkedSponsors = itemSponsorsMap[item.id] || [];
+                    const isExpanded = expandedItems.has(item.id);
+                    
+                    return (
+                      <Card key={item.id} className="overflow-hidden">
+                        {/* Linha do Item */}
+                        <div className="p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            {/* Info do Item */}
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <button
+                                onClick={() => toggleItemExpansion(item.id)}
+                                className="p-1 hover:bg-muted rounded transition-colors"
+                              >
+                                <ChevronDown 
+                                  className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                />
+                              </button>
+                              <span className="text-xs font-mono font-semibold text-primary">{item.displayId}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate">{item.type}</div>
+                                {item.description && (
+                                  <div className="text-xs text-muted-foreground truncate">{item.description}</div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Status e Ações */}
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className={`text-xs gap-1 ${config.badgeClass}`}>
+                                <Icon className="h-3 w-3" />
+                                {config.label}
+                              </Badge>
+                              
+                              {uiStatus === 'RASCUNHO' && (
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => saveLinkingMutation.mutate([item.id])} 
+                                  disabled={saveLinkingMutation.isPending}
+                                >
+                                  <Save className="h-3 w-3 mr-1" />
+                                  Salvar
+                                </Button>
                               )}
-                            </td>
-                            <td className="px-4 py-3">
+                              {uiStatus === 'PRONTO' && (
+                                <Button 
+                                  size="sm" 
+                                  onClick={() => sendToArteMutation.mutate([item.id])} 
+                                  disabled={sendToArteMutation.isPending}
+                                >
+                                  <Send className="h-3 w-3 mr-1" />
+                                  Enviar
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Área Expandida - Patrocinadores */}
+                          {isExpanded && (
+                            <div className="mt-3 pt-3 border-t">
+                              <div className="text-xs font-medium mb-2">Selecione os patrocinadores:</div>
                               {eventSponsors.length === 0 ? (
-                                <span className="text-xs text-muted-foreground italic">Sem patrocinadores no evento</span>
+                                <p className="text-xs text-muted-foreground italic">Nenhum patrocinador cadastrado neste evento</p>
                               ) : (
-                                <div className="space-y-1">
+                                <div className="grid grid-cols-2 gap-2">
                                   {eventSponsors.map(sponsor => (
-                                    <div key={sponsor.id} className="flex items-center gap-2">
+                                    <div key={sponsor.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50">
                                       <Checkbox
+                                        id={`sponsor-${item.id}-${sponsor.id}`}
                                         checked={linkedSponsors.includes(sponsor.id)}
                                         onCheckedChange={(checked) => {
                                           const newSponsors = checked
@@ -929,43 +1024,28 @@ export default function VincularPatrocinadores() {
                                         }}
                                         data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                       />
-                                      <label className="text-sm cursor-pointer">{sponsor.name}</label>
+                                      <label 
+                                        htmlFor={`sponsor-${item.id}-${sponsor.id}`}
+                                        className="text-sm cursor-pointer flex-1"
+                                      >
+                                        {sponsor.name}
+                                      </label>
                                     </div>
                                   ))}
                                 </div>
                               )}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <Badge variant="secondary" className={`text-xs gap-1 ${config.badgeClass}`}>
-                                <Icon className="h-3 w-3" />
-                                {config.label}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              {uiStatus === 'RASCUNHO' && (
-                                <Button size="sm" onClick={() => saveLinkingMutation.mutate([item.id])} disabled={saveLinkingMutation.isPending}>
-                                  <Save className="h-3 w-3 mr-1" />
-                                  Salvar
-                                </Button>
-                              )}
-                              {uiStatus === 'PRONTO' && (
-                                <Button size="sm" onClick={() => sendToArteMutation.mutate([item.id])} disabled={sendToArteMutation.isPending}>
-                                  <Send className="h-3 w-3 mr-1" />
-                                  Enviar
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </div>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
-              </CardContent>
-            </Card>
+              </AccordionContent>
+            </AccordionItem>
           );
         })}
-      </div>
+      </Accordion>
 
       {/* Dialogs e Modals */}
       <Card className="mb-6">

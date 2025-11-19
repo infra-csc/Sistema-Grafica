@@ -1261,13 +1261,13 @@ export default function VincularPatrocinadores() {
             </DialogDescription>
           </DialogHeader>
           {selectedItemForDetails && (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {/* Informações do Evento */}
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader className="py-2">
                   <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Evento</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-3 text-sm pt-3">
+                <CardContent className="grid grid-cols-2 gap-3 text-sm py-3">
                   <div>
                     <p className="text-muted-foreground text-xs">Nome do Evento</p>
                     <p className="font-semibold">{selectedItemForDetails.event?.name}</p>
@@ -1293,13 +1293,17 @@ export default function VincularPatrocinadores() {
 
               {/* Especificações */}
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader className="py-2">
                   <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Especificações</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-3 text-sm pt-3">
+                <CardContent className="grid grid-cols-2 gap-3 text-sm py-3">
                   <div>
                     <p className="text-muted-foreground text-xs">Tipo</p>
                     <p className="font-semibold">{selectedItemForDetails.type}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Material</p>
+                    <p className="font-semibold">{selectedItemForDetails.material}</p>
                   </div>
                   {selectedItemForDetails.description && (
                     <div className="col-span-2">
@@ -1308,26 +1312,18 @@ export default function VincularPatrocinadores() {
                     </div>
                   )}
                   <div>
-                    <p className="text-muted-foreground text-xs">Material</p>
-                    <p className="font-semibold">{selectedItemForDetails.material}</p>
-                  </div>
-                  <div>
                     <p className="text-muted-foreground text-xs">Acabamento</p>
                     <p className="font-semibold">{selectedItemForDetails.finish}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Dimensões do Arquivo</p>
-                    <p className="font-semibold">{selectedItemForDetails.fileDimensions || "—"}</p>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Dados de Produção */}
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader className="py-2">
                   <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Dados de Produção</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-3 gap-3 text-sm pt-3">
+                <CardContent className="grid grid-cols-3 gap-3 text-sm py-3">
                   <div>
                     <p className="text-muted-foreground text-xs">Quantidade</p>
                     <p className="font-semibold">{selectedItemForDetails.quantity}</p>
@@ -1358,12 +1354,12 @@ export default function VincularPatrocinadores() {
               {/* Patrocinadores */}
               {selectedItemForDetails.sponsors && selectedItemForDetails.sponsors.length > 0 && (
                 <Card>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="py-2">
                     <CardTitle className="text-xs font-medium uppercase text-muted-foreground">
                       Patrocinadores ({selectedItemForDetails.sponsors.length})
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-3">
+                  <CardContent className="py-3">
                     <div className="flex flex-wrap gap-2">
                       {selectedItemForDetails.sponsors.map((sponsor: any) => (
                         <Badge key={sponsor.id} variant="outline" className="text-xs">
@@ -1378,10 +1374,10 @@ export default function VincularPatrocinadores() {
               {/* Observações */}
               {selectedItemForDetails.observations && (
                 <Card>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="py-2">
                     <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Observações</CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-3">
+                  <CardContent className="py-3">
                     <p className="text-sm whitespace-pre-wrap">{selectedItemForDetails.observations}</p>
                   </CardContent>
                 </Card>
@@ -1389,10 +1385,10 @@ export default function VincularPatrocinadores() {
 
               {/* Histórico de Ações */}
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader className="py-2">
                   <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Histórico de Ações</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-3">
+                <CardContent className="py-3">
                   <div className="relative">
                     {auditLogs.filter((log: any) => log.entityId === selectedItemForDetails.id).length > 0 ? (
                       <div className="space-y-3">

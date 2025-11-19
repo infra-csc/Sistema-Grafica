@@ -927,20 +927,22 @@ export default function VincularPatrocinadores() {
                     const Icon = config.icon;
                     const linkedSponsors = itemSponsorsMap[item.id] || [];
                     const isExpanded = expandedItems.has(item.id);
+                    const isLocked = uiStatus === 'ENVIADO';
                     
                     return (
-                      <Card key={item.id} className="overflow-hidden">
+                      <Card key={item.id} className={`overflow-hidden ${isLocked ? 'opacity-75' : ''}`}>
                         {/* Linha do Item */}
                         <div className="p-2">
                           <div className="flex items-center justify-between gap-2">
                             {/* Info do Item */}
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <button
-                                onClick={() => toggleItemExpansion(item.id)}
-                                className="p-1 hover:bg-muted rounded transition-colors"
+                                onClick={() => !isLocked && toggleItemExpansion(item.id)}
+                                className={`p-1 rounded transition-colors ${isLocked ? 'cursor-not-allowed' : 'hover:bg-muted'}`}
+                                disabled={isLocked}
                               >
                                 <ChevronDown 
-                                  className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                  className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''} ${isLocked ? 'text-muted-foreground' : ''}`}
                                 />
                               </button>
                               <span className="text-xs font-mono font-semibold text-primary">{item.displayId}</span>
@@ -983,7 +985,15 @@ export default function VincularPatrocinadores() {
                           </div>
                           
                           {/* Área Expandida - Patrocinadores */}
-                          {isExpanded && (
+                          {isExpanded && isLocked && (
+                            <div className="mt-2 pt-2 border-t">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span>Item já enviado - não pode ser editado</span>
+                              </div>
+                            </div>
+                          )}
+                          {isExpanded && !isLocked && (
                             <div className="mt-2 pt-2 border-t">
                               <div className="text-xs font-medium mb-1">Selecione os patrocinadores:</div>
                               {eventSponsors.length === 0 ? (

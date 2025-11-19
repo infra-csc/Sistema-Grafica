@@ -1300,9 +1300,8 @@ export default function VincularPatrocinadores() {
                         const hoursRemaining = hoursUntilDeparture % 24;
                         return (
                           <div className="pt-2 mt-1 border-t border-border/40">
-                            <Badge variant="destructive" className="text-xs font-semibold">
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              URGENTE - {daysRemaining > 0 ? `${daysRemaining}d ` : ''}{hoursRemaining}h restantes
+                            <Badge variant="secondary" className="text-xs">
+                              {daysRemaining > 0 ? `${daysRemaining}d ` : ''}{hoursRemaining}h restantes
                             </Badge>
                           </div>
                         );

@@ -885,46 +885,17 @@ export default function VincularPatrocinadores() {
         )}
       </div>
 
-      {/* Acordeões por Evento */}
-      <Accordion type="multiple" className="space-y-3">
+      {/* Lista de Items */}
+      <div className="space-y-2">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           if (!event) return null;
 
           const eventSponsors = getEventSponsors(eventId);
-          const eventCompleted = eventItems.every(item => itemUIStates[item.id] === 'ENVIADO');
-          const eventProgress = eventItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
           
           return (
-            <AccordionItem key={eventId} value={eventId} className="border rounded-lg">
-              <AccordionTrigger className="px-3 py-2 hover:no-underline">
-                <div className="flex items-center justify-between w-full pr-4">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div className="text-left">
-                      <div className="font-semibold text-sm">{event.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {format(new Date(event.startDate), "dd 'de' MMMM", { locale: ptBR })}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {eventCompleted ? (
-                      <Badge variant="secondary" className={UI_STATUS_CONFIG.ENVIADO.chipClass}>
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Concluído
-                      </Badge>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {eventProgress}/{eventItems.length}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="px-3 pb-3">
-                <div className="space-y-2 mt-1">
-                  {eventItems.map((item) => {
+            <div key={eventId}>
+              {eventItems.map((item) => {
                     const uiStatus = itemUIStates[item.id] || 'PENDENTE';
                     const config = UI_STATUS_CONFIG[uiStatus];
                     const Icon = config.icon;
@@ -1056,12 +1027,10 @@ export default function VincularPatrocinadores() {
                       </Card>
                     );
                   })}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+            </div>
           );
         })}
-      </Accordion>
+      </div>
 
       {/* Dialogs e Modals */}
       <Card className="mb-6">

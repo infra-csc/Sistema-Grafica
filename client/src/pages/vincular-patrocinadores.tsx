@@ -1267,28 +1267,26 @@ export default function VincularPatrocinadores() {
                 <CardHeader className="px-4 py-2">
                   <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Evento</CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 py-2 pt-0">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-0.5">Nome do Evento</p>
-                      <p className="font-semibold">{selectedItemForDetails.event?.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-0.5">Data de Início</p>
-                      <p className="font-semibold">
-                        {selectedItemForDetails.event?.startDate 
-                          ? format(new Date(selectedItemForDetails.event.startDate), "dd/MM/yyyy", { locale: ptBR })
-                          : "—"}
-                      </p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-muted-foreground text-xs mb-0.5">Saída do Caminhão</p>
-                      <p className="font-semibold">
-                        {selectedItemForDetails.event?.truckDepartureDate 
-                          ? format(new Date(selectedItemForDetails.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                          : "—"}
-                      </p>
-                    </div>
+                <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">Nome do Evento</span>
+                    <span className="font-semibold text-right">{selectedItemForDetails.event?.name}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">Data de Início</span>
+                    <span className="font-semibold">
+                      {selectedItemForDetails.event?.startDate 
+                        ? format(new Date(selectedItemForDetails.event.startDate), "dd/MM/yyyy", { locale: ptBR })
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline py-1">
+                    <span className="text-muted-foreground text-xs">Saída do Caminhão</span>
+                    <span className="font-semibold">
+                      {selectedItemForDetails.event?.truckDepartureDate 
+                        ? format(new Date(selectedItemForDetails.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                        : "—"}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
@@ -1298,27 +1296,25 @@ export default function VincularPatrocinadores() {
                 <CardHeader className="px-4 py-2">
                   <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Especificações</CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 py-2 pt-0">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-0.5">Tipo</p>
-                      <p className="font-semibold">{selectedItemForDetails.type}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-0.5">Material</p>
-                      <p className="font-semibold">{selectedItemForDetails.material}</p>
-                    </div>
-                    {selectedItemForDetails.description && (
-                      <div className="col-span-2">
-                        <p className="text-muted-foreground text-xs mb-0.5">Descrição</p>
-                        <p className="font-semibold">{selectedItemForDetails.description}</p>
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-0.5">Acabamento</p>
-                      <p className="font-semibold">{selectedItemForDetails.finish}</p>
-                    </div>
+                <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">Tipo</span>
+                    <span className="font-semibold text-right">{selectedItemForDetails.type}</span>
                   </div>
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">Material</span>
+                    <span className="font-semibold text-right">{selectedItemForDetails.material}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">Acabamento</span>
+                    <span className="font-semibold text-right">{selectedItemForDetails.finish}</span>
+                  </div>
+                  {selectedItemForDetails.description && (
+                    <div className="flex justify-between items-baseline py-1">
+                      <span className="text-muted-foreground text-xs">Descrição</span>
+                      <span className="font-semibold text-right">{selectedItemForDetails.description}</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1327,33 +1323,31 @@ export default function VincularPatrocinadores() {
                 <CardHeader className="px-4 py-2">
                   <CardTitle className="text-xs font-semibold uppercase text-muted-foreground">Dados de Produção</CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 py-2 pt-0">
-                  <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-sm">
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-0.5">Quantidade</p>
-                      <p className="font-semibold">{selectedItemForDetails.quantity}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-0.5">Área × Visual</p>
-                      <p className="font-semibold">{selectedItemForDetails.area} × {selectedItemForDetails.visual}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-0.5">m² Total</p>
-                      <p className="font-semibold">{selectedItemForDetails.calculatedM2}</p>
-                    </div>
-                    {selectedItemForDetails.measurement && (
-                      <div>
-                        <p className="text-muted-foreground text-xs mb-0.5">Medida</p>
-                        <p className="font-semibold">{selectedItemForDetails.measurement}</p>
-                      </div>
-                    )}
-                    {selectedItemForDetails.quantityProduced !== null && selectedItemForDetails.quantityProduced > 0 && (
-                      <div>
-                        <p className="text-muted-foreground text-xs mb-0.5">Quantidade Produzida</p>
-                        <p className="font-semibold text-status-production">{selectedItemForDetails.quantityProduced}</p>
-                      </div>
-                    )}
+                <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">Quantidade</span>
+                    <span className="font-semibold">{selectedItemForDetails.quantity}</span>
                   </div>
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">Área × Visual</span>
+                    <span className="font-semibold">{selectedItemForDetails.area} × {selectedItemForDetails.visual}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">m² Total</span>
+                    <span className="font-semibold">{selectedItemForDetails.calculatedM2}</span>
+                  </div>
+                  {selectedItemForDetails.measurement && (
+                    <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                      <span className="text-muted-foreground text-xs">Medida</span>
+                      <span className="font-semibold">{selectedItemForDetails.measurement}</span>
+                    </div>
+                  )}
+                  {selectedItemForDetails.quantityProduced !== null && selectedItemForDetails.quantityProduced > 0 && (
+                    <div className="flex justify-between items-baseline py-1">
+                      <span className="text-muted-foreground text-xs">Quantidade Produzida</span>
+                      <span className="font-semibold text-status-production">{selectedItemForDetails.quantityProduced}</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

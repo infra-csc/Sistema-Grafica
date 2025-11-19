@@ -55,13 +55,13 @@ const getItemUIStatus = (
     return 'ENVIADO';
   }
   
-  // 3. Se tem sponsors salvos E status permite envio → PRONTO
+  // 3. Se status permite envio → PRONTO (permite salvar/enviar mesmo sem patrocinadores)
   const canSendStatuses = ['requested', 'awaiting_linking'];
-  if (canSendStatuses.includes(item.status) && originalSponsors.length > 0) {
+  if (canSendStatuses.includes(item.status)) {
     return 'PRONTO';
   }
   
-  // 4. Caso contrário → PENDENTE (sem sponsors vinculados)
+  // 4. Caso contrário → PENDENTE
   return 'PENDENTE';
 };
 
@@ -804,83 +804,86 @@ export default function VincularPatrocinadores() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl">
+    <div className="container mx-auto p-4 max-w-6xl">
       {/* Header com Progresso */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">Vincular Patrocinadores</h1>
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-2xl font-bold">Vincular Patrocinadores</h1>
+          
+          {/* Badges de Status */}
+          <div className="flex flex-wrap gap-2">
+            {statusCounts.PENDENTE > 0 && (
+              <Badge variant="secondary" className={UI_STATUS_CONFIG.PENDENTE.chipClass}>
+                {statusCounts.PENDENTE} Pendente
+              </Badge>
+            )}
+            {statusCounts.RASCUNHO > 0 && (
+              <Badge variant="secondary" className={UI_STATUS_CONFIG.RASCUNHO.chipClass}>
+                {statusCounts.RASCUNHO} Não Salvo
+              </Badge>
+            )}
+            {statusCounts.PRONTO > 0 && (
+              <Badge variant="secondary" className={UI_STATUS_CONFIG.PRONTO.chipClass}>
+                {statusCounts.PRONTO} Pronto
+              </Badge>
+            )}
+            {statusCounts.ENVIADO > 0 && (
+              <Badge variant="secondary" className={UI_STATUS_CONFIG.ENVIADO.chipClass}>
+                {statusCounts.ENVIADO} Enviado
+              </Badge>
+            )}
+          </div>
+        </div>
         
         {/* Barra de Progresso */}
-        <Card className="mb-4">
-          <CardContent className="p-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">Progresso</span>
-                <span className="text-muted-foreground">
-                  {completedItems} de {totalItems} itens concluídos
-                </span>
+        <Card className="mb-3">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <Progress value={progressPercent} className="h-2" />
               </div>
-              <Progress value={progressPercent} className="h-2" />
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {completedItems}/{totalItems}
+              </span>
             </div>
           </CardContent>
         </Card>
 
-        {/* Badges de Status */}
-        <div className="flex flex-wrap gap-2">
-          {statusCounts.PENDENTE > 0 && (
-            <Badge variant="secondary" className={UI_STATUS_CONFIG.PENDENTE.chipClass}>
-              {statusCounts.PENDENTE} Pendente
-            </Badge>
-          )}
-          {statusCounts.RASCUNHO > 0 && (
-            <Badge variant="secondary" className={UI_STATUS_CONFIG.RASCUNHO.chipClass}>
-              {statusCounts.RASCUNHO} Não Salvo
-            </Badge>
-          )}
-          {statusCounts.PRONTO > 0 && (
-            <Badge variant="secondary" className={UI_STATUS_CONFIG.PRONTO.chipClass}>
-              {statusCounts.PRONTO} Pronto
-            </Badge>
-          )}
-          {statusCounts.ENVIADO > 0 && (
-            <Badge variant="secondary" className={UI_STATUS_CONFIG.ENVIADO.chipClass}>
-              {statusCounts.ENVIADO} Enviado
-            </Badge>
-          )}
-        </div>
+        {/* Botões de Ação Global */}
+        {(statusCounts.RASCUNHO > 0 || statusCounts.PRONTO > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {statusCounts.RASCUNHO > 0 && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
+                  saveLinkingMutation.mutate(ids);
+                }}
+                disabled={saveLinkingMutation.isPending}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Salvar Tudo ({statusCounts.RASCUNHO})
+              </Button>
+            )}
+            {statusCounts.PRONTO > 0 && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  const ids = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO').map(i => i.id);
+                  sendToArteMutation.mutate(ids);
+                }}
+                disabled={sendToArteMutation.isPending}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Enviar Todos ({statusCounts.PRONTO})
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Botões de Ação Global */}
-      {(statusCounts.RASCUNHO > 0 || statusCounts.PRONTO > 0) && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          {statusCounts.RASCUNHO > 0 && (
-            <Button
-              onClick={() => {
-                const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
-                saveLinkingMutation.mutate(ids);
-              }}
-              disabled={saveLinkingMutation.isPending}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              Salvar Tudo ({statusCounts.RASCUNHO})
-            </Button>
-          )}
-          {statusCounts.PRONTO > 0 && (
-            <Button
-              onClick={() => {
-                const ids = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO').map(i => i.id);
-                sendToArteMutation.mutate(ids);
-              }}
-              disabled={sendToArteMutation.isPending}
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Enviar Todos ({statusCounts.PRONTO})
-            </Button>
-          )}
-        </div>
-      )}
-
       {/* Acordeões por Evento */}
-      <Accordion type="multiple" className="space-y-4">
+      <Accordion type="multiple" className="space-y-3">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           if (!event) return null;
@@ -891,12 +894,12 @@ export default function VincularPatrocinadores() {
           
           return (
             <AccordionItem key={eventId} value={eventId} className="border rounded-lg">
-              <AccordionTrigger className="px-4 py-3 hover:no-underline">
+              <AccordionTrigger className="px-3 py-2 hover:no-underline">
                 <div className="flex items-center justify-between w-full pr-4">
                   <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div className="text-left">
-                      <div className="font-semibold">{event.name}</div>
+                      <div className="font-semibold text-sm">{event.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {format(new Date(event.startDate), "dd 'de' MMMM", { locale: ptBR })}
                       </div>
@@ -916,8 +919,8 @@ export default function VincularPatrocinadores() {
                   </div>
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="px-4 pb-4">
-                <div className="space-y-2 mt-2">
+              <AccordionContent className="px-3 pb-3">
+                <div className="space-y-2 mt-1">
                   {eventItems.map((item) => {
                     const uiStatus = itemUIStates[item.id] || 'PENDENTE';
                     const config = UI_STATUS_CONFIG[uiStatus];
@@ -928,8 +931,8 @@ export default function VincularPatrocinadores() {
                     return (
                       <Card key={item.id} className="overflow-hidden">
                         {/* Linha do Item */}
-                        <div className="p-3">
-                          <div className="flex items-center justify-between gap-3">
+                        <div className="p-2">
+                          <div className="flex items-center justify-between gap-2">
                             {/* Info do Item */}
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <button
@@ -981,14 +984,14 @@ export default function VincularPatrocinadores() {
                           
                           {/* Área Expandida - Patrocinadores */}
                           {isExpanded && (
-                            <div className="mt-3 pt-3 border-t">
-                              <div className="text-xs font-medium mb-2">Selecione os patrocinadores:</div>
+                            <div className="mt-2 pt-2 border-t">
+                              <div className="text-xs font-medium mb-1">Selecione os patrocinadores:</div>
                               {eventSponsors.length === 0 ? (
                                 <p className="text-xs text-muted-foreground italic">Nenhum patrocinador cadastrado neste evento</p>
                               ) : (
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-2 gap-1">
                                   {eventSponsors.map(sponsor => (
-                                    <div key={sponsor.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50">
+                                    <div key={sponsor.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50">
                                       <Checkbox
                                         id={`sponsor-${item.id}-${sponsor.id}`}
                                         checked={linkedSponsors.includes(sponsor.id)}

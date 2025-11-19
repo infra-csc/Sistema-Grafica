@@ -1266,51 +1266,51 @@ export default function VincularPatrocinadores() {
               <Card>
                 <CardContent className="px-4 py-3">
                   <div className="flex items-center justify-between text-xs">
-                    {/* Etapa 1: Solicitado */}
+                    {/* Etapa 1: Vinculação */}
                     <div className="flex flex-col items-center gap-1 flex-1">
                       <div className={`rounded-full p-1 ${
                         ['requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
-                          ? 'bg-blue-500 text-white' 
+                          ? 'bg-orange-500 text-white' 
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                       }`}>
-                        {['requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
+                        {['awaiting_submission', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
                           <CheckCircle2 className="h-3 w-3" />
-                        ) : selectedItemForDetails.status === 'draft' ? (
+                        ) : ['requested', 'awaiting_linking'].includes(selectedItemForDetails.status) ? (
                           <CircleDot className="h-3 w-3" />
                         ) : (
                           <Circle className="h-3 w-3" />
                         )}
                       </div>
                       <span className={`text-center ${
-                        selectedItemForDetails.status === 'draft' ? 'font-semibold text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
+                        ['requested', 'awaiting_linking'].includes(selectedItemForDetails.status) ? 'font-semibold text-orange-600 dark:text-orange-400' : 'text-muted-foreground'
                       }`}>
-                        Solicitado
+                        Vinculação
                       </span>
                     </div>
 
                     <div className={`h-[2px] flex-1 ${
-                      ['requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
-                        ? 'bg-blue-500' 
+                      ['awaiting_submission', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
+                        ? 'bg-orange-500' 
                         : 'bg-gray-200 dark:bg-gray-700'
                     }`} />
 
                     {/* Etapa 2: Arte */}
                     <div className="flex flex-col items-center gap-1 flex-1">
                       <div className={`rounded-full p-1 ${
-                        ['requested', 'awaiting_linking', 'awaiting_submission', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
+                        ['awaiting_submission', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
                           ? 'bg-purple-500 text-white' 
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                       }`}>
                         {['awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
                           <CheckCircle2 className="h-3 w-3" />
-                        ) : ['requested', 'awaiting_linking', 'awaiting_submission'].includes(selectedItemForDetails.status) ? (
+                        ) : selectedItemForDetails.status === 'awaiting_submission' ? (
                           <CircleDot className="h-3 w-3" />
                         ) : (
                           <Circle className="h-3 w-3" />
                         )}
                       </div>
                       <span className={`text-center ${
-                        ['requested', 'awaiting_linking', 'awaiting_submission'].includes(selectedItemForDetails.status) ? 'font-semibold text-purple-600 dark:text-purple-400' : 'text-muted-foreground'
+                        selectedItemForDetails.status === 'awaiting_submission' ? 'font-semibold text-purple-600 dark:text-purple-400' : 'text-muted-foreground'
                       }`}>
                         Arte
                       </span>
@@ -1329,72 +1329,74 @@ export default function VincularPatrocinadores() {
                           ? 'bg-amber-500 text-white' 
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                       }`}>
-                        {['ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
+                        {['awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
                           <CheckCircle2 className="h-3 w-3" />
-                        ) : ['awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review'].includes(selectedItemForDetails.status) ? (
+                        ) : ['awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval'].includes(selectedItemForDetails.status) ? (
                           <CircleDot className="h-3 w-3" />
                         ) : (
                           <Circle className="h-3 w-3" />
                         )}
                       </div>
                       <span className={`text-center ${
-                        ['awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval', 'awaiting_finalization', 'awaiting_final_review'].includes(selectedItemForDetails.status) ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
+                        ['awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_approval'].includes(selectedItemForDetails.status) ? 'font-semibold text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
                       }`}>
                         Aprovação
                       </span>
                     </div>
 
                     <div className={`h-[2px] flex-1 ${
-                      ['ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
+                      ['awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
                         ? 'bg-amber-500' 
                         : 'bg-gray-200 dark:bg-gray-700'
                     }`} />
 
-                    {/* Etapa 4: Produção */}
+                    {/* Etapa 4: Revisão */}
                     <div className="flex flex-col items-center gap-1 flex-1">
                       <div className={`rounded-full p-1 ${
-                        ['approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
-                          ? 'bg-emerald-500 text-white' 
+                        ['awaiting_finalization', 'awaiting_final_review', 'ready_for_production', 'approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
+                          ? 'bg-blue-500 text-white' 
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                       }`}>
-                        {['produced', 'delivered'].includes(selectedItemForDetails.status) ? (
+                        {['approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? (
                           <CheckCircle2 className="h-3 w-3" />
-                        ) : ['approved', 'inProduction'].includes(selectedItemForDetails.status) ? (
+                        ) : ['awaiting_finalization', 'awaiting_final_review', 'ready_for_production'].includes(selectedItemForDetails.status) ? (
                           <CircleDot className="h-3 w-3" />
                         ) : (
                           <Circle className="h-3 w-3" />
                         )}
                       </div>
                       <span className={`text-center ${
-                        ['ready_for_production', 'approved', 'inProduction', 'produced'].includes(selectedItemForDetails.status) ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                        ['awaiting_finalization', 'awaiting_final_review', 'ready_for_production'].includes(selectedItemForDetails.status) ? 'font-semibold text-blue-600 dark:text-blue-400' : 'text-muted-foreground'
                       }`}>
-                        Produção
+                        Revisão
                       </span>
                     </div>
 
                     <div className={`h-[2px] flex-1 ${
-                      selectedItemForDetails.status === 'delivered'
-                        ? 'bg-emerald-500' 
+                      ['approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
+                        ? 'bg-blue-500' 
                         : 'bg-gray-200 dark:bg-gray-700'
                     }`} />
 
-                    {/* Etapa 5: Entregue */}
+                    {/* Etapa 5: Produção */}
                     <div className="flex flex-col items-center gap-1 flex-1">
                       <div className={`rounded-full p-1 ${
-                        selectedItemForDetails.status === 'delivered'
+                        ['approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status)
                           ? 'bg-green-500 text-white' 
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
                       }`}>
                         {selectedItemForDetails.status === 'delivered' ? (
                           <CheckCircle2 className="h-3 w-3" />
+                        ) : ['approved', 'inProduction', 'produced'].includes(selectedItemForDetails.status) ? (
+                          <CircleDot className="h-3 w-3" />
                         ) : (
                           <Circle className="h-3 w-3" />
                         )}
                       </div>
                       <span className={`text-center ${
-                        selectedItemForDetails.status === 'delivered' ? 'font-semibold text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                        ['approved', 'inProduction', 'produced', 'delivered'].includes(selectedItemForDetails.status) ? 'font-semibold text-green-600 dark:text-green-400' : 'text-muted-foreground'
                       }`}>
-                        Entregue
+                        Produção
                       </span>
                     </div>
                   </div>

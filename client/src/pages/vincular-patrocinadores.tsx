@@ -144,6 +144,9 @@ export default function VincularPatrocinadores() {
   
   // Estado para controlar qual aba está ativa
   const [activeTab, setActiveTab] = useState<"vincular" | "enviar">("vincular");
+  
+  // Estado para controlar items expandidos
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -790,9 +793,6 @@ export default function VincularPatrocinadores() {
   const totalItems = visibleItems.length;
   const completedItems = visibleItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
   const progressPercent = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-
-  // Estado para controlar items expandidos
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const toggleItemExpansion = (itemId: string) => {
     setExpandedItems(prev => {

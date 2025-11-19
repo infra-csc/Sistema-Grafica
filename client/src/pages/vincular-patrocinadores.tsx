@@ -863,22 +863,28 @@ export default function VincularPatrocinadores() {
               {Object.keys(pendingChanges).filter(id => 
                 eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
               ).length > 0 && (
-                <div className="px-4 py-3 bg-yellow-500/5 border-y border-yellow-500/20">
+                <div className="px-4 py-3 bg-yellow-500/10 border-y border-yellow-500/30">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm">
-                      <span className="font-semibold text-yellow-700 dark:text-yellow-500">
-                        {Object.keys(pendingChanges).filter(id => 
-                          eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                        ).length} item{Object.keys(pendingChanges).filter(id => 
-                          eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                        ).length !== 1 ? 's' : ''} com altera{Object.keys(pendingChanges).filter(id => 
-                          eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
-                        ).length !== 1 ? 'ções' : 'ção'}
-                      </span>
-                      <span className="text-muted-foreground ml-2">→ Clique para salvar</span>
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+                        <span className="font-semibold text-yellow-700 dark:text-yellow-500">
+                          {Object.keys(pendingChanges).filter(id => 
+                            eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                          ).length} item{Object.keys(pendingChanges).filter(id => 
+                            eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                          ).length !== 1 ? 's' : ''} editado{Object.keys(pendingChanges).filter(id => 
+                            eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                          ).length !== 1 ? 's' : ''} (não salvo{Object.keys(pendingChanges).filter(id => 
+                            eventItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                          ).length !== 1 ? 's' : ''})
+                        </span>
+                      </div>
+                      <span className="text-muted-foreground text-xs mt-0.5 block">Salve antes de enviar para Arte</span>
                     </div>
                     <Button
                       size="sm"
+                      variant="default"
                       className="gap-2 shrink-0"
                       onClick={() => {
                         const dirtyItemIds = Object.keys(pendingChanges).filter(id => 
@@ -890,7 +896,7 @@ export default function VincularPatrocinadores() {
                       data-testid="button-save-linking"
                     >
                       <Save className="h-4 w-4" />
-                      {saveLinkingMutation.isPending ? "Salvando..." : "Confirmar Vinculação"}
+                      {saveLinkingMutation.isPending ? "Salvando..." : "Salvar Vinculação"}
                     </Button>
                   </div>
                 </div>
@@ -901,20 +907,24 @@ export default function VincularPatrocinadores() {
                 const confirmedButNotSent = eventItems.filter(item => {
                   const hasPendingChanges = pendingChanges[item.id]?.isDirty;
                   const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
-                  const linkedSponsors = itemSponsorsMap[item.id] || [];
-                  const hasLinkedSponsorsOrSkip = linkedSponsors.length > 0 || item.skipApproval;
+                  // IMPORTANTE: Usar originalSponsorsMap (estado SALVO no banco), não itemSponsorsMap (estado local/não salvo)
+                  const originalLinkedSponsors = originalSponsorsMap[item.id] || [];
+                  const hasLinkedSponsorsOrSkip = originalLinkedSponsors.length > 0 || item.skipApproval;
                   
                   return !hasPendingChanges && isInVinculacaoStatus && hasLinkedSponsorsOrSkip;
                 });
 
                 return confirmedButNotSent.length > 0 && (
-                  <div className="px-4 py-3 bg-blue-500/5 border-y border-blue-500/20">
+                  <div className="px-4 py-3 bg-blue-500/10 border-y border-blue-500/30">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm">
-                        <span className="font-semibold text-blue-700 dark:text-blue-500">
-                          {confirmedButNotSent.length} item{confirmedButNotSent.length !== 1 ? 's' : ''} confirmado{confirmedButNotSent.length !== 1 ? 's' : ''}
-                        </span>
-                        <span className="text-muted-foreground ml-2">→ Pronto para Arte</span>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-500" />
+                          <span className="font-semibold text-blue-700 dark:text-blue-500">
+                            {confirmedButNotSent.length} item{confirmedButNotSent.length !== 1 ? 's' : ''} salvo{confirmedButNotSent.length !== 1 ? 's' : ''} e pronto{confirmedButNotSent.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground text-xs mt-0.5 block">Clique para enviar para Arte</span>
                       </div>
                       <Button
                         size="sm"

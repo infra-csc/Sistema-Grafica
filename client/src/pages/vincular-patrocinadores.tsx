@@ -1243,7 +1243,7 @@ export default function VincularPatrocinadores() {
 
       {/* Dialog de Detalhes do Item */}
       <Dialog open={!!selectedItemForDetails} onOpenChange={(open) => !open && setSelectedItemForDetails(null)}>
-        <DialogContent className="max-w-6xl">
+        <DialogContent className="max-w-full sm:max-w-6xl">
           <DialogHeader>
             <div className="flex items-center gap-3">
               <DialogTitle>Detalhes do Item</DialogTitle>

@@ -182,10 +182,13 @@ export default function VincularPatrocinadores() {
     });
   }, [items, rawEvents]);
   
-  // Determinar quais items são editáveis (baseado no status)
+  // Determinar quais items são editáveis (baseado no status UI)
   const getItemEditability = (item: any) => {
-    const editableStatuses = ['requested', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_creator_review'];
-    return editableStatuses.includes(item.status);
+    const originalSponsors = originalSponsorsMap[item.id] || [];
+    const pendingChange = pendingChanges[item.id];
+    const uiStatus = getItemUIStatus(item, originalSponsors, pendingChange);
+    // Items enviados não podem ser editados
+    return uiStatus !== 'ENVIADO';
   };
 
   // Agrupar items por evento

@@ -133,6 +133,9 @@ export default function VincularPatrocinadores() {
     return Array.from(types).sort();
   }, [visibleItems]);
 
+  // Estado para armazenar sponsors originais (do banco de dados) - DEVE VIR ANTES DE filterItems
+  const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});
+
   // Função helper para filtrar items (aplicada tanto na lógica de filtros quanto no render)
   const filterItems = (eventItems: any[], eventName?: string) => {
     return eventItems.filter(item => {
@@ -154,10 +157,10 @@ export default function VincularPatrocinadores() {
         return false;
       }
 
-      // Filtro por patrocinador
+      // Filtro por patrocinador (usar dados SALVOS, não locais)
       if (sponsorFilter !== "all") {
-        const itemSponsors = itemSponsorsMap[item.id] || [];
-        if (!itemSponsors.includes(sponsorFilter)) {
+        const savedSponsors = originalSponsorsMap[item.id] || [];
+        if (!savedSponsors.includes(sponsorFilter)) {
           return false;
         }
       }
@@ -185,10 +188,7 @@ export default function VincularPatrocinadores() {
       // Se não há items que passaram no filtro, ocultar o evento
       return filteredItems.length > 0;
     });
-  }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, itemSponsorsMap]);
-
-  // Estado para armazenar sponsors originais (do banco de dados)
-  const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});
+  }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, originalSponsorsMap]);
 
   // Carregar sponsors de todos os items visíveis (não apenas requested)
   useEffect(() => {
@@ -538,21 +538,22 @@ export default function VincularPatrocinadores() {
   const handleApplyBulkSponsors = () => {
     const allSelectedItems = Array.from(selectedItemIds);
     
-    // FILTRAR: NÃO aplicar em lote em items que JÁ têm patrocinadores vinculados
+    // FILTRAR: NÃO aplicar em lote em items que JÁ têm patrocinadores SALVOS
     const itemsAlreadyLinked: string[] = [];
     const itemsToUpdate: string[] = [];
     
     allSelectedItems.forEach(itemId => {
-      const linkedSponsors = itemSponsorsMap[itemId] || [];
+      // Usar dados SALVOS do banco (originalSponsorsMap), não estado local
+      const savedSponsors = originalSponsorsMap[itemId] || [];
       const hasPendingChanges = pendingChanges[itemId]?.isDirty;
       const item = items.find(i => i.id === itemId);
       const hasSkipApproval = item?.skipApproval || false;
       
       // Item já tem:
-      // - patrocinadores vinculados (individual)
-      // - mudanças pendentes
+      // - patrocinadores SALVOS no banco
+      // - mudanças pendentes (não salvas ainda)
       // - marcado como "sem aprovação" (skipApproval)
-      if (linkedSponsors.length > 0 || hasPendingChanges || hasSkipApproval) {
+      if (savedSponsors.length > 0 || hasPendingChanges || hasSkipApproval) {
         itemsAlreadyLinked.push(itemId);
       } else {
         itemsToUpdate.push(itemId);
@@ -613,21 +614,14 @@ export default function VincularPatrocinadores() {
 
   // Calcular progresso
   const getItemStatus = (item: any) => {
-    const changes = pendingChanges[item.id];
-    const linkedSponsors = itemSponsorsMap[item.id] || [];
+    // Sempre usar dados SALVOS no banco (originalSponsorsMap), não estado local
+    const savedSponsors = originalSponsorsMap[item.id] || [];
+    const savedSkipApproval = item.skipApproval || false;
     
-    // NÃO considerar o status baseado em mudanças pendentes aqui
-    // O badge "Pronto" é mostrado separadamente quando pendingChanges[item.id]?.isDirty é true
-    
-    // Verificar o estado SALVO no banco de dados (não pendente)
-    // Usar os valores do banco, não do estado local
-    const originalSponsors = originalSponsorsMap[item.id] || [];
-    const originalSkipApproval = item.skipApproval || false;
-    
-    // Verificar skipApproval e patrocinadores vinculados independente do status
-    // Isso funciona tanto para items 'requested' quanto para items já confirmados
-    if (originalSkipApproval) return 'skip';
-    if (originalSponsors.length > 0) return 'linked';
+    // Status baseado APENAS em dados salvos no banco
+    // Mudanças pendentes (não salvas) são tratadas separadamente pelo badge "Pronto"
+    if (savedSkipApproval) return 'skip';
+    if (savedSponsors.length > 0) return 'linked';
     
     return 'pending';
   };
@@ -639,6 +633,49 @@ export default function VincularPatrocinadores() {
     }).length;
     return { completed, total: eventItems.length };
   };
+
+  // Calcular estatísticas globais para o painel de resumo
+  const globalStats = useMemo(() => {
+    const allEditableItems = visibleItems.filter(item => getItemEditability(item));
+    
+    // Items editados (com mudanças não salvas)
+    const editedItems = allEditableItems.filter(item => 
+      pendingChanges[item.id]?.isDirty
+    );
+    
+    // Items salvos e prontos para enviar (não editados, em status vinculação, com sponsors ou skip)
+    const savedItems = allEditableItems.filter(item => {
+      const hasPendingChanges = pendingChanges[item.id]?.isDirty;
+      const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
+      const savedSponsors = originalSponsorsMap[item.id] || [];
+      const hasLinkedSponsorsOrSkip = savedSponsors.length > 0 || item.skipApproval;
+      
+      return !hasPendingChanges && isInVinculacaoStatus && hasLinkedSponsorsOrSkip;
+    });
+    
+    // Items já enviados (outros status)
+    const sentItems = allEditableItems.filter(item => 
+      !['requested', 'awaiting_linking'].includes(item.status)
+    );
+    
+    // Items aguardando (sem vinculação, sem pendingChanges)
+    const waitingItems = allEditableItems.filter(item => {
+      const hasPendingChanges = pendingChanges[item.id]?.isDirty;
+      const savedSponsors = originalSponsorsMap[item.id] || [];
+      const hasLinkedSponsorsOrSkip = savedSponsors.length > 0 || item.skipApproval;
+      const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
+      
+      return isInVinculacaoStatus && !hasPendingChanges && !hasLinkedSponsorsOrSkip;
+    });
+    
+    return {
+      total: allEditableItems.length,
+      edited: editedItems.length,
+      saved: savedItems.length,
+      sent: sentItems.length,
+      waiting: waitingItems.length,
+    };
+  }, [visibleItems, pendingChanges, originalSponsorsMap]);
 
   if (itemsLoading) {
     return (
@@ -672,14 +709,146 @@ export default function VincularPatrocinadores() {
 
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Vincular Patrocinadores</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Vincule patrocinadores aos items ou marque como "sem aprovação"
-        </p>
+    <div className="flex h-screen overflow-hidden">
+      {/* Painel Lateral Fixo - Resumo e Ações */}
+      <div className="w-80 border-r bg-muted/30 flex flex-col overflow-hidden">
+        <div className="p-6 border-b">
+          <h1 className="text-xl font-bold">Vincular Patrocinadores</h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Painel de controle
+          </p>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Estatísticas */}
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-sm font-medium">Resumo Geral</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 space-y-3">
+              {/* Total */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Total</span>
+                </div>
+                <span className="text-lg font-bold">{globalStats.total}</span>
+              </div>
+              
+              {/* Aguardando */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border">
+                <div className="flex items-center gap-2">
+                  <Circle className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Aguardando</span>
+                </div>
+                <span className="text-lg font-bold text-muted-foreground">{globalStats.waiting}</span>
+              </div>
+              
+              {/* Editados */}
+              {globalStats.edited > 0 && (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    <span className="text-sm text-yellow-700 dark:text-yellow-500 font-medium">Editados</span>
+                  </div>
+                  <span className="text-lg font-bold text-yellow-700 dark:text-yellow-500">{globalStats.edited}</span>
+                </div>
+              )}
+              
+              {/* Salvos */}
+              {globalStats.saved > 0 && (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-blue-700 dark:text-blue-500 font-medium">Prontos</span>
+                  </div>
+                  <span className="text-lg font-bold text-blue-700 dark:text-blue-500">{globalStats.saved}</span>
+                </div>
+              )}
+              
+              {/* Enviados */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="flex items-center gap-2">
+                  <Send className="h-4 w-4 text-green-600" />
+                  <span className="text-sm text-green-700 dark:text-green-500">Enviados</span>
+                </div>
+                <span className="text-lg font-bold text-green-700 dark:text-green-500">{globalStats.sent}</span>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Ações Rápidas */}
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-sm font-medium">Ações Rápidas</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 space-y-2">
+              {/* Salvar Vinculação */}
+              {globalStats.edited > 0 && (
+                <Button
+                  className="w-full gap-2"
+                  size="sm"
+                  onClick={() => {
+                    const dirtyItemIds = Object.keys(pendingChanges).filter(id => 
+                      visibleItems.some(item => item.id === id) && pendingChanges[id].isDirty
+                    );
+                    saveLinkingMutation.mutate(dirtyItemIds);
+                  }}
+                  disabled={saveLinkingMutation.isPending}
+                  data-testid="button-save-all"
+                >
+                  <Save className="h-4 w-4" />
+                  {saveLinkingMutation.isPending ? "Salvando..." : `Salvar ${globalStats.edited} Item${globalStats.edited !== 1 ? 's' : ''}`}
+                </Button>
+              )}
+              
+              {/* Enviar para Arte */}
+              {globalStats.saved > 0 && (
+                <Button
+                  className="w-full gap-2"
+                  size="sm"
+                  variant="default"
+                  onClick={() => {
+                    const itemsToSend = visibleItems.filter(item => {
+                      const hasPendingChanges = pendingChanges[item.id]?.isDirty;
+                      const isInVinculacaoStatus = item.status === "requested" || item.status === "awaiting_linking";
+                      const savedSponsors = originalSponsorsMap[item.id] || [];
+                      const hasLinkedSponsorsOrSkip = savedSponsors.length > 0 || item.skipApproval;
+                      
+                      return !hasPendingChanges && isInVinculacaoStatus && hasLinkedSponsorsOrSkip;
+                    }).map(item => item.id);
+                    
+                    sendToArteMutation.mutate(itemsToSend);
+                  }}
+                  disabled={sendToArteMutation.isPending}
+                  data-testid="button-send-all"
+                >
+                  <Send className="h-4 w-4" />
+                  {sendToArteMutation.isPending ? "Enviando..." : `Enviar ${globalStats.saved} Item${globalStats.saved !== 1 ? 's' : ''}`}
+                </Button>
+              )}
+              
+              {globalStats.edited === 0 && globalStats.saved === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-4">
+                  Nenhuma ação pendente
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
+      
+      {/* Painel Principal - Conteúdo Scrollável */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="p-6 border-b">
+          <h2 className="text-lg font-semibold">Items para Vincular</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Vincule patrocinadores aos items ou marque como "sem aprovação"
+          </p>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-6xl mx-auto space-y-6">
 
       {/* Filtros */}
       <Card className="mb-6">
@@ -757,40 +926,57 @@ export default function VincularPatrocinadores() {
         </CardContent>
       </Card>
 
-      {/* Botão de Aplicar em Lote */}
+      {/* Toolbar de Seleção em Massa - Flutuante/Sticky */}
       {selectedItemIds.size > 0 && (
-        <Card className="mb-6 border-primary/50 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-sm font-bold text-primary">{selectedItemIds.size}</span>
+        <div className="sticky top-0 z-50 mb-6">
+          <Card className="border-primary shadow-lg bg-gradient-to-r from-primary/10 to-primary/5 border-2 border-primary/50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  {/* Badge de Contagem */}
+                  <div className="flex items-center gap-3 bg-background px-4 py-2 rounded-lg shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center animate-pulse">
+                        <span className="text-base font-bold text-primary-foreground">{selectedItemIds.size}</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-sm">
+                          {selectedItemIds.size} item{selectedItemIds.size !== 1 ? 's' : ''} selecionado{selectedItemIds.size !== 1 ? 's' : ''}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Pronto para aplicar em lote
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <span className="font-medium">
-                    {selectedItemIds.size} item{selectedItemIds.size !== 1 ? 's' : ''} selecionado{selectedItemIds.size !== 1 ? 's' : ''}
-                  </span>
+                  
+                  {/* Botão Limpar */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedItemIds(new Set())}
+                    data-testid="button-clear-selection"
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Limpar
+                  </Button>
                 </div>
+                
+                {/* Botão de Ação Principal */}
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedItemIds(new Set())}
-                  data-testid="button-clear-selection"
+                  onClick={handleOpenBulkApplyDialog}
+                  className="gap-2 shadow-md"
+                  size="default"
+                  data-testid="button-apply-bulk-sponsors"
                 >
-                  Limpar seleção
+                  <Users className="h-4 w-4" />
+                  Aplicar Patrocinadores
                 </Button>
               </div>
-              <Button
-                onClick={handleOpenBulkApplyDialog}
-                className="gap-2"
-                data-testid="button-apply-bulk-sponsors"
-              >
-                <Users className="h-4 w-4" />
-                Aplicar Patrocinadores
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Cards de Eventos - Matriz Visual */}
@@ -977,8 +1163,10 @@ export default function VincularPatrocinadores() {
                         return (
                           <tr
                             key={item.id}
-                            className={`border-b hover:bg-muted/30 transition-colors cursor-pointer ${
-                              itemStatus === 'linked' || itemStatus === 'skip'
+                            className={`border-b hover:bg-muted/30 transition-all cursor-pointer ${
+                              pendingChanges[item.id]?.isDirty
+                                ? 'bg-yellow-50/70 dark:bg-yellow-900/20 border-l-4 border-l-yellow-500'
+                                : itemStatus === 'linked' || itemStatus === 'skip'
                                 ? 'bg-green-50/50 dark:bg-green-900/10'
                                 : ''
                             } ${!isEditable ? 'opacity-60' : ''}`}
@@ -1000,7 +1188,20 @@ export default function VincularPatrocinadores() {
                             </td>
                             <td className="px-3 py-2 min-w-[200px]">
                               <div>
-                                <div className="font-medium text-sm text-foreground">{item.type}</div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm text-foreground">{item.type}</span>
+                                  {/* Tags inline de estado */}
+                                  {pendingChanges[item.id]?.isDirty && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/30">
+                                      EDITADO
+                                    </Badge>
+                                  )}
+                                  {!pendingChanges[item.id]?.isDirty && (itemStatus === 'linked' || itemStatus === 'skip') && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30">
+                                      SALVO
+                                    </Badge>
+                                  )}
+                                </div>
                                 {item.description && (
                                   <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                                     {item.description}
@@ -1127,31 +1328,59 @@ export default function VincularPatrocinadores() {
                                 data-testid={`checkbox-skip-approval-${item.id}`}
                               />
                             </td>
-                            <td className="px-3 py-2 text-center">
-                              {!isEditable ? (
-                                <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 text-xs gap-1">
-                                  <Check className="h-3 w-3" />
-                                  Aprovado
-                                </Badge>
-                              ) : pendingChanges[item.id]?.isDirty ? (
-                                <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20 text-xs">
-                                  Pronto
-                                </Badge>
-                              ) : itemStatus === 'linked' ? (
-                                <Badge variant="default" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 text-xs gap-1">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  OK
-                                </Badge>
-                              ) : itemStatus === 'skip' ? (
-                                <Badge variant="default" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 text-xs gap-1">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  OK
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-xs">
-                                  Aguardando
-                                </Badge>
-                              )}
+                            <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-2">
+                                {/* Badge de Status */}
+                                {!isEditable ? (
+                                  <Badge variant="default" className="bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 text-xs gap-1">
+                                    <Check className="h-3 w-3" />
+                                    Aprovado
+                                  </Badge>
+                                ) : pendingChanges[item.id]?.isDirty ? (
+                                  <>
+                                    <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20 text-xs">
+                                      Pronto
+                                    </Badge>
+                                    {/* Mini-botão: Salvar */}
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      className="gap-1 text-xs"
+                                      onClick={() => saveLinkingMutation.mutate([item.id])}
+                                      disabled={saveLinkingMutation.isPending}
+                                      data-testid={`button-save-item-${item.id}`}
+                                    >
+                                      <Save className="h-3 w-3" />
+                                      Salvar
+                                    </Button>
+                                  </>
+                                ) : itemStatus === 'linked' || itemStatus === 'skip' ? (
+                                  <>
+                                    <Badge variant="default" className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 text-xs gap-1">
+                                      <CheckCircle2 className="h-3 w-3" />
+                                      OK
+                                    </Badge>
+                                    {/* Mini-botão: Enviar para Arte */}
+                                    {(item.status === "requested" || item.status === "awaiting_linking") && (
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        className="gap-1 text-xs"
+                                        onClick={() => sendToArteMutation.mutate([item.id])}
+                                        disabled={sendToArteMutation.isPending}
+                                        data-testid={`button-send-item-${item.id}`}
+                                      >
+                                        <Send className="h-3 w-3" />
+                                        Enviar
+                                      </Button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Aguardando
+                                  </Badge>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1164,7 +1393,11 @@ export default function VincularPatrocinadores() {
           );
         })}
       </div>
-
+      
+          </div>
+        </div>
+      </div>
+      
       {/* Dialog para Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={setSponsorDialogOpen}>
         <DialogContent className="sm:max-w-md">

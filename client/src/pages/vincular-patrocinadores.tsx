@@ -13,6 +13,8 @@ import { useState, useEffect, useMemo } from "react";
 import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users } from "lucide-react";
 import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { StatusBadge } from "@/components/status-badge";
+import { CommentsSection } from "@/components/comments-section";
 
 type ItemChanges = {
   sponsorIds: string[];
@@ -51,6 +53,9 @@ export default function VincularPatrocinadores() {
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
   
+  // Estado para dialog de detalhes do item
+  const [selectedItemForDetails, setSelectedItemForDetails] = useState<any>(null);
+  
   // Estados de filtro
   const [searchQuery, setSearchQuery] = useState("");
   const [eventFilter, setEventFilter] = useState<string>("all");
@@ -72,6 +77,10 @@ export default function VincularPatrocinadores() {
 
   const { data: rawEvents = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
+  });
+
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
   });
 
   const { data: sponsors = [] } = useQuery<any[]>({
@@ -854,14 +863,15 @@ export default function VincularPatrocinadores() {
                         return (
                           <tr
                             key={item.id}
-                            className={`border-b hover:bg-muted/30 transition-colors ${
+                            className={`border-b hover:bg-muted/30 transition-colors cursor-pointer ${
                               itemStatus === 'linked' || itemStatus === 'skip'
                                 ? 'bg-green-50/50 dark:bg-green-900/10'
                                 : ''
                             } ${!isEditable ? 'opacity-60' : ''}`}
+                            onClick={() => setSelectedItemForDetails(item)}
                             data-testid={`item-row-${item.id}`}
                           >
-                            <td className="px-3 py-2 text-center">
+                            <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
                                 onCheckedChange={() => isEditable && toggleItemSelection(item.id)}
@@ -891,7 +901,7 @@ export default function VincularPatrocinadores() {
                                 <span className="text-muted-foreground">{parseFloat(item.calculatedM2).toFixed(2)} m²</span>
                               </div>
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                               {/* Seleção múltipla com CHECKBOXES */}
                               {!currentSkipApproval && eventSponsors.length > 0 && (
                                 <div className="space-y-0.5">
@@ -967,7 +977,7 @@ export default function VincularPatrocinadores() {
                                 </Badge>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-center">
+                            <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={currentSkipApproval}
                                 disabled={!isEditable}
@@ -1228,6 +1238,205 @@ export default function VincularPatrocinadores() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Detalhes do Item */}
+      <Dialog open={!!selectedItemForDetails} onOpenChange={(open) => !open && setSelectedItemForDetails(null)}>
+        <DialogContent className="max-w-6xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <DialogTitle>Detalhes do Item</DialogTitle>
+              {selectedItemForDetails && (
+                <>
+                  <span className="text-sm font-mono font-medium text-primary">
+                    {selectedItemForDetails.displayId}
+                  </span>
+                  <StatusBadge status={selectedItemForDetails.status} />
+                </>
+              )}
+            </div>
+            <DialogDescription>
+              Informações completas do item
+            </DialogDescription>
+          </DialogHeader>
+          {selectedItemForDetails && (
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+              {/* Informações do Evento */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Evento</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Nome do Evento</p>
+                    <p className="font-semibold">{selectedItemForDetails.event?.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Data de Início</p>
+                    <p className="font-semibold">
+                      {selectedItemForDetails.event?.startDate 
+                        ? format(new Date(selectedItemForDetails.event.startDate), "dd/MM/yyyy", { locale: ptBR })
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Saída do Caminhão</p>
+                    <p className="font-semibold">
+                      {selectedItemForDetails.event?.truckDepartureDate 
+                        ? format(new Date(selectedItemForDetails.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                        : "—"}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Especificações */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Especificações</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Tipo</p>
+                    <p className="font-semibold">{selectedItemForDetails.type}</p>
+                  </div>
+                  {selectedItemForDetails.description && (
+                    <div className="col-span-2">
+                      <p className="text-muted-foreground text-xs">Descrição</p>
+                      <p className="font-semibold">{selectedItemForDetails.description}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-muted-foreground text-xs">Material</p>
+                    <p className="font-semibold">{selectedItemForDetails.material}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Acabamento</p>
+                    <p className="font-semibold">{selectedItemForDetails.finish}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Dimensões do Arquivo</p>
+                    <p className="font-semibold">{selectedItemForDetails.fileDimensions || "—"}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Dados de Produção */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Dados de Produção</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground text-xs">Quantidade</p>
+                    <p className="font-semibold">{selectedItemForDetails.quantity}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">Área × Visual</p>
+                    <p className="font-semibold">{selectedItemForDetails.area} × {selectedItemForDetails.visual}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground text-xs">m² Total</p>
+                    <p className="font-semibold">{selectedItemForDetails.calculatedM2}</p>
+                  </div>
+                  {selectedItemForDetails.measurement && (
+                    <div>
+                      <p className="text-muted-foreground text-xs">Medida</p>
+                      <p className="font-semibold">{selectedItemForDetails.measurement}</p>
+                    </div>
+                  )}
+                  {selectedItemForDetails.quantityProduced !== null && selectedItemForDetails.quantityProduced > 0 && (
+                    <div>
+                      <p className="text-muted-foreground text-xs">Quantidade Produzida</p>
+                      <p className="font-semibold text-status-production">{selectedItemForDetails.quantityProduced}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Patrocinadores */}
+              {selectedItemForDetails.sponsors && selectedItemForDetails.sponsors.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">
+                      Patrocinadores ({selectedItemForDetails.sponsors.length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedItemForDetails.sponsors.map((sponsor: any) => (
+                        <Badge key={sponsor.id} variant="outline" className="text-xs">
+                          {sponsor.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Observações */}
+              {selectedItemForDetails.observations && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium">Observações</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap">{selectedItemForDetails.observations}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Histórico de Ações */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Histórico de Ações</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {auditLogs
+                      .filter((log: any) => log.entityId === selectedItemForDetails.id)
+                      .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                      .map((log: any) => (
+                        <div key={log.id} className="flex gap-3 text-sm">
+                          <div className="flex-shrink-0 w-2 h-2 bg-primary rounded-full mt-1.5"></div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(log.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                {log.action}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                por {log.userName}
+                              </span>
+                            </div>
+                            {log.details && (
+                              <p className="text-xs text-muted-foreground mt-1">{log.details}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    {auditLogs.filter((log: any) => log.entityId === selectedItemForDetails.id).length === 0 && (
+                      <p className="text-sm text-muted-foreground">Nenhum histórico disponível</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Comentários */}
+              <div className="border-t pt-4">
+                <CommentsSection itemId={selectedItemForDetails.id} itemType={selectedItemForDetails.type} />
+              </div>
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setSelectedItemForDetails(null)}>
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

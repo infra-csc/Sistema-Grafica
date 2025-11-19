@@ -868,7 +868,10 @@ export default function VincularPatrocinadores() {
                                 ? 'bg-green-50/50 dark:bg-green-900/10'
                                 : ''
                             } ${!isEditable ? 'opacity-60' : ''}`}
-                            onClick={() => setSelectedItemForDetails(item)}
+                            onClick={() => {
+                              console.log('TR CLICKED! Setting item:', item);
+                              setSelectedItemForDetails(item);
+                            }}
                             data-testid={`item-row-${item.id}`}
                           >
                             <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>

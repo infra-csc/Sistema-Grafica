@@ -897,11 +897,13 @@ export default function Arte() {
                     </p>
                     {approvalThumbPreview ? (
                       <div className="space-y-2">
-                        <img 
-                          src={approvalThumbPreview} 
-                          alt="Preview" 
-                          className="max-h-48 rounded-md border"
-                        />
+                        <div className="w-full max-h-64 overflow-hidden rounded-md border bg-muted/30 flex items-center justify-center">
+                          <img 
+                            src={approvalThumbPreview} 
+                            alt="Preview" 
+                            className="max-h-64 max-w-full object-contain"
+                          />
+                        </div>
                         <FileUploader
                           onGetUploadParameters={getUploadUrl}
                           onComplete={(result) => {

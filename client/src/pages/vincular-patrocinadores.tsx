@@ -59,9 +59,15 @@ const getItemUIStatus = (
     return 'PRONTO';
   }
   
-  // 4. Status inicial permite salvar vinculação → PENDENTE
+  // 4. Items com status 'requested' mas que JÁ têm patrocinadores salvos → PRONTO
+  // (Corrige casos onde patrocinadores foram salvos antes da correção de status automático)
   const canSendStatuses = ['requested', 'awaiting_linking'];
   if (canSendStatuses.includes(item.status)) {
+    const hasSponsors = originalSponsors.length > 0;
+    const hasSkipApproval = item.skipApproval === true;
+    if (hasSponsors || hasSkipApproval) {
+      return 'PRONTO';
+    }
     return 'PENDENTE';
   }
   

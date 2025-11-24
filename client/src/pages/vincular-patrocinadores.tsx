@@ -536,8 +536,8 @@ export default function VincularPatrocinadores() {
         const item = visibleItems.find(i => i.id === itemId);
         if (!item || !getItemEditability(item)) return false;
         
-        // Item deve estar em status que ainda não foi enviado para Arte
-        return item.status === "requested" || item.status === "awaiting_linking";
+        // Item deve estar com status awaiting_submission (já salvou patrocinadores)
+        return item.status === "awaiting_submission";
       });
 
       if (validItemIds.length === 0) {
@@ -545,9 +545,7 @@ export default function VincularPatrocinadores() {
       }
 
       for (const itemId of validItemIds) {
-        await apiRequest("PATCH", `/api/items/${itemId}`, {
-          status: "awaiting_submission"
-        });
+        await apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, {});
       }
       
       return validItemIds;
@@ -556,8 +554,8 @@ export default function VincularPatrocinadores() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       
       toast({
-        title: "✅ Items enviados para Arte!",
-        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} enviado${validItemIds.length !== 1 ? 's' : ''} para Arte`,
+        title: "✅ Items enviados para aprovação!",
+        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} enviado${validItemIds.length !== 1 ? 's' : ''} para aprovação`,
       });
     },
     onError: (error: Error) => {

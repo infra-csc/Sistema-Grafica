@@ -1278,30 +1278,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { approvalThumbUrl } = req.body;
       
-      if (!approvalThumbUrl) {
-        return res.status(400).json({ error: "approvalThumbUrl is required" });
-      }
-      
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
       }
       
-      if (currentItem.status !== "requested") {
+      // Accept both "requested" (normal flow) and "awaiting_submission" (from Vincular Patrocinadores)
+      const validStatuses = ["requested", "awaiting_submission"];
+      if (!validStatuses.includes(currentItem.status)) {
         return res.status(409).json({ 
-          error: `Item não pode ser enviado para aprovação. Status atual: ${currentItem.status}, esperado: requested` 
+          error: `Item não pode ser enviado para aprovação. Status atual: ${currentItem.status}, esperado: ${validStatuses.join(' ou ')}` 
         });
+      }
+      
+      // approvalThumbUrl is required only for "requested" status (normal flow)
+      if (currentItem.status === "requested" && !approvalThumbUrl) {
+        return res.status(400).json({ error: "approvalThumbUrl is required" });
       }
       
       // Check if skipApproval flag is set
       const shouldSkipApproval = currentItem.skipApproval === true;
       const nextStatus = shouldSkipApproval ? "awaiting_creator_review" : "awaiting_sponsor_approval";
       
-      const item = await storage.updateItem(req.params.id, {
-        status: nextStatus,
-        approvalThumbUrl,
-      });
+      const itemUpdates: any = { status: nextStatus };
+      if (approvalThumbUrl) {
+        itemUpdates.approvalThumbUrl = approvalThumbUrl;
+      }
+      
+      const item = await storage.updateItem(req.params.id, itemUpdates);
       
       if (!item) {
         return res.status(404).json({ error: "Item not found" });

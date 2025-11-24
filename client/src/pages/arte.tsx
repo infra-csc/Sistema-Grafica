@@ -798,7 +798,10 @@ export default function Arte() {
                   <p className="text-xs text-muted-foreground">
                     Envie uma imagem leve (preview) para o patrocinador aprovar
                   </p>
-                  {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
+                  {(() => {
+                    console.log('Verificando preview. approvalThumbPreview:', approvalThumbPreview?.substring(0, 50));
+                    return approvalThumbPreview && approvalThumbPreview.trim() !== "";
+                  })() ? (
                     <div className="space-y-2">
                       <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4">
                         <img 
@@ -861,9 +864,13 @@ export default function Arte() {
                         });
                       }}
                       onFileSelect={(file) => {
+                        console.log('Arquivo selecionado:', file.name);
                         const reader = new FileReader();
                         reader.onload = (e) => {
-                          setApprovalThumbPreview(e.target?.result as string);
+                          const preview = e.target?.result as string;
+                          console.log('Preview gerado, tamanho:', preview?.length);
+                          setApprovalThumbPreview(preview);
+                          console.log('Preview setado no state');
                         };
                         reader.readAsDataURL(file);
                       }}

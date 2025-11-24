@@ -337,8 +337,8 @@ export default function EventDetail() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       toast({
-        title: "Itens enviados para Arte",
-        description: `${data.count} ${data.count === 1 ? 'item foi enviado' : 'itens foram enviados'} com sucesso`,
+        title: "Itens enviados com sucesso",
+        description: `${data.count} ${data.count === 1 ? 'item foi enviado' : 'itens foram enviados'} para vinculação de patrocinadores`,
       });
     },
     onError: (error: any) => {
@@ -1142,7 +1142,7 @@ export default function EventDetail() {
                 <div>
                   <p className="text-sm font-semibold">Pronto para enviar?</p>
                   <p className="text-xs text-muted-foreground">
-                    {items.filter(item => item.status === 'draft').length} {items.filter(item => item.status === 'draft').length === 1 ? 'item será enviado' : 'itens serão enviados'} para Arte
+                    {items.filter(item => item.status === 'draft').length} {items.filter(item => item.status === 'draft').length === 1 ? 'item será enviado' : 'itens serão enviados'} para vinculação de patrocinadores
                   </p>
                 </div>
               </div>
@@ -1160,7 +1160,7 @@ export default function EventDetail() {
                 ) : (
                   <>
                     <Check className="h-4 w-4 mr-2" />
-                    Enviar Tudo para Arte
+                    Enviar Todos os Itens
                   </>
                 )}
               </Button>

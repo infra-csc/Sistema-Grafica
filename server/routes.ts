@@ -17,7 +17,8 @@ import {
   insertEventSponsorSchema,
   insertItemSponsorSchema,
   loginSchema,
-  changePasswordSchema
+  changePasswordSchema,
+  type Item
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
@@ -893,13 +894,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'created',
         'item',
         eventId,
-        `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → ${translateStatus('requested')} (${successfulUpdates.length === 1 ? 'enviado' : 'enviados'} para Arte)`
+        `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → ${translateStatus('requested')} (${successfulUpdates.length === 1 ? 'enviado' : 'enviados'} para vinculação)`
       );
       
-      // Notify Arte profile with actual count
+      // Notify Arte and Admin profiles with actual count
       await storage.createNotification({
         type: 'itemsSubmitted',
-        message: `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'novo item' : 'novos itens'} ${successfulUpdates.length === 1 ? 'foi enviado' : 'foram enviados'} para Arte no evento "${event.name}"`,
+        message: `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'novo item' : 'novos itens'} aguardando vinculação de patrocinadores no evento "${event.name}"`,
         targetRoles: ['arte', 'admin'],
         eventId,
       });
@@ -1070,18 +1071,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
       
-      // Validar que o patrocinador pertence ao evento (se fornecido)
-      if (validatedData.sponsorId) {
-        const eventSponsors = await storage.getEventSponsors(validatedData.eventId);
-        const sponsorBelongsToEvent = eventSponsors.some(es => es.sponsorId === validatedData.sponsorId);
-        
-        if (!sponsorBelongsToEvent) {
-          return res.status(400).json({ 
-            error: "O patrocinador selecionado não está vinculado a este evento" 
-          });
-        }
-      }
-      
       // Check if event was completed - if so, reset priority and require re-definition
       if (event.status === "completed") {
         await storage.updateEvent(event.id, { 
@@ -1196,18 +1185,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
-      }
-      
-      // Se está atualizando o sponsorId, validar que pertence ao evento
-      if (validatedData.sponsorId) {
-        const eventSponsors = await storage.getEventSponsors(currentItem.eventId);
-        const sponsorBelongsToEvent = eventSponsors.some(es => es.sponsorId === validatedData.sponsorId);
-        
-        if (!sponsorBelongsToEvent) {
-          return res.status(400).json({ 
-            error: "O patrocinador selecionado não está vinculado a este evento" 
-          });
-        }
       }
       
       const item = await storage.updateItem(req.params.id, validatedData);

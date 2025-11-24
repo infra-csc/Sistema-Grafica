@@ -857,6 +857,7 @@ export default function Arte() {
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => {
                           setApprovalThumbUrl(result.url);
+                          setApprovalThumbPreview(result.url);
                           toast({
                             title: "Upload concluído",
                             description: "Thumb de aprovação enviado com sucesso",

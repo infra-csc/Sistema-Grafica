@@ -22,6 +22,7 @@ import { Fragment, useState } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CommentsSection } from "@/components/comments-section";
+import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
 export default function Arte() {
   const { toast } = useToast();
@@ -50,6 +51,10 @@ export default function Arte() {
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
+  });
+
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
   });
 
   const submitForApprovalMutation = useMutation({

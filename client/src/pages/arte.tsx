@@ -689,20 +689,46 @@ export default function Arte() {
                     <div className="mt-1">
                       <table className="w-full border-collapse text-xs">
                         <thead className="bg-muted/20">
-                          <tr className="border-b border-border/40">
-                            {activeTab === "criar-aprovacoes" && (
-                              <th className="text-center py-1 px-2 w-10">
-                                <Checkbox
-                                  checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
-                                  onCheckedChange={toggleAllSelection}
-                                  data-testid="checkbox-select-all"
-                                />
-                              </th>
-                            )}
-                            <th colSpan={activeTab === "criar-aprovacoes" ? 6 : 7} className="text-left py-1 px-2 font-semibold">
-                              {group.type}
-                            </th>
-                          </tr>
+                          {activeTab === "criar-aprovacoes" ? (
+                            <>
+                              <tr className="border-b border-border/30">
+                                <th className="text-center py-1 px-2 w-10" rowSpan={2}>
+                                  <Checkbox
+                                    checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
+                                    onCheckedChange={toggleAllSelection}
+                                    data-testid="checkbox-select-all"
+                                  />
+                                </th>
+                                <th colSpan={6} className="text-left py-1 px-2 font-semibold">
+                                  {group.type}
+                                </th>
+                              </tr>
+                              <tr className="border-b border-border/40">
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">ID</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Qtde</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Dimensões</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">m²</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Material/Acabamento</th>
+                                <th className="text-right py-1 px-2 font-medium text-muted-foreground">Ações</th>
+                              </tr>
+                            </>
+                          ) : (
+                            <>
+                              <tr className="border-b border-border/30">
+                                <th colSpan={6} className="text-left py-1 px-2 font-semibold">
+                                  {group.type}
+                                </th>
+                              </tr>
+                              <tr className="border-b border-border/40">
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">ID</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Qtde</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Dimensões</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">m²</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Material/Acabamento</th>
+                                <th className="text-right py-1 px-2 font-medium text-muted-foreground">Ações</th>
+                              </tr>
+                            </>
+                          )}
                         </thead>
                         <tbody>
                           {group.items.map(item => (

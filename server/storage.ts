@@ -151,7 +151,7 @@ export class DatabaseStorage implements IStorage {
         const startValue = maxNum != null && Number(maxNum) > 0 ? Number(maxNum) + 1 : 1;
 
         // Criar sequence com valor inicial dinâmico
-        await db.execute(sql`CREATE SEQUENCE item_display_id_seq START WITH ${startValue}`);
+        await db.execute(sql.raw(`CREATE SEQUENCE item_display_id_seq START WITH ${startValue}`));
       } catch (error) {
         console.error('Erro ao criar sequence item_display_id_seq:', error);
         throw error; // Re-throw para que a promise seja rejeitada

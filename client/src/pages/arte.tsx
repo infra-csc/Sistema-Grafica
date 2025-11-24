@@ -850,6 +850,13 @@ export default function Arte() {
                             src={approvalThumbPreview} 
                             alt="Preview do Thumb" 
                             className="max-h-full max-w-full object-contain rounded"
+                            onError={(e) => {
+                              console.error('Erro ao carregar preview. URL:', approvalThumbPreview);
+                              console.error('Estado atual de approvalThumbUrl:', approvalThumbUrl);
+                            }}
+                            onLoad={() => {
+                              console.log('Preview carregado com sucesso! URL:', approvalThumbPreview);
+                            }}
                           />
                         </div>
                       )}

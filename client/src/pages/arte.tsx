@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -43,6 +43,11 @@ export default function Arte() {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [sharedPdfUrl, setSharedPdfUrl] = useState<string>("");
+
+  useEffect(() => {
+    console.log('selectedItem mudou:', selectedItem);
+    console.log('Dialog deveria estar open:', !!selectedItem);
+  }, [selectedItem]);
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -226,7 +231,9 @@ export default function Arte() {
   const pendingItems = filteredItems.filter(item => item.status === 'requested');
 
   const handleViewDetails = (item: any) => {
+    console.log('handleViewDetails chamado com item:', item);
     setSelectedItem(item);
+    console.log('selectedItem setado');
     // Reset upload states when opening dialog
     setApprovalThumbUrl(item.approvalThumbUrl || "");
     setApprovalThumbPreview(item.approvalThumbUrl || "");

@@ -18,7 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Fragment, useState, useEffect } from "react";
+import { Fragment, useState } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -43,11 +43,6 @@ export default function Arte() {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [sharedPdfUrl, setSharedPdfUrl] = useState<string>("");
-
-  useEffect(() => {
-    console.log('selectedItem mudou:', selectedItem);
-    console.log('Dialog deveria estar open:', !!selectedItem);
-  }, [selectedItem]);
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -231,10 +226,7 @@ export default function Arte() {
   const pendingItems = filteredItems.filter(item => item.status === 'requested');
 
   const handleViewDetails = (item: any) => {
-    console.log('handleViewDetails chamado com item:', item);
     setSelectedItem(item);
-    console.log('selectedItem setado');
-    // Reset upload states when opening dialog
     setApprovalThumbUrl(item.approvalThumbUrl || "");
     setApprovalThumbPreview(item.approvalThumbUrl || "");
     setFinalFileUrl(item.finalFileUrl || "");
@@ -806,13 +798,17 @@ export default function Arte() {
                   <p className="text-xs text-muted-foreground">
                     Envie uma imagem leve (preview) para o patrocinador aprovar
                   </p>
-                  {approvalThumbPreview ? (
+                  {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
                     <div className="space-y-2">
                       <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4">
                         <img 
                           src={approvalThumbPreview} 
-                          alt="Preview" 
-                          className="max-h-full max-w-full object-contain"
+                          alt="Preview do Thumb" 
+                          className="max-h-full max-w-full object-contain rounded"
+                          onError={(e) => {
+                            console.error('Erro ao carregar imagem:', approvalThumbPreview);
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                       </div>
                       <FileUploader

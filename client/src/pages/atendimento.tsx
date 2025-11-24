@@ -47,6 +47,7 @@ export default function Atendimento() {
   const [searchTerm, setSearchTerm] = useState("");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
+  const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   
   // Seleção múltipla
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -167,6 +168,8 @@ export default function Atendimento() {
       return await Promise.all(approvePromises);
     },
     onSuccess: (_, itemIds) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setSelectedItemIds(new Set());
       toast({
         title: "Itens aprovados",
@@ -177,6 +180,31 @@ export default function Atendimento() {
       toast({
         title: "Erro ao aprovar itens",
         description: error.message || "Ocorreu um erro ao aprovar os itens",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const bulkRejectMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const rejectPromises = itemIds.map(id => 
+        apiRequest("PATCH", `/api/items/${id}/sponsor-reject`, {})
+      );
+      return await Promise.all(rejectPromises);
+    },
+    onSuccess: (_, itemIds) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setSelectedItemIds(new Set());
+      toast({
+        title: "Itens reprovados",
+        description: `${itemIds.length} ${itemIds.length === 1 ? 'item foi reprovado' : 'itens foram reprovados'} e ${itemIds.length === 1 ? 'retornou' : 'retornaram'} para a Arte.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao reprovar itens",
+        description: error.message || "Ocorreu um erro ao reprovar os itens",
         variant: "destructive",
       });
     },
@@ -203,9 +231,13 @@ export default function Atendimento() {
       // Filtro de tipo de item
       const matchesType = itemTypeFilter === "all" || item.type === itemTypeFilter;
       
-      return matchesSearch && matchesEvent && matchesType;
+      // Filtro de patrocinador
+      const matchesSponsor = sponsorFilter === "all" || 
+        itemSponsorsMap[item.id]?.some(sponsor => sponsor.id === sponsorFilter);
+      
+      return matchesSearch && matchesEvent && matchesType && matchesSponsor;
     });
-  }, [pendingItems, searchTerm, eventFilter, itemTypeFilter]);
+  }, [pendingItems, searchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap]);
   
   // Opções únicas para filtros
   const uniqueItemTypes = useMemo(() => {
@@ -262,6 +294,13 @@ export default function Atendimento() {
     const itemIds = Array.from(selectedItemIds);
     if (itemIds.length > 0) {
       bulkApproveMutation.mutate(itemIds);
+    }
+  };
+
+  const handleBulkReject = () => {
+    const itemIds = Array.from(selectedItemIds);
+    if (itemIds.length > 0) {
+      bulkRejectMutation.mutate(itemIds);
     }
   };
 
@@ -343,7 +382,21 @@ export default function Atendimento() {
               </SelectContent>
             </Select>
             
-            {(searchTerm || eventFilter !== "all" || itemTypeFilter !== "all") && (
+            <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+              <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-sponsor-filter">
+                <SelectValue placeholder="Filtrar por patrocinador" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                {sponsors.map((sponsor) => (
+                  <SelectItem key={sponsor.id} value={sponsor.id}>
+                    {sponsor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {(searchTerm || eventFilter !== "all" || itemTypeFilter !== "all" || sponsorFilter !== "all") && (
               <Button
                 variant="outline"
                 size="sm"
@@ -351,6 +404,7 @@ export default function Atendimento() {
                   setSearchTerm("");
                   setEventFilter("all");
                   setItemTypeFilter("all");
+                  setSponsorFilter("all");
                 }}
                 data-testid="button-clear-filters"
               >
@@ -359,16 +413,28 @@ export default function Atendimento() {
             )}
             
             {selectedItemIds.size > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleBulkApprove}
-                disabled={bulkApproveMutation.isPending}
-                data-testid="button-bulk-approve"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Aprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
-              </Button>
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkApprove}
+                  disabled={bulkApproveMutation.isPending}
+                  data-testid="button-bulk-approve"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Aprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkReject}
+                  disabled={bulkRejectMutation.isPending}
+                  data-testid="button-bulk-reject"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Reprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                </Button>
+              </>
             )}
           </div>
         </CardHeader>

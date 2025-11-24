@@ -135,7 +135,7 @@ export default function Arte() {
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
     console.log('🔍 URL recebida:', gcsUrl);
-    const match = gcsUrl.match(/\/replit-objstore-[^\/]+\/(.+)/);
+    const match = gcsUrl.match(/\/replit-objstore-[^\/]+\/\.private\/(.+)/);
     if (match) {
       const localPath = `/objects/${match[1]}`;
       console.log('✅ URL convertida:', localPath);

@@ -491,7 +491,27 @@ export default function Atendimento() {
           </DialogHeader>
 
           {selectedItem && (
-            <div className="space-y-6">
+            <div className="space-y-4">
+              {selectedItem.approvalThumbUrl && (
+                <Card className="border-2 border-primary/20">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2 text-primary">
+                      <Eye className="w-5 h-5" />
+                      Thumb de Aprovação
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-center rounded-lg overflow-hidden bg-muted/50 p-6">
+                      <img
+                        src={selectedItem.approvalThumbUrl}
+                        alt="Thumb de aprovação"
+                        className="max-w-2xl max-h-96 w-auto h-auto object-contain shadow-lg"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <Card>
                   <CardHeader className="pb-3">
@@ -624,26 +644,6 @@ export default function Atendimento() {
                   </CardContent>
                 </Card>
               </div>
-
-              {selectedItem.approvalThumbUrl && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Eye className="w-4 h-4 text-primary" />
-                      Thumb de Aprovação
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-center rounded-md overflow-hidden border bg-muted/30 p-4">
-                      <img
-                        src={selectedItem.approvalThumbUrl}
-                        alt="Thumb de aprovação"
-                        className="max-w-sm max-h-64 w-auto h-auto object-contain"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               {selectedItem.notes && (
                 <Card>

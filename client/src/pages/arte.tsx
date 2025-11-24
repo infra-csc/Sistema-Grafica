@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, ClipboardList, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -648,168 +648,107 @@ export default function Arte() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted/50 text-xs uppercase tracking-wide">
-                  <tr>
-                    {activeTab === "criar-aprovacoes" && (
-                      <th className="text-center py-3 px-4 font-medium w-10">
-                        <Checkbox
-                          checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
-                          onCheckedChange={toggleAllSelection}
-                          data-testid="checkbox-select-all"
-                        />
-                      </th>
-                    )}
-                    <th className="text-left py-3 px-4 font-medium">ID</th>
-                    <th className="text-left py-3 px-4 font-medium">Descrição</th>
-                    <th className="text-center py-3 px-4 font-medium">Qtd</th>
-                    <th className="text-left py-3 px-4 font-medium">Dimensões</th>
-                    <th className="text-center py-3 px-4 font-medium">m²</th>
-                    <th className="text-left py-3 px-4 font-medium">Material</th>
-                    {activeTab === "aprovados" && (
-                      <th className="text-left py-3 px-4 font-medium">Status</th>
-                    )}
-                    <th className="text-right py-3 px-4 font-medium">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item, index) => {
-                    const prevItem = index > 0 ? filteredItems[index - 1] : null;
-                    const showEventHeader = !prevItem || prevItem.event?.name !== item.event?.name;
-                    const showTypeHeader = !prevItem || prevItem.event?.name !== item.event?.name || prevItem.type !== item.type;
-                    
-                    // Calcular índice do evento para cores alternadas
-                    let eventIndex = 0;
-                    if (item.event) {
-                      const uniqueEvents = Array.from(new Set(filteredItems.map(i => i.event?.id).filter(Boolean)));
-                      eventIndex = uniqueEvents.indexOf(item.event.id);
-                    }
-                    const isEvenEvent = eventIndex % 2 === 0;
-                    
-                    return (
-                      <Fragment key={item.id}>
-                        {showEventHeader && (
-                          <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={activeTab === "criar-aprovacoes" ? 9 : 8} className="py-3 px-4">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <div className="h-6 w-1.5 bg-primary rounded-full flex-shrink-0"></div>
-                                  <div className="text-sm font-bold text-primary uppercase tracking-wider break-words">
-                                    {item.event?.name || 'Sem Evento'}
-                                  </div>
-                                </div>
-                                {item.event && (
-                                  <div className="flex items-center gap-3 text-xs flex-shrink-0">
-                                    <div className="flex items-center gap-1.5 text-muted-foreground whitespace-nowrap">
-                                      <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
-                                      <span className="hidden sm:inline">Início: </span>
-                                      <strong className="text-foreground">{new Date(item.event.startDate).toLocaleDateString('pt-BR')}</strong>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 text-muted-foreground whitespace-nowrap">
-                                      <Truck className="h-3.5 w-3.5 flex-shrink-0" />
-                                      <span className="hidden sm:inline">Saída: </span>
-                                      <strong className="text-foreground">{new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(item.event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
-                                    </div>
-                                  </div>
-                                )}
+            <div className="space-y-2">
+              {(() => {
+                const groups: { event: string; type: string; items: typeof filteredItems }[] = [];
+                filteredItems.forEach(item => {
+                  const eventName = item.event?.name || 'Sem Evento';
+                  const typeName = item.type;
+                  const lastGroup = groups[groups.length - 1];
+                  if (lastGroup && lastGroup.event === eventName && lastGroup.type === typeName) {
+                    lastGroup.items.push(item);
+                  } else {
+                    groups.push({ event: eventName, type: typeName, items: [item] });
+                  }
+                });
+                return groups.map((group, groupIndex) => (
+                  <Fragment key={`${group.event}-${group.type}-${groupIndex}`}>
+                    {(groupIndex === 0 || groups[groupIndex - 1].event !== group.event) && (
+                      <div className="bg-gradient-to-r from-primary/10 to-primary/5 border-l-4 border-primary rounded-md p-2 mt-2">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-bold text-primary uppercase tracking-wide">
+                            {group.event}
+                          </div>
+                          {group.items[0].event && (
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                <span className="hidden sm:inline">Início: </span>
+                                <strong className="text-foreground">{new Date(group.items[0].event.startDate).toLocaleDateString('pt-BR')}</strong>
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                        {showTypeHeader && (
-                          <tr key={`group-${item.eventId}-${item.type}`} className={`border-y border-primary/10 ${isEvenEvent ? 'bg-muted/20' : 'bg-muted/10'}`}>
-                            <td colSpan={activeTab === "criar-aprovacoes" ? 9 : 8} className="py-1.5 px-4">
-                              <div className="flex items-center gap-2">
-                                <div className="h-4 w-0.5 bg-primary/40 rounded-full"></div>
-                                <div className="text-sm font-bold text-foreground">
-                                  {item.type}
-                                </div>
+                              <div className="flex items-center gap-1">
+                                <Truck className="h-3 w-3" />
+                                <span className="hidden sm:inline">Saída: </span>
+                                <strong className="text-foreground">{new Date(group.items[0].event.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(group.items[0].event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                        <tr
-                          key={item.id}
-                          className={`border-b border-border hover-elevate ${isEvenEvent ? 'bg-muted/5' : 'bg-background'}`}
-                          data-testid={`row-pending-item-${item.id}`}
-                        >
-                          {activeTab === "criar-aprovacoes" && (
-                            <td className="py-2 px-4 text-center">
-                              <Checkbox
-                                checked={selectedItemIds.has(item.id)}
-                                onCheckedChange={() => toggleItemSelection(item.id)}
-                                data-testid={`checkbox-item-${item.id}`}
-                              />
-                            </td>
-                          )}
-                          <td className="py-2 px-3">
-                            <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
-                              {item.displayId}
                             </div>
-                          </td>
-                          <td className="py-2 px-3">
-                            {item.description ? (
-                              <div className="text-sm text-foreground">{item.description}</div>
-                            ) : (
-                              <div className="text-sm text-muted-foreground">—</div>
-                            )}
-                            {item.observations && (
-                              <div className="text-xs text-muted-foreground italic mt-0.5">{item.observations}</div>
-                            )}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <div className="text-sm tabular-nums">{item.quantity}</div>
-                          </td>
-                          <td className="py-2 px-2 text-xs">
-                            {item.visualWidth && item.visualHeight ? (
-                              <div className="space-y-0.5">
-                                <div className="tabular-nums whitespace-nowrap">
-                                  <span className="text-muted-foreground font-medium">V:</span> {item.visualWidth}×{item.visualHeight}
-                                </div>
-                                {item.fileWidth && item.fileHeight && (
-                                  <div className="tabular-nums text-muted-foreground whitespace-nowrap">
-                                    <span className="font-medium">A:</span> {item.fileWidth}×{item.fileHeight}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="text-muted-foreground">—</div>
-                            )}
-                          </td>
-                          <td className="py-2 px-2 text-center">
-                            <div className="text-sm font-medium tabular-nums">{item.calculatedM2}</div>
-                          </td>
-                          <td className="py-2 px-3 text-sm">
-                            <div>{item.material}</div>
-                            <div className="text-xs text-muted-foreground">{item.finish}</div>
-                          </td>
-                          {activeTab === "aprovados" && (
-                            <td className="py-2 px-3">
-                              <StatusBadge status={item.status} />
-                            </td>
                           )}
-                          <td className="py-2 px-2">
-                            <div className="flex gap-1 justify-end">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleViewDetails(item)}
-                                data-testid={`button-view-${item.id}`}
-                                title="Ver detalhes"
-                              >
-                                {activeTab === "criar-aprovacoes" ? <Upload className="h-4 w-4" /> : 
-                                 activeTab === "finalizar-layouts" ? <FileImage className="h-4 w-4" /> : 
-                                 <Eye className="h-4 w-4" />}
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-1">
+                      <table className="w-full border-collapse text-xs">
+                        <thead className="bg-muted/20">
+                          <tr className="border-b border-border/40">
+                            {activeTab === "criar-aprovacoes" && (
+                              <th className="text-center py-1 px-2 w-10">
+                                <Checkbox
+                                  checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
+                                  onCheckedChange={toggleAllSelection}
+                                  data-testid="checkbox-select-all"
+                                />
+                              </th>
+                            )}
+                            <th colSpan={activeTab === "criar-aprovacoes" ? 6 : 7} className="text-left py-1 px-2 font-semibold">
+                              {group.type}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.items.map(item => (
+                            <tr key={item.id} className="border-b border-border/40 hover-elevate" data-testid={`row-pending-item-${item.id}`}>
+                              {activeTab === "criar-aprovacoes" && (
+                                <td className="text-center py-1 px-2">
+                                  <Checkbox
+                                    checked={selectedItemIds.has(item.id)}
+                                    onCheckedChange={() => toggleItemSelection(item.id)}
+                                    data-testid={`checkbox-item-${item.id}`}
+                                  />
+                                </td>
+                              )}
+                              <td className="py-1 px-2">
+                                <span className="font-mono font-semibold text-primary" data-testid={`text-display-id-${item.id}`}>
+                                  {item.displayId}
+                                </span>
+                                {activeTab === "aprovados" && <StatusBadge status={item.status} className="ml-2" />}
+                              </td>
+                              <td className="py-1 px-2 tabular-nums">{item.quantity}</td>
+                              <td className="py-1 px-2 tabular-nums">
+                                {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}` : '—'}
+                              </td>
+                              <td className="py-1 px-2 tabular-nums font-semibold">{item.calculatedM2}</td>
+                              <td className="py-1 px-2">{item.material} · {item.finish}</td>
+                              <td className="py-1 px-2 text-right">
+                                <Button
+                                  size="icon"
+                                  variant={activeTab === "criar-aprovacoes" || activeTab === "finalizar-layouts" ? "default" : "outline"}
+                                  onClick={() => handleViewDetails(item)}
+                                  data-testid={`button-view-${item.id}`}
+                                  title={activeTab === "criar-aprovacoes" ? "Enviar p/ Aprovação" : activeTab === "finalizar-layouts" ? "Finalizar Layout" : "Ver Detalhes"}
+                                >
+                                  {activeTab === "criar-aprovacoes" ? <Send className="h-4 w-4" /> : 
+                                   activeTab === "finalizar-layouts" ? <FileImage className="h-4 w-4" /> : 
+                                   <Eye className="h-4 w-4" />}
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Fragment>
+                ));
+              })()}
             </div>
           )}
         </CardContent>

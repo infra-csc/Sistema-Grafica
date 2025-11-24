@@ -490,7 +490,9 @@ export default function VincularPatrocinadores() {
         return newChanges;
       });
 
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      // Invalidar cache E forçar refetch para pegar novo status
+      await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/items"], type: 'active' });
       
       // Recarregar patrocinadores
       const sponsorResults = await Promise.all(
@@ -551,7 +553,9 @@ export default function VincularPatrocinadores() {
       return validItemIds;
     },
     onSuccess: async (validItemIds) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      // Invalidar cache E forçar refetch para pegar novo status
+      await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/items"], type: 'active' });
       
       toast({
         title: "✅ Items enviados para aprovação!",
@@ -1289,8 +1293,8 @@ export default function VincularPatrocinadores() {
                             <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
-                                onCheckedChange={() => isEditable && linkedSponsors.length === 0 && toggleItemSelection(item.id)}
-                                disabled={!isEditable || linkedSponsors.length > 0}
+                                onCheckedChange={() => isEditable && toggleItemSelection(item.id)}
+                                disabled={!isEditable}
                                 data-testid={`checkbox-item-${item.id}`}
                               />
                             </td>

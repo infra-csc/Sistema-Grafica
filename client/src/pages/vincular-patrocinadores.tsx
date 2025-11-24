@@ -861,9 +861,9 @@ export default function VincularPatrocinadores() {
               <div className="flex-1">
                 <Progress value={progressPercent} className="h-2" />
               </div>
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                {completedItems}/{totalItems}
-              </span>
+              <div className="text-xs text-muted-foreground whitespace-nowrap">
+                <span className="font-medium">{completedItems}</span> de <span className="font-medium">{totalItems}</span> enviados
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -134,10 +134,14 @@ export default function Arte() {
   };
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
+    console.log('🔍 URL recebida:', gcsUrl);
     const match = gcsUrl.match(/\/replit-objstore-[^\/]+\/(.+)/);
     if (match) {
-      return `/objects/${match[1]}`;
+      const localPath = `/objects/${match[1]}`;
+      console.log('✅ URL convertida:', localPath);
+      return localPath;
     }
+    console.log('❌ URL não convertida (regex não deu match)');
     return gcsUrl;
   };
 

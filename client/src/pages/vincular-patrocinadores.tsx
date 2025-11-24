@@ -177,15 +177,35 @@ export default function VincularPatrocinadores() {
     });
   }, [rawEvents]);
 
-  // Mostrar TODOS os items de eventos futuros (visibilidade)
-  // Editável apenas se status: requested, awaiting_sponsor_approval, sponsor_approved, awaiting_creator_review
+  // Mostrar apenas items de eventos futuros com status que permitem vinculação de patrocinadores
+  // Exclui: draft (ainda não confirmado pela Solicitação)
   const visibleItems = useMemo(() => {
     const today = startOfDay(new Date());
+    const allowedStatuses = [
+      'requested',
+      'awaiting_linking', 
+      'awaiting_submission',
+      'awaiting_sponsor_approval',
+      'sponsor_approved',
+      'awaiting_creator_review',
+      'ready_for_production',
+      'released',
+      'in_production',
+      'produced',
+      'delivered'
+    ];
+    
     return items.filter(item => {
+      // Filtro 1: Evento futuro
       const event = rawEvents.find(e => e.id === item.eventId);
       if (!event) return false;
       const eventStartDate = startOfDay(new Date(event.startDate));
-      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
+      const isFutureEvent = isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
+      
+      // Filtro 2: Status permitido (exclui draft)
+      const hasValidStatus = allowedStatuses.includes(item.status);
+      
+      return isFutureEvent && hasValidStatus;
     });
   }, [items, rawEvents]);
   

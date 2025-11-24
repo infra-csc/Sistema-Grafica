@@ -481,7 +481,7 @@ export default function Atendimento() {
                 <tbody>
                   {filteredItems.map((item, index) => {
                     const event = getEventInfo(item.eventId);
-                    const sponsor = item.sponsorId ? getSponsorInfo(item.sponsorId) : null;
+                    const itemSponsors = itemSponsorsMap[item.id] || [];
                     const prevItem = index > 0 ? filteredItems[index - 1] : null;
                     const showEventHeader = !prevItem || prevItem.eventId !== item.eventId;
                     
@@ -546,9 +546,17 @@ export default function Atendimento() {
                             <Badge variant="outline">{item.quantity}x</Badge>
                           </td>
                           <td className="py-2 px-4">
-                            <div className="text-sm text-muted-foreground">
-                              {sponsor?.name || "—"}
-                            </div>
+                            {itemSponsors.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {itemSponsors.map((sponsor) => (
+                                  <Badge key={sponsor.id} variant="outline" className="text-xs">
+                                    {sponsor.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">—</div>
+                            )}
                           </td>
                           <td className="py-2 px-4 text-sm text-muted-foreground">
                             {event?.truckDepartureDate 
@@ -648,12 +656,18 @@ export default function Atendimento() {
                       </div>
                     )}
                     
-                    {selectedItem.sponsorId && (
+                    {itemSponsorsMap[selectedItem.id]?.length > 0 && (
                       <div className="pt-1.5 border-t">
-                        <div className="text-xs text-muted-foreground mb-1">Patrocinador</div>
-                        <Badge variant="outline" className="text-xs">
-                          {getSponsorInfo(selectedItem.sponsorId)?.name || "N/A"}
-                        </Badge>
+                        <div className="text-xs text-muted-foreground mb-1">
+                          {itemSponsorsMap[selectedItem.id].length === 1 ? 'Patrocinador' : 'Patrocinadores'}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {itemSponsorsMap[selectedItem.id].map((sponsor) => (
+                            <Badge key={sponsor.id} variant="outline" className="text-xs">
+                              {sponsor.name}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     )}
                     

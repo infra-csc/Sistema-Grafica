@@ -133,6 +133,14 @@ export default function Arte() {
     return { method: "PUT" as const, url: data.uploadURL };
   };
 
+  const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
+    const match = gcsUrl.match(/\/replit-objstore-[^\/]+\/(.+)/);
+    if (match) {
+      return `/objects/${match[1]}`;
+    }
+    return gcsUrl;
+  };
+
   // Obter tipos, materiais e acabamentos únicos
   const uniqueTypes = Array.from(new Set(allItems.map(item => item.type))).sort();
   const uniqueMaterials = Array.from(new Set(allItems.map(item => item.material).filter(Boolean))).sort();
@@ -814,8 +822,9 @@ export default function Arte() {
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => {
-                          setApprovalThumbUrl(result.url);
-                          setApprovalThumbPreview(result.url);
+                          const localPath = convertGCSUrlToLocalPath(result.url);
+                          setApprovalThumbUrl(localPath);
+                          setApprovalThumbPreview(localPath);
                           toast({
                             title: "Upload concluído",
                             description: "Thumb de aprovação enviado com sucesso",
@@ -850,21 +859,15 @@ export default function Arte() {
                             src={approvalThumbPreview} 
                             alt="Preview do Thumb" 
                             className="max-h-full max-w-full object-contain rounded"
-                            onError={(e) => {
-                              console.error('Erro ao carregar preview. URL:', approvalThumbPreview);
-                              console.error('Estado atual de approvalThumbUrl:', approvalThumbUrl);
-                            }}
-                            onLoad={() => {
-                              console.log('Preview carregado com sucesso! URL:', approvalThumbPreview);
-                            }}
                           />
                         </div>
                       )}
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => {
-                          setApprovalThumbUrl(result.url);
-                          setApprovalThumbPreview(result.url);
+                          const localPath = convertGCSUrlToLocalPath(result.url);
+                          setApprovalThumbUrl(localPath);
+                          setApprovalThumbPreview(localPath);
                           toast({
                             title: "Upload concluído",
                             description: "Thumb de aprovação enviado com sucesso",
@@ -938,7 +941,8 @@ export default function Arte() {
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => {
-                          setFinalFileUrl(result.url);
+                          const localPath = convertGCSUrlToLocalPath(result.url);
+                          setFinalFileUrl(localPath);
                           toast({
                             title: "Upload concluído",
                             description: "Arquivo final atualizado com sucesso",
@@ -1052,7 +1056,8 @@ export default function Arte() {
                   <FileUploader
                     onGetUploadParameters={getUploadUrl}
                     onComplete={(result) => {
-                      setSharedPdfUrl(result.url);
+                      const localPath = convertGCSUrlToLocalPath(result.url);
+                      setSharedPdfUrl(localPath);
                       toast({
                         title: "Upload concluído",
                         description: "PDF compartilhado enviado com sucesso",

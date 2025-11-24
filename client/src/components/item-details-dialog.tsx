@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { CommentsSection } from "@/components/comments-section";
-import { CheckCircle2, CircleDot, Circle, Calendar, ClipboardList, Package, Building2, FileText, History } from "lucide-react";
+import { CheckCircle2, CircleDot, Circle, Calendar, ClipboardList, Package, Building2, FileText, History, PlusCircle, Edit, XCircle, Link, Unlink, ArrowRightCircle, Send } from "lucide-react";
 import { format, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -17,6 +17,84 @@ interface ItemDetailsDialogProps {
 
 export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: ItemDetailsDialogProps) {
   if (!item) return null;
+
+  const getActionIconAndColor = (action: string) => {
+    const config: Record<string, { icon: any; bgColor: string; ringColor: string; badgeVariant?: "default" | "secondary" | "destructive" | "outline" }> = {
+      'created': { 
+        icon: PlusCircle, 
+        bgColor: 'bg-green-500/20 dark:bg-green-500/30', 
+        ringColor: 'ring-green-500',
+        badgeVariant: 'default'
+      },
+      'updated': { 
+        icon: Edit, 
+        bgColor: 'bg-blue-500/20 dark:bg-blue-500/30', 
+        ringColor: 'ring-blue-500',
+        badgeVariant: 'secondary'
+      },
+      'approved': { 
+        icon: CheckCircle2, 
+        bgColor: 'bg-green-500/20 dark:bg-green-500/30', 
+        ringColor: 'ring-green-500',
+        badgeVariant: 'default'
+      },
+      'rejected': { 
+        icon: XCircle, 
+        bgColor: 'bg-red-500/20 dark:bg-red-500/30', 
+        ringColor: 'ring-red-500',
+        badgeVariant: 'destructive'
+      },
+      'delivered': { 
+        icon: Package, 
+        bgColor: 'bg-emerald-600/20 dark:bg-emerald-600/30', 
+        ringColor: 'ring-emerald-600',
+        badgeVariant: 'default'
+      },
+      'linked': { 
+        icon: Link, 
+        bgColor: 'bg-cyan-500/20 dark:bg-cyan-500/30', 
+        ringColor: 'ring-cyan-500',
+        badgeVariant: 'secondary'
+      },
+      'unlinked': { 
+        icon: Unlink, 
+        bgColor: 'bg-orange-500/20 dark:bg-orange-500/30', 
+        ringColor: 'ring-orange-500',
+        badgeVariant: 'outline'
+      },
+      'status_changed': { 
+        icon: ArrowRightCircle, 
+        bgColor: 'bg-purple-500/20 dark:bg-purple-500/30', 
+        ringColor: 'ring-purple-500',
+        badgeVariant: 'secondary'
+      },
+      'sponsor_linked': { 
+        icon: Link, 
+        bgColor: 'bg-cyan-500/20 dark:bg-cyan-500/30', 
+        ringColor: 'ring-cyan-500',
+        badgeVariant: 'secondary'
+      },
+      'sponsor_unlinked': { 
+        icon: Unlink, 
+        bgColor: 'bg-orange-500/20 dark:bg-orange-500/30', 
+        ringColor: 'ring-orange-500',
+        badgeVariant: 'outline'
+      },
+      'sent': { 
+        icon: Send, 
+        bgColor: 'bg-indigo-500/20 dark:bg-indigo-500/30', 
+        ringColor: 'ring-indigo-500',
+        badgeVariant: 'secondary'
+      }
+    };
+    
+    return config[action] || {
+      icon: Circle,
+      bgColor: 'bg-gray-500/20 dark:bg-gray-500/30',
+      ringColor: 'ring-gray-500',
+      badgeVariant: 'secondary'
+    };
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -359,9 +437,11 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
                           'unlinked': 'Desvinculado',
                           'status_changed': 'Status Alterado',
                           'sponsor_linked': 'Patrocinador Vinculado',
-                          'sponsor_unlinked': 'Patrocinador Desvinculado'
+                          'sponsor_unlinked': 'Patrocinador Desvinculado',
+                          'sent': 'Enviado'
                         };
                         const actionLabel = actionLabels[log.action] || log.action;
+                        const { icon: ActionIcon, bgColor, ringColor, badgeVariant } = getActionIconAndColor(log.action);
 
                         return (
                           <div key={log.id} className="relative flex gap-3">
@@ -369,11 +449,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
                               <div className="absolute left-2 top-6 bottom-0 w-px bg-border"></div>
                             )}
                             
-                            <div className="flex-shrink-0 w-4 h-4 rounded-full bg-primary/20 ring-2 ring-primary mt-0.5"></div>
+                            <div className={`flex-shrink-0 w-4 h-4 rounded-full ring-2 mt-0.5 flex items-center justify-center ${bgColor} ${ringColor}`}>
+                              <ActionIcon className="h-2.5 w-2.5" />
+                            </div>
                             
                             <div className="flex-1 pb-2">
                               <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="secondary" className="text-xs font-medium">
+                                <Badge variant={badgeVariant} className="text-xs font-medium">
                                   {actionLabel}
                                 </Badge>
                                 <span className="text-xs text-muted-foreground">

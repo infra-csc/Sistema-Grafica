@@ -267,10 +267,12 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
                 <span className="text-muted-foreground text-xs">Quantidade</span>
                 <span className="font-semibold">{item.quantity}</span>
               </div>
-              <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                <span className="text-muted-foreground text-xs">Área × Visual</span>
-                <span className="font-semibold">{item.area} × {item.visual}</span>
-              </div>
+              {(item.visualWidth && item.visualHeight) && (
+                <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                  <span className="text-muted-foreground text-xs">Área × Visual</span>
+                  <span className="font-semibold">{item.visualWidth} × {item.visualHeight}</span>
+                </div>
+              )}
               <div className="flex justify-between items-baseline py-1 border-b border-border/40">
                 <span className="text-muted-foreground text-xs">m² Total</span>
                 <span className="font-semibold">{item.calculatedM2}</span>

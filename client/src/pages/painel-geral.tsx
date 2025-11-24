@@ -7,8 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink, Truck } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CommentsSection } from "@/components/comments-section";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -488,323 +487,54 @@ export default function PainelGeral() {
                       </thead>
                       <tbody>
                         {groupData.items.map((item: any, index: number) => (
-                          <Dialog key={item.id}>
-                            <DialogTrigger asChild>
-                              <tr
-                                className={`border-b hover-elevate cursor-pointer transition-colors ${
-                                  index % 2 === 0 ? 'bg-background' : 'bg-muted/20'
-                                }`}
-                                data-testid={`item-row-${item.id}`}
-                              >
-                                <td className="py-3 px-4">
-                                  <span className="font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
-                                    {item.displayId}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4">
-                                  <span className="font-semibold text-sm">{item.type}</span>
-                                </td>
-                                <td className="py-3 px-4 max-w-xs">
-                                  {item.description ? (
-                                    <span className="text-sm text-muted-foreground truncate block">{item.description}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs italic">—</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4">
-                                  {item.fileWidth && item.fileHeight ? (
-                                    <span className="text-sm">{item.fileWidth} × {item.fileHeight}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">—</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4">
-                                  {item.visualWidth && item.visualHeight ? (
-                                    <span className="text-sm">{item.visualWidth} × {item.visualHeight}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">—</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 text-center">
-                                  <span className="font-bold text-sm">{item.quantity} un.</span>
-                                </td>
-                                <td className="py-3 px-4 text-center">
-                                  <span className="font-bold text-primary text-sm">{item.calculatedM2}</span>
-                                </td>
-                                <td className="py-3 px-4">
-                                  <StatusBadge status={item.status} />
-                                </td>
-                              </tr>
-                            </DialogTrigger>
-
-                      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader className="pb-4 border-b">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <DialogTitle className="text-2xl font-bold mb-3 flex items-center gap-3">
-                                <span className="font-mono text-primary">{item.displayId}</span>
-                                <StatusBadge status={item.status} />
-                              </DialogTitle>
-                              {item.event && (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <Calendar className="h-4 w-4" />
-                                  <span className="font-medium">{item.event.name}</span>
-                                  <span className="mx-2">•</span>
-                                  <span>{new Date(item.event.startDate).toLocaleDateString('pt-BR')}</span>
-                                </div>
-                              )}
-                            </div>
-                            <Badge variant="outline" className="text-base px-4 py-2 shrink-0">
-                              {item.type}
-                            </Badge>
-                          </div>
-                        </DialogHeader>
-
-                        <div className="space-y-6 mt-6">
-                          {/* Grid de informações principais */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Card: Especificações */}
-                            <Card>
-                              <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2">
-                                  <Package2 className="h-4 w-4" />
-                                  Especificações
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-3">
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs mb-1">Material</span>
-                                    <span className="font-semibold">{item.material}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs mb-1">Acabamento</span>
-                                    <span className="font-semibold">{item.finish}</span>
-                                  </div>
-                                  {item.visualWidth && item.visualHeight && (
-                                    <div>
-                                      <span className="text-muted-foreground block text-xs mb-1">Dimensão Visual</span>
-                                      <span className="font-semibold">{item.visualWidth} × {item.visualHeight}</span>
-                                    </div>
-                                  )}
-                                  {item.fileWidth && item.fileHeight && (
-                                    <div>
-                                      <span className="text-muted-foreground block text-xs mb-1">Dimensão Arquivo</span>
-                                      <span className="font-semibold">{item.fileWidth} × {item.fileHeight}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </CardContent>
-                            </Card>
-
-                            {/* Card: Produção */}
-                            <Card>
-                              <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
-                                  Produção
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="space-y-3">
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs mb-1">Quantidade Solicitada</span>
-                                    <span className="font-semibold text-lg">{item.quantity} un.</span>
-                                  </div>
-                                  {item.quantityProduced !== null && (
-                                    <div>
-                                      <span className="text-muted-foreground block text-xs mb-1">Quantidade Produzida</span>
-                                      <span className="font-semibold text-lg text-status-production">{item.quantityProduced} un.</span>
-                                    </div>
-                                  )}
-                                  <div>
-                                    <span className="text-muted-foreground block text-xs mb-1">Total m²</span>
-                                    <span className="font-semibold text-lg text-primary">{item.calculatedM2}</span>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </div>
-
-                          {/* Patrocinadores e Observações */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Card: Patrocinadores */}
-                            {item.sponsors && item.sponsors.length > 0 && (() => {
-                              // Fazer lookup dos sponsors pelos IDs para pegar os nomes
-                              const itemSponsorNames = item.sponsors
-                                .map((sponsorData: any) => {
-                                  // Se já tem o nome, usar diretamente
-                                  if (typeof sponsorData === 'object' && sponsorData.name) {
-                                    return sponsorData.name;
-                                  }
-                                  
-                                  // Determinar o ID para lookup
-                                  const sponsorId = typeof sponsorData === 'object' ? sponsorData.id : sponsorData;
-                                  
-                                  // Fazer lookup pelo ID
-                                  const sponsor = sponsors.find((s: any) => s.id === sponsorId);
-                                  
-                                  // Retornar nome ou fallback
-                                  return sponsor?.name || 'Patrocinador desconhecido';
-                                })
-                                .filter(Boolean);
-                              
-                              if (itemSponsorNames.length === 0) return null;
-                              
-                              return (
-                                <Card>
-                                  <CardHeader className="pb-3">
-                                    <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
-                                      Patrocinadores ({itemSponsorNames.length})
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent>
-                                    <div className="flex flex-wrap gap-2">
-                                      {itemSponsorNames.map((name: string, idx: number) => (
-                                        <Badge key={idx} variant="secondary" className="text-xs">
-                                          {name}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              );
-                            })()}
-
-                            {/* Card: Observações */}
-                            <Card className={!item.sponsors || item.sponsors.length === 0 ? 'md:col-span-2' : ''}>
-                              <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-semibold uppercase text-muted-foreground">
-                                  Observações
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                {item.observations ? (
-                                  <p className="text-sm leading-relaxed">{item.observations}</p>
-                                ) : (
-                                  <p className="text-sm text-muted-foreground italic">Nenhuma observação registrada</p>
-                                )}
-                              </CardContent>
-                            </Card>
-                          </div>
-
-                          {/* Timeline de Histórico */}
-                          <Card>
-                            <CardHeader className="pb-3">
-                              <CardTitle className="text-sm font-semibold uppercase text-muted-foreground flex items-center gap-2">
-                                <History className="h-4 w-4" />
-                                Histórico de Ações
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              {getItemLogs(item.id).length > 0 ? (
-                                <div className="space-y-3">
-                                  {getItemLogs(item.id).map((log) => (
-                                    <div key={log.id} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
-                                      <div className="flex-shrink-0 mt-1">
-                                        <div className="h-2.5 w-2.5 rounded-full bg-primary"></div>
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                                          <Badge variant="outline" className="text-xs font-medium">
-                                            {log.action === 'created' && 'Criado'}
-                                            {log.action === 'updated' && 'Atualizado'}
-                                            {log.action === 'deleted' && 'Deletado'}
-                                            {log.action === 'approved' && 'Aprovado'}
-                                            {log.action === 'produced' && 'Produzido'}
-                                            {log.action === 'delivered' && 'Entregue'}
-                                          </Badge>
-                                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                            <User className="h-3 w-3" />
-                                            {log.userName}
-                                          </span>
-                                          <span className="text-xs text-muted-foreground">
-                                            {formatDateTime(log.createdAt)}
-                                          </span>
-                                        </div>
-                                        {log.details && (() => {
-                                          // Detectar transição de status (novo formato)
-                                          const statusTransitionMatch = log.details.match(/Status alterado:\s*(.+?)\s*→\s*(.+?)(?:\s*\((.+)\)|$)/);
-                                          
-                                          if (statusTransitionMatch) {
-                                            const [, fromStatus, toStatus, extraInfo] = statusTransitionMatch;
-                                            
-                                            return (
-                                              <div className="flex items-center gap-2 flex-wrap text-xs">
-                                                <span className="text-muted-foreground font-medium">Status:</span>
-                                                <Badge variant="outline" className="bg-muted/30 text-xs">
-                                                  {fromStatus.trim()}
-                                                </Badge>
-                                                <span className="text-primary font-bold">→</span>
-                                                <Badge variant="default" className="text-xs">
-                                                  {toStatus.trim()}
-                                                </Badge>
-                                                {extraInfo && (
-                                                  <span className="text-muted-foreground italic">
-                                                    ({extraInfo.trim()})
-                                                  </span>
-                                                )}
-                                              </div>
-                                            );
-                                          }
-                                          
-                                          // Detectar formato antigo: "aprovado para produção" ou "aprovado pelo patrocinador"
-                                          if (log.action === 'approved') {
-                                            const approvedMatch = log.details.match(/aprovado (para produção|pelo patrocinador)/i);
-                                            if (approvedMatch) {
-                                              const toStatus = approvedMatch[1] === 'para produção' ? 'Pronto p/ Produção' : 'Aguardando Finalização';
-                                              return (
-                                                <div className="flex items-center gap-2 flex-wrap text-xs">
-                                                  <span className="text-muted-foreground font-medium">Status:</span>
-                                                  <Badge variant="default" className="text-xs">
-                                                    {toStatus}
-                                                  </Badge>
-                                                </div>
-                                              );
-                                            }
-                                          }
-                                          
-                                          // Detectar formato antigo: "entregue - Recebido por: X"
-                                          if (log.action === 'delivered') {
-                                            const deliveredMatch = log.details.match(/entregue\s*-\s*Recebido por:\s*(.+)/i);
-                                            if (deliveredMatch) {
-                                              const receivedBy = deliveredMatch[1].trim();
-                                              return (
-                                                <div className="flex items-center gap-2 flex-wrap text-xs">
-                                                  <span className="text-muted-foreground font-medium">Status:</span>
-                                                  <Badge variant="default" className="text-xs">
-                                                    Entregue
-                                                  </Badge>
-                                                  <span className="text-muted-foreground italic">
-                                                    (Recebido por: {receivedBy})
-                                                  </span>
-                                                </div>
-                                              );
-                                            }
-                                          }
-                                          
-                                          return <p className="text-xs text-muted-foreground leading-relaxed">{log.details}</p>;
-                                        })()}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
+                          <tr
+                            key={item.id}
+                            className={`border-b hover-elevate cursor-pointer transition-colors ${
+                              index % 2 === 0 ? 'bg-background' : 'bg-muted/20'
+                            }`}
+                            onClick={() => setSelectedItem(item)}
+                            data-testid={`item-row-${item.id}`}
+                          >
+                            <td className="py-3 px-4">
+                              <span className="font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
+                                {item.displayId}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-semibold text-sm">{item.type}</span>
+                            </td>
+                            <td className="py-3 px-4 max-w-xs">
+                              {item.description ? (
+                                <span className="text-sm text-muted-foreground truncate block">{item.description}</span>
                               ) : (
-                                <div className="text-center py-8 text-muted-foreground">
-                                  <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                                  <p className="text-sm">Nenhuma ação registrada ainda</p>
-                                </div>
+                                <span className="text-muted-foreground text-xs italic">—</span>
                               )}
-                            </CardContent>
-                          </Card>
-
-                          {/* Comentários */}
-                          <div>
-                            <CommentsSection itemId={item.id} itemType={item.type} />
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  ))}
+                            </td>
+                            <td className="py-3 px-4">
+                              {item.fileWidth && item.fileHeight ? (
+                                <span className="text-sm">{item.fileWidth} × {item.fileHeight}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              {item.visualWidth && item.visualHeight ? (
+                                <span className="text-sm">{item.visualWidth} × {item.visualHeight}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="font-bold text-sm">{item.quantity} un.</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="font-bold text-primary text-sm">{item.calculatedM2}</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <StatusBadge status={item.status} />
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -814,6 +544,14 @@ export default function PainelGeral() {
         })
         )}
       </div>
+
+      {/* Modal de Detalhes do Item */}
+      <ItemDetailsDialog
+        item={selectedItem}
+        auditLogs={auditLogs}
+        open={!!selectedItem}
+        onOpenChange={(open) => !open && setSelectedItem(null)}
+      />
     </div>
   );
 }

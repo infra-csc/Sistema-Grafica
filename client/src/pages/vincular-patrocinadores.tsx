@@ -467,13 +467,9 @@ export default function VincularPatrocinadores() {
       for (const itemId of validItemIds) {
         const changes = pendingChanges[itemId];
 
-        // 1. Sincronizar patrocinadores
+        // Sincronizar patrocinadores e skipApproval (backend atualiza status automaticamente)
         await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
-          sponsorIds: changes.sponsorIds
-        });
-
-        // 2. Atualizar APENAS skipApproval, NÃO mudar o status
-        await apiRequest("PATCH", `/api/items/${itemId}`, {
+          sponsorIds: changes.sponsorIds,
           skipApproval: changes.skipApproval
         });
       }

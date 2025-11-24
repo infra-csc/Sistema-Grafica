@@ -580,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/items/:id/sponsors/sync", requireAuth, async (req, res) => {
     try {
       const itemId = req.params.id;
-      const { sponsorIds } = req.body;
+      const { sponsorIds, skipApproval } = req.body;
 
       if (!Array.isArray(sponsorIds)) {
         return res.status(400).json({ error: "sponsorIds deve ser um array" });
@@ -588,18 +588,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.bulkSyncItemSponsors(itemId, sponsorIds);
       
-      const item = await storage.getItem(itemId);
+      // Update item with skipApproval and promote status if ready
+      const currentItem = await storage.getItem(itemId);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item não encontrado" });
+      }
+      
+      // If item has sponsors OR skipApproval, promote to awaiting_submission
+      const shouldPromoteStatus = sponsorIds.length > 0 || skipApproval === true;
+      const itemUpdates: any = { skipApproval: skipApproval || false };
+      
+      if (shouldPromoteStatus && (currentItem.status === 'requested' || currentItem.status === 'awaiting_linking')) {
+        itemUpdates.status = 'awaiting_submission';
+      }
+      
+      const item = await storage.updateItem(itemId, itemUpdates);
       
       await createAuditLog(
         (req as any).userName,
         'updated',
         'item',
         itemId,
-        `Patrocinadores atualizados - ${sponsorIds.length} ${sponsorIds.length === 1 ? 'patrocinador vinculado' : 'patrocinadores vinculados'}`
+        `Patrocinadores atualizados - ${sponsorIds.length} ${sponsorIds.length === 1 ? 'patrocinador vinculado' : 'patrocinadores vinculados'}${skipApproval ? ' (sem aprovação)' : ''}`
       );
       
       broadcast({ type: "item_updated", item });
-      res.json({ message: "Patrocinadores atualizados com sucesso" });
+      
+      // Return updated item with sponsors
+      const itemSponsorsData = await storage.getItemSponsors(itemId);
+      res.json({ 
+        message: "Patrocinadores atualizados com sucesso",
+        item,
+        sponsors: itemSponsorsData
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -39,9 +39,8 @@ const getItemUIStatus = (
     return 'RASCUNHO';
   }
   
-  // 2. Se status indica que já foi enviado → ENVIADO
+  // 2. Se status indica que já foi enviado para produção → ENVIADO
   const sentStatuses = [
-    'awaiting_submission',
     'awaiting_sponsor_approval', 
     'sponsor_approved',
     'awaiting_creator_review',
@@ -55,13 +54,18 @@ const getItemUIStatus = (
     return 'ENVIADO';
   }
   
-  // 3. Se status permite envio → PRONTO (permite salvar/enviar mesmo sem patrocinadores)
-  const canSendStatuses = ['requested', 'awaiting_linking'];
-  if (canSendStatuses.includes(item.status)) {
+  // 3. Status intermediário: patrocinadores salvos, pronto para enviar → PRONTO
+  if (item.status === 'awaiting_submission') {
     return 'PRONTO';
   }
   
-  // 4. Caso contrário → PENDENTE
+  // 4. Status inicial permite salvar vinculação → PENDENTE
+  const canSendStatuses = ['requested', 'awaiting_linking'];
+  if (canSendStatuses.includes(item.status)) {
+    return 'PENDENTE';
+  }
+  
+  // 5. Caso contrário → PENDENTE
   return 'PENDENTE';
 };
 

@@ -223,6 +223,13 @@ export default function Atendimento() {
   // Filtros aplicados
   const filteredItems = useMemo(() => {
     return pendingItems.filter(item => {
+      // IMPORTANTE: Filtrar itens "órfãos" que não têm patrocinadores
+      // Esses items não deveriam estar aqui, mas podem existir se os patrocinadores foram deletados
+      const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
+      if (!hasSponsors && !loadingSponsors) {
+        return false; // Ignora items sem patrocinadores
+      }
+      
       // Filtro de busca por descrição/tipo
       const matchesSearch = searchTerm === "" || 
         item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -241,7 +248,7 @@ export default function Atendimento() {
       
       return matchesSearch && matchesEvent && matchesType && matchesSponsor;
     });
-  }, [pendingItems, searchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap]);
+  }, [pendingItems, searchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
   
   // Opções únicas para filtros
   const uniqueItemTypes = useMemo(() => {
@@ -561,9 +568,7 @@ export default function Atendimento() {
                                 ))}
                               </div>
                             ) : (
-                              <div className="text-xs text-muted-foreground">
-                                DEBUG: map={Object.keys(itemSponsorsMap).length}, item={itemSponsorsMap[item.id]?.length || 0}
-                              </div>
+                              <div className="text-sm text-muted-foreground">—</div>
                             )}
                           </td>
                           <td className="py-2 px-4 text-sm text-muted-foreground">

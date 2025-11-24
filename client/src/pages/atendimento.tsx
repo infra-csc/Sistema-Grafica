@@ -561,8 +561,8 @@ export default function Atendimento() {
                                 ))}
                               </div>
                             ) : (
-                              <div className="text-sm text-muted-foreground">
-                                {Object.keys(itemSponsorsMap).length === 0 ? "..." : "—"}
+                              <div className="text-xs text-muted-foreground">
+                                DEBUG: map={Object.keys(itemSponsorsMap).length}, item={itemSponsorsMap[item.id]?.length || 0}
                               </div>
                             )}
                           </td>

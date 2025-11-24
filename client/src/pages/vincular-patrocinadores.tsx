@@ -643,53 +643,36 @@ export default function VincularPatrocinadores() {
   const handleApplyBulkSponsors = () => {
     const allSelectedItems = Array.from(selectedItemIds);
     
-    // FILTRAR: NÃO aplicar em lote em items que JÁ têm patrocinadores SALVOS
-    const itemsAlreadyLinked: string[] = [];
-    const itemsToUpdate: string[] = [];
-    
-    allSelectedItems.forEach(itemId => {
-      // Usar dados SALVOS do banco (originalSponsorsMap), não estado local
-      const savedSponsors = originalSponsorsMap[itemId] || [];
-      const hasPendingChanges = pendingChanges[itemId]?.isDirty;
-      const item = items.find(i => i.id === itemId);
-      const hasSkipApproval = item?.skipApproval || false;
-      
-      // Item já tem:
-      // - patrocinadores SALVOS no banco
-      // - mudanças pendentes (não salvas ainda)
-      // - marcado como "sem aprovação" (skipApproval)
-      if (savedSponsors.length > 0 || hasPendingChanges || hasSkipApproval) {
-        itemsAlreadyLinked.push(itemId);
-      } else {
-        itemsToUpdate.push(itemId);
-      }
-    });
-    
-    // Se todos os items já estão vinculados, avisar e não fazer nada
-    if (itemsToUpdate.length === 0) {
+    if (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) {
       toast({
-        title: "⚠️ Nenhum item para atualizar",
-        description: "Todos os items selecionados já foram processados (patrocinadores vinculados ou marcados como 'sem aprovação').",
+        title: "⚠️ Nenhum patrocinador selecionado",
+        description: "Selecione pelo menos um patrocinador ou marque 'Pular aprovação'",
         variant: "destructive",
       });
-      setBulkApplyDialogOpen(false);
       return;
     }
     
-    // Aplicar patrocinadores APENAS aos items que ainda não têm vinculação
-    itemsToUpdate.forEach(itemId => {
-      const originalSponsors = originalSponsorsMap[itemId] || [];
-      const originalSkipApproval = items.find(i => i.id === itemId)?.skipApproval || false;
+    // Aplicar patrocinadores a TODOS os items selecionados
+    // Adiciona aos patrocinadores existentes (não substitui)
+    const itemsToUpdate: string[] = [];
+    
+    allSelectedItems.forEach(itemId => {
+      const currentSponsors = itemSponsorsMap[itemId] || originalSponsorsMap[itemId] || [];
+      const item = items.find(i => i.id === itemId);
+      const originalSkipApproval = item?.skipApproval || false;
+      
+      // Combinar patrocinadores existentes com novos (sem duplicatas)
+      const combinedSponsors = Array.from(new Set([...currentSponsors, ...bulkSelectedSponsors]));
       
       const hasChanges = 
-        !areSponsorsEqual(bulkSelectedSponsors, originalSponsors) ||
+        !areSponsorsEqual(combinedSponsors, originalSponsorsMap[itemId] || []) ||
         bulkSkipApproval !== originalSkipApproval;
       
       if (hasChanges) {
         setPendingChanges(prev => ({
           ...prev,
           [itemId]: {
-            sponsorIds: bulkSelectedSponsors,
+            sponsorIds: combinedSponsors,
             skipApproval: bulkSkipApproval,
             isDirty: true
           }
@@ -697,24 +680,29 @@ export default function VincularPatrocinadores() {
         
         setItemSponsorsMap(prev => ({
           ...prev,
-          [itemId]: bulkSelectedSponsors
+          [itemId]: combinedSponsors
         }));
+        
+        itemsToUpdate.push(itemId);
       }
     });
 
     // Limpar seleção e fechar modal
     setSelectedItemIds(new Set());
     setBulkApplyDialogOpen(false);
+    setBulkSelectedSponsors([]);
+    setBulkSkipApproval(false);
     
-    // Mensagem de sucesso com aviso se alguns items foram ignorados
-    const message = itemsAlreadyLinked.length > 0
-      ? `${itemsToUpdate.length} item${itemsToUpdate.length !== 1 ? 's' : ''} atualizado${itemsToUpdate.length !== 1 ? 's' : ''}. ${itemsAlreadyLinked.length} item${itemsAlreadyLinked.length !== 1 ? 's' : ''} ignorado${itemsAlreadyLinked.length !== 1 ? 's' : ''} (já processado${itemsAlreadyLinked.length !== 1 ? 's' : ''}).`
-      : `Patrocinadores aplicados a ${itemsToUpdate.length} item${itemsToUpdate.length !== 1 ? 's' : ''}`;
+    if (itemsToUpdate.length === 0) {
+      toast({
+        title: "ℹ️ Nenhuma alteração",
+        description: "Os patrocinadores selecionados já estavam vinculados",
+      });
+      return;
+    }
     
-    toast({
-      title: "✅ Aplicado com sucesso!",
-      description: message,
-    });
+    // Salvar automaticamente após aplicar
+    saveLinkingMutation.mutate(itemsToUpdate);
   };
 
   // Calcular progresso

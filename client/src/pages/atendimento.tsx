@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -493,85 +493,127 @@ export default function Atendimento() {
           {selectedItem && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h3 className="font-semibold mb-2">Informações do Item</h3>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-medium">Nome:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.name}</span>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Package className="w-4 h-4 text-primary" />
+                      Informações do Item
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex items-start gap-2">
+                      <Tag className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <div className="font-medium">{selectedItem.name}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{selectedItem.type}</div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-medium">Tipo:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.type}</span>
+                    
+                    <div className="flex justify-between items-center py-1.5 border-t">
+                      <span className="text-muted-foreground">Quantidade</span>
+                      <Badge variant="secondary">{selectedItem.quantity}</Badge>
                     </div>
-                    <div>
-                      <span className="font-medium">Quantidade:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.quantity}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Material:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.material || "N/A"}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Acabamento:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.finish || "N/A"}</span>
-                    </div>
+                    
+                    {(selectedItem.material || selectedItem.finish) && (
+                      <div className="space-y-1.5 pt-1.5 border-t">
+                        {selectedItem.material && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Material</span>
+                            <span className="font-medium">{selectedItem.material}</span>
+                          </div>
+                        )}
+                        {selectedItem.finish && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Acabamento</span>
+                            <span className="font-medium">{selectedItem.finish}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     {selectedItem.sponsorId && (
-                      <div>
-                        <span className="font-medium">Patrocinador:</span>{" "}
-                        <span className="text-muted-foreground">
+                      <div className="pt-1.5 border-t">
+                        <div className="text-xs text-muted-foreground mb-1">Patrocinador</div>
+                        <Badge variant="outline" className="text-xs">
                           {getSponsorInfo(selectedItem.sponsorId)?.name || "N/A"}
-                        </span>
+                        </Badge>
                       </div>
                     )}
-                    {selectedItem.visualWidth && selectedItem.visualHeight && (
-                      <div>
-                        <span className="font-medium">Área Visual:</span>{" "}
-                        <span className="text-muted-foreground">
-                          {selectedItem.visualWidth}m × {selectedItem.visualHeight}m
-                        </span>
+                    
+                    {((selectedItem.visualWidth && selectedItem.visualHeight) || 
+                      (selectedItem.fileWidth && selectedItem.fileHeight)) && (
+                      <div className="space-y-2 pt-1.5 border-t">
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <Ruler className="w-3.5 h-3.5" />
+                          <span className="text-xs font-medium">Dimensões</span>
+                        </div>
+                        {selectedItem.visualWidth && selectedItem.visualHeight && (
+                          <div className="flex justify-between text-xs pl-5">
+                            <span className="text-muted-foreground">Área Visual</span>
+                            <span className="font-medium">
+                              {selectedItem.visualWidth}m × {selectedItem.visualHeight}m
+                            </span>
+                          </div>
+                        )}
+                        {selectedItem.fileWidth && selectedItem.fileHeight && (
+                          <div className="flex justify-between text-xs pl-5">
+                            <span className="text-muted-foreground">Arquivo</span>
+                            <span className="font-medium">
+                              {selectedItem.fileWidth}m × {selectedItem.fileHeight}m
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
-                    {selectedItem.fileWidth && selectedItem.fileHeight && (
-                      <div>
-                        <span className="font-medium">Medida do Arquivo:</span>{" "}
-                        <span className="text-muted-foreground">
-                          {selectedItem.fileWidth}m × {selectedItem.fileHeight}m
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
-                <div>
-                  <h3 className="font-semibold mb-2">Informações do Evento</h3>
-                  <div className="space-y-2 text-sm">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      Informações do Evento
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
                     {(() => {
                       const event = getEventInfo(selectedItem.eventId);
                       return event ? (
                         <>
                           <div>
-                            <span className="font-medium">Evento:</span>{" "}
-                            <span className="text-muted-foreground">{event.name}</span>
+                            <div className="text-xs text-muted-foreground mb-1">Nome do Evento</div>
+                            <div className="font-medium">{event.name}</div>
                           </div>
-                          <div>
-                            <span className="font-medium">Local:</span>{" "}
-                            <span className="text-muted-foreground">{event.location}</span>
+                          
+                          <div className="flex items-start gap-2 pt-1.5 border-t">
+                            <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="text-xs text-muted-foreground mb-0.5">Local</div>
+                              <div className="font-medium">{event.location}</div>
+                            </div>
                           </div>
-                          <div>
-                            <span className="font-medium">Data:</span>{" "}
-                            <span className="text-muted-foreground">
-                              {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}
-                            </span>
+                          
+                          <div className="flex items-start gap-2 pt-1.5 border-t">
+                            <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="text-xs text-muted-foreground mb-0.5">Data do Evento</div>
+                              <div className="font-medium">
+                                {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}
+                              </div>
+                            </div>
                           </div>
+                          
                           {event.truckDepartureDate && (
-                            <div>
-                              <span className="font-medium">Saída do Caminhão:</span>{" "}
-                              <span className="text-muted-foreground">
-                                {format(new Date(event.truckDepartureDate), "dd/MM/yyyy HH:mm", {
-                                  locale: ptBR,
-                                })}
-                              </span>
+                            <div className="flex items-start gap-2 pt-1.5 border-t">
+                              <Truck className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <div className="text-xs text-muted-foreground mb-0.5">Saída do Caminhão</div>
+                                <div className="font-medium text-orange-500">
+                                  {format(new Date(event.truckDepartureDate), "dd/MM/yyyy HH:mm", {
+                                    locale: ptBR,
+                                  })}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </>
@@ -579,30 +621,44 @@ export default function Atendimento() {
                         <div className="text-muted-foreground">Evento não encontrado</div>
                       );
                     })()}
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               </div>
 
               {selectedItem.approvalThumbUrl && (
-                <div>
-                  <h3 className="font-semibold mb-2">Thumb de Aprovação</h3>
-                  <div className="flex justify-center rounded-md overflow-hidden border bg-muted/30 p-4">
-                    <img
-                      src={selectedItem.approvalThumbUrl}
-                      alt="Thumb de aprovação"
-                      className="max-w-sm max-h-64 w-auto h-auto object-contain"
-                    />
-                  </div>
-                </div>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-primary" />
+                      Thumb de Aprovação
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-center rounded-md overflow-hidden border bg-muted/30 p-4">
+                      <img
+                        src={selectedItem.approvalThumbUrl}
+                        alt="Thumb de aprovação"
+                        className="max-w-sm max-h-64 w-auto h-auto object-contain"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {selectedItem.notes && (
-                <div>
-                  <h3 className="font-semibold mb-2">Observações</h3>
-                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                    {selectedItem.notes}
-                  </p>
-                </div>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-primary" />
+                      Observações
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedItem.notes}
+                    </p>
+                  </CardContent>
+                </Card>
               )}
             </div>
           )}

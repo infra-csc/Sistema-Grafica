@@ -798,10 +798,7 @@ export default function Arte() {
                   <p className="text-xs text-muted-foreground">
                     Envie uma imagem leve (preview) para o patrocinador aprovar
                   </p>
-                  {(() => {
-                    console.log('Renderizando card. approvalThumbPreview:', approvalThumbPreview?.substring(0, 100));
-                    return approvalThumbPreview && approvalThumbPreview.trim() !== "";
-                  })() ? (
+                  {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
                     <div className="space-y-2">
                       <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4">
                         <img 
@@ -846,9 +843,9 @@ export default function Arte() {
                       </FileUploader>
                     </div>
                   ) : (
-                    <>
-                      {approvalThumbPreview && (
-                        <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4 mb-2">
+                    <div className="space-y-2">
+                      {approvalThumbPreview && approvalThumbPreview.trim() !== "" && (
+                        <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4">
                           <img 
                             src={approvalThumbPreview} 
                             alt="Preview do Thumb" 
@@ -859,11 +856,8 @@ export default function Arte() {
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => {
-                          console.log('Upload completo! URL:', result.url);
                           setApprovalThumbUrl(result.url);
-                          console.log('approvalThumbUrl setado');
                           setApprovalThumbPreview(result.url);
-                          console.log('approvalThumbPreview setado para:', result.url);
                           toast({
                             title: "Upload concluído",
                             description: "Thumb de aprovação enviado com sucesso",
@@ -877,13 +871,10 @@ export default function Arte() {
                           });
                         }}
                         onFileSelect={(file) => {
-                          console.log('Arquivo selecionado para preview:', file.name);
                           const reader = new FileReader();
                           reader.onload = (e) => {
                             const preview = e.target?.result as string;
-                            console.log('Preview base64 gerado, tamanho:', preview?.length);
                             setApprovalThumbPreview(preview);
-                            console.log('approvalThumbPreview setado (base64)');
                           };
                           reader.readAsDataURL(file);
                         }}
@@ -892,7 +883,7 @@ export default function Arte() {
                         <Upload className="h-4 w-4 mr-2" />
                         Fazer Upload do Thumb
                       </FileUploader>
-                    </>
+                    </div>
                   )}
                   <div className="flex gap-2 justify-end pt-2">
                     <Button

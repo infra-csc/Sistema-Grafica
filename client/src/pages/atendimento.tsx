@@ -619,11 +619,11 @@ export default function Atendimento() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex justify-center rounded-lg overflow-hidden bg-muted/50 p-4 max-h-[400px]">
+                    <div className="flex justify-center rounded-lg overflow-hidden bg-muted/50 p-3">
                       <img
                         src={selectedItem.approvalThumbUrl}
                         alt="Thumb de aprovação"
-                        className="w-full h-full max-h-[368px] object-contain shadow-lg"
+                        className="w-full max-h-[250px] object-contain shadow-lg"
                       />
                     </div>
                   </CardContent>

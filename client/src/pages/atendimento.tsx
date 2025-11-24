@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -118,6 +118,8 @@ export default function Atendimento() {
       return await apiRequest("PATCH", `/api/items/${itemId}/sponsor-approve`, {});
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
@@ -129,6 +131,29 @@ export default function Atendimento() {
       toast({
         title: "Erro ao aprovar item",
         description: error.message || "Ocorreu um erro ao aprovar o item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sponsorRejectMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}/sponsor-reject`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setDialogOpen(false);
+      setSelectedItem(null);
+      toast({
+        title: "Item reprovado",
+        description: "O item foi reprovado e retornou para a Arte refazer.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao reprovar item",
+        description: error.message || "Ocorreu um erro ao reprovar o item",
         variant: "destructive",
       });
     },
@@ -204,6 +229,12 @@ export default function Atendimento() {
   const handleApprove = () => {
     if (selectedItem) {
       sponsorApproveMutation.mutate(selectedItem.id);
+    }
+  };
+
+  const handleReject = () => {
+    if (selectedItem) {
+      sponsorRejectMutation.mutate(selectedItem.id);
     }
   };
 
@@ -663,13 +694,22 @@ export default function Atendimento() {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
               data-testid="button-cancel"
             >
               Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={sponsorRejectMutation.isPending}
+              data-testid="button-reject"
+            >
+              <XCircle className="w-4 h-4 mr-2" />
+              {sponsorRejectMutation.isPending ? "Reprovando..." : "Reprovar"}
             </Button>
             <Button
               onClick={handleApprove}

@@ -1429,6 +1429,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sponsor rejects item (Atendimento module)
+  app.patch("/api/items/:id/sponsor-reject", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "atendimento" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Atendimento podem reprovar pelo patrocinador" });
+      }
+      
+      // Validate current status
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      if (currentItem.status !== "awaiting_sponsor_approval") {
+        return res.status(409).json({ 
+          error: `Item não pode ser reprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval` 
+        });
+      }
+      
+      const item = await storage.updateItem(req.params.id, {
+        status: "awaiting_submission",
+        sponsorApprovedBy: null,
+        sponsorApprovedAt: null,
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      
+      await createAuditLog(
+        req.userName!,
+        'rejected',
+        'item',
+        item.id,
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo patrocinador)`
+      );
+      
+      // Notifica Arte para refazer o trabalho
+      const notification = await storage.createNotification({
+        type: "itemRejected",
+        message: `Patrocinador reprovou o item. Refaça o thumb de aprovação: ${item.type} - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["arte"],
+      });
+      
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Arte submits final file after sponsor approval
   app.patch("/api/items/:id/submit-final-file", requireAuth, async (req, res) => {
     try {

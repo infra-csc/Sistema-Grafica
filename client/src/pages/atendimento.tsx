@@ -600,7 +600,7 @@ export default function Atendimento() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Aprovação do Patrocinador</DialogTitle>
             <DialogDescription>
@@ -618,12 +618,12 @@ export default function Atendimento() {
                       Thumb de Aprovação
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-center rounded-lg bg-muted/50 p-2">
+                  <CardContent className="p-3">
+                    <div className="flex justify-center rounded-lg bg-muted/50 p-2 h-[150px]">
                       <img
                         src={selectedItem.approvalThumbUrl}
                         alt="Thumb de aprovação"
-                        className="w-full max-h-[180px] object-contain shadow-lg"
+                        className="max-w-full max-h-full object-contain shadow-lg"
                       />
                     </div>
                   </CardContent>

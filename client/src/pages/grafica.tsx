@@ -21,6 +21,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { DeliveryPhotoGallery } from "@/components/DeliveryPhotoGallery";
+import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
 export default function Grafica() {
   const { toast } = useToast();
@@ -53,6 +54,10 @@ export default function Grafica() {
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
+  });
+
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
   });
 
   const startProductionMutation = useMutation({
@@ -643,102 +648,12 @@ export default function Grafica() {
       </Card>
 
       {/* Dialog de Detalhes do Item */}
-      <Dialog open={!!viewDetailsItem} onOpenChange={(open) => !open && setViewDetailsItem(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Detalhes do Item</DialogTitle>
-            <DialogDescription>
-              Informações completas do item
-            </DialogDescription>
-          </DialogHeader>
-          {viewDetailsItem && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Evento</p>
-                  <p className="text-sm font-semibold">{viewDetailsItem.event?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Tipo</p>
-                  <p className="text-sm font-semibold">{viewDetailsItem.type}</p>
-                </div>
-              </div>
-
-              {viewDetailsItem.description && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Descrição</p>
-                  <p className="text-sm font-semibold">{viewDetailsItem.description}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Material</p>
-                  <p className="text-sm font-semibold">{viewDetailsItem.material}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Acabamento</p>
-                  <p className="text-sm font-semibold">{viewDetailsItem.finish}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Quantidade</p>
-                  <p className="text-sm font-semibold">{viewDetailsItem.quantity}</p>
-                </div>
-                {viewDetailsItem.quantityProduced !== null && viewDetailsItem.quantityProduced > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Quantidade Produzida</p>
-                    <p className="text-sm font-semibold text-status-production">{viewDetailsItem.quantityProduced}</p>
-                  </div>
-                )}
-                <div className="col-span-2">
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Dimensões</p>
-                  {viewDetailsItem.visualWidth && viewDetailsItem.visualHeight ? (
-                    <>
-                      <p className="text-sm font-semibold tabular-nums">
-                        <span className="text-muted-foreground font-normal">V:</span> {viewDetailsItem.visualWidth}×{viewDetailsItem.visualHeight}m
-                      </p>
-                      {viewDetailsItem.fileWidth && viewDetailsItem.fileHeight && (
-                        <p className="text-sm text-muted-foreground tabular-nums">
-                          <span>A:</span> {viewDetailsItem.fileWidth}×{viewDetailsItem.fileHeight}m
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">—</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">m² Total</p>
-                  <p className="text-sm font-semibold">{viewDetailsItem.calculatedM2}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Status</p>
-                  <div className="pt-1">
-                    <StatusBadge status={viewDetailsItem.status} />
-                  </div>
-                </div>
-              </div>
-
-              {viewDetailsItem.observations && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground mb-1">Observações</p>
-                  <p className="text-sm">{viewDetailsItem.observations}</p>
-                </div>
-              )}
-
-              {viewDetailsItem.status === "delivered" && (
-                <DeliveryPhotoGallery itemId={viewDetailsItem.id} />
-              )}
-
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setViewDetailsItem(null)}>
-                  Fechar
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <ItemDetailsDialog
+        item={viewDetailsItem}
+        auditLogs={auditLogs}
+        open={!!viewDetailsItem}
+        onOpenChange={(open) => !open && setViewDetailsItem(null)}
+      />
 
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={(open) => {
         if (!open) {

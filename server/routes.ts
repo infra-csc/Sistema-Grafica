@@ -1297,8 +1297,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "approvalThumbUrl is required" });
       }
       
-      // Check if skipApproval flag is set
-      const shouldSkipApproval = currentItem.skipApproval === true;
+      // Check if item has sponsors linked
+      const itemSponsors = await storage.getItemSponsors(req.params.id);
+      const hasSponsors = itemSponsors.length > 0;
+      
+      // Determine next status:
+      // 1. If skipApproval is true → awaiting_creator_review
+      // 2. If has sponsors → awaiting_sponsor_approval
+      // 3. If no sponsors → awaiting_creator_review (skip sponsor approval)
+      const shouldSkipApproval = currentItem.skipApproval === true || !hasSponsors;
       const nextStatus = shouldSkipApproval ? "awaiting_creator_review" : "awaiting_sponsor_approval";
       
       const itemUpdates: any = { status: nextStatus };

@@ -54,6 +54,7 @@ export default function Atendimento() {
   
   // Map para rastrear patrocinadores de cada item
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
+  const [loadingSponsors, setLoadingSponsors] = useState(false);
   
   // Request ID para evitar race conditions
   const requestIdRef = useRef(0);
@@ -86,8 +87,11 @@ export default function Atendimento() {
     
     if (awaitingItems.length === 0) {
       setItemSponsorsMap({});
+      setLoadingSponsors(false);
       return;
     }
+    
+    setLoadingSponsors(true);
     
     // Recarregar todos os sponsors para garantir dados atualizados
     Promise.all(
@@ -95,6 +99,7 @@ export default function Atendimento() {
         try {
           const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
           const itemSponsors = await response.json();
+          console.log(`Item ${item.id} tem ${itemSponsors.length} patrocinadores:`, itemSponsors);
           return { itemId: item.id, sponsors: itemSponsors };
         } catch (error) {
           console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
@@ -109,7 +114,9 @@ export default function Atendimento() {
           [itemId]: sponsors
         }), {});
         
+        console.log('ItemSponsorsMap atualizado:', newMap);
         setItemSponsorsMap(newMap);
+        setLoadingSponsors(false);
       }
     });
   }, [awaitingItems]);
@@ -211,10 +218,7 @@ export default function Atendimento() {
   });
 
   // Filtrar itens aguardando aprovação de patrocinador
-  // Mostrar apenas items que realmente têm patrocinadores vinculados
-  const pendingItems = awaitingItems.filter(item => 
-    itemSponsorsMap[item.id]?.length > 0
-  );
+  const pendingItems = awaitingItems;
   
   // Filtros aplicados
   const filteredItems = useMemo(() => {

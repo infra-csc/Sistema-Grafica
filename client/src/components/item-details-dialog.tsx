@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import { CommentsSection } from "@/components/comments-section";
-import { CheckCircle2, CircleDot, Circle, Calendar, ClipboardList, Package, Building2, FileText, History, PlusCircle, Edit, XCircle, Link, Unlink, ArrowRightCircle, Send } from "lucide-react";
+import { CheckCircle2, CircleDot, Circle, Calendar, ClipboardList, Package, Building2, FileText, History, PlusCircle, Edit, XCircle, Link, Unlink, ArrowRightCircle, Send, FileImage } from "lucide-react";
 import { format, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -403,6 +403,27 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
               </CardHeader>
               <CardContent className="px-4 py-2 pt-0">
                 <p className="text-sm whitespace-pre-wrap">{item.observations}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Thumb de Aprovação */}
+          {item.approvalThumbUrl && (
+            <Card>
+              <CardHeader className="px-4 py-2 bg-indigo-50/50 dark:bg-indigo-950/20">
+                <CardTitle className="text-xs font-semibold uppercase text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                  <FileImage className="h-3.5 w-3.5" />
+                  Thumb de Aprovação
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 py-2 pt-0">
+                <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4">
+                  <img
+                    src={item.approvalThumbUrl}
+                    alt="Thumb de aprovação"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
               </CardContent>
             </Card>
           )}

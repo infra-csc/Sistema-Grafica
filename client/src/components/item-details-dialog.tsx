@@ -13,9 +13,10 @@ interface ItemDetailsDialogProps {
   auditLogs?: any[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  customActions?: React.ReactNode;
 }
 
-export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: ItemDetailsDialogProps) {
+export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, customActions }: ItemDetailsDialogProps) {
   if (!item) return null;
 
   const getActionIconAndColor = (action: string) => {
@@ -503,6 +504,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
               </div>
             </CardContent>
           </Card>
+
+          {/* Ações Customizadas */}
+          {customActions && (
+            <div className="border-t pt-4">
+              {customActions}
+            </div>
+          )}
 
           {/* Comentários */}
           <div className="border-t pt-4">

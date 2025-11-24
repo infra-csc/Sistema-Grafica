@@ -21,7 +21,6 @@ import {
 import { Fragment, useState } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CommentsSection } from "@/components/comments-section";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
 export default function Arte() {
@@ -780,127 +779,35 @@ export default function Arte() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Detalhes do Item</DialogTitle>
-            <DialogDescription>
-              Revise as informações antes de liberar
-            </DialogDescription>
-          </DialogHeader>
-          {selectedItem && (
-            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Evento</p>
-                  <p className="text-sm font-semibold">{selectedItem.event?.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Tipo</p>
-                  <p className="text-sm font-semibold">{selectedItem.type}</p>
-                </div>
-              </div>
-
-              {selectedItem.description && (
-                <div>
-                  <p className="text-xs text-muted-foreground">Descrição</p>
-                  <p className="text-sm font-semibold">{selectedItem.description}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Material</p>
-                  <p className="text-sm font-semibold">{selectedItem.material}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Acabamento</p>
-                  <p className="text-sm font-semibold">{selectedItem.finish}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Quantidade</p>
-                  <p className="text-sm font-semibold">{selectedItem.quantity}</p>
-                </div>
-                {selectedItem.quantityProduced !== null && selectedItem.quantityProduced > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Quantidade Produzida</p>
-                    <p className="text-sm font-semibold text-status-production">{selectedItem.quantityProduced}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs text-muted-foreground">Área × Visual</p>
-                  <p className="text-sm font-semibold">{selectedItem.area} × {selectedItem.visual}</p>
-                </div>
-                {selectedItem.measurement && selectedItem.measurement !== `${selectedItem.area} × ${selectedItem.visual}` && (
-                  <div>
-                    <p className="text-xs text-muted-foreground">Medida</p>
-                    <p className="text-sm font-semibold">{selectedItem.measurement}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs text-muted-foreground">m² Total</p>
-                  <p className="text-sm font-semibold">{selectedItem.calculatedM2}</p>
-                </div>
-              </div>
-
-              {selectedItem.observations && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Observações</p>
-                  <p className="text-sm">{selectedItem.observations}</p>
-                </div>
-              )}
-              {/* Upload de Thumb de Aprovação */}
-              {selectedItem.status === 'requested' && (
-                <div className="border-t pt-4 space-y-4">
-                  <div>
-                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <FileImage className="h-4 w-4" />
-                      Thumb de Aprovação <span className="text-destructive">*</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Envie uma imagem leve (preview) para o patrocinador aprovar
-                    </p>
-                    {approvalThumbPreview ? (
-                      <div className="space-y-2">
-                        <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4">
-                          <img 
-                            src={approvalThumbPreview} 
-                            alt="Preview" 
-                            className="max-h-full max-w-full object-contain"
-                          />
-                        </div>
-                        <FileUploader
-                          onGetUploadParameters={getUploadUrl}
-                          onComplete={(result) => {
-                            setApprovalThumbUrl(result.url);
-                            setApprovalThumbPreview(result.url);
-                            toast({
-                              title: "Upload concluído",
-                              description: "Thumb de aprovação enviado com sucesso",
-                            });
-                          }}
-                          onError={(error) => {
-                            toast({
-                              title: "Erro no upload",
-                              description: error.message,
-                              variant: "destructive",
-                            });
-                          }}
-                          onFileSelect={(file) => {
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                              setApprovalThumbPreview(e.target?.result as string);
-                            };
-                            reader.readAsDataURL(file);
-                          }}
-                          accept="image/*"
-                          buttonVariant="outline"
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Alterar Thumb
-                        </FileUploader>
+      <ItemDetailsDialog
+        item={selectedItem}
+        auditLogs={selectedItem ? auditLogs.filter((log: any) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
+        open={!!selectedItem}
+        onOpenChange={(open) => !open && setSelectedItem(null)}
+        customActions={selectedItem && (
+          <div className="space-y-4">
+            {/* Upload de Thumb de Aprovação */}
+            {selectedItem.status === 'requested' && (
+              <Card>
+                <CardHeader className="px-4 py-2 bg-purple-50/50 dark:bg-purple-950/20">
+                  <CardTitle className="text-xs font-semibold uppercase text-purple-700 dark:text-purple-400 flex items-center gap-2">
+                    <FileImage className="h-3.5 w-3.5" />
+                    Upload de Thumb de Aprovação
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 py-2 pt-0 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Envie uma imagem leve (preview) para o patrocinador aprovar
+                  </p>
+                  {approvalThumbPreview ? (
+                    <div className="space-y-2">
+                      <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4">
+                        <img 
+                          src={approvalThumbPreview} 
+                          alt="Preview" 
+                          className="max-h-full max-w-full object-contain"
+                        />
                       </div>
-                    ) : (
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => {
@@ -926,19 +833,68 @@ export default function Arte() {
                           reader.readAsDataURL(file);
                         }}
                         accept="image/*"
+                        buttonVariant="outline"
                       >
                         <Upload className="h-4 w-4 mr-2" />
-                        Fazer Upload do Thumb
+                        Alterar Thumb
                       </FileUploader>
-                    )}
+                    </div>
+                  ) : (
+                    <FileUploader
+                      onGetUploadParameters={getUploadUrl}
+                      onComplete={(result) => {
+                        setApprovalThumbUrl(result.url);
+                        setApprovalThumbPreview(result.url);
+                        toast({
+                          title: "Upload concluído",
+                          description: "Thumb de aprovação enviado com sucesso",
+                        });
+                      }}
+                      onError={(error) => {
+                        toast({
+                          title: "Erro no upload",
+                          description: error.message,
+                          variant: "destructive",
+                        });
+                      }}
+                      onFileSelect={(file) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                          setApprovalThumbPreview(e.target?.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      accept="image/*"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Fazer Upload do Thumb
+                    </FileUploader>
+                  )}
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button
+                      onClick={handleSubmitForApproval}
+                      disabled={submitForApprovalMutation.isPending || !approvalThumbUrl}
+                      data-testid="button-submit-approval"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Enviar para Aprovação do Patrocinador
+                    </Button>
                   </div>
-                </div>
-              )}
+                </CardContent>
+              </Card>
+            )}
 
-              {/* Upload de Arquivo Final após Aprovação do Patrocinador */}
-              {selectedItem.status === 'sponsor_approved' && (
-                <div className="border-t pt-4 space-y-4">
-                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-4 mb-4">
+            {/* Upload de Arquivo Final após Aprovação do Patrocinador */}
+            {selectedItem.status === 'sponsor_approved' && (
+              <Card>
+                <CardHeader className="px-4 py-2 bg-green-50/50 dark:bg-green-950/20">
+                  <CardTitle className="text-xs font-semibold uppercase text-green-700 dark:text-green-400 flex items-center gap-2">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    Finalização de Layout
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 py-2 pt-0 space-y-2">
+                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-3">
                     <p className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
                       <CheckCircle className="h-4 w-4" />
                       Patrocinador aprovou este item!
@@ -947,52 +903,23 @@ export default function Arte() {
                       Finalize o layout e adicione o arquivo final para enviar para revisão da solicitação.
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <File className="h-4 w-4" />
-                      Arquivo Final <span className="text-destructive">*</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Envie o arquivo final em alta resolução (PDF, imagem, etc.)
-                    </p>
-                    {finalFileUrl ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                          <File className="h-4 w-4 text-green-600" />
-                          <span className="text-sm truncate flex-1">Arquivo final enviado</span>
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                        </div>
-                        <FileUploader
-                          onGetUploadParameters={getUploadUrl}
-                          onComplete={(result) => {
-                            setFinalFileUrl(result.url);
-                            toast({
-                              title: "Upload concluído",
-                              description: "Arquivo final atualizado com sucesso",
-                            });
-                          }}
-                          onError={(error) => {
-                            toast({
-                              title: "Erro no upload",
-                              description: error.message,
-                              variant: "destructive",
-                            });
-                          }}
-                          accept=".pdf,image/*"
-                          buttonVariant="outline"
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Alterar Arquivo Final
-                        </FileUploader>
+                  <p className="text-xs text-muted-foreground">
+                    Envie o arquivo final em alta resolução (PDF, imagem, etc.)
+                  </p>
+                  {finalFileUrl ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                        <File className="h-4 w-4 text-green-600" />
+                        <span className="text-sm truncate flex-1">Arquivo final enviado</span>
+                        <CheckCircle className="h-4 w-4 text-green-600" />
                       </div>
-                    ) : (
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => {
                           setFinalFileUrl(result.url);
                           toast({
                             title: "Upload concluído",
-                            description: "Arquivo final enviado com sucesso",
+                            description: "Arquivo final atualizado com sucesso",
                           });
                         }}
                         onError={(error) => {
@@ -1003,47 +930,51 @@ export default function Arte() {
                           });
                         }}
                         accept=".pdf,image/*"
+                        buttonVariant="outline"
                       >
                         <Upload className="h-4 w-4 mr-2" />
-                        Fazer Upload do Arquivo Final
+                        Alterar Arquivo Final
                       </FileUploader>
-                    )}
+                    </div>
+                  ) : (
+                    <FileUploader
+                      onGetUploadParameters={getUploadUrl}
+                      onComplete={(result) => {
+                        setFinalFileUrl(result.url);
+                        toast({
+                          title: "Upload concluído",
+                          description: "Arquivo final enviado com sucesso",
+                        });
+                      }}
+                      onError={(error) => {
+                        toast({
+                          title: "Erro no upload",
+                          description: error.message,
+                          variant: "destructive",
+                        });
+                      }}
+                      accept=".pdf,image/*"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Fazer Upload do Arquivo Final
+                    </FileUploader>
+                  )}
+                  <div className="flex gap-2 justify-end pt-2">
+                    <Button
+                      onClick={handleSubmitFinalFile}
+                      disabled={submitFinalFileMutation.isPending || !finalFileUrl}
+                      data-testid="button-submit-final"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Enviar Arquivo Final
+                    </Button>
                   </div>
-                </div>
-              )}
-
-              {/* Comentários */}
-              <div className="border-t pt-4">
-                <CommentsSection itemId={selectedItem.id} itemType={selectedItem.type} />
-              </div>
-              
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setSelectedItem(null)}>
-                  Fechar
-                </Button>
-                {selectedItem.status === 'requested' && (
-                  <Button
-                    onClick={handleSubmitForApproval}
-                    disabled={submitForApprovalMutation.isPending || !approvalThumbUrl}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Enviar para Aprovação do Patrocinador
-                  </Button>
-                )}
-                {selectedItem.status === 'sponsor_approved' && (
-                  <Button
-                    onClick={handleSubmitFinalFile}
-                    disabled={submitFinalFileMutation.isPending || !finalFileUrl}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Enviar Arquivo Final
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+      />
 
       {/* Dialog de Upload Compartilhado de PDF */}
       <Dialog open={showBulkDialog} onOpenChange={setShowBulkDialog}>

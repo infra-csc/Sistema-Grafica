@@ -19,7 +19,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
   if (!item) return null;
 
   const getActionIconAndColor = (action: string) => {
-    const config: Record<string, { icon: any; bgColor: string; ringColor: string; badgeVariant?: "default" | "secondary" | "destructive" | "outline" }> = {
+    const config: Record<string, { icon: any; bgColor: string; ringColor: string; badgeVariant?: "default" | "secondary" | "destructive" | "outline"; badgeClasses?: string }> = {
       'created': { 
         icon: PlusCircle, 
         bgColor: 'bg-green-500/20 dark:bg-green-500/30', 
@@ -28,9 +28,10 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
       },
       'updated': { 
         icon: Edit, 
-        bgColor: 'bg-blue-500/20 dark:bg-blue-500/30', 
-        ringColor: 'ring-blue-500',
-        badgeVariant: 'secondary'
+        bgColor: 'bg-primary/20 dark:bg-primary/30', 
+        ringColor: 'ring-primary',
+        badgeVariant: 'outline',
+        badgeClasses: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary border-primary'
       },
       'approved': { 
         icon: CheckCircle2, 
@@ -441,7 +442,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
                           'sent': 'Enviado'
                         };
                         const actionLabel = actionLabels[log.action] || log.action;
-                        const { icon: ActionIcon, bgColor, ringColor, badgeVariant } = getActionIconAndColor(log.action);
+                        const { icon: ActionIcon, bgColor, ringColor, badgeVariant, badgeClasses } = getActionIconAndColor(log.action);
 
                         return (
                           <div key={log.id} className="relative flex gap-3">
@@ -455,7 +456,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange }: 
                             
                             <div className="flex-1 pb-2">
                               <div className="flex items-center gap-2 mb-1">
-                                <Badge variant={badgeVariant} className="text-xs font-medium">
+                                <Badge variant={badgeVariant} className={`text-xs font-medium ${badgeClasses || ''}`}>
                                   {actionLabel}
                                 </Badge>
                                 <span className="text-xs text-muted-foreground">

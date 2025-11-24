@@ -794,7 +794,7 @@ export default function Arte() {
         customActions={selectedItem && (
           <div className="space-y-4">
             {/* Upload de Thumb de Aprovação */}
-            {selectedItem.status === 'requested' && (
+            {(selectedItem.status === 'requested' || selectedItem.status === 'awaiting_submission') && (
               <Card>
                 <CardHeader className="px-4 py-2 bg-purple-50/50 dark:bg-purple-950/20">
                   <CardTitle className="text-xs font-semibold uppercase text-purple-700 dark:text-purple-400 flex items-center gap-2">

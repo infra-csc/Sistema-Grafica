@@ -13,7 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info } from "lucide-react";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatusBadge } from "@/components/status-badge";
@@ -558,45 +558,8 @@ export default function VincularPatrocinadores() {
     },
   });
 
-  // Mutation 2: Enviar items para Arte (mudar status)
-  const sendToArteMutation = useMutation({
-    mutationFn: async (itemIdsToSend: string[]) => {
-      const validItemIds = itemIdsToSend.filter(itemId => {
-        const item = visibleItems.find(i => i.id === itemId);
-        if (!item || !getItemEditability(item)) return false;
-        
-        // Item deve estar com status awaiting_submission (já salvou patrocinadores)
-        return item.status === "awaiting_submission";
-      });
-
-      if (validItemIds.length === 0) {
-        throw new Error("Nenhum item válido para enviar");
-      }
-
-      for (const itemId of validItemIds) {
-        await apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, {});
-      }
-      
-      return validItemIds;
-    },
-    onSuccess: async (validItemIds) => {
-      // Invalidar cache E forçar refetch para pegar novo status
-      await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      await queryClient.refetchQueries({ queryKey: ["/api/items"], type: 'active' });
-      
-      toast({
-        title: "✅ Items enviados para aprovação!",
-        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} enviado${validItemIds.length !== 1 ? 's' : ''} para aprovação`,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao enviar para Arte",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  // Mutation 2 foi removida - items com patrocinadores vinculados devem ir para página Arte para upload do thumb
+  // A Arte fará upload do thumb e enviará para aprovação através da página Arte
 
   const handleOpenSponsorDialog = (event: any) => {
     setSelectedEventForSponsors(event);
@@ -886,17 +849,12 @@ export default function VincularPatrocinadores() {
               </Button>
             )}
             {statusCounts.PRONTO > 0 && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  const ids = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO').map(i => i.id);
-                  sendToArteMutation.mutate(ids);
-                }}
-                disabled={sendToArteMutation.isPending}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Enviar Todos ({statusCounts.PRONTO})
-              </Button>
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
+                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  {statusCounts.PRONTO} item{statusCounts.PRONTO !== 1 ? 's' : ''} pronto{statusCounts.PRONTO !== 1 ? 's' : ''} para envio. Vá para a página <span className="font-semibold">Arte</span> para fazer upload do thumb de aprovação.
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -989,16 +947,6 @@ export default function VincularPatrocinadores() {
                                 >
                                   <Save className="h-3 w-3 mr-1" />
                                   Salvar
-                                </Button>
-                              )}
-                              {uiStatus === 'PRONTO' && (
-                                <Button 
-                                  size="sm" 
-                                  onClick={() => sendToArteMutation.mutate([item.id])} 
-                                  disabled={sendToArteMutation.isPending}
-                                >
-                                  <Send className="h-3 w-3 mr-1" />
-                                  Enviar
                                 </Button>
                               )}
                             </div>
@@ -1486,20 +1434,6 @@ export default function VincularPatrocinadores() {
                                         >
                                           <Save className="h-3 w-3" />
                                           Salvar
-                                        </Button>
-                                      )}
-                                      
-                                      {uiStatus === 'PRONTO' && isEditable && (
-                                        <Button
-                                          size="sm"
-                                          variant="default"
-                                          className="gap-1 text-xs"
-                                          onClick={() => sendToArteMutation.mutate([item.id])}
-                                          disabled={sendToArteMutation.isPending}
-                                          data-testid={`button-send-item-${item.id}`}
-                                        >
-                                          <Send className="h-3 w-3" />
-                                          Enviar
                                         </Button>
                                       )}
                                     </>

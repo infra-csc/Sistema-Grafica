@@ -170,7 +170,7 @@ export default function Arte() {
         const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
         let matchesView = false;
         if (tab === "criar-aprovacoes") {
-          matchesView = item.status === 'requested';
+          matchesView = item.status === 'requested' || item.status === 'awaiting_submission';
         } else if (tab === "finalizar-layouts") {
           matchesView = item.status === 'sponsor_approved';
         } else {
@@ -231,7 +231,7 @@ export default function Arte() {
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
   const approvedCount = getFilteredItemsForTab("aprovados").length;
 
-  const pendingItems = filteredItems.filter(item => item.status === 'requested');
+  const pendingItems = filteredItems.filter(item => item.status === 'requested' || item.status === 'awaiting_submission');
 
   const handleViewDetails = (item: any) => {
     setSelectedItem(item);

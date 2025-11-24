@@ -550,7 +550,9 @@ export default function Atendimento() {
                             <Badge variant="outline">{item.quantity}x</Badge>
                           </td>
                           <td className="py-2 px-4">
-                            {itemSponsors.length > 0 ? (
+                            {loadingSponsors ? (
+                              <div className="text-xs text-muted-foreground">Carregando...</div>
+                            ) : itemSponsors.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {itemSponsors.map((sponsor) => (
                                   <Badge key={sponsor.id} variant="outline" className="text-xs">
@@ -559,7 +561,9 @@ export default function Atendimento() {
                                 ))}
                               </div>
                             ) : (
-                              <div className="text-sm text-muted-foreground">—</div>
+                              <div className="text-sm text-muted-foreground">
+                                {Object.keys(itemSponsorsMap).length === 0 ? "..." : "—"}
+                              </div>
                             )}
                           </td>
                           <td className="py-2 px-4 text-sm text-muted-foreground">

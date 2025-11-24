@@ -459,9 +459,11 @@ export default function Arte() {
                       className="w-[200px] justify-between"
                       data-testid="button-event-filter"
                     >
-                      {eventFilter === "all" 
-                        ? "Todos os eventos" 
-                        : events.find((event) => event.id === eventFilter)?.name || "Selecione um evento"}
+                      <span className="truncate">
+                        {eventFilter === "all" 
+                          ? "Todos os eventos" 
+                          : events.find((event) => event.id === eventFilter)?.name || "Selecione um evento"}
+                      </span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>

@@ -586,11 +586,11 @@ export default function Atendimento() {
               {selectedItem.approvalThumbUrl && (
                 <div>
                   <h3 className="font-semibold mb-2">Thumb de Aprovação</h3>
-                  <div className="rounded-md overflow-hidden border">
+                  <div className="flex justify-center rounded-md overflow-hidden border bg-muted/30 p-4">
                     <img
                       src={selectedItem.approvalThumbUrl}
                       alt="Thumb de aprovação"
-                      className="w-full h-auto"
+                      className="max-w-sm max-h-64 w-auto h-auto object-contain"
                     />
                   </div>
                 </div>

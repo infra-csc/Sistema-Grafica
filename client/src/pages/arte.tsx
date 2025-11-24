@@ -798,10 +798,7 @@ export default function Arte() {
                   <p className="text-xs text-muted-foreground">
                     Envie uma imagem leve (preview) para o patrocinador aprovar
                   </p>
-                  {(() => {
-                    console.log('Verificando preview. approvalThumbPreview:', approvalThumbPreview?.substring(0, 50));
-                    return approvalThumbPreview && approvalThumbPreview.trim() !== "";
-                  })() ? (
+                  {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
                     <div className="space-y-2">
                       <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4">
                         <img 
@@ -846,39 +843,46 @@ export default function Arte() {
                       </FileUploader>
                     </div>
                   ) : (
-                    <FileUploader
-                      onGetUploadParameters={getUploadUrl}
-                      onComplete={(result) => {
-                        setApprovalThumbUrl(result.url);
-                        setApprovalThumbPreview(result.url);
-                        toast({
-                          title: "Upload concluído",
-                          description: "Thumb de aprovação enviado com sucesso",
-                        });
-                      }}
-                      onError={(error) => {
-                        toast({
-                          title: "Erro no upload",
-                          description: error.message,
-                          variant: "destructive",
-                        });
-                      }}
-                      onFileSelect={(file) => {
-                        console.log('Arquivo selecionado:', file.name);
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                          const preview = e.target?.result as string;
-                          console.log('Preview gerado, tamanho:', preview?.length);
-                          setApprovalThumbPreview(preview);
-                          console.log('Preview setado no state');
-                        };
-                        reader.readAsDataURL(file);
-                      }}
-                      accept="image/*"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Fazer Upload do Thumb
-                    </FileUploader>
+                    <>
+                      {approvalThumbPreview && (
+                        <div className="w-full min-h-48 max-h-96 rounded-md border bg-muted/30 flex items-center justify-center p-4 mb-2">
+                          <img 
+                            src={approvalThumbPreview} 
+                            alt="Preview do Thumb" 
+                            className="max-h-full max-w-full object-contain rounded"
+                          />
+                        </div>
+                      )}
+                      <FileUploader
+                        onGetUploadParameters={getUploadUrl}
+                        onComplete={(result) => {
+                          setApprovalThumbUrl(result.url);
+                          toast({
+                            title: "Upload concluído",
+                            description: "Thumb de aprovação enviado com sucesso",
+                          });
+                        }}
+                        onError={(error) => {
+                          toast({
+                            title: "Erro no upload",
+                            description: error.message,
+                            variant: "destructive",
+                          });
+                        }}
+                        onFileSelect={(file) => {
+                          const reader = new FileReader();
+                          reader.onload = (e) => {
+                            const preview = e.target?.result as string;
+                            setApprovalThumbPreview(preview);
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                        accept="image/*"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Fazer Upload do Thumb
+                      </FileUploader>
+                    </>
                   )}
                   <div className="flex gap-2 justify-end pt-2">
                     <Button

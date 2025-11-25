@@ -596,12 +596,10 @@ export default function Atendimento() {
                       />
                     </th>
                     <th className="text-left py-3 px-4 font-medium">ID</th>
-                    <th className="text-left py-3 px-4 font-medium">Evento</th>
                     <th className="text-left py-3 px-4 font-medium">Tipo</th>
                     <th className="text-left py-3 px-4 font-medium">Descrição</th>
                     <th className="text-center py-3 px-4 font-medium">Qtd</th>
                     <th className="text-left py-3 px-4 font-medium">Patrocinador</th>
-                    <th className="text-left py-3 px-4 font-medium">Saída Caminhão</th>
                     <th className="text-right py-3 px-4 font-medium">Ações</th>
                   </tr>
                 </thead>
@@ -616,26 +614,12 @@ export default function Atendimento() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-primary/10 to-primary/5 border-t-4 border-primary/30">
-                            <td colSpan={9} className="py-2 px-4">
+                            <td colSpan={7} className="py-2 px-4">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-primary rounded-full"></div>
                                 <div className="text-sm font-bold text-primary uppercase tracking-wider">
                                   {event?.name || 'Sem Evento'}
                                 </div>
-                                {event && (
-                                  <div className="flex items-center gap-3 text-xs ml-auto">
-                                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                                      <Calendar className="h-3.5 w-3.5" />
-                                      <span>{new Date(event.startDate).toLocaleDateString('pt-BR')}</span>
-                                    </div>
-                                    {event.truckDepartureDate && (
-                                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                                        <Truck className="h-3.5 w-3.5" />
-                                        <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR')} {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
                               </div>
                             </td>
                           </tr>
@@ -655,9 +639,6 @@ export default function Atendimento() {
                             <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
                               {item.displayId}
                             </div>
-                          </td>
-                          <td className="py-2 px-4 text-sm text-muted-foreground">
-                            {event?.name || "—"}
                           </td>
                           <td className="py-2 px-4">
                             <div className="text-sm font-medium">{item.type}</div>
@@ -699,12 +680,6 @@ export default function Atendimento() {
                             ) : (
                               <div className="text-sm text-muted-foreground">—</div>
                             )}
-                          </td>
-                          <td className="py-2 px-4 text-sm text-muted-foreground">
-                            {event?.truckDepartureDate 
-                              ? `${new Date(event.truckDepartureDate).toLocaleDateString('pt-BR')} ${new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-                              : "—"
-                            }
                           </td>
                           <td className="py-2 px-4 text-right">
                             <Button

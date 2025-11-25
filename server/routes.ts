@@ -580,6 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return sponsor ? {
             id: sponsor.id,
             name: sponsor.name,
+            color: sponsor.color || '#3b82f6',
             itemSponsorId: is.id,
             createdAt: is.createdAt
           } : null;

@@ -1462,6 +1462,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         broadcast({ type: "notification_created", notification });
       } else {
         // Fluxo padrão: vai para aprovação do patrocinador
+        
+        // Inicializar registros de aprovação para cada patrocinador
+        await storage.initializeItemSponsorApprovals(
+          req.params.id, 
+          itemSponsors.map(s => s.sponsorId)
+        );
+        
         await createAuditLog(
           req.userName!,
           'updated',

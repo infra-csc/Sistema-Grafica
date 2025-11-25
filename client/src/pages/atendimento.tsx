@@ -678,7 +678,20 @@ export default function Atendimento() {
                             ) : itemSponsors.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {itemSponsors.map((sponsor) => (
-                                  <Badge key={sponsor.id} variant="outline" className="text-xs">
+                                  <Badge 
+                                    key={sponsor.id} 
+                                    variant="outline" 
+                                    className="text-xs"
+                                    style={{
+                                      borderColor: sponsor.color || '#3b82f6',
+                                      backgroundColor: `${sponsor.color || '#3b82f6'}15`,
+                                      color: sponsor.color || '#3b82f6'
+                                    }}
+                                  >
+                                    <span 
+                                      className="w-2 h-2 rounded-full mr-1.5"
+                                      style={{ backgroundColor: sponsor.color || '#3b82f6' }}
+                                    />
                                     {sponsor.name}
                                   </Badge>
                                 ))}
@@ -809,12 +822,25 @@ export default function Atendimento() {
                               return (
                                 <div 
                                   key={sponsor.id} 
-                                  className="border rounded-lg p-2.5 bg-muted/30"
+                                  className="border rounded-lg p-2.5"
+                                  style={{
+                                    borderColor: sponsor.color || '#3b82f6',
+                                    backgroundColor: `${sponsor.color || '#3b82f6'}08`
+                                  }}
                                   data-testid={`sponsor-approval-${sponsor.id}`}
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 min-w-0">
-                                      <span className="font-medium text-sm truncate">{sponsor.name}</span>
+                                      <span 
+                                        className="w-3 h-3 rounded-full shrink-0"
+                                        style={{ backgroundColor: sponsor.color || '#3b82f6' }}
+                                      />
+                                      <span 
+                                        className="font-medium text-sm truncate"
+                                        style={{ color: sponsor.color || '#3b82f6' }}
+                                      >
+                                        {sponsor.name}
+                                      </span>
                                       {status === 'approved' && (
                                         <Badge variant="default" className="bg-green-500 text-xs shrink-0">
                                           <CheckCircle className="w-3 h-3 mr-1" />

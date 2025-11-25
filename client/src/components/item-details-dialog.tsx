@@ -234,6 +234,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </CardContent>
           </Card>
 
+          {/* Ações Customizadas - Logo após Timeline (Upload de Thumb, etc) */}
+          {customActions && (
+            <div>
+              {customActions}
+            </div>
+          )}
+
           {/* Ações no Topo - Prioridade (ex: Finalização de Layout) */}
           {topActions && (
             <div className="space-y-2">
@@ -391,13 +398,6 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                 <p className="text-sm whitespace-pre-wrap">{item.observations}</p>
               </CardContent>
             </Card>
-          )}
-
-          {/* Ações Customizadas - Antes do Histórico */}
-          {customActions && (
-            <div>
-              {customActions}
-            </div>
           )}
 
           {/* Histórico de Ações */}

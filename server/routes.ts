@@ -1453,6 +1453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "awaiting_submission",
         sponsorApprovedBy: null,
         sponsorApprovedAt: null,
+        rejectedBySponsor: true, // Flag indicando que foi reprovado pelo patrocinador
       });
       
       if (!item) {

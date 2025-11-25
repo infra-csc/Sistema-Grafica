@@ -73,10 +73,13 @@ export default function Atendimento() {
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
   const [loadingSponsors, setLoadingSponsors] = useState(false);
   
+  // Map para rastrear aprovações de cada item (para mostrar na tabela)
+  const [itemApprovalsMap, setItemApprovalsMap] = useState<Record<string, SponsorApproval[]>>({});
+  
   // Request ID para evitar race conditions
   const requestIdRef = useRef(0);
   
-  // State para aprovações individuais de patrocinadores
+  // State para aprovações individuais de patrocinadores (no diálogo)
   const [sponsorApprovals, setSponsorApprovals] = useState<SponsorApproval[]>([]);
   const [loadingSponsorApprovals, setLoadingSponsorApprovals] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -101,44 +104,50 @@ export default function Atendimento() {
     ), [items]
   );
 
-  // Carregar patrocinadores de items pendentes
-  // Sempre recarregar quando awaitingItems muda para garantir dados atualizados
+  // Carregar patrocinadores e aprovações de items pendentes
   useEffect(() => {
-    // Incrementar request ID SEMPRE para invalidar requests anteriores
     requestIdRef.current += 1;
     const currentRequestId = requestIdRef.current;
     
     if (awaitingItems.length === 0) {
       setItemSponsorsMap({});
+      setItemApprovalsMap({});
       setLoadingSponsors(false);
       return;
     }
     
     setLoadingSponsors(true);
     
-    // Recarregar todos os sponsors para garantir dados atualizados
+    // Carregar patrocinadores e aprovações em paralelo para cada item
     Promise.all(
       awaitingItems.map(async (item) => {
         try {
-          const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
-          const itemSponsors = await response.json();
-          console.log(`Item ${item.id} tem ${itemSponsors.length} patrocinadores:`, itemSponsors);
-          return { itemId: item.id, sponsors: itemSponsors };
+          const [sponsorsRes, approvalsRes] = await Promise.all([
+            apiRequest("GET", `/api/items/${item.id}/sponsors`),
+            apiRequest("GET", `/api/items/${item.id}/sponsor-approvals`)
+          ]);
+          const itemSponsors = await sponsorsRes.json();
+          const itemApprovals = await approvalsRes.json();
+          return { itemId: item.id, sponsors: itemSponsors, approvals: itemApprovals };
         } catch (error) {
-          console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
-          return { itemId: item.id, sponsors: [] };
+          console.error(`Erro ao carregar dados do item ${item.id}:`, error);
+          return { itemId: item.id, sponsors: [], approvals: [] };
         }
       })
     ).then(results => {
-      // Apenas atualizar se este ainda é o último request
       if (currentRequestId === requestIdRef.current) {
-        const newMap = results.reduce((acc, { itemId, sponsors }) => ({
+        const sponsorsMap = results.reduce((acc, { itemId, sponsors }) => ({
           ...acc,
           [itemId]: sponsors
         }), {});
         
-        console.log('ItemSponsorsMap atualizado:', newMap);
-        setItemSponsorsMap(newMap);
+        const approvalsMap = results.reduce((acc, { itemId, approvals }) => ({
+          ...acc,
+          [itemId]: approvals
+        }), {});
+        
+        setItemSponsorsMap(sponsorsMap);
+        setItemApprovalsMap(approvalsMap);
         setLoadingSponsors(false);
       }
     });
@@ -651,31 +660,40 @@ export default function Atendimento() {
                             )}
                           </td>
                           <td className="py-2 px-4 text-center">
-                            <Badge variant="outline">{item.quantity}x</Badge>
+                            <Badge variant="outline">{item.quantity}</Badge>
                           </td>
                           <td className="py-2 px-4">
                             {loadingSponsors ? (
                               <div className="text-xs text-muted-foreground">Carregando...</div>
                             ) : itemSponsors.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {itemSponsors.map((sponsor) => (
-                                  <Badge 
-                                    key={sponsor.id} 
-                                    variant="outline" 
-                                    className="text-xs"
-                                    style={{
-                                      borderColor: sponsor.color || '#3b82f6',
-                                      backgroundColor: `${sponsor.color || '#3b82f6'}15`,
-                                      color: sponsor.color || '#3b82f6'
-                                    }}
-                                  >
-                                    <span 
-                                      className="w-2 h-2 rounded-full mr-1.5"
-                                      style={{ backgroundColor: sponsor.color || '#3b82f6' }}
-                                    />
-                                    {sponsor.name}
-                                  </Badge>
-                                ))}
+                              <div className="flex flex-wrap gap-1.5">
+                                {itemSponsors.map((sponsor) => {
+                                  const approvals = itemApprovalsMap[item.id] || [];
+                                  const approval = approvals.find((a: SponsorApproval) => a.sponsorId === sponsor.id);
+                                  const status = approval?.status || 'pending';
+                                  
+                                  return (
+                                    <Badge 
+                                      key={sponsor.id} 
+                                      variant="outline" 
+                                      className="text-xs py-1 px-2"
+                                      style={{
+                                        borderColor: sponsor.color || '#3b82f6',
+                                        backgroundColor: `${sponsor.color || '#3b82f6'}15`,
+                                        color: sponsor.color || '#3b82f6'
+                                      }}
+                                    >
+                                      {status === 'approved' ? (
+                                        <CheckCircle className="w-3 h-3 mr-1 text-green-600" />
+                                      ) : status === 'rejected' ? (
+                                        <XCircle className="w-3 h-3 mr-1 text-red-600" />
+                                      ) : (
+                                        <Clock className="w-3 h-3 mr-1 text-yellow-600" />
+                                      )}
+                                      {sponsor.name}
+                                    </Badge>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <div className="text-sm text-muted-foreground">—</div>

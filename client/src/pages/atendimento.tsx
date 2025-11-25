@@ -822,39 +822,42 @@ export default function Atendimento() {
                               return (
                                 <div 
                                   key={sponsor.id} 
-                                  className="border rounded-lg p-2.5"
+                                  className="border rounded-lg p-3"
                                   style={{
                                     borderColor: sponsor.color || '#3b82f6',
                                     backgroundColor: `${sponsor.color || '#3b82f6'}08`
                                   }}
                                   data-testid={`sponsor-approval-${sponsor.id}`}
                                 >
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span 
+                                      className="w-3 h-3 rounded-full shrink-0"
+                                      style={{ backgroundColor: sponsor.color || '#3b82f6' }}
+                                    />
+                                    <span 
+                                      className="font-semibold text-sm"
+                                      style={{ color: sponsor.color || '#3b82f6' }}
+                                    >
+                                      {sponsor.name}
+                                    </span>
+                                  </div>
+                                  
                                   <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <span 
-                                        className="w-3 h-3 rounded-full shrink-0"
-                                        style={{ backgroundColor: sponsor.color || '#3b82f6' }}
-                                      />
-                                      <span 
-                                        className="font-medium text-sm truncate"
-                                        style={{ color: sponsor.color || '#3b82f6' }}
-                                      >
-                                        {sponsor.name}
-                                      </span>
+                                    <div>
                                       {status === 'approved' && (
-                                        <Badge variant="default" className="bg-green-500 text-xs shrink-0">
+                                        <Badge variant="default" className="bg-green-500 text-xs">
                                           <CheckCircle className="w-3 h-3 mr-1" />
                                           Aprovado
                                         </Badge>
                                       )}
                                       {status === 'rejected' && (
-                                        <Badge variant="destructive" className="text-xs shrink-0">
+                                        <Badge variant="destructive" className="text-xs">
                                           <XCircle className="w-3 h-3 mr-1" />
                                           Reprovado
                                         </Badge>
                                       )}
                                       {status === 'pending' && (
-                                        <Badge variant="secondary" className="text-xs shrink-0">
+                                        <Badge variant="secondary" className="text-xs">
                                           <Clock className="w-3 h-3 mr-1" />
                                           Pendente
                                         </Badge>
@@ -862,7 +865,7 @@ export default function Atendimento() {
                                     </div>
                                     
                                     {status === 'pending' && !isRejectingThis && (
-                                      <div className="flex items-center gap-1 shrink-0">
+                                      <div className="flex items-center gap-1">
                                         <Button
                                           size="sm"
                                           variant="outline"

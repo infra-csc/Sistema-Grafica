@@ -50,7 +50,7 @@ export default function Calendario() {
       return { 
         colorBg: 'bg-yellow-500',
         colorAccent: 'bg-yellow-500/20',
-        textColor: 'text-yellow-500',
+        textColor: 'text-yellow-600',
         borderColor: 'border-yellow-500',
       };
     }
@@ -66,11 +66,21 @@ export default function Calendario() {
     }
     
     // Prioridade Baixa: Azul
+    if (event.priority === 'baixa') {
+      return { 
+        colorBg: 'bg-blue-500',
+        colorAccent: 'bg-blue-500/20',
+        textColor: 'text-blue-500',
+        borderColor: 'border-blue-500',
+      };
+    }
+    
+    // Sem prioridade: Cinza (precisa definir)
     return { 
-      colorBg: 'bg-blue-500',
-      colorAccent: 'bg-blue-500/20',
-      textColor: 'text-blue-500',
-      borderColor: 'border-blue-500',
+      colorBg: 'bg-gray-400',
+      colorAccent: 'bg-gray-400/20',
+      textColor: 'text-gray-500',
+      borderColor: 'border-gray-400',
     };
   };
 
@@ -313,6 +323,11 @@ export default function Calendario() {
                 <div className="w-3 h-3 rounded bg-blue-500 shrink-0" />
                 <span className="text-xs font-medium text-blue-500">Azul:</span>
                 <span className="text-xs text-muted-foreground">Baixa</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-gray-400 shrink-0" />
+                <span className="text-xs font-medium text-gray-500">Cinza:</span>
+                <span className="text-xs text-muted-foreground">Sem Prioridade</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded bg-status-completed shrink-0" />

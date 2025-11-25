@@ -104,28 +104,27 @@ const UI_STATUS_CONFIG = {
   }
 };
 
-// Paleta de cores para patrocinadores
-const SPONSOR_COLORS = [
-  { bg: "bg-blue-500/10", text: "text-blue-700 dark:text-blue-400", border: "border-blue-500/20" },
-  { bg: "bg-emerald-500/10", text: "text-emerald-700 dark:text-emerald-400", border: "border-emerald-500/20" },
-  { bg: "bg-violet-500/10", text: "text-violet-700 dark:text-violet-400", border: "border-violet-500/20" },
-  { bg: "bg-orange-500/10", text: "text-orange-700 dark:text-orange-400", border: "border-orange-500/20" },
-  { bg: "bg-pink-500/10", text: "text-pink-700 dark:text-pink-400", border: "border-pink-500/20" },
-  { bg: "bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-400", border: "border-cyan-500/20" },
-  { bg: "bg-amber-500/10", text: "text-amber-700 dark:text-amber-400", border: "border-amber-500/20" },
-  { bg: "bg-rose-500/10", text: "text-rose-700 dark:text-rose-400", border: "border-rose-500/20" },
-  { bg: "bg-indigo-500/10", text: "text-indigo-700 dark:text-indigo-400", border: "border-indigo-500/20" },
-  { bg: "bg-teal-500/10", text: "text-teal-700 dark:text-teal-400", border: "border-teal-500/20" },
-];
+// Função helper para converter hex para rgba
+const hexToRgba = (hex: string, alpha: number = 1): string => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return `rgba(59, 130, 246, ${alpha})`; // Fallback azul
+  return `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}, ${alpha})`;
+};
 
-// Função para obter cor consistente de um patrocinador
-const getSponsorColor = (sponsorId: string, allSponsors: any[]) => {
-  const index = allSponsors.findIndex(s => s.id === sponsorId);
-  // Se não encontrar, usar cor padrão (primeira cor)
-  if (index === -1) {
-    return SPONSOR_COLORS[0];
-  }
-  return SPONSOR_COLORS[index % SPONSOR_COLORS.length];
+// Função para obter cor do patrocinador a partir dos dados
+const getSponsorColorStyle = (sponsor: any) => {
+  const color = sponsor?.color || "#3b82f6";
+  return {
+    backgroundColor: hexToRgba(color, 0.1),
+    borderColor: hexToRgba(color, 0.3),
+    color: color,
+  };
+};
+
+// Função para obter cor do patrocinador pelo ID
+const getSponsorColorById = (sponsorId: string, allSponsors: any[]) => {
+  const sponsor = allSponsors.find(s => s.id === sponsorId);
+  return getSponsorColorStyle(sponsor);
 };
 
 export default function VincularPatrocinadores() {
@@ -1202,16 +1201,17 @@ export default function VincularPatrocinadores() {
                   </Button>
                 </div>
 
-                {/* Patrocinadores do Evento - Badges Compactos com Cores */}
+                {/* Patrocinadores do Evento - Badges Compactos com Cores Personalizadas */}
                 {eventSponsors.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {eventSponsors.map(sponsor => {
-                      const colors = getSponsorColor(sponsor.id, sponsors);
+                      const colorStyle = getSponsorColorStyle(sponsor);
                       return (
                         <Badge 
                           key={sponsor.id} 
                           variant="secondary" 
-                          className={`text-xs gap-1 ${colors.bg} ${colors.text} ${colors.border}`}
+                          className="text-xs gap-1 border"
+                          style={colorStyle}
                         >
                           <Building2 className="h-3 w-3" />
                           {sponsor.name}
@@ -1301,7 +1301,7 @@ export default function VincularPatrocinadores() {
                                 <div className="space-y-0.5">
                                   {eventSponsors.map(sponsor => {
                                     const isLinked = linkedSponsors.includes(sponsor.id);
-                                    const colors = getSponsorColor(sponsor.id, sponsors);
+                                    const colorStyle = getSponsorColorStyle(sponsor);
                                     return (
                                       <div key={sponsor.id} className="flex items-center gap-1.5">
                                         <Checkbox
@@ -1347,7 +1347,10 @@ export default function VincularPatrocinadores() {
                                           }}
                                           data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                         />
-                                        <label className={`text-xs font-medium ${colors.text} ${!isEditable ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                                        <label 
+                                          className={`text-xs font-medium ${!isEditable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                          style={{ color: colorStyle.color }}
+                                        >
                                           {sponsor.name}
                                         </label>
                                       </div>
@@ -1560,17 +1563,17 @@ export default function VincularPatrocinadores() {
               ) : (
                 <div className="space-y-2">
                   {sponsors.map((sponsor) => {
-                    const colors = getSponsorColor(sponsor.id, sponsors);
+                    const colorStyle = getSponsorColorStyle(sponsor);
+                    const isSelected = bulkSelectedSponsors.includes(sponsor.id);
                     return (
                       <div 
                         key={sponsor.id} 
                         className={`flex items-center space-x-3 p-3 border-2 rounded-lg transition-all cursor-pointer hover-elevate ${
-                          bulkSelectedSponsors.includes(sponsor.id)
-                            ? `border-primary ${colors.bg}` 
-                            : 'border-border bg-background'
+                          isSelected ? 'border-primary' : 'border-border bg-background'
                         }`}
+                        style={isSelected ? { backgroundColor: colorStyle.backgroundColor } : undefined}
                         onClick={() => {
-                          if (bulkSelectedSponsors.includes(sponsor.id)) {
+                          if (isSelected) {
                             setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
                           } else {
                             setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
@@ -1579,20 +1582,25 @@ export default function VincularPatrocinadores() {
                       >
                         <Checkbox
                           id={`bulk-sponsor-${sponsor.id}`}
-                          checked={bulkSelectedSponsors.includes(sponsor.id)}
+                          checked={isSelected}
                           onCheckedChange={() => {}}
                           data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
                         />
+                        <div 
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: sponsor.color || "#3b82f6" }}
+                        />
                         <label
                           htmlFor={`bulk-sponsor-${sponsor.id}`}
-                          className={`text-sm font-medium leading-tight cursor-pointer flex-1 ${colors.text}`}
+                          className="text-sm font-medium leading-tight cursor-pointer flex-1"
+                          style={{ color: colorStyle.color }}
                         >
                           {sponsor.name}
                           {sponsor.company && (
                             <span className="text-muted-foreground ml-1">({sponsor.company})</span>
                           )}
                         </label>
-                        {bulkSelectedSponsors.includes(sponsor.id) && (
+                        {isSelected && (
                           <Check className="h-4 w-4 text-primary shrink-0" />
                         )}
                       </div>

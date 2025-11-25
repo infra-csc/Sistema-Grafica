@@ -34,8 +34,23 @@ import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Palette } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
+
+const PRESET_COLORS = [
+  { name: "Azul", value: "#3b82f6" },
+  { name: "Verde", value: "#22c55e" },
+  { name: "Vermelho", value: "#ef4444" },
+  { name: "Amarelo", value: "#eab308" },
+  { name: "Roxo", value: "#a855f7" },
+  { name: "Rosa", value: "#ec4899" },
+  { name: "Laranja", value: "#f97316" },
+  { name: "Ciano", value: "#06b6d4" },
+  { name: "Índigo", value: "#6366f1" },
+  { name: "Esmeralda", value: "#10b981" },
+  { name: "Âmbar", value: "#f59e0b" },
+  { name: "Azul Escuro", value: "#1e3a5f" },
+];
 
 const sponsorSchema = z.object({
   name: z.string().min(1, "Nome obrigatório"),
@@ -44,6 +59,7 @@ const sponsorSchema = z.object({
   company: z.string().optional(),
   contactPerson: z.string().optional(),
   notes: z.string().optional(),
+  color: z.string().optional(),
 });
 
 type SponsorForm = z.infer<typeof sponsorSchema>;
@@ -67,6 +83,7 @@ export default function Patrocinadores() {
       company: "",
       contactPerson: "",
       notes: "",
+      color: "#3b82f6",
     },
   });
 
@@ -145,6 +162,7 @@ export default function Patrocinadores() {
       company: sponsor.company || "",
       contactPerson: sponsor.contactPerson || "",
       notes: sponsor.notes || "",
+      color: sponsor.color || "#3b82f6",
     });
     setIsDialogOpen(true);
   };
@@ -312,6 +330,55 @@ export default function Patrocinadores() {
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name="color"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Palette className="h-4 w-4" />
+                        Cor do Patrocinador
+                      </FormLabel>
+                      <FormControl>
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap gap-2">
+                            {PRESET_COLORS.map((color) => (
+                              <button
+                                key={color.value}
+                                type="button"
+                                onClick={() => field.onChange(color.value)}
+                                className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
+                                  field.value === color.value 
+                                    ? "border-foreground ring-2 ring-offset-2 ring-offset-background" 
+                                    : "border-transparent"
+                                }`}
+                                style={{ backgroundColor: color.value }}
+                                title={color.name}
+                                data-testid={`color-${color.value}`}
+                              />
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-10 h-10 rounded-md border"
+                              style={{ backgroundColor: field.value || "#3b82f6" }}
+                            />
+                            <Input
+                              type="text"
+                              placeholder="#3b82f6"
+                              value={field.value || ""}
+                              onChange={(e) => field.onChange(e.target.value)}
+                              className="w-32 font-mono text-sm"
+                              data-testid="input-color"
+                            />
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <div className="flex justify-end gap-3 pt-4">
                   <Button
                     type="button"
@@ -364,7 +431,11 @@ export default function Patrocinadores() {
                   className="flex items-start justify-between p-4 border rounded-lg hover-elevate"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="w-5 h-5 rounded-full flex-shrink-0 border border-white/20"
+                        style={{ backgroundColor: sponsor.color || "#3b82f6" }}
+                      />
                       <h3 className="font-semibold" data-testid={`text-sponsor-name-${sponsor.id}`}>
                         {sponsor.name}
                       </h3>

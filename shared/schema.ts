@@ -27,6 +27,7 @@ export const sponsors = pgTable("sponsors", {
   company: text("company"),
   contactPerson: text("contact_person"), // Pessoa de contato
   notes: text("notes"), // Observações gerais
+  color: text("color").default("#3b82f6"), // Cor personalizada do patrocinador (hex)
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

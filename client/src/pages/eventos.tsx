@@ -34,7 +34,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 
-type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'completed';
+type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'completed' | 'sem_prioridade';
 
 export default function Eventos() {
   const { hasPermission } = useAuth();
@@ -267,9 +267,9 @@ export default function Eventos() {
   }, [editingEvent]);
 
   // Função para obter a prioridade do evento (para filtragem)
-  const getEventPriority = (event: any): PriorityLevel | null => {
+  const getEventPriority = (event: any): PriorityLevel => {
     if (event.status === 'completed') return 'completed';
-    if (!event.priority) return null; // Sem prioridade definida
+    if (!event.priority) return 'sem_prioridade'; // Sem prioridade definida
     return event.priority as PriorityLevel;
   };
 
@@ -295,8 +295,6 @@ export default function Eventos() {
   };
 
   const getPriorityConfig = (priority: string | null | undefined) => {
-    if (!priority) return null;
-    
     const configs = {
       baixa: { 
         label: "Baixa", 
@@ -341,10 +339,22 @@ export default function Eventos() {
         bg: 'bg-red-600/10',
         border: 'border-red-600/20',
         iconColor: 'text-red-700'
+      },
+      sem_prioridade: { 
+        label: "Sem Prioridade", 
+        color: "bg-gray-400/15 text-gray-600 border-gray-400/30", 
+        icon: "⚪",
+        borderColor: 'border-l-gray-400',
+        bgCard: 'bg-gray-400/5',
+        titleColor: 'text-gray-600',
+        bg: 'bg-gray-400/10',
+        border: 'border-gray-400/20',
+        iconColor: 'text-gray-500'
       }
     };
     
-    return configs[priority as keyof typeof configs] || null;
+    if (!priority) return configs.sem_prioridade;
+    return configs[priority as keyof typeof configs] || configs.sem_prioridade;
   };
 
   // Meses do ano
@@ -372,7 +382,7 @@ export default function Eventos() {
       // Filtro de prioridade
       const eventPriority = getEventPriority(event);
       const matchesPriority = selectedPriorities.length === 0 || 
-        (eventPriority && selectedPriorities.includes(eventPriority));
+        selectedPriorities.includes(eventPriority);
       
       // Filtro de próximos 10 dias
       let matchesNext10Days = true;
@@ -398,18 +408,18 @@ export default function Eventos() {
     .sort((a, b) => {
       const priorityOrder: Record<PriorityLevel, number> = {
         urgente: 0,        // Vermelho - primeiro
-        alta: 1,           // Laranja - segundo
-        media: 2,          // Amarelo - terceiro
+        alta: 1,           // Amarelo - segundo
+        media: 2,          // Roxo - terceiro
         baixa: 3,          // Azul - quarto
-        completed: 4       // Verde - último
+        sem_prioridade: 4, // Cinza - quinto
+        completed: 5       // Verde - último
       };
 
       const priorityA = getEventPriority(a);
       const priorityB = getEventPriority(b);
       
-      // Eventos sem prioridade vão para o final (antes de completed)
-      const orderA = priorityA ? priorityOrder[priorityA] : 3.5;
-      const orderB = priorityB ? priorityOrder[priorityB] : 3.5;
+      const orderA = priorityOrder[priorityA];
+      const orderB = priorityOrder[priorityB];
       
       // Se têm prioridades diferentes, ordena por prioridade
       if (orderA !== orderB) {
@@ -435,6 +445,7 @@ export default function Eventos() {
     alta: { label: 'Alta', color: 'bg-yellow-500 text-foreground', icon: '🟡', count: events.filter(e => getEventPriority(e) === 'alta').length },
     media: { label: 'Média', color: 'bg-purple-600 text-white', icon: '🟣', count: events.filter(e => getEventPriority(e) === 'media').length },
     baixa: { label: 'Baixa', color: 'bg-blue-500 text-white', icon: '🔵', count: events.filter(e => getEventPriority(e) === 'baixa').length },
+    sem_prioridade: { label: 'Sem Prioridade', color: 'bg-gray-400 text-white', icon: '⚪', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
     completed: { label: 'Concluído', color: 'bg-status-completed text-white', icon: '✓', count: events.filter(e => getEventPriority(e) === 'completed').length },
   };
 
@@ -807,14 +818,20 @@ export default function Eventos() {
                   titleColor: 'text-status-completed',
                   icon: 'text-status-completed'
                 }
-              : priorityConfig 
+              : event.priority && priorityConfig 
                 ? {
                     borderColor: priorityConfig.borderColor,
                     bgCard: priorityConfig.bgCard,
                     titleColor: priorityConfig.titleColor,
                     icon: priorityConfig.iconColor
                   }
-                : truckColors;
+                : {
+                    // Sem prioridade: usa cores cinza para indicar que precisa definir
+                    borderColor: 'border-l-gray-400',
+                    bgCard: 'bg-gray-400/5',
+                    titleColor: 'text-gray-600',
+                    icon: 'text-gray-500'
+                  };
             
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
@@ -828,7 +845,16 @@ export default function Eventos() {
                             ✓ Concluído
                           </Badge>
                         )}
-                        {priorityConfig && event.status !== 'completed' && (
+                        {!event.priority && event.status !== 'completed' && (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs bg-orange-500/15 text-orange-600 border-orange-500/30 animate-pulse"
+                          >
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Definir Prioridade
+                          </Badge>
+                        )}
+                        {event.priority && event.status !== 'completed' && priorityConfig && (
                           <Badge 
                             variant="outline" 
                             className={`text-xs border ${priorityConfig.color}`}

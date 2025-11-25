@@ -588,19 +588,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.bulkSyncItemSponsors(itemId, sponsorIds);
       
-      // Update item with skipApproval and promote status if ready
+      // Update item with skipApproval only (status NOT changed here - user must click "Enviar para Arte")
       const currentItem = await storage.getItem(itemId);
       if (!currentItem) {
         return res.status(404).json({ error: "Item não encontrado" });
       }
       
-      // If item has sponsors OR skipApproval, promote to awaiting_submission
-      const shouldPromoteStatus = sponsorIds.length > 0 || skipApproval === true;
+      // Only update skipApproval, do NOT change status automatically
       const itemUpdates: any = { skipApproval: skipApproval || false };
-      
-      if (shouldPromoteStatus && (currentItem.status === 'requested' || currentItem.status === 'awaiting_linking')) {
-        itemUpdates.status = 'awaiting_submission';
-      }
       
       const item = await storage.updateItem(itemId, itemUpdates);
       
@@ -620,6 +615,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Patrocinadores atualizados com sucesso",
         item,
         sponsors: itemSponsorsData
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send items to Arte (bulk) - changes status from 'requested' to 'awaiting_submission'
+  app.post("/api/items/send-to-arte", requireAuth, async (req, res) => {
+    try {
+      const { itemIds } = req.body;
+      
+      if (!Array.isArray(itemIds) || itemIds.length === 0) {
+        return res.status(400).json({ error: "itemIds deve ser um array com pelo menos um item" });
+      }
+      
+      const results: any[] = [];
+      const errors: string[] = [];
+      
+      for (const itemId of itemIds) {
+        try {
+          const item = await storage.getItem(itemId);
+          if (!item) {
+            errors.push(`Item ${itemId} não encontrado`);
+            continue;
+          }
+          
+          // Only items with status 'requested' can be sent to Arte
+          if (item.status !== 'requested') {
+            errors.push(`Item ${item.displayId} não está no status correto para envio`);
+            continue;
+          }
+          
+          // Check if item has sponsors or skipApproval
+          const itemSponsors = await storage.getItemSponsors(itemId);
+          if (itemSponsors.length === 0 && !item.skipApproval) {
+            errors.push(`Item ${item.displayId} precisa ter patrocinadores vinculados ou "Sem aprovação" marcado`);
+            continue;
+          }
+          
+          // Update status to awaiting_submission
+          const updatedItem = await storage.updateItem(itemId, { status: 'awaiting_submission' });
+          results.push(updatedItem);
+        } catch (error: any) {
+          errors.push(`Erro ao processar item ${itemId}: ${error.message}`);
+        }
+      }
+      
+      if (results.length > 0) {
+        await createAuditLog(
+          (req as any).userName,
+          'updated',
+          'item',
+          results.map(i => i.id).join(','),
+          `${results.length} ${results.length === 1 ? 'item enviado' : 'itens enviados'} para Arte`
+        );
+        
+        // Notify Arte profile
+        await storage.createNotification({
+          type: 'itemsSentToArte',
+          message: `${results.length} ${results.length === 1 ? 'item' : 'itens'} aguardando criação de thumb de aprovação`,
+          targetRoles: ['arte', 'admin'],
+        });
+        
+        results.forEach(item => {
+          broadcast({ type: "item_updated", item });
+        });
+      }
+      
+      res.json({ 
+        success: true,
+        sent: results.length,
+        errors: errors.length > 0 ? errors : undefined,
+        items: results
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

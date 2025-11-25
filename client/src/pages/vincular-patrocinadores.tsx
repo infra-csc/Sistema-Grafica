@@ -40,8 +40,9 @@ const getItemUIStatus = (
     return 'RASCUNHO';
   }
   
-  // 2. Se status indica que já foi enviado para produção → ENVIADO
+  // 2. Se status indica que já foi enviado para Arte ou produção → ENVIADO
   const sentStatuses = [
+    'awaiting_submission', // Já foi enviado para Arte
     'awaiting_sponsor_approval', 
     'sponsor_approved',
     'awaiting_creator_review',
@@ -55,13 +56,7 @@ const getItemUIStatus = (
     return 'ENVIADO';
   }
   
-  // 3. Status intermediário: patrocinadores salvos, pronto para enviar → PRONTO
-  if (item.status === 'awaiting_submission') {
-    return 'PRONTO';
-  }
-  
-  // 4. Items com status 'requested' mas que JÁ têm patrocinadores salvos → PRONTO
-  // (Corrige casos onde patrocinadores foram salvos antes da correção de status automático)
+  // 3. Items com status 'requested' e com patrocinadores salvos → PRONTO (para enviar)
   const canSendStatuses = ['requested', 'awaiting_linking'];
   if (canSendStatuses.includes(item.status)) {
     const hasSponsors = originalSponsors.length > 0;
@@ -72,7 +67,7 @@ const getItemUIStatus = (
     return 'PENDENTE';
   }
   
-  // 5. Caso contrário → PENDENTE
+  // 4. Caso contrário → PENDENTE
   return 'PENDENTE';
 };
 
@@ -544,8 +539,8 @@ export default function VincularPatrocinadores() {
       });
       
       toast({
-        title: "✅ Vinculação confirmada!",
-        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} pronto${validItemIds.length !== 1 ? 's' : ''}. Vá para a página Arte para fazer upload do thumb de aprovação.`,
+        title: "✅ Vinculação salva!",
+        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} pronto${validItemIds.length !== 1 ? 's' : ''} para enviar. Clique em "Enviar para Arte" quando estiver tudo certo.`,
       });
     },
     onError: (error: Error) => {
@@ -557,8 +552,59 @@ export default function VincularPatrocinadores() {
     },
   });
 
-  // Mutation 2 foi removida - items com patrocinadores vinculados devem ir para página Arte para upload do thumb
-  // A Arte fará upload do thumb e enviará para aprovação através da página Arte
+  // Mutation para enviar items para Arte
+  const sendToArteMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      const res = await apiRequest("POST", "/api/items/send-to-arte", { itemIds });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItemIds(new Set());
+      
+      if (data.errors && data.errors.length > 0) {
+        toast({
+          title: `${data.sent} item${data.sent !== 1 ? 's' : ''} enviado${data.sent !== 1 ? 's' : ''} para Arte`,
+          description: `Alguns itens tiveram erros: ${data.errors.join(', ')}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "✅ Enviado para Arte!",
+          description: `${data.sent} item${data.sent !== 1 ? 's' : ''} enviado${data.sent !== 1 ? 's' : ''} para criação do thumb de aprovação.`,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao enviar para Arte",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handler para enviar items prontos para Arte
+  const handleSendToArte = () => {
+    // Pegar items PRONTO (com patrocinadores salvos, status 'requested')
+    const readyItems = visibleItems.filter(item => {
+      const originalSponsors = originalSponsorsMap[item.id] || [];
+      const pendingChange = pendingChanges[item.id];
+      const uiStatus = getItemUIStatus(item, originalSponsors, pendingChange);
+      return uiStatus === 'PRONTO';
+    });
+    
+    if (readyItems.length === 0) {
+      toast({
+        title: "Nenhum item pronto",
+        description: "Salve os patrocinadores dos itens antes de enviar para Arte.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    sendToArteMutation.mutate(readyItems.map(item => item.id));
+  };
 
   const handleOpenSponsorDialog = (event: any) => {
     setSelectedEventForSponsors(event);
@@ -848,12 +894,16 @@ export default function VincularPatrocinadores() {
               </Button>
             )}
             {statusCounts.PRONTO > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
-                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  {statusCounts.PRONTO} item{statusCounts.PRONTO !== 1 ? 's' : ''} pronto{statusCounts.PRONTO !== 1 ? 's' : ''} para envio. Vá para a página <span className="font-semibold">Arte</span> para fazer upload do thumb de aprovação.
-                </p>
-              </div>
+              <Button
+                size="sm"
+                variant="default"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handleSendToArte}
+                disabled={sendToArteMutation.isPending}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Enviar para Arte ({statusCounts.PRONTO})
+              </Button>
             )}
           </div>
         )}
@@ -946,6 +996,18 @@ export default function VincularPatrocinadores() {
                                 >
                                   <Save className="h-3 w-3 mr-1" />
                                   Salvar
+                                </Button>
+                              )}
+                              {uiStatus === 'PRONTO' && (
+                                <Button 
+                                  size="sm" 
+                                  variant="default"
+                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                  onClick={() => sendToArteMutation.mutate([item.id])} 
+                                  disabled={sendToArteMutation.isPending}
+                                >
+                                  <Send className="h-3 w-3 mr-1" />
+                                  Enviar
                                 </Button>
                               )}
                             </div>

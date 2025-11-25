@@ -672,23 +672,41 @@ export default function Atendimento() {
                                   const approval = approvals.find((a: SponsorApproval) => a.sponsorId === sponsor.id);
                                   const status = approval?.status || 'pending';
                                   
+                                  const getStatusStyle = () => {
+                                    if (status === 'approved') {
+                                      return {
+                                        backgroundColor: '#dcfce7',
+                                        borderColor: '#16a34a',
+                                        color: '#15803d'
+                                      };
+                                    } else if (status === 'rejected') {
+                                      return {
+                                        backgroundColor: '#fee2e2',
+                                        borderColor: '#dc2626',
+                                        color: '#b91c1c'
+                                      };
+                                    } else {
+                                      return {
+                                        backgroundColor: '#fef9c3',
+                                        borderColor: '#ca8a04',
+                                        color: '#a16207'
+                                      };
+                                    }
+                                  };
+                                  
                                   return (
                                     <Badge 
                                       key={sponsor.id} 
                                       variant="outline" 
-                                      className="text-xs py-1 px-2"
-                                      style={{
-                                        borderColor: sponsor.color || '#3b82f6',
-                                        backgroundColor: `${sponsor.color || '#3b82f6'}15`,
-                                        color: sponsor.color || '#3b82f6'
-                                      }}
+                                      className="text-xs py-1 px-2 font-medium"
+                                      style={getStatusStyle()}
                                     >
                                       {status === 'approved' ? (
-                                        <CheckCircle className="w-3 h-3 mr-1 text-green-600" />
+                                        <CheckCircle className="w-3.5 h-3.5 mr-1" />
                                       ) : status === 'rejected' ? (
-                                        <XCircle className="w-3 h-3 mr-1 text-red-600" />
+                                        <XCircle className="w-3.5 h-3.5 mr-1" />
                                       ) : (
-                                        <Clock className="w-3 h-3 mr-1 text-yellow-600" />
+                                        <Clock className="w-3.5 h-3.5 mr-1" />
                                       )}
                                       {sponsor.name}
                                     </Badge>

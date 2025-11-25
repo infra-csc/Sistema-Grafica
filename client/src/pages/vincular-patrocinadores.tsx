@@ -1501,6 +1501,19 @@ export default function VincularPatrocinadores() {
                                           Salvar
                                         </Button>
                                       )}
+                                      {uiStatus === 'PRONTO' && isEditable && (
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          className="gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                                          onClick={() => sendToArteMutation.mutate([item.id])}
+                                          disabled={sendToArteMutation.isPending}
+                                          data-testid={`button-send-item-${item.id}`}
+                                        >
+                                          <Send className="h-3 w-3" />
+                                          Enviar
+                                        </Button>
+                                      )}
                                     </>
                                   );
                                 })()}

@@ -204,15 +204,15 @@ export default function Eventos() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validação: Saída do caminhão não pode ser depois do início do evento
+    // Validação: Saída do caminhão deve ser pelo menos 1 dia ANTES do início do evento
     // Comparar apenas as datas do calendário (YYYY-MM-DD) sem timezone
     const startDateStr = formData.startDate; // "YYYY-MM-DD"
     const truckDateStr = formData.truckDepartureDate.substring(0, 10); // "YYYY-MM-DD"
     
-    if (truckDateStr > startDateStr) {
+    if (truckDateStr >= startDateStr) {
       toast({
         title: "Data inválida",
-        description: "A saída do caminhão não pode ser depois do início do evento",
+        description: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento",
         variant: "destructive",
       });
       return;

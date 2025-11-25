@@ -745,6 +745,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/events", async (req, res) => {
     try {
       const validatedData = insertEventSchema.parse(req.body);
+      
+      // Validação: Saída do caminhão deve ser pelo menos 1 dia antes do início do evento
+      const startDate = new Date(validatedData.startDate);
+      const truckDate = new Date(validatedData.truckDepartureDate);
+      startDate.setHours(0, 0, 0, 0);
+      const truckDateOnly = new Date(truckDate);
+      truckDateOnly.setHours(0, 0, 0, 0);
+      
+      if (truckDateOnly >= startDate) {
+        return res.status(400).json({ 
+          error: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento" 
+        });
+      }
+      
       const event = await storage.createEvent(validatedData);
       
       // Create audit log
@@ -770,6 +784,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update event
   app.patch("/api/events/:id", async (req, res) => {
     try {
+      // Validação: Se ambas as datas estão sendo atualizadas, verificar regra
+      if (req.body.startDate && req.body.truckDepartureDate) {
+        const startDate = new Date(req.body.startDate);
+        const truckDate = new Date(req.body.truckDepartureDate);
+        startDate.setHours(0, 0, 0, 0);
+        const truckDateOnly = new Date(truckDate);
+        truckDateOnly.setHours(0, 0, 0, 0);
+        
+        if (truckDateOnly >= startDate) {
+          return res.status(400).json({ 
+            error: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento" 
+          });
+        }
+      }
+      
       const event = await storage.updateEvent(req.params.id, req.body);
       if (!event) {
         return res.status(404).json({ error: "Event not found" });

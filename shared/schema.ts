@@ -48,6 +48,19 @@ export const itemSponsors = pgTable("item_sponsors", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Item-Sponsor Approvals table (tracks individual sponsor approval status)
+export const itemSponsorApprovals = pgTable("item_sponsor_approvals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  sponsorId: varchar("sponsor_id").notNull().references(() => sponsors.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pending"), // pending, approved, rejected
+  approvedBy: text("approved_by"), // Nome do usuário que aprovou/reprovou
+  approvedAt: timestamp("approved_at"), // Quando foi aprovado/reprovou
+  rejectionReason: text("rejection_reason"), // Motivo da reprovação (se houver)
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
 // Items table
 export const items = pgTable("items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -204,12 +217,24 @@ export const itemSponsorsRelations = relations(itemSponsors, ({ one }) => ({
   }),
 }));
 
+export const itemSponsorApprovalsRelations = relations(itemSponsorApprovals, ({ one }) => ({
+  item: one(items, {
+    fields: [itemSponsorApprovals.itemId],
+    references: [items.id],
+  }),
+  sponsor: one(sponsors, {
+    fields: [itemSponsorApprovals.sponsorId],
+    references: [sponsors.id],
+  }),
+}));
+
 export const itemsRelations = relations(items, ({ one, many }) => ({
   event: one(events, {
     fields: [items.eventId],
     references: [events.id],
   }),
   itemSponsors: many(itemSponsors),
+  itemSponsorApprovals: many(itemSponsorApprovals),
   notifications: many(notifications),
   productionUpdates: many(productionUpdates),
   comments: many(comments),
@@ -318,6 +343,12 @@ export const insertItemSponsorSchema = createInsertSchema(itemSponsors).omit({
   createdAt: true,
 });
 
+export const insertItemSponsorApprovalSchema = createInsertSchema(itemSponsorApprovals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -393,3 +424,6 @@ export type InsertEventSponsor = z.infer<typeof insertEventSponsorSchema>;
 
 export type ItemSponsor = typeof itemSponsors.$inferSelect;
 export type InsertItemSponsor = z.infer<typeof insertItemSponsorSchema>;
+
+export type ItemSponsorApproval = typeof itemSponsorApprovals.$inferSelect;
+export type InsertItemSponsorApproval = z.infer<typeof insertItemSponsorApprovalSchema>;

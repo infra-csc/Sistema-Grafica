@@ -12,6 +12,7 @@ import {
   sponsors,
   eventSponsors,
   itemSponsors,
+  itemSponsorApprovals,
   type Event, 
   type InsertEvent,
   type Item,
@@ -34,7 +35,9 @@ import {
   type EventSponsor,
   type InsertEventSponsor,
   type ItemSponsor,
-  type InsertItemSponsor
+  type InsertItemSponsor,
+  type ItemSponsorApproval,
+  type InsertItemSponsorApproval
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -117,6 +120,14 @@ export interface IStorage {
   addSponsorToItem(itemSponsor: InsertItemSponsor): Promise<ItemSponsor>;
   removeSponsorFromItem(itemId: string, sponsorId: string): Promise<boolean>;
   bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void>;
+  
+  // Item Sponsor Approvals (individual sponsor approval tracking)
+  getItemSponsorApprovals(itemId: string): Promise<ItemSponsorApproval[]>;
+  getItemSponsorApproval(itemId: string, sponsorId: string): Promise<ItemSponsorApproval | undefined>;
+  createItemSponsorApproval(approval: InsertItemSponsorApproval): Promise<ItemSponsorApproval>;
+  updateItemSponsorApproval(id: string, data: Partial<InsertItemSponsorApproval>): Promise<ItemSponsorApproval | undefined>;
+  deleteItemSponsorApprovals(itemId: string): Promise<boolean>;
+  initializeItemSponsorApprovals(itemId: string, sponsorIds: string[]): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -726,6 +737,68 @@ export class DatabaseStorage implements IStorage {
         sponsorIds.map(sponsorId => ({
           itemId,
           sponsorId,
+        }))
+      );
+    }
+  }
+
+  // Item Sponsor Approvals
+  async getItemSponsorApprovals(itemId: string): Promise<ItemSponsorApproval[]> {
+    return await db
+      .select()
+      .from(itemSponsorApprovals)
+      .where(eq(itemSponsorApprovals.itemId, itemId))
+      .orderBy(desc(itemSponsorApprovals.createdAt));
+  }
+
+  async getItemSponsorApproval(itemId: string, sponsorId: string): Promise<ItemSponsorApproval | undefined> {
+    const [approval] = await db
+      .select()
+      .from(itemSponsorApprovals)
+      .where(
+        and(
+          eq(itemSponsorApprovals.itemId, itemId),
+          eq(itemSponsorApprovals.sponsorId, sponsorId)
+        )
+      );
+    return approval;
+  }
+
+  async createItemSponsorApproval(insertApproval: InsertItemSponsorApproval): Promise<ItemSponsorApproval> {
+    const [approval] = await db
+      .insert(itemSponsorApprovals)
+      .values(insertApproval)
+      .returning();
+    return approval;
+  }
+
+  async updateItemSponsorApproval(id: string, data: Partial<InsertItemSponsorApproval>): Promise<ItemSponsorApproval | undefined> {
+    const [approval] = await db
+      .update(itemSponsorApprovals)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(itemSponsorApprovals.id, id))
+      .returning();
+    return approval;
+  }
+
+  async deleteItemSponsorApprovals(itemId: string): Promise<boolean> {
+    const result = await db
+      .delete(itemSponsorApprovals)
+      .where(eq(itemSponsorApprovals.itemId, itemId));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async initializeItemSponsorApprovals(itemId: string, sponsorIds: string[]): Promise<void> {
+    // Delete existing approvals for this item
+    await db.delete(itemSponsorApprovals).where(eq(itemSponsorApprovals.itemId, itemId));
+    
+    // Create new pending approvals for each sponsor
+    if (sponsorIds.length > 0) {
+      await db.insert(itemSponsorApprovals).values(
+        sponsorIds.map(sponsorId => ({
+          itemId,
+          sponsorId,
+          status: 'pending',
         }))
       );
     }

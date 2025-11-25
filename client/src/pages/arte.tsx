@@ -2,9 +2,11 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, ClipboardList, Send } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, ClipboardList, Send, FolderOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -911,90 +913,64 @@ export default function Arte() {
               </Card>
             )}
 
-            {/* Upload de Arquivo Final após Aprovação do Patrocinador */}
+            {/* Finalização de Layout após Aprovação do Patrocinador */}
             {selectedItem.status === 'sponsor_approved' && (
-              <Card>
-                <CardHeader className="px-4 py-2 bg-green-50/50 dark:bg-green-950/20">
-                  <CardTitle className="text-xs font-semibold uppercase text-green-700 dark:text-green-400 flex items-center gap-2">
-                    <CheckCircle className="h-3.5 w-3.5" />
+              <Card className="border-2 border-green-200 dark:border-green-900">
+                <CardHeader className="px-4 py-3 bg-green-50/50 dark:bg-green-950/20">
+                  <CardTitle className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
                     Finalização de Layout
                   </CardTitle>
+                  <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+                    Patrocinador aprovou! Adicione o caminho do arquivo final.
+                  </p>
                 </CardHeader>
-                <CardContent className="px-4 py-2 pt-0 space-y-2">
-                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-3">
-                    <p className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4" />
-                      Patrocinador aprovou este item!
-                    </p>
-                    <p className="text-xs text-green-600 dark:text-green-500 mt-1">
-                      Finalize o layout e adicione o arquivo final para enviar para revisão da solicitação.
+                <CardContent className="px-4 py-4 space-y-4">
+                  {/* THUMB DE APROVAÇÃO - Primeiro e em destaque */}
+                  {selectedItem.approvalThumbUrl && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                        <FileImage className="h-3.5 w-3.5" />
+                        Thumb Aprovado
+                      </Label>
+                      <div className="flex justify-center rounded-lg bg-muted/50 p-3 border">
+                        <img
+                          src={selectedItem.approvalThumbUrl}
+                          alt="Thumb aprovado"
+                          className="max-h-[200px] max-w-full object-contain rounded shadow-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* CAMINHO DO ARQUIVO FINAL - Campo de texto */}
+                  <div className="space-y-2">
+                    <Label htmlFor="finalFilePath" className="text-xs font-medium flex items-center gap-2">
+                      <FolderOpen className="h-3.5 w-3.5" />
+                      Caminho do Arquivo Final
+                    </Label>
+                    <Input
+                      id="finalFilePath"
+                      placeholder="Ex: /servidor/artes/evento/arquivo-final.pdf"
+                      value={finalFileUrl}
+                      onChange={(e) => setFinalFileUrl(e.target.value)}
+                      className="text-sm"
+                      data-testid="input-final-file-path"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Informe o caminho onde o arquivo final está salvo no servidor
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Envie o arquivo final em alta resolução (PDF, imagem, etc.)
-                  </p>
-                  {finalFileUrl ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                        <File className="h-4 w-4 text-green-600" />
-                        <span className="text-sm truncate flex-1">Arquivo final enviado</span>
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      </div>
-                      <FileUploader
-                        onGetUploadParameters={getUploadUrl}
-                        onComplete={(result) => {
-                          const localPath = convertGCSUrlToLocalPath(result.url);
-                          setFinalFileUrl(localPath);
-                          toast({
-                            title: "Upload concluído",
-                            description: "Arquivo final atualizado com sucesso",
-                          });
-                        }}
-                        onError={(error) => {
-                          toast({
-                            title: "Erro no upload",
-                            description: error.message,
-                            variant: "destructive",
-                          });
-                        }}
-                        accept=".pdf,image/*"
-                        buttonVariant="outline"
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Alterar Arquivo Final
-                      </FileUploader>
-                    </div>
-                  ) : (
-                    <FileUploader
-                      onGetUploadParameters={getUploadUrl}
-                      onComplete={(result) => {
-                        setFinalFileUrl(result.url);
-                        toast({
-                          title: "Upload concluído",
-                          description: "Arquivo final enviado com sucesso",
-                        });
-                      }}
-                      onError={(error) => {
-                        toast({
-                          title: "Erro no upload",
-                          description: error.message,
-                          variant: "destructive",
-                        });
-                      }}
-                      accept=".pdf,image/*"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Fazer Upload do Arquivo Final
-                    </FileUploader>
-                  )}
-                  <div className="flex gap-2 justify-end pt-2">
+
+                  {/* Botão de enviar */}
+                  <div className="flex justify-end pt-2">
                     <Button
                       onClick={handleSubmitFinalFile}
                       disabled={submitFinalFileMutation.isPending || !finalFileUrl}
                       data-testid="button-submit-final"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
-                      Enviar Arquivo Final
+                      Enviar para Revisão
                     </Button>
                   </div>
                 </CardContent>

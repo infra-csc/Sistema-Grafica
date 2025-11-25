@@ -795,6 +795,68 @@ export default function Arte() {
         auditLogs={selectedItem ? auditLogs.filter((log: any) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
+        topActions={selectedItem?.status === 'sponsor_approved' ? (
+          <Card className="border-2 border-green-200 dark:border-green-900">
+            <CardHeader className="px-4 py-3 bg-green-50/50 dark:bg-green-950/20">
+              <CardTitle className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                Finalização de Layout
+              </CardTitle>
+              <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+                Patrocinador aprovou! Adicione o caminho do arquivo final.
+              </p>
+            </CardHeader>
+            <CardContent className="px-4 py-4 space-y-4">
+              {/* THUMB DE APROVAÇÃO - Primeiro e em destaque */}
+              {selectedItem.approvalThumbUrl && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                    <FileImage className="h-3.5 w-3.5" />
+                    Thumb Aprovado
+                  </Label>
+                  <div className="flex justify-center rounded-lg bg-muted/50 p-3 border">
+                    <img
+                      src={selectedItem.approvalThumbUrl}
+                      alt="Thumb aprovado"
+                      className="max-h-[150px] max-w-full object-contain rounded shadow-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* CAMINHO DO ARQUIVO FINAL - Campo de texto */}
+              <div className="space-y-2">
+                <Label htmlFor="finalFilePath" className="text-xs font-medium flex items-center gap-2">
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  Caminho do Arquivo Final
+                </Label>
+                <Input
+                  id="finalFilePath"
+                  placeholder="Ex: /servidor/artes/evento/arquivo-final.pdf"
+                  value={finalFileUrl}
+                  onChange={(e) => setFinalFileUrl(e.target.value)}
+                  className="text-sm"
+                  data-testid="input-final-file-path"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Informe o caminho onde o arquivo final está salvo no servidor
+                </p>
+              </div>
+
+              {/* Botão de enviar */}
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSubmitFinalFile}
+                  disabled={submitFinalFileMutation.isPending || !finalFileUrl}
+                  data-testid="button-submit-final"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Enviar para Revisão
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         customActions={selectedItem && (
           <div className="space-y-4">
             {/* Upload de Thumb de Aprovação */}

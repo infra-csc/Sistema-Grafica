@@ -14,9 +14,10 @@ interface ItemDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customActions?: React.ReactNode;
+  topActions?: React.ReactNode;
 }
 
-export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, customActions }: ItemDetailsDialogProps) {
+export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, customActions, topActions }: ItemDetailsDialogProps) {
   if (!item) return null;
 
   const getActionIconAndColor = (action: string) => {
@@ -255,6 +256,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               </div>
             </CardContent>
           </Card>
+
+          {/* Ações no Topo - Prioridade (ex: Finalização de Layout) */}
+          {topActions && (
+            <div className="space-y-2">
+              {topActions}
+            </div>
+          )}
 
           {/* Grid 2 Colunas: Evento e Especificações */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

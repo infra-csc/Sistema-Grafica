@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, FileText, Check, Search, X } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, FileText, Check, Search, X, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useState, useMemo, Fragment } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -30,7 +40,7 @@ const statusMap = {
   requested: { label: "Solicitado", color: "bg-blue-500" },
   awaiting_sponsor_approval: { label: "Aguardando Aprovação Patrocinador", color: "bg-yellow-500" },
   sponsor_approved: { label: "Aprovado pelo Patrocinador", color: "bg-purple-500" },
-  awaiting_creator_review: { label: "Aguardando Revisão Criador", color: "bg-orange-500" },
+  awaiting_final_review: { label: "Aguardando Revisão Final", color: "bg-orange-500" },
   ready_for_production: { label: "Liberado para Produção", color: "bg-cyan-500" },
   approved: { label: "Aprovado", color: "bg-green-500" },
   inProduction: { label: "Em Produção", color: "bg-indigo-500" },
@@ -42,6 +52,9 @@ export default function Solicitacao() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
+  const [itemToReject, setItemToReject] = useState<any>(null);
+  const [bulkRejectConfirmOpen, setBulkRejectConfirmOpen] = useState(false);
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -107,7 +120,54 @@ export default function Solicitacao() {
     },
   });
 
-  const pendingItems = items.filter(item => item.status === 'sponsor_approved');
+  // Mutation para reprovar individual
+  const creatorRejectMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}/creator-reject`, {});
+    },
+    onSuccess: () => {
+      setDialogOpen(false);
+      setSelectedItem(null);
+      setRejectConfirmOpen(false);
+      setItemToReject(null);
+      toast({
+        title: "Item reprovado",
+        description: "O item foi devolvido para a Arte refazer.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao reprovar item",
+        description: error.message || "Ocorreu um erro ao reprovar o item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para reprovar em lote
+  const bulkRejectMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      return await apiRequest("PATCH", `/api/items/bulk-creator-reject`, { itemIds });
+    },
+    onSuccess: (result: any) => {
+      setSelectedItemIds(new Set());
+      setBulkRejectConfirmOpen(false);
+      toast({
+        title: "Itens reprovados",
+        description: `${result.success} ${result.success === 1 ? 'item foi devolvido' : 'itens foram devolvidos'} para a Arte refazer.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao reprovar itens",
+        description: error.message || "Ocorreu um erro ao reprovar os itens",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Items aguardando revisão final do criador
+  const pendingItems = items.filter(item => item.status === 'awaiting_final_review');
   
   // Filtros aplicados
   const filteredItems = useMemo(() => {
@@ -178,6 +238,28 @@ export default function Solicitacao() {
     if (itemIds.length > 0) {
       bulkReleaseMutation.mutate(itemIds);
     }
+  };
+
+  const handleReject = (item: any) => {
+    setItemToReject(item);
+    setRejectConfirmOpen(true);
+  };
+
+  const confirmReject = () => {
+    if (itemToReject) {
+      creatorRejectMutation.mutate(itemToReject.id);
+    }
+  };
+
+  const handleBulkReject = () => {
+    if (selectedItemIds.size > 0) {
+      setBulkRejectConfirmOpen(true);
+    }
+  };
+
+  const confirmBulkReject = () => {
+    const itemIds = Array.from(selectedItemIds);
+    bulkRejectMutation.mutate(itemIds);
   };
 
   if (itemsLoading || eventsLoading) {
@@ -274,16 +356,28 @@ export default function Solicitacao() {
             )}
             
             {selectedItemIds.size > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleBulkRelease}
-                disabled={bulkReleaseMutation.isPending}
-                data-testid="button-bulk-release"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Liberar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
-              </Button>
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkRelease}
+                  disabled={bulkReleaseMutation.isPending}
+                  data-testid="button-bulk-release"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Liberar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkReject}
+                  disabled={bulkRejectMutation.isPending}
+                  data-testid="button-bulk-reject"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Reprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                </Button>
+              </>
             )}
           </div>
         </CardHeader>
@@ -425,15 +519,26 @@ export default function Solicitacao() {
                             )}
                           </td>
                           <td className="py-2 px-4 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleViewDetails(item)}
-                              data-testid={`button-view-${item.id}`}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              Revisar
-                            </Button>
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewDetails(item)}
+                                data-testid={`button-view-${item.id}`}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Revisar
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleReject(item)}
+                                data-testid={`button-reject-${item.id}`}
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Reprovar
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       </Fragment>
@@ -578,13 +683,26 @@ export default function Solicitacao() {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
               data-testid="button-cancel"
             >
               Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (selectedItem) {
+                  handleReject(selectedItem);
+                }
+              }}
+              disabled={creatorRejectMutation.isPending}
+              data-testid="button-dialog-reject"
+            >
+              <XCircle className="w-4 h-4 mr-2" />
+              Reprovar
             </Button>
             <Button
               onClick={handleRelease}
@@ -597,6 +715,57 @@ export default function Solicitacao() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Alert Dialog para confirmar reprovação individual */}
+      <AlertDialog open={rejectConfirmOpen} onOpenChange={setRejectConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Reprovação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem certeza que deseja reprovar este item? Ele será devolvido para a Arte refazer o trabalho.
+              {itemToReject && (
+                <div className="mt-3 p-3 bg-muted rounded-md text-sm">
+                  <div><strong>Item:</strong> {itemToReject.displayId} - {itemToReject.type}</div>
+                  {itemToReject.name && <div><strong>Nome:</strong> {itemToReject.name}</div>}
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-reject-cancel">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmReject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-reject-confirm"
+            >
+              {creatorRejectMutation.isPending ? "Reprovando..." : "Confirmar Reprovação"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Alert Dialog para confirmar reprovação em lote */}
+      <AlertDialog open={bulkRejectConfirmOpen} onOpenChange={setBulkRejectConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Reprovação em Lote</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem certeza que deseja reprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'item' : 'itens'}? 
+              Eles serão devolvidos para a Arte refazer o trabalho.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-bulk-reject-cancel">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkReject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-bulk-reject-confirm"
+            >
+              {bulkRejectMutation.isPending ? "Reprovando..." : `Reprovar ${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'Item' : 'Itens'}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

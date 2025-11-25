@@ -172,7 +172,9 @@ export default function Arte() {
         const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
         let matchesView = false;
         if (tab === "criar-aprovacoes") {
-          matchesView = item.status === 'requested' || item.status === 'awaiting_submission';
+          matchesView = item.status === 'requested' || 
+            item.status === 'awaiting_submission' ||
+            (item.status === 'awaiting_sponsor_approval' && item.rejectedBySponsor === true);
         } else if (tab === "finalizar-layouts") {
           matchesView = item.status === 'sponsor_approved';
         } else if (tab === "finalizados") {
@@ -763,7 +765,7 @@ export default function Arte() {
                                       className="text-xs border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
                                       data-testid={`badge-rejected-sponsor-${item.id}`}
                                     >
-                                      Reprovado Patrocinador
+                                      {item.status === 'awaiting_sponsor_approval' ? 'Refazer Thumb' : 'Reprovado Patrocinador'}
                                     </Badge>
                                   )}
                                   {activeTab === "criar-aprovacoes" && item.rejectedByCreator && (

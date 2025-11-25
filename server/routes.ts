@@ -1806,38 +1806,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get sponsor name for audit log and notification
       const sponsor = await storage.getSponsor(sponsorId);
-      
-      // Reject the item - send back to Arte for revision
-      const item = await storage.updateItem(itemId, {
-        status: "awaiting_submission",
-        sponsorApprovedBy: null,
-        sponsorApprovedAt: null,
-        rejectedBySponsor: true,
-      });
-      
       const event = await storage.getEvent(currentItem.eventId);
       
-      await createAuditLog(
-        req.userName!,
-        'rejected',
-        'item',
-        itemId,
-        `Patrocinador "${sponsor?.name || sponsorId}" reprovou o item${rejectionReason ? `: ${rejectionReason}` : ''}`
-      );
+      // Check if there are still pending approvals
+      const allApprovals = await storage.getItemSponsorApprovals(itemId);
+      const pendingCount = allApprovals.filter(a => a.status === 'pending').length;
+      const hasRejections = allApprovals.some(a => a.status === 'rejected');
       
-      // Notify Arte to redo the work
-      const notification = await storage.createNotification({
-        type: "itemRejected",
-        message: `Patrocinador "${sponsor?.name}" reprovou o item${rejectionReason ? `: ${rejectionReason}` : ''}. Refaça o thumb de aprovação: ${currentItem.type} - Evento: ${event?.name}`,
-        eventId: currentItem.eventId,
-        itemId: itemId,
-        targetRoles: ["arte"],
-      });
+      let item = currentItem;
+      let shouldNotifyArte = true;
       
-      broadcast({ type: "item_updated", item });
-      broadcast({ type: "notification_created", notification });
-      
-      res.json({ approval, item });
+      if (pendingCount > 0) {
+        // Still have pending approvals - keep item in Atendimento
+        // But notify Arte about the rejection so they can start working on a new thumb
+        item = await storage.updateItem(itemId, {
+          rejectedBySponsor: true,
+        });
+        
+        await createAuditLog(
+          req.userName!,
+          'rejected',
+          'item',
+          itemId,
+          `Patrocinador "${sponsor?.name || sponsorId}" reprovou o item. Aguardando ${pendingCount} patrocinador(es) pendente(s)${rejectionReason ? `. Motivo: ${rejectionReason}` : ''}`
+        );
+        
+        // Notify Arte about the rejection (they can prepare new thumb)
+        const notification = await storage.createNotification({
+          type: "itemRejected",
+          message: `Patrocinador "${sponsor?.name}" reprovou o item. Item ainda aguarda ${pendingCount} patrocinador(es). Prepare novo thumb: ${currentItem.type} - Evento: ${event?.name}`,
+          eventId: currentItem.eventId,
+          itemId: itemId,
+          targetRoles: ["arte"],
+        });
+        
+        broadcast({ type: "notification_created", notification });
+        
+        res.json({ 
+          approval, 
+          item, 
+          pendingCount,
+          allDecided: false,
+          message: `Reprovação registrada. Aguardando ${pendingCount} patrocinador(es) pendente(s).`
+        });
+      } else {
+        // All sponsors have decided - if any rejected, send back to Arte
+        item = await storage.updateItem(itemId, {
+          status: "awaiting_submission",
+          sponsorApprovedBy: null,
+          sponsorApprovedAt: null,
+          rejectedBySponsor: true,
+        });
+        
+        await createAuditLog(
+          req.userName!,
+          'rejected',
+          'item',
+          itemId,
+          `Patrocinador "${sponsor?.name || sponsorId}" reprovou. Todos patrocinadores decidiram - item retorna para Arte${rejectionReason ? `. Motivo: ${rejectionReason}` : ''}`
+        );
+        
+        // Notify Arte to redo the work
+        const notification = await storage.createNotification({
+          type: "itemRejected",
+          message: `Item reprovado por patrocinador(es). Refaça o thumb de aprovação: ${currentItem.type} - Evento: ${event?.name}`,
+          eventId: currentItem.eventId,
+          itemId: itemId,
+          targetRoles: ["arte"],
+        });
+        
+        broadcast({ type: "item_updated", item });
+        broadcast({ type: "notification_created", notification });
+        
+        res.json({ 
+          approval, 
+          item, 
+          pendingCount: 0,
+          allDecided: true,
+          message: "Todos patrocinadores decidiram. Item retornou para Arte."
+        });
+      }
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

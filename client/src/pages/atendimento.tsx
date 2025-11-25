@@ -228,14 +228,32 @@ export default function Atendimento() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      setDialogOpen(false);
-      setSelectedItem(null);
       setRejectionReason("");
       setRejectingSponsorId(null);
-      toast({
-        title: "Item reprovado",
-        description: `${data.approval.sponsor?.name || 'Patrocinador'} reprovou o item. Retornou para Arte refazer.`,
-      });
+      
+      if (data.allDecided) {
+        // All sponsors have decided - close dialog
+        setDialogOpen(false);
+        setSelectedItem(null);
+        toast({
+          title: "Item retornou para Arte",
+          description: "Todos patrocinadores decidiram. Item retornou para refazer o thumb.",
+        });
+      } else {
+        // Still have pending approvals - keep dialog open and update approvals
+        if (selectedItem) {
+          apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
+            .then(response => response.json())
+            .then((approvals: SponsorApproval[]) => {
+              setSponsorApprovals(approvals);
+            })
+            .catch(console.error);
+        }
+        toast({
+          title: "Reprovação registrada",
+          description: `Aguardando ${data.pendingCount} patrocinador(es). Arte foi notificada para preparar novo thumb.`,
+        });
+      }
     },
     onError: (error: any) => {
       toast({

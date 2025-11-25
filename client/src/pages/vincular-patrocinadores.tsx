@@ -545,7 +545,7 @@ export default function VincularPatrocinadores() {
       
       toast({
         title: "✅ Vinculação confirmada!",
-        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} confirmado${validItemIds.length !== 1 ? 's' : ''}. Clique em "Enviar para Arte" para avançar.`,
+        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} pronto${validItemIds.length !== 1 ? 's' : ''}. Vá para a página Arte para fazer upload do thumb de aprovação.`,
       });
     },
     onError: (error: Error) => {

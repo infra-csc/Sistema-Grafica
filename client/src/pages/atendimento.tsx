@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle, Users, Clock, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,9 +22,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useState, useMemo, Fragment, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+interface SponsorApproval {
+  id: string;
+  itemId: string;
+  sponsorId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string | null;
+  approvedAt?: Date | null;
+  rejectedBy?: string | null;
+  rejectedAt?: Date | null;
+  rejectionReason?: string | null;
+  sponsor?: {
+    id: string;
+    name: string;
+  } | null;
+}
 
 const statusMap = {
   requested: { label: "Solicitado", color: "bg-blue-500" },
@@ -58,6 +75,12 @@ export default function Atendimento() {
   
   // Request ID para evitar race conditions
   const requestIdRef = useRef(0);
+  
+  // State para aprovações individuais de patrocinadores
+  const [sponsorApprovals, setSponsorApprovals] = useState<SponsorApproval[]>([]);
+  const [loadingSponsorApprovals, setLoadingSponsorApprovals] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectingSponsorId, setRejectingSponsorId] = useState<string | null>(null);
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -120,6 +143,99 @@ export default function Atendimento() {
       }
     });
   }, [awaitingItems]);
+
+  // Carregar aprovações individuais de patrocinadores quando o dialog é aberto
+  useEffect(() => {
+    if (dialogOpen && selectedItem) {
+      setLoadingSponsorApprovals(true);
+      setSponsorApprovals([]);
+      setRejectionReason("");
+      setRejectingSponsorId(null);
+      
+      apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
+        .then(response => response.json())
+        .then((approvals: SponsorApproval[]) => {
+          console.log('Sponsor approvals loaded:', approvals);
+          setSponsorApprovals(approvals);
+          setLoadingSponsorApprovals(false);
+        })
+        .catch(error => {
+          console.error('Error loading sponsor approvals:', error);
+          setLoadingSponsorApprovals(false);
+        });
+    }
+  }, [dialogOpen, selectedItem]);
+
+  // Mutation para aprovar individualmente por patrocinador
+  const individualApproveMutation = useMutation({
+    mutationFn: async ({ itemId, sponsorId }: { itemId: string; sponsorId: string }) => {
+      const response = await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/${sponsorId}/approve`, {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      
+      if (data.allApproved) {
+        setDialogOpen(false);
+        setSelectedItem(null);
+        toast({
+          title: "Todos patrocinadores aprovaram",
+          description: "O item avançou para finalização do arquivo",
+        });
+      } else {
+        // Refetch approvals to get updated server state
+        if (selectedItem) {
+          apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
+            .then(response => response.json())
+            .then((approvals: SponsorApproval[]) => {
+              setSponsorApprovals(approvals);
+            })
+            .catch(console.error);
+        }
+        toast({
+          title: "Patrocinador aprovou",
+          description: `${data.approval?.sponsor?.name || 'Patrocinador'} aprovou o item`,
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao aprovar",
+        description: error.message || "Ocorreu um erro ao aprovar",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para reprovar individualmente por patrocinador
+  const individualRejectMutation = useMutation({
+    mutationFn: async ({ itemId, sponsorId, reason }: { itemId: string; sponsorId: string; reason?: string }) => {
+      const response = await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/${sponsorId}/reject`, {
+        rejectionReason: reason || null
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setDialogOpen(false);
+      setSelectedItem(null);
+      setRejectionReason("");
+      setRejectingSponsorId(null);
+      toast({
+        title: "Item reprovado",
+        description: `${data.approval.sponsor?.name || 'Patrocinador'} reprovou o item. Retornou para Arte refazer.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao reprovar",
+        description: error.message || "Ocorreu um erro ao reprovar",
+        variant: "destructive",
+      });
+    },
+  });
 
   const sponsorApproveMutation = useMutation({
     mutationFn: async (itemId: string) => {
@@ -671,16 +787,159 @@ export default function Atendimento() {
                     
                     {itemSponsorsMap[selectedItem.id]?.length > 0 && (
                       <div className="pt-1.5 border-t">
-                        <div className="text-xs text-muted-foreground mb-1">
-                          {itemSponsorsMap[selectedItem.id].length === 1 ? 'Patrocinador' : 'Patrocinadores'}
+                        <div className="flex items-center gap-2 mb-2">
+                          <Users className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-medium">
+                            Aprovação por Patrocinador
+                          </span>
                         </div>
-                        <div className="flex flex-wrap gap-1">
-                          {itemSponsorsMap[selectedItem.id].map((sponsor) => (
-                            <Badge key={sponsor.id} variant="outline" className="text-xs">
-                              {sponsor.name}
-                            </Badge>
-                          ))}
-                        </div>
+                        
+                        {loadingSponsorApprovals ? (
+                          <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Carregando status...
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {itemSponsorsMap[selectedItem.id].map((sponsor) => {
+                              const approval = sponsorApprovals.find(a => a.sponsorId === sponsor.id);
+                              const status = approval?.status || 'pending';
+                              const isRejectingThis = rejectingSponsorId === sponsor.id;
+                              
+                              return (
+                                <div 
+                                  key={sponsor.id} 
+                                  className="border rounded-lg p-2.5 bg-muted/30"
+                                  data-testid={`sponsor-approval-${sponsor.id}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="font-medium text-sm truncate">{sponsor.name}</span>
+                                      {status === 'approved' && (
+                                        <Badge variant="default" className="bg-green-500 text-xs shrink-0">
+                                          <CheckCircle className="w-3 h-3 mr-1" />
+                                          Aprovado
+                                        </Badge>
+                                      )}
+                                      {status === 'rejected' && (
+                                        <Badge variant="destructive" className="text-xs shrink-0">
+                                          <XCircle className="w-3 h-3 mr-1" />
+                                          Reprovado
+                                        </Badge>
+                                      )}
+                                      {status === 'pending' && (
+                                        <Badge variant="secondary" className="text-xs shrink-0">
+                                          <Clock className="w-3 h-3 mr-1" />
+                                          Pendente
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    
+                                    {status === 'pending' && !isRejectingThis && (
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                                          onClick={() => setRejectingSponsorId(sponsor.id)}
+                                          disabled={individualRejectMutation.isPending}
+                                          data-testid={`button-reject-sponsor-${sponsor.id}`}
+                                        >
+                                          <XCircle className="w-3 h-3 mr-1" />
+                                          Reprovar
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700"
+                                          onClick={() => individualApproveMutation.mutate({
+                                            itemId: selectedItem.id,
+                                            sponsorId: sponsor.id
+                                          })}
+                                          disabled={individualApproveMutation.isPending}
+                                          data-testid={`button-approve-sponsor-${sponsor.id}`}
+                                        >
+                                          {individualApproveMutation.isPending ? (
+                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                          ) : (
+                                            <CheckCircle className="w-3 h-3 mr-1" />
+                                          )}
+                                          Aprovar
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {isRejectingThis && (
+                                    <div className="mt-2 space-y-2 pt-2 border-t">
+                                      <Textarea
+                                        placeholder="Motivo da reprovação (opcional)"
+                                        value={rejectionReason}
+                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                        className="text-sm h-16 resize-none"
+                                        data-testid={`textarea-rejection-reason-${sponsor.id}`}
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 text-xs"
+                                          onClick={() => {
+                                            setRejectingSponsorId(null);
+                                            setRejectionReason("");
+                                          }}
+                                        >
+                                          Cancelar
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          className="h-7 text-xs"
+                                          onClick={() => individualRejectMutation.mutate({
+                                            itemId: selectedItem.id,
+                                            sponsorId: sponsor.id,
+                                            reason: rejectionReason
+                                          })}
+                                          disabled={individualRejectMutation.isPending}
+                                          data-testid={`button-confirm-reject-${sponsor.id}`}
+                                        >
+                                          {individualRejectMutation.isPending ? (
+                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                          ) : (
+                                            <XCircle className="w-3 h-3 mr-1" />
+                                          )}
+                                          Confirmar Reprovação
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {approval?.approvedBy && status === 'approved' && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Aprovado por {approval.approvedBy}
+                                      {approval.approvedAt && (
+                                        <> em {format(new Date(approval.approvedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>
+                                      )}
+                                    </div>
+                                  )}
+                                  
+                                  {approval?.rejectedBy && status === 'rejected' && (
+                                    <div className="text-xs text-red-600 mt-1">
+                                      Reprovado por {approval.rejectedBy}
+                                      {approval.rejectedAt && (
+                                        <> em {format(new Date(approval.rejectedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>
+                                      )}
+                                      {approval.rejectionReason && (
+                                        <div className="mt-1 text-muted-foreground">
+                                          Motivo: {approval.rejectionReason}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                     
@@ -793,25 +1052,36 @@ export default function Atendimento() {
               onClick={() => setDialogOpen(false)}
               data-testid="button-cancel"
             >
-              Cancelar
+              Fechar
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={sponsorRejectMutation.isPending}
-              data-testid="button-reject"
-            >
-              <XCircle className="w-4 h-4 mr-2" />
-              {sponsorRejectMutation.isPending ? "Reprovando..." : "Reprovar"}
-            </Button>
-            <Button
-              onClick={handleApprove}
-              disabled={sponsorApproveMutation.isPending}
-              data-testid="button-approve"
-            >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              {sponsorApproveMutation.isPending ? "Aprovando..." : "Aprovar"}
-            </Button>
+            {/* Mostrar botões gerais apenas se não tiver patrocinadores vinculados */}
+            {selectedItem && (!itemSponsorsMap[selectedItem.id] || itemSponsorsMap[selectedItem.id].length === 0) && (
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={handleReject}
+                  disabled={sponsorRejectMutation.isPending}
+                  data-testid="button-reject"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  {sponsorRejectMutation.isPending ? "Reprovando..." : "Reprovar"}
+                </Button>
+                <Button
+                  onClick={handleApprove}
+                  disabled={sponsorApproveMutation.isPending}
+                  data-testid="button-approve"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  {sponsorApproveMutation.isPending ? "Aprovando..." : "Aprovar"}
+                </Button>
+              </>
+            )}
+            {/* Mostrar dica para itens com patrocinadores */}
+            {selectedItem && itemSponsorsMap[selectedItem.id]?.length > 0 && (
+              <p className="text-xs text-muted-foreground text-right">
+                Use os botões individuais acima para aprovar/reprovar cada patrocinador
+              </p>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -54,8 +54,10 @@ export const itemSponsorApprovals = pgTable("item_sponsor_approvals", {
   itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
   sponsorId: varchar("sponsor_id").notNull().references(() => sponsors.id, { onDelete: "cascade" }),
   status: text("status").notNull().default("pending"), // pending, approved, rejected
-  approvedBy: text("approved_by"), // Nome do usuário que aprovou/reprovou
-  approvedAt: timestamp("approved_at"), // Quando foi aprovado/reprovou
+  approvedBy: text("approved_by"), // Nome do usuário que aprovou
+  approvedAt: timestamp("approved_at"), // Quando foi aprovado
+  rejectedBy: text("rejected_by"), // Nome do usuário que reprovou
+  rejectedAt: timestamp("rejected_at"), // Quando foi reprovado
   rejectionReason: text("rejection_reason"), // Motivo da reprovação (se houver)
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),

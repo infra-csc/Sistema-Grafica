@@ -941,53 +941,22 @@ export default function VincularPatrocinadores() {
                     <div>
                       <div className="font-medium text-sm text-blue-800 dark:text-blue-200">Enviar para Arte</div>
                       <div className="text-xs text-blue-600 dark:text-blue-400">
-                        {statusCounts.PRONTO} item{statusCounts.PRONTO !== 1 ? 's' : ''} com vinculação confirmada - selecione para enviar
+                        {statusCounts.PRONTO} item{statusCounts.PRONTO !== 1 ? 's' : ''} pronto{statusCounts.PRONTO !== 1 ? 's' : ''} - clique no botão "Enviar" de cada item
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-900 rounded border">
-                      <Checkbox
-                        checked={selectedForSending.size > 0 && selectedForSending.size === statusCounts.PRONTO}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            selectAllReadyItems();
-                          } else {
-                            clearSendingSelection();
-                          }
-                        }}
-                        data-testid="checkbox-select-all-ready"
-                        className="border-blue-500 data-[state=checked]:bg-blue-600"
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {selectedForSending.size > 0 
-                          ? `${selectedForSending.size}/${statusCounts.PRONTO}`
-                          : 'Todos'
-                        }
-                      </span>
-                    </div>
-                    {selectedForSending.size > 0 && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 px-2"
-                          onClick={clearSendingSelection}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                          onClick={handleSendSelectedToArte}
-                          disabled={sendToArteMutation.isPending}
-                        >
-                          <Send className="h-4 w-4 mr-2" />
-                          Enviar para Arte ({selectedForSending.size})
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => {
+                      const readyItemIds = visibleItems.filter(item => itemUIStates[item.id] === 'PRONTO').map(item => item.id);
+                      sendToArteMutation.mutate(readyItemIds);
+                    }}
+                    disabled={sendToArteMutation.isPending}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Enviar Todos ({statusCounts.PRONTO})
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -1598,12 +1567,17 @@ export default function VincularPatrocinadores() {
                                         </Button>
                                       )}
                                       {uiStatus === 'PRONTO' && isEditable && (
-                                        <Checkbox
-                                          checked={selectedForSending.has(item.id)}
-                                          onCheckedChange={() => toggleSendingSelection(item.id)}
-                                          data-testid={`checkbox-send-item-${item.id}`}
-                                          className="border-blue-500 data-[state=checked]:bg-blue-600"
-                                        />
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          className="gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                                          onClick={() => sendToArteMutation.mutate([item.id])}
+                                          disabled={sendToArteMutation.isPending}
+                                          data-testid={`button-send-item-${item.id}`}
+                                        >
+                                          <Send className="h-3 w-3" />
+                                          Enviar
+                                        </Button>
                                       )}
                                     </>
                                   );

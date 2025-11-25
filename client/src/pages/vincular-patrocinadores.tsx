@@ -175,13 +175,12 @@ export default function VincularPatrocinadores() {
     queryKey: ["/api/sponsors"],
   });
 
-  // Filtrar apenas eventos ativos (saída do caminhão ainda não passou)
+  // Filtrar apenas eventos futuros (data de início >= hoje)
   const events = useMemo(() => {
-    const now = new Date();
+    const today = startOfDay(new Date());
     return rawEvents.filter(event => {
-      // Usar data de saída do caminhão como critério (prazo real de produção)
-      const truckDepartureDate = new Date(event.truckDepartureDate);
-      return truckDepartureDate >= now;
+      const eventStartDate = startOfDay(new Date(event.startDate));
+      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
     });
   }, [rawEvents]);
 

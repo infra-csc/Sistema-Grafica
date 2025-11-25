@@ -393,6 +393,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </Card>
           )}
 
+          {/* Ações Customizadas - Antes do Histórico */}
+          {customActions && (
+            <div>
+              {customActions}
+            </div>
+          )}
+
           {/* Histórico de Ações */}
           <Card>
             <CardHeader className="px-4 py-2 bg-slate-50/50 dark:bg-slate-950/20">
@@ -468,13 +475,6 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               </div>
             </CardContent>
           </Card>
-
-          {/* Ações Customizadas */}
-          {customActions && (
-            <div className="border-t pt-4">
-              {customActions}
-            </div>
-          )}
 
           {/* Comentários */}
           <div className="border-t pt-4">

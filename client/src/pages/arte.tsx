@@ -175,9 +175,8 @@ export default function Arte() {
           matchesView = item.status === 'requested' || item.status === 'awaiting_submission';
         } else if (tab === "finalizar-layouts") {
           matchesView = item.status === 'sponsor_approved';
-        } else {
-          matchesView = item.status === 'awaiting_sponsor_approval' || 
-            item.status === 'awaiting_creator_review' || 
+        } else if (tab === "finalizados") {
+          matchesView = item.status === 'awaiting_final_review' || 
             item.status === 'ready_for_production' || 
             item.status === 'approved' || 
             item.status === 'inProduction' || 
@@ -231,7 +230,7 @@ export default function Arte() {
   // Calculate badge counts using the same filtered pipeline
   const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
-  const approvedCount = getFilteredItemsForTab("aprovados").length;
+  const finalizadosCount = getFilteredItemsForTab("finalizados").length;
 
   const pendingItems = filteredItems.filter(item => item.status === 'requested' || item.status === 'awaiting_submission');
 
@@ -420,26 +419,26 @@ export default function Arte() {
             </button>
             
             <button
-              onClick={() => setActiveTab("aprovados")}
-              data-testid="tab-aprovados"
+              onClick={() => setActiveTab("finalizados")}
+              data-testid="tab-finalizados"
               className={cn(
                 "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
-                activeTab === "aprovados"
+                activeTab === "finalizados"
                   ? "bg-background text-foreground shadow-md border-2 border-green-500"
                   : "text-foreground/70 hover-elevate"
               )}
             >
               <div className="flex items-center gap-2">
-                <CheckCircle className={cn("h-4 w-4", activeTab === "aprovados" ? "text-green-600" : "text-green-500")} />
-                <span className="font-semibold">Aprovados</span>
+                <CheckCircle className={cn("h-4 w-4", activeTab === "finalizados" ? "text-green-600" : "text-green-500")} />
+                <span className="font-semibold">Finalizados</span>
               </div>
               <Badge 
                 className={cn(
                   "min-w-[28px] justify-center bg-green-600 text-white hover:bg-green-700",
-                  activeTab !== "aprovados" && "bg-green-500/20 text-green-700 hover:bg-green-500/30"
+                  activeTab !== "finalizados" && "bg-green-500/20 text-green-700 hover:bg-green-500/30"
                 )}
               >
-                {approvedCount}
+                {finalizadosCount}
               </Badge>
             </button>
           </div>
@@ -647,7 +646,7 @@ export default function Arte() {
                 <>
                   <Upload className="h-12 w-12 text-blue-600 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Nenhum item aguardando arquivo final</h3>
-                  <p className="text-muted-foreground">Todos os itens aprovados já possuem arquivos finais</p>
+                  <p className="text-muted-foreground">Nenhum item finalizado encontrado</p>
                 </>
               ) : (
                 <>
@@ -756,7 +755,7 @@ export default function Arte() {
                                 <span className="font-mono font-semibold text-primary" data-testid={`text-display-id-${item.id}`}>
                                   {item.displayId}
                                 </span>
-                                {activeTab === "aprovados" && <StatusBadge status={item.status} className="ml-2" />}
+                                {activeTab === "finalizados" && <StatusBadge status={item.status} className="ml-2" />}
                               </td>
                               <td className="py-1 px-2 tabular-nums">{item.quantity}</td>
                               <td className="py-1 px-2 tabular-nums">

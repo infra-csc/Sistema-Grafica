@@ -16,9 +16,11 @@ import {
   insertSponsorSchema,
   insertEventSponsorSchema,
   insertItemSponsorSchema,
+  insertItemSponsorApprovalSchema,
   loginSchema,
   changePasswordSchema,
-  type Item
+  type Item,
+  type ItemSponsorApproval
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
@@ -1605,6 +1607,261 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ error: error.message });
     }
   });
+
+  // ========== Individual Sponsor Approval Endpoints ==========
+  
+  // Get sponsor approvals for an item
+  app.get("/api/items/:id/sponsor-approvals", requireAuth, async (req, res) => {
+    try {
+      const approvals = await storage.getItemSponsorApprovals(req.params.id);
+      
+      // Enrich with sponsor names
+      const sponsors = await storage.getAllSponsors();
+      const sponsorMap = new Map(sponsors.map(s => [s.id, s]));
+      
+      const enrichedApprovals = approvals.map(approval => ({
+        ...approval,
+        sponsor: sponsorMap.get(approval.sponsorId) || null
+      }));
+      
+      res.json(enrichedApprovals);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Individual sponsor approves item
+  app.post("/api/items/:id/sponsor-approvals/:sponsorId/approve", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "atendimento" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Atendimento podem aprovar pelo patrocinador" });
+      }
+      
+      const { id: itemId, sponsorId } = req.params;
+      
+      // Validate item exists and status
+      const currentItem = await storage.getItem(itemId);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item não encontrado" });
+      }
+      
+      if (currentItem.status !== "awaiting_sponsor_approval") {
+        return res.status(409).json({ 
+          error: `Item não está aguardando aprovação do patrocinador. Status atual: ${currentItem.status}` 
+        });
+      }
+      
+      // Validate sponsor is linked to item
+      const itemSponsors = await storage.getItemSponsors(itemId);
+      if (!itemSponsors.find(s => s.sponsorId === sponsorId)) {
+        return res.status(404).json({ error: "Patrocinador não está vinculado a este item" });
+      }
+      
+      // Get or create approval record
+      let approval = await storage.getItemSponsorApproval(itemId, sponsorId);
+      
+      if (approval) {
+        // Update existing approval
+        approval = await storage.updateItemSponsorApproval(approval.id, {
+          status: 'approved',
+          approvedBy: req.userName,
+          approvedAt: new Date(),
+          rejectedBy: null,
+          rejectedAt: null,
+          rejectionReason: null,
+        });
+      } else {
+        // Create new approval
+        approval = await storage.createItemSponsorApproval({
+          itemId,
+          sponsorId,
+          status: 'approved',
+          approvedBy: req.userName,
+          approvedAt: new Date(),
+        });
+      }
+      
+      // Get sponsor name for audit log
+      const sponsor = await storage.getSponsor(sponsorId);
+      
+      await createAuditLog(
+        req.userName!,
+        'approved',
+        'item',
+        itemId,
+        `Patrocinador "${sponsor?.name || sponsorId}" aprovou o item`
+      );
+      
+      // Check if ALL sponsors have approved
+      const allApprovals = await storage.getItemSponsorApprovals(itemId);
+      const allApproved = itemSponsors.every(is => {
+        const sponsorApproval = allApprovals.find(a => a.sponsorId === is.sponsorId);
+        return sponsorApproval && sponsorApproval.status === 'approved';
+      });
+      
+      if (allApproved) {
+        // All sponsors approved - advance item status
+        const item = await storage.updateItem(itemId, {
+          status: "sponsor_approved",
+          sponsorApprovedBy: req.userName,
+          sponsorApprovedAt: new Date(),
+          rejectedBySponsor: false,
+        });
+        
+        const event = await storage.getEvent(currentItem.eventId);
+        
+        await createAuditLog(
+          req.userName!,
+          'approved',
+          'item',
+          itemId,
+          `Todos os patrocinadores aprovaram. Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("sponsor_approved")}`
+        );
+        
+        // Notify Arte to add final file
+        const notification = await storage.createNotification({
+          type: "arteApproved",
+          message: `Todos os patrocinadores aprovaram. Finalize o layout e adicione o arquivo final: ${currentItem.type} - Evento: ${event?.name}`,
+          eventId: currentItem.eventId,
+          itemId: itemId,
+          targetRoles: ["arte"],
+        });
+        
+        broadcast({ type: "item_updated", item });
+        broadcast({ type: "notification_created", notification });
+        
+        res.json({ approval, item, allApproved: true });
+      } else {
+        // Not all sponsors approved yet
+        broadcast({ type: "sponsor_approval_updated", itemId, approval });
+        res.json({ approval, allApproved: false });
+      }
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Individual sponsor rejects item
+  app.post("/api/items/:id/sponsor-approvals/:sponsorId/reject", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "atendimento" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Atendimento podem reprovar pelo patrocinador" });
+      }
+      
+      const { id: itemId, sponsorId } = req.params;
+      const { rejectionReason } = req.body;
+      
+      // Validate item exists and status
+      const currentItem = await storage.getItem(itemId);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item não encontrado" });
+      }
+      
+      if (currentItem.status !== "awaiting_sponsor_approval") {
+        return res.status(409).json({ 
+          error: `Item não está aguardando aprovação do patrocinador. Status atual: ${currentItem.status}` 
+        });
+      }
+      
+      // Validate sponsor is linked to item
+      const itemSponsors = await storage.getItemSponsors(itemId);
+      if (!itemSponsors.find(s => s.sponsorId === sponsorId)) {
+        return res.status(404).json({ error: "Patrocinador não está vinculado a este item" });
+      }
+      
+      // Get or create approval record
+      let approval = await storage.getItemSponsorApproval(itemId, sponsorId);
+      
+      if (approval) {
+        // Update existing approval
+        approval = await storage.updateItemSponsorApproval(approval.id, {
+          status: 'rejected',
+          rejectedBy: req.userName,
+          rejectedAt: new Date(),
+          rejectionReason: rejectionReason || null,
+          approvedBy: null,
+          approvedAt: null,
+        });
+      } else {
+        // Create new approval
+        approval = await storage.createItemSponsorApproval({
+          itemId,
+          sponsorId,
+          status: 'rejected',
+          rejectedBy: req.userName,
+          rejectedAt: new Date(),
+          rejectionReason: rejectionReason || null,
+        });
+      }
+      
+      // Get sponsor name for audit log and notification
+      const sponsor = await storage.getSponsor(sponsorId);
+      
+      // Reject the item - send back to Arte for revision
+      const item = await storage.updateItem(itemId, {
+        status: "awaiting_submission",
+        sponsorApprovedBy: null,
+        sponsorApprovedAt: null,
+        rejectedBySponsor: true,
+      });
+      
+      const event = await storage.getEvent(currentItem.eventId);
+      
+      await createAuditLog(
+        req.userName!,
+        'rejected',
+        'item',
+        itemId,
+        `Patrocinador "${sponsor?.name || sponsorId}" reprovou o item${rejectionReason ? `: ${rejectionReason}` : ''}`
+      );
+      
+      // Notify Arte to redo the work
+      const notification = await storage.createNotification({
+        type: "itemRejected",
+        message: `Patrocinador "${sponsor?.name}" reprovou o item${rejectionReason ? `: ${rejectionReason}` : ''}. Refaça o thumb de aprovação: ${currentItem.type} - Evento: ${event?.name}`,
+        eventId: currentItem.eventId,
+        itemId: itemId,
+        targetRoles: ["arte"],
+      });
+      
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      
+      res.json({ approval, item });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Initialize sponsor approvals when sending item for approval
+  app.post("/api/items/:id/initialize-sponsor-approvals", requireAuth, async (req, res) => {
+    try {
+      const itemId = req.params.id;
+      
+      // Get item sponsors
+      const itemSponsors = await storage.getItemSponsors(itemId);
+      
+      if (itemSponsors.length === 0) {
+        return res.status(400).json({ error: "Item não possui patrocinadores vinculados" });
+      }
+      
+      // Initialize approval records for all sponsors
+      await storage.initializeItemSponsorApprovals(
+        itemId, 
+        itemSponsors.map(s => s.sponsorId)
+      );
+      
+      const approvals = await storage.getItemSponsorApprovals(itemId);
+      
+      res.json(approvals);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ========== End Individual Sponsor Approval Endpoints ==========
 
   // Arte submits final file after sponsor approval
   app.patch("/api/items/:id/submit-final-file", requireAuth, async (req, res) => {

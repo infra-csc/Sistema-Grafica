@@ -752,10 +752,30 @@ export default function Arte() {
                                 </td>
                               )}
                               <td className="py-1 px-2">
-                                <span className="font-mono font-semibold text-primary" data-testid={`text-display-id-${item.id}`}>
-                                  {item.displayId}
-                                </span>
-                                {activeTab === "finalizados" && <StatusBadge status={item.status} className="ml-2" />}
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-semibold text-primary" data-testid={`text-display-id-${item.id}`}>
+                                    {item.displayId}
+                                  </span>
+                                  {activeTab === "finalizados" && <StatusBadge status={item.status} />}
+                                  {activeTab === "criar-aprovacoes" && item.rejectedBySponsor && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className="text-xs border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
+                                      data-testid={`badge-rejected-sponsor-${item.id}`}
+                                    >
+                                      Reprovado Patrocinador
+                                    </Badge>
+                                  )}
+                                  {activeTab === "criar-aprovacoes" && item.rejectedByCreator && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className="text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-400"
+                                      data-testid={`badge-rejected-creator-${item.id}`}
+                                    >
+                                      Reprovado Criador
+                                    </Badge>
+                                  )}
+                                </div>
                               </td>
                               <td className="py-1 px-2 tabular-nums">{item.quantity}</td>
                               <td className="py-1 px-2 tabular-nums">

@@ -150,12 +150,32 @@ export default function Solicitacao() {
       return await apiRequest("PATCH", `/api/items/bulk-creator-reject`, { itemIds });
     },
     onSuccess: (result: any) => {
-      setSelectedItemIds(new Set());
       setBulkRejectConfirmOpen(false);
-      toast({
-        title: "Itens reprovados",
-        description: `${result.success} ${result.success === 1 ? 'item foi devolvido' : 'itens foram devolvidos'} para a Arte refazer.`,
-      });
+      
+      if (result.errors > 0 && result.success > 0) {
+        // Sucesso parcial - mantém os itens com falha selecionados
+        const failedIds = new Set<string>(result.failedItemIds || []);
+        setSelectedItemIds(failedIds);
+        toast({
+          title: "Reprovação parcial",
+          description: `${result.success} ${result.success === 1 ? 'item foi devolvido' : 'itens foram devolvidos'} para a Arte. ${result.errors} ${result.errors === 1 ? 'item permanece selecionado (status inválido)' : 'itens permanecem selecionados (status inválido)'}.`,
+          variant: "default",
+        });
+      } else if (result.errors > 0 && result.success === 0) {
+        // Falha total - mantém todos selecionados
+        toast({
+          title: "Erro ao reprovar itens",
+          description: `Nenhum item pôde ser reprovado. Os ${result.errors} ${result.errors === 1 ? 'item selecionado tem' : 'itens selecionados têm'} status inválido para reprovação.`,
+          variant: "destructive",
+        });
+      } else {
+        // Sucesso total - limpa seleção
+        setSelectedItemIds(new Set());
+        toast({
+          title: "Itens reprovados",
+          description: `${result.success} ${result.success === 1 ? 'item foi devolvido' : 'itens foram devolvidos'} para a Arte refazer.`,
+        });
+      }
     },
     onError: (error: any) => {
       toast({

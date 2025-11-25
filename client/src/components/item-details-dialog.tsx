@@ -103,12 +103,30 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <DialogTitle>Detalhes do Item</DialogTitle>
             <span className="text-sm font-mono font-medium text-primary">
               {item.displayId}
             </span>
             <StatusBadge status={item.status} />
+            {item.rejectedBySponsor && (
+              <Badge 
+                variant="outline" 
+                className="text-xs border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
+                data-testid="badge-rejected-sponsor"
+              >
+                Reprovado Patrocinador
+              </Badge>
+            )}
+            {item.rejectedByCreator && (
+              <Badge 
+                variant="outline" 
+                className="text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-400"
+                data-testid="badge-rejected-creator"
+              >
+                Reprovado Criador
+              </Badge>
+            )}
           </div>
           <DialogDescription>
             Informações completas do item

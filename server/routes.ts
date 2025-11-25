@@ -1308,7 +1308,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const shouldSkipApproval = currentItem.skipApproval === true || !hasSponsors;
       const nextStatus = shouldSkipApproval ? "awaiting_creator_review" : "awaiting_sponsor_approval";
       
-      const itemUpdates: any = { status: nextStatus };
+      const itemUpdates: any = { 
+        status: nextStatus,
+        // Limpa apenas flag de reprovação pelo criador quando item é reenviado
+        // rejectedBySponsor permanece até ser aprovado pelo patrocinador novamente
+        rejectedByCreator: false,
+      };
       if (approvalThumbUrl) {
         itemUpdates.approvalThumbUrl = approvalThumbUrl;
       }
@@ -1395,6 +1400,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "sponsor_approved",
         sponsorApprovedBy: req.userName,
         sponsorApprovedAt: new Date(),
+        // Limpa flag de reprovação pelo patrocinador quando aprovado
+        rejectedBySponsor: false,
       });
       
       if (!item) {
@@ -1634,8 +1641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         creatorReviewedAt: null,
         finalFileUrl: null,
         approvalThumbUrl: null,
-        sponsorApprovedBy: null,
-        sponsorApprovedAt: null,
+        // Mantém sponsorApprovedBy/sponsorApprovedAt para preservar o contexto da aprovação anterior
         rejectedByCreator: true, // Flag indicando que foi reprovado pelo criador
       });
       
@@ -1704,8 +1710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           creatorReviewedAt: null,
           finalFileUrl: null,
           approvalThumbUrl: null,
-          sponsorApprovedBy: null,
-          sponsorApprovedAt: null,
+          // Mantém sponsorApprovedBy/sponsorApprovedAt para preservar o contexto da aprovação anterior
           rejectedByCreator: true,
         });
         
@@ -1739,10 +1744,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         broadcast({ type: "notification_created", notification });
       }
       
+      // Extrair apenas os IDs dos itens com erro
+      const failedItemIds = errors.map(e => e.itemId);
+      
       res.json({ 
         success: results.length, 
         errors: errors.length,
         items: results,
+        failedItemIds,
         errorDetails: errors
       });
     } catch (error: any) {

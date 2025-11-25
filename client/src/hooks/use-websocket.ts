@@ -90,6 +90,18 @@ export function useWebSocket() {
             });
             break;
             
+          case 'items_submitted':
+            // Invalidate items queries when items are submitted for sponsor linking
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            if (data.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
+            }
+            toast({
+              title: 'Itens enviados para vinculação',
+              description: `${data.count || 0} itens aguardando vinculação de patrocinadores`,
+            });
+            break;
+            
           case 'item_approved':
             // Invalidate specific queries
             queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });

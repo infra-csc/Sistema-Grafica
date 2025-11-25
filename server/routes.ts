@@ -1566,9 +1566,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Item not found" });
       }
       
-      if (currentItem.status !== "awaiting_creator_review") {
+      if (currentItem.status !== "awaiting_final_review") {
         return res.status(409).json({ 
-          error: `Item não pode ser revisado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_creator_review` 
+          error: `Item não pode ser revisado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_final_review` 
         });
       }
       
@@ -1604,6 +1604,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
       broadcast({ type: "notification_created", notification });
       
       res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Creator rejects item and sends back to Arte (Solicitação module)
+  app.patch("/api/items/:id/creator-reject", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem reprovar itens" });
+      }
+      
+      // Validate current status
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      if (currentItem.status !== "awaiting_final_review") {
+        return res.status(409).json({ 
+          error: `Item não pode ser reprovado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_final_review` 
+        });
+      }
+      
+      const item = await storage.updateItem(req.params.id, {
+        status: "awaiting_submission",
+        creatorReviewedAt: null,
+        finalFileUrl: null,
+        approvalThumbUrl: null,
+        sponsorApprovedBy: null,
+        sponsorApprovedAt: null,
+        rejectedByCreator: true, // Flag indicando que foi reprovado pelo criador
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      
+      await createAuditLog(
+        req.userName!,
+        'rejected',
+        'item',
+        item.id,
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo criador)`
+      );
+      
+      // Notifica Arte para refazer o trabalho
+      const notification = await storage.createNotification({
+        type: "itemRejected",
+        message: `Criador do evento reprovou o item. Refaça o thumb de aprovação: ${item.type} - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["arte"],
+      });
+      
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Bulk creator reject (Solicitação module)
+  app.patch("/api/items/bulk-creator-reject", requireAuth, async (req, res) => {
+    try {
+      // Validate role
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem reprovar itens" });
+      }
+      
+      const { itemIds } = req.body;
+      if (!Array.isArray(itemIds) || itemIds.length === 0) {
+        return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
+      }
+      
+      const results = [];
+      const errors = [];
+      
+      for (const itemId of itemIds) {
+        const currentItem = await storage.getItem(itemId);
+        if (!currentItem) {
+          errors.push({ itemId, error: "Item não encontrado" });
+          continue;
+        }
+        
+        if (currentItem.status !== "awaiting_final_review") {
+          errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
+          continue;
+        }
+        
+        const item = await storage.updateItem(itemId, {
+          status: "awaiting_submission",
+          creatorReviewedAt: null,
+          finalFileUrl: null,
+          approvalThumbUrl: null,
+          sponsorApprovedBy: null,
+          sponsorApprovedAt: null,
+          rejectedByCreator: true,
+        });
+        
+        if (item) {
+          results.push(item);
+          
+          const event = await storage.getEvent(item.eventId);
+          
+          await createAuditLog(
+            req.userName!,
+            'rejected',
+            'item',
+            item.id,
+            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo criador em lote)`
+          );
+          
+          broadcast({ type: "item_updated", item });
+        }
+      }
+      
+      // Notifica Arte uma vez para todos os itens
+      if (results.length > 0) {
+        const notification = await storage.createNotification({
+          type: "itemRejected",
+          message: `Criador reprovou ${results.length} item(ns). Refaça os thumbs de aprovação.`,
+          eventId: results[0].eventId,
+          itemId: null,
+          targetRoles: ["arte"],
+        });
+        
+        broadcast({ type: "notification_created", notification });
+      }
+      
+      res.json({ 
+        success: results.length, 
+        errors: errors.length,
+        items: results,
+        errorDetails: errors
+      });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

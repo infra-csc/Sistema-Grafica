@@ -838,8 +838,8 @@ export default function Eventos() {
                 <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${cardColors.borderColor} ${cardColors.bgCard}`} data-testid={`card-event-${event.id}`}>
                   <CardHeader className="pb-3 pt-4">
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <CardTitle className={`text-base font-bold ${cardColors.titleColor}`}>{event.name}</CardTitle>
-                      <div className="flex gap-1 flex-shrink-0">
+                      <CardTitle className={`text-base font-bold ${cardColors.titleColor} truncate min-w-0`} title={event.name}>{event.name}</CardTitle>
+                      <div className="flex gap-1 flex-shrink-0 ml-auto">
                         {event.status === 'completed' && (
                           <Badge variant="outline" className="bg-status-completed/15 text-status-completed border-status-completed/30 text-xs">
                             ✓ Concluído

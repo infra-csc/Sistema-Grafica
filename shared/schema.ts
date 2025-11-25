@@ -76,6 +76,8 @@ export const items = pgTable("items", {
   sponsorApprovedBy: text("sponsor_approved_by"), // Nome do aprovador do patrocinador
   sponsorApprovedAt: timestamp("sponsor_approved_at"), // Quando foi aprovado pelo patrocinador
   creatorReviewedAt: timestamp("creator_reviewed_at"), // Quando criador do evento revisou
+  rejectedBySponsor: boolean("rejected_by_sponsor").notNull().default(false), // Flag: reprovado pelo patrocinador (Atendimento)
+  rejectedByCreator: boolean("rejected_by_creator").notNull().default(false), // Flag: reprovado pelo criador (Solicitação)
   approvedAt: timestamp("approved_at"), // Timestamp quando foi liberado pela Arte
   productionStartedAt: timestamp("production_started_at"), // Timestamp quando produção iniciou
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido

@@ -898,69 +898,101 @@ export default function VincularPatrocinadores() {
           </CardContent>
         </Card>
 
-        {/* Botões de Ação Global */}
-        {(statusCounts.RASCUNHO > 0 || statusCounts.PRONTO > 0) && (
-          <div className="flex flex-wrap gap-2">
-            {statusCounts.RASCUNHO > 0 && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
-                  saveLinkingMutation.mutate(ids);
-                }}
-                disabled={saveLinkingMutation.isPending}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                Salvar Tudo ({statusCounts.RASCUNHO})
-              </Button>
-            )}
-            {statusCounts.PRONTO > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={selectedForSending.size > 0 && selectedForSending.size === statusCounts.PRONTO}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        selectAllReadyItems();
-                      } else {
-                        clearSendingSelection();
-                      }
+        {/* Painel de Ações - Duas Etapas Separadas */}
+        <div className="space-y-3">
+          {/* ETAPA 1: Salvar Vinculações */}
+          {statusCounts.RASCUNHO > 0 && (
+            <Card className="border-yellow-300 dark:border-yellow-700 bg-yellow-50/50 dark:bg-yellow-950/20">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-yellow-500 flex items-center justify-center text-white font-bold text-sm">1</div>
+                    <div>
+                      <div className="font-medium text-sm text-yellow-800 dark:text-yellow-200">Salvar Vinculações</div>
+                      <div className="text-xs text-yellow-600 dark:text-yellow-400">
+                        {statusCounts.RASCUNHO} item{statusCounts.RASCUNHO !== 1 ? 's' : ''} com patrocinadores selecionados aguardando salvar
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                    onClick={() => {
+                      const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
+                      saveLinkingMutation.mutate(ids);
                     }}
-                    data-testid="checkbox-select-all-ready"
-                  />
-                  <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                    {selectedForSending.size > 0 
-                      ? `${selectedForSending.size} de ${statusCounts.PRONTO} selecionado${selectedForSending.size !== 1 ? 's' : ''}`
-                      : `Selecionar prontos (${statusCounts.PRONTO})`
-                    }
-                  </span>
+                    disabled={saveLinkingMutation.isPending}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Salvar Tudo ({statusCounts.RASCUNHO})
+                  </Button>
                 </div>
-                {selectedForSending.size > 0 && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs"
-                      onClick={clearSendingSelection}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={handleSendSelectedToArte}
-                      disabled={sendToArteMutation.isPending}
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      Enviar ({selectedForSending.size})
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* ETAPA 2: Enviar para Arte */}
+          {statusCounts.PRONTO > 0 && (
+            <Card className="border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">2</div>
+                    <div>
+                      <div className="font-medium text-sm text-blue-800 dark:text-blue-200">Enviar para Arte</div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400">
+                        {statusCounts.PRONTO} item{statusCounts.PRONTO !== 1 ? 's' : ''} com vinculação confirmada - selecione para enviar
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-900 rounded border">
+                      <Checkbox
+                        checked={selectedForSending.size > 0 && selectedForSending.size === statusCounts.PRONTO}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            selectAllReadyItems();
+                          } else {
+                            clearSendingSelection();
+                          }
+                        }}
+                        data-testid="checkbox-select-all-ready"
+                        className="border-blue-500 data-[state=checked]:bg-blue-600"
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {selectedForSending.size > 0 
+                          ? `${selectedForSending.size}/${statusCounts.PRONTO}`
+                          : 'Todos'
+                        }
+                      </span>
+                    </div>
+                    {selectedForSending.size > 0 && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 px-2"
+                          onClick={clearSendingSelection}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={handleSendSelectedToArte}
+                          disabled={sendToArteMutation.isPending}
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          Enviar para Arte ({selectedForSending.size})
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
 
       {/* Acordeões por Evento */}
@@ -1356,9 +1388,19 @@ export default function VincularPatrocinadores() {
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">ID</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Item</th>
                         <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Detalhes</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Patrocinadores</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Link2 className="h-3 w-3" />
+                            Vincular Patrocinadores
+                          </div>
+                        </th>
                         <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Sem Aprov.</th>
-                        <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Status</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">
+                          <div className="flex items-center justify-center gap-1">
+                            <Send className="h-3 w-3" />
+                            Enviar
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>

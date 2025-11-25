@@ -152,6 +152,9 @@ export default function VincularPatrocinadores() {
   
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  
+  // Estado para seleção de items para ENVIAR (separado da seleção para aplicar patrocinadores)
+  const [selectedForSending, setSelectedForSending] = useState<Set<string>>(new Set());
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -561,6 +564,7 @@ export default function VincularPatrocinadores() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItemIds(new Set());
+      setSelectedForSending(new Set()); // Limpar seleção para envio
       
       if (data.errors && data.errors.length > 0) {
         toast({
@@ -584,26 +588,43 @@ export default function VincularPatrocinadores() {
     },
   });
 
-  // Handler para enviar items prontos para Arte
-  const handleSendToArte = () => {
-    // Pegar items PRONTO (com patrocinadores salvos, status 'requested')
-    const readyItems = visibleItems.filter(item => {
-      const originalSponsors = originalSponsorsMap[item.id] || [];
-      const pendingChange = pendingChanges[item.id];
-      const uiStatus = getItemUIStatus(item, originalSponsors, pendingChange);
-      return uiStatus === 'PRONTO';
-    });
-    
-    if (readyItems.length === 0) {
+  // Handler para enviar items selecionados para Arte
+  const handleSendSelectedToArte = () => {
+    if (selectedForSending.size === 0) {
       toast({
-        title: "Nenhum item pronto",
-        description: "Salve os patrocinadores dos itens antes de enviar para Arte.",
+        title: "Nenhum item selecionado",
+        description: "Selecione os itens que deseja enviar para Arte.",
         variant: "destructive",
       });
       return;
     }
     
-    sendToArteMutation.mutate(readyItems.map(item => item.id));
+    sendToArteMutation.mutate(Array.from(selectedForSending));
+  };
+  
+  // Funções para seleção de items para envio
+  const toggleSendingSelection = (itemId: string) => {
+    setSelectedForSending(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+  
+  const selectAllReadyItems = () => {
+    const readyItemIds = visibleItems.filter(item => {
+      const uiStatus = itemUIStates[item.id];
+      return uiStatus === 'PRONTO';
+    }).map(item => item.id);
+    setSelectedForSending(new Set(readyItemIds));
+  };
+  
+  const clearSendingSelection = () => {
+    setSelectedForSending(new Set());
   };
 
   const handleOpenSponsorDialog = (event: any) => {
@@ -894,16 +915,49 @@ export default function VincularPatrocinadores() {
               </Button>
             )}
             {statusCounts.PRONTO > 0 && (
-              <Button
-                size="sm"
-                variant="default"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={handleSendToArte}
-                disabled={sendToArteMutation.isPending}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Enviar para Arte ({statusCounts.PRONTO})
-              </Button>
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedForSending.size > 0 && selectedForSending.size === statusCounts.PRONTO}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        selectAllReadyItems();
+                      } else {
+                        clearSendingSelection();
+                      }
+                    }}
+                    data-testid="checkbox-select-all-ready"
+                  />
+                  <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                    {selectedForSending.size > 0 
+                      ? `${selectedForSending.size} de ${statusCounts.PRONTO} selecionado${selectedForSending.size !== 1 ? 's' : ''}`
+                      : `Selecionar prontos (${statusCounts.PRONTO})`
+                    }
+                  </span>
+                </div>
+                {selectedForSending.size > 0 && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={clearSendingSelection}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={handleSendSelectedToArte}
+                      disabled={sendToArteMutation.isPending}
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Enviar ({selectedForSending.size})
+                    </Button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -1502,17 +1556,12 @@ export default function VincularPatrocinadores() {
                                         </Button>
                                       )}
                                       {uiStatus === 'PRONTO' && isEditable && (
-                                        <Button
-                                          size="sm"
-                                          variant="default"
-                                          className="gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                                          onClick={() => sendToArteMutation.mutate([item.id])}
-                                          disabled={sendToArteMutation.isPending}
-                                          data-testid={`button-send-item-${item.id}`}
-                                        >
-                                          <Send className="h-3 w-3" />
-                                          Enviar
-                                        </Button>
+                                        <Checkbox
+                                          checked={selectedForSending.has(item.id)}
+                                          onCheckedChange={() => toggleSendingSelection(item.id)}
+                                          data-testid={`checkbox-send-item-${item.id}`}
+                                          className="border-blue-500 data-[state=checked]:bg-blue-600"
+                                        />
                                       )}
                                     </>
                                   );

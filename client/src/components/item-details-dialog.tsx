@@ -2,11 +2,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/status-badge";
 import { CommentsSection } from "@/components/comments-section";
-import { CheckCircle2, CircleDot, Circle, Calendar, ClipboardList, Package, Building2, FileText, History, PlusCircle, Edit, XCircle, Link, Unlink, ArrowRightCircle, Send } from "lucide-react";
+import { CheckCircle2, CircleDot, Circle, Calendar, ClipboardList, Package, Building2, FileText, History, PlusCircle, Edit, XCircle, Link, Unlink, ArrowRightCircle, Send, Save } from "lucide-react";
 import { format, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useState } from "react";
 
 interface ItemDetailsDialogProps {
   item: any | null;
@@ -15,10 +18,25 @@ interface ItemDetailsDialogProps {
   onOpenChange: (open: boolean) => void;
   customActions?: React.ReactNode;
   topActions?: React.ReactNode;
+  onEditSave?: (editedItem: any) => void;
 }
 
-export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, customActions, topActions }: ItemDetailsDialogProps) {
+export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, customActions, topActions, onEditSave }: ItemDetailsDialogProps) {
+  const [editMode, setEditMode] = useState(false);
+  const [editedItem, setEditedItem] = useState(item);
+
   if (!item) return null;
+
+  const handleEditChange = (field: string, value: any) => {
+    setEditedItem(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveEdits = () => {
+    if (onEditSave) {
+      onEditSave(editedItem);
+    }
+    setEditMode(false);
+  };
 
   const getActionIconAndColor = (action: string) => {
     const config: Record<string, { icon: any; bgColor: string; ringColor: string; badgeVariant?: "default" | "secondary" | "destructive" | "outline"; badgeClasses?: string }> = {
@@ -299,29 +317,105 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
             {/* Especificações */}
             <Card>
-              <CardHeader className="px-4 py-2 bg-purple-50/50 dark:bg-purple-950/20">
+              <CardHeader className="px-4 py-2 bg-purple-50/50 dark:bg-purple-950/20 flex flex-row items-center justify-between gap-2">
                 <CardTitle className="text-xs font-semibold uppercase text-purple-700 dark:text-purple-400 flex items-center gap-2">
                   <ClipboardList className="h-3.5 w-3.5" />
                   Especificações
                 </CardTitle>
+                {!editMode && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditedItem(item);
+                      setEditMode(true);
+                    }}
+                    data-testid="button-edit-mode"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
-                <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                  <span className="text-muted-foreground text-xs">Tipo</span>
-                  <span className="font-semibold text-right">{item.type}</span>
-                </div>
-                <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                  <span className="text-muted-foreground text-xs">Material</span>
-                  <span className="font-semibold text-right">{item.material}</span>
-                </div>
-                <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                  <span className="text-muted-foreground text-xs">Acabamento</span>
-                  <span className="font-semibold text-right">{item.finish}</span>
-                </div>
-                <div className="flex justify-between items-baseline py-1">
-                  <span className="text-muted-foreground text-xs">Descrição</span>
-                  <span className="font-semibold text-right">{item.description || "—"}</span>
-                </div>
+                {editMode ? (
+                  <>
+                    <div className="py-2 space-y-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">Tipo</label>
+                        <Input
+                          value={editedItem?.type || ""}
+                          onChange={(e) => handleEditChange("type", e.target.value)}
+                          className="text-sm"
+                          data-testid="input-edit-type"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Material</label>
+                        <Input
+                          value={editedItem?.material || ""}
+                          onChange={(e) => handleEditChange("material", e.target.value)}
+                          className="text-sm"
+                          data-testid="input-edit-material"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Acabamento</label>
+                        <Input
+                          value={editedItem?.finish || ""}
+                          onChange={(e) => handleEditChange("finish", e.target.value)}
+                          className="text-sm"
+                          data-testid="input-edit-finish"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Descrição</label>
+                        <Textarea
+                          value={editedItem?.description || ""}
+                          onChange={(e) => handleEditChange("description", e.target.value)}
+                          className="text-sm min-h-16"
+                          data-testid="textarea-edit-description"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-2 border-t">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditMode(false)}
+                        data-testid="button-edit-cancel"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveEdits}
+                        data-testid="button-edit-save"
+                      >
+                        <Save className="h-3 w-3 mr-1" />
+                        Salvar Edições
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                      <span className="text-muted-foreground text-xs">Tipo</span>
+                      <span className="font-semibold text-right">{editedItem?.type || item?.type}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                      <span className="text-muted-foreground text-xs">Material</span>
+                      <span className="font-semibold text-right">{editedItem?.material || item?.material}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                      <span className="text-muted-foreground text-xs">Acabamento</span>
+                      <span className="font-semibold text-right">{editedItem?.finish || item?.finish}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline py-1">
+                      <span className="text-muted-foreground text-xs">Descrição</span>
+                      <span className="font-semibold text-right">{editedItem?.description || item?.description || "—"}</span>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

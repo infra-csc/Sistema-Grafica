@@ -398,8 +398,8 @@ export default function Solicitacao() {
                   disabled={bulkRejectMutation.isPending}
                   data-testid="button-bulk-reject"
                 >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Reprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Devolver para Arte {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
                 </Button>
               </>
             )}
@@ -437,6 +437,7 @@ export default function Solicitacao() {
                     </th>
                     <th className="text-left py-3 px-3 font-medium w-20">ID</th>
                     <th className="text-left py-3 px-3 font-medium">Tipo</th>
+                    <th className="text-left py-3 px-3 font-medium">Descrição</th>
                     <th className="text-center py-3 px-3 font-medium w-16">Qtd</th>
                     <th className="text-left py-3 px-3 font-medium">Dimensões</th>
                     <th className="text-left py-3 px-3 font-medium">Patrocinador</th>
@@ -454,7 +455,7 @@ export default function Solicitacao() {
                       <Fragment key={item.id}>
                         {showEventHeader && (
                           <tr className="bg-gradient-to-r from-purple-500/10 to-purple-500/5 border-t-4 border-purple-500/30">
-                            <td colSpan={7} className="py-2 px-3">
+                            <td colSpan={8} className="py-2 px-3">
                               <div className="flex items-center gap-3">
                                 <div className="h-5 w-1 bg-purple-500 rounded-full"></div>
                                 <div className="text-sm font-bold text-purple-600 uppercase tracking-wider">
@@ -496,11 +497,11 @@ export default function Solicitacao() {
                           </td>
                           <td className="py-2 px-3">
                             <div className="text-sm font-medium">{item.type}</div>
-                            {item.description && (
-                              <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={item.description}>
-                                {item.description}
-                              </div>
-                            )}
+                          </td>
+                          <td className="py-2 px-3">
+                            <div className="text-sm text-muted-foreground">
+                              {item.description || "—"}
+                            </div>
                           </td>
                           <td className="py-2 px-3 text-center">
                             <Badge variant="outline">{item.quantity}x</Badge>

@@ -1929,7 +1929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Validate request body with Zod
       const finalFileSchema = z.object({
-        finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio").url("finalFileUrl deve ser uma URL válida"),
+        finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio"),
       });
       
       const validatedData = finalFileSchema.parse(req.body);

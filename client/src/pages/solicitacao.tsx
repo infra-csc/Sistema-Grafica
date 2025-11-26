@@ -59,6 +59,13 @@ export default function Solicitacao() {
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [cancelObservations, setCancelObservations] = useState("");
   
+  // Confirmação em lote
+  const [bulkReleaseConfirmOpen, setBulkReleaseConfirmOpen] = useState(false);
+  const [bulkReturnConfirmOpen, setBulkReturnConfirmOpen] = useState(false);
+  const [bulkCancelConfirmOpen, setBulkCancelConfirmOpen] = useState(false);
+  const [bulkReturnObservations, setBulkReturnObservations] = useState("");
+  const [bulkCancelObservations, setBulkCancelObservations] = useState("");
+  
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
   const [eventFilter, setEventFilter] = useState<string>("all");
@@ -195,9 +202,44 @@ export default function Solicitacao() {
   };
 
   const handleBulkRelease = () => {
+    setBulkReleaseConfirmOpen(true);
+  };
+
+  const confirmBulkRelease = () => {
     const itemIds = Array.from(selectedItemIds);
     if (itemIds.length > 0) {
       bulkReleaseMutation.mutate(itemIds);
+      setBulkReleaseConfirmOpen(false);
+    }
+  };
+
+  const handleBulkReturnToArte = () => {
+    setBulkReturnConfirmOpen(true);
+    setBulkReturnObservations("");
+  };
+
+  const confirmBulkReturnToArte = () => {
+    const itemIds = Array.from(selectedItemIds);
+    if (itemIds.length > 0) {
+      const returnPromises = itemIds.map(id =>
+        apiRequest("POST", `/api/items/${id}/return-to-arte`, { notes: bulkReturnObservations })
+      );
+      Promise.all(returnPromises).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+        setSelectedItemIds(new Set());
+        setBulkReturnConfirmOpen(false);
+        setBulkReturnObservations("");
+        toast({
+          title: "Itens devolvidos para Arte",
+          description: `${itemIds.length} ${itemIds.length === 1 ? 'item foi devolvido' : 'itens foram devolvidos'} para a Arte.`,
+        });
+      }).catch((error: any) => {
+        toast({
+          title: "Erro ao devolver itens",
+          description: error.message || "Ocorreu um erro",
+          variant: "destructive",
+        });
+      });
     }
   };
 
@@ -209,6 +251,19 @@ export default function Solicitacao() {
   const confirmReturnToArte = () => {
     if (selectedItem) {
       returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations });
+    }
+  };
+
+  const handleBulkCancelConfirm = () => {
+    setBulkCancelConfirmOpen(true);
+    setBulkCancelObservations("");
+  };
+
+  const confirmBulkCancel = () => {
+    const itemIds = Array.from(selectedItemIds);
+    if (itemIds.length > 0) {
+      bulkCancelMutation.mutate(itemIds);
+      setBulkCancelConfirmOpen(false);
     }
   };
 
@@ -428,11 +483,8 @@ export default function Solicitacao() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => {
-                    setSelectedItem(null);
-                    setReturnObservationOpen(true);
-                  }}
-                  disabled={returnToArteMutation.isPending}
+                  onClick={handleBulkReturnToArte}
+                  disabled={bulkCancelMutation.isPending}
                   data-testid="button-bulk-return"
                   className="bg-blue-500 hover:bg-blue-600 text-white"
                 >
@@ -441,7 +493,7 @@ export default function Solicitacao() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => bulkCancelMutation.mutate(Array.from(selectedItemIds))}
+                  onClick={handleBulkCancelConfirm}
                   disabled={bulkCancelMutation.isPending}
                   data-testid="button-bulk-cancel"
                   className="bg-red-500 hover:bg-red-600 text-white"
@@ -739,7 +791,7 @@ export default function Solicitacao() {
         ) : undefined}
       />
 
-      {/* AlertDialog para liberar - sem observações */}
+      {/* AlertDialog para liberar individual - sem observações */}
       <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -756,6 +808,28 @@ export default function Solicitacao() {
               data-testid="button-release-confirm"
             >
               {creatorReviewMutation.isPending ? "Liberando..." : "Liberar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog para liberar em lote - sem observações */}
+      <AlertDialog open={bulkReleaseConfirmOpen} onOpenChange={setBulkReleaseConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Liberar {selectedItemIds.size} itens para Produção</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja liberar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'item' : 'itens'} para produção?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-bulk-release-cancel">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkRelease}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              data-testid="button-bulk-release-confirm"
+            >
+              {bulkReleaseMutation.isPending ? "Liberando..." : "Liberar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -797,7 +871,7 @@ export default function Solicitacao() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog para cancelar com observações */}
+      {/* Dialog para cancelar item individual com observações */}
       <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -831,6 +905,77 @@ export default function Solicitacao() {
               onClick={confirmCancel}
               disabled={bulkCancelMutation.isPending}
               data-testid="button-cancel-confirm"
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {bulkCancelMutation.isPending ? "Cancelando..." : "Confirmar Cancelamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para devolver em lote com observações */}
+      <Dialog open={bulkReturnConfirmOpen} onOpenChange={setBulkReturnConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Devolver {selectedItemIds.size} itens para Arte</DialogTitle>
+            <DialogDescription>
+              Deseja devolver {selectedItemIds.size} {selectedItemIds.size === 1 ? 'item' : 'itens'} para a Arte? Adicione uma observação opcional.
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            placeholder="Observações sobre alterações necessárias (opcional)..."
+            value={bulkReturnObservations}
+            onChange={(e) => setBulkReturnObservations(e.target.value)}
+            className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none"
+            data-testid="textarea-bulk-return-observations"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkReturnConfirmOpen(false)}
+              data-testid="button-bulk-return-cancel"
+            >
+              Manter Itens
+            </Button>
+            <Button
+              onClick={confirmBulkReturnToArte}
+              data-testid="button-bulk-return-confirm"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Devolver para Arte
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para cancelar em lote com observações */}
+      <Dialog open={bulkCancelConfirmOpen} onOpenChange={setBulkCancelConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar {selectedItemIds.size} itens</DialogTitle>
+            <DialogDescription>
+              Deseja cancelar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'item' : 'itens'}? Adicione uma observação opcional explicando o motivo.
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            placeholder="Motivo do cancelamento (opcional)..."
+            value={bulkCancelObservations}
+            onChange={(e) => setBulkCancelObservations(e.target.value)}
+            className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none"
+            data-testid="textarea-bulk-cancel-observations"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBulkCancelConfirmOpen(false)}
+              data-testid="button-bulk-cancel-cancel"
+            >
+              Manter Itens
+            </Button>
+            <Button
+              onClick={confirmBulkCancel}
+              disabled={bulkCancelMutation.isPending}
+              data-testid="button-bulk-cancel-confirm"
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               {bulkCancelMutation.isPending ? "Cancelando..." : "Confirmar Cancelamento"}

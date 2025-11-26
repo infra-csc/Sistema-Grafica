@@ -86,12 +86,17 @@ export default function Solicitacao() {
     queryKey: ["/api/sponsors"],
   });
 
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
+  });
+
   const creatorReviewMutation = useMutation({
     mutationFn: async (itemId: string) => {
       return await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
@@ -117,6 +122,7 @@ export default function Solicitacao() {
     },
     onSuccess: (_, itemIds) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set());
       toast({
         title: "Itens liberados para produção",

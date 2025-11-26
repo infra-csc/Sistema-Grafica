@@ -371,16 +371,38 @@ export default function Solicitacao() {
             )}
             
             {selectedItemIds.size > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleBulkRelease}
-                disabled={bulkReleaseMutation.isPending}
-                data-testid="button-bulk-release"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Liberar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkRelease}
+                  disabled={bulkReleaseMutation.isPending}
+                  data-testid="button-bulk-release"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Liberar {selectedItemIds.size}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setReturnObservationOpen(true)}
+                  disabled={returnToArteMutation.isPending}
+                  data-testid="button-bulk-return"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Devolver {selectedItemIds.size}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => bulkCancelMutation.mutate(Array.from(selectedItemIds))}
+                  disabled={bulkCancelMutation.isPending}
+                  data-testid="button-bulk-cancel"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Cancelar {selectedItemIds.size}
+                </Button>
+              </div>
             )}
           </div>
         </CardHeader>
@@ -498,15 +520,52 @@ export default function Solicitacao() {
                             </div>
                           </td>
                           <td className="py-2 px-3 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleViewDetails(item)}
-                              data-testid={`button-view-${item.id}`}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              Revisar
-                            </Button>
+                            <div className="flex gap-1.5 justify-end">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  creatorReviewMutation.mutate(item.id);
+                                }}
+                                disabled={creatorReviewMutation.isPending}
+                                data-testid={`button-release-individual-${item.id}`}
+                                title="Liberar para Produção"
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setReturnObservationOpen(true);
+                                }}
+                                disabled={returnToArteMutation.isPending}
+                                data-testid={`button-return-individual-${item.id}`}
+                                title="Devolver para Arte"
+                              >
+                                <ArrowLeft className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => bulkCancelMutation.mutate([item.id])}
+                                disabled={bulkCancelMutation.isPending}
+                                data-testid={`button-cancel-individual-${item.id}`}
+                                title="Cancelar Item"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewDetails(item)}
+                                data-testid={`button-view-${item.id}`}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Revisar
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       </Fragment>

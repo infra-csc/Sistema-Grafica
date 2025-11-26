@@ -555,24 +555,63 @@ export default function Solicitacao() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         topActions={selectedItem ? (
-          <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2 text-green-700 dark:text-green-400">
-                <FileText className="h-4 w-4" />
-                Arquivo Final Pronto para Revisão
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {selectedItem.finalFileUrl ? (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Caminho do arquivo:</p>
-                  <p className="text-sm font-mono bg-muted p-2 rounded break-all">{selectedItem.finalFileUrl}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Nenhum arquivo final enviado</p>
-              )}
-            </CardContent>
-          </Card>
+          <div className="space-y-3">
+            {selectedItem.approvalThumbUrl && (() => {
+              const url = selectedItem.approvalThumbUrl.toLowerCase();
+              const commonImageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+              const isImage = commonImageExtensions.some(ext => url.includes(ext));
+              const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
+              
+              return (
+                <Card className="bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2 text-purple-700 dark:text-purple-400">
+                      📋 Thumb Aprovado {isPdf ? "(PDF)" : ""}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {isPdf ? (
+                      <a
+                        href={selectedItem.approvalThumbUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center w-full bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg p-4 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                        data-testid="button-open-approval-pdf"
+                      >
+                        <FileText className="h-5 w-5 mr-2 text-red-600 dark:text-red-400" />
+                        <span className="text-red-600 dark:text-red-400 font-medium">Abrir PDF</span>
+                      </a>
+                    ) : (
+                      <img
+                        src={selectedItem.approvalThumbUrl}
+                        alt="Thumb Aprovado"
+                        className="w-full rounded-lg border border-purple-200 dark:border-purple-900"
+                        data-testid="img-approval-thumb"
+                      />
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
+            <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <FileText className="h-4 w-4" />
+                  Arquivo Final Pronto para Revisão
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {selectedItem.finalFileUrl ? (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Caminho do arquivo:</p>
+                    <p className="text-sm font-mono bg-muted p-2 rounded break-all">{selectedItem.finalFileUrl}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nenhum arquivo final enviado</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         ) : undefined}
         customActions={selectedItem ? (
           <div className="flex gap-2">

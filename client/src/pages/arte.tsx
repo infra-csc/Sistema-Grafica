@@ -758,7 +758,8 @@ export default function Arte() {
                         </thead>
                         <tbody>
                           {group.items.map(item => (
-                            <tr key={item.id} className="border-b border-border/40 hover-elevate" data-testid={`row-pending-item-${item.id}`}>
+                            <Fragment key={item.id}>
+                            <tr className="border-b border-border/40 hover-elevate" data-testid={`row-pending-item-${item.id}`}>
                               {activeTab === "criar-aprovacoes" && (
                                 <td className="text-center py-1 px-2">
                                   <Checkbox
@@ -830,6 +831,7 @@ export default function Arte() {
                                 </td>
                               </tr>
                             )}
+                            </Fragment>
                           ))}
                         </tbody>
                       </table>

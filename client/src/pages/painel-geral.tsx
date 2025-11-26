@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink, Truck } from "lucide-react";
-import { useState } from "react";
+import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink, Truck, AlertCircle } from "lucide-react";
+import { useState, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { format } from "date-fns";
@@ -487,8 +487,8 @@ export default function PainelGeral() {
                       </thead>
                       <tbody>
                         {groupData.items.map((item: any, index: number) => (
+                          <Fragment key={item.id}>
                           <tr
-                            key={item.id}
                             className={`border-b hover-elevate cursor-pointer transition-colors ${
                               index % 2 === 0 ? 'bg-background' : 'bg-muted/20'
                             }`}
@@ -546,6 +546,7 @@ export default function PainelGeral() {
                               </td>
                             </tr>
                           )}
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>

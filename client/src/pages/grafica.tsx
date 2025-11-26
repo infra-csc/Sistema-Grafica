@@ -113,6 +113,28 @@ export default function Grafica() {
     },
   });
 
+  const editItemMutation = useMutation({
+    mutationFn: async (payload: { itemId: string; updates: any }) => {
+      return await apiRequest("PATCH", `/api/items/${payload.itemId}/edit`, payload.updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setViewDetailsItem(null);
+      toast({
+        title: "Item atualizado",
+        description: "As especificações do item foram atualizadas com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar item",
+        description: error.message || "Ocorreu um erro",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Obter tipos, materiais e acabamentos únicos
   const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
   const uniqueMaterials = Array.from(new Set(items.map(item => item.material).filter(Boolean))).sort();
@@ -653,6 +675,19 @@ export default function Grafica() {
         auditLogs={auditLogs}
         open={!!viewDetailsItem}
         onOpenChange={(open) => !open && setViewDetailsItem(null)}
+        onEditSave={(editedItem) => {
+          if (viewDetailsItem?.id) {
+            editItemMutation.mutate({
+              itemId: viewDetailsItem.id,
+              updates: {
+                type: editedItem.type,
+                material: editedItem.material,
+                finish: editedItem.finish,
+                description: editedItem.description,
+              },
+            });
+          }
+        }}
       />
 
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={(open) => {

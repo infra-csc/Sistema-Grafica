@@ -55,6 +55,9 @@ export default function Solicitacao() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [returnObservationOpen, setReturnObservationOpen] = useState(false);
   const [returnObservations, setReturnObservations] = useState("");
+  const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancelObservations, setCancelObservations] = useState("");
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -206,6 +209,29 @@ export default function Solicitacao() {
   const confirmReturnToArte = () => {
     if (selectedItem) {
       returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations });
+    }
+  };
+
+  const handleReleaseConfirm = () => {
+    setReleaseConfirmOpen(true);
+  };
+
+  const confirmRelease = () => {
+    if (selectedItem?.id) {
+      creatorReviewMutation.mutate(selectedItem.id);
+      setReleaseConfirmOpen(false);
+    }
+  };
+
+  const handleCancelConfirm = () => {
+    setCancelConfirmOpen(true);
+    setCancelObservations("");
+  };
+
+  const confirmCancel = () => {
+    if (selectedItem?.id) {
+      bulkCancelMutation.mutate([selectedItem.id]);
+      setCancelConfirmOpen(false);
     }
   };
 
@@ -676,7 +702,7 @@ export default function Solicitacao() {
         customActions={selectedItem ? (
           <div className="flex flex-col gap-2">
             <Button
-              onClick={handleRelease}
+              onClick={handleReleaseConfirm}
               disabled={creatorReviewMutation.isPending}
               data-testid="button-release-final"
               className="w-full"
@@ -696,7 +722,7 @@ export default function Solicitacao() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => bulkCancelMutation.mutate([selectedItem.id])}
+              onClick={handleCancelConfirm}
               disabled={bulkCancelMutation.isPending}
               data-testid="button-cancel-item"
               className="w-full"
@@ -708,13 +734,41 @@ export default function Solicitacao() {
         ) : undefined}
       />
 
+      {/* Dialog para liberar com confirmação */}
+      <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Liberação para Produção</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem certeza que deseja liberar este item para produção?
+              {selectedItem && (
+                <div className="mt-3 p-3 bg-muted rounded-md text-sm">
+                  <div><strong>Item:</strong> {selectedItem.displayId} - {selectedItem.type}</div>
+                  {selectedItem.name && <div><strong>Nome:</strong> {selectedItem.name}</div>}
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-release-cancel">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRelease}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              data-testid="button-release-confirm"
+            >
+              {creatorReviewMutation.isPending ? "Liberando..." : "Confirmar Liberação"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Dialog para devolver com observações */}
       <Dialog open={returnObservationOpen} onOpenChange={setReturnObservationOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Devolver para Arte com Observações</DialogTitle>
             <DialogDescription>
-              Adicione observações sobre o que precisa ser alterado
+              Adicione observações sobre o que precisa ser alterado (opcional)
             </DialogDescription>
           </DialogHeader>
           <textarea
@@ -736,8 +790,51 @@ export default function Solicitacao() {
               onClick={confirmReturnToArte}
               disabled={returnToArteMutation.isPending}
               data-testid="button-return-confirm"
+              className="bg-blue-600 hover:bg-blue-700"
             >
               {returnToArteMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para cancelar com observações */}
+      <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancelar Item</DialogTitle>
+            <DialogDescription>
+              Deseja cancelar este item? Adicione uma observação opcional explicando o motivo.
+              {selectedItem && (
+                <div className="mt-3 p-3 bg-muted rounded-md text-sm">
+                  <div><strong>Item:</strong> {selectedItem.displayId} - {selectedItem.type}</div>
+                  {selectedItem.name && <div><strong>Nome:</strong> {selectedItem.name}</div>}
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            placeholder="Motivo do cancelamento (opcional)..."
+            value={cancelObservations}
+            onChange={(e) => setCancelObservations(e.target.value)}
+            className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none"
+            data-testid="textarea-cancel-observations"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCancelConfirmOpen(false)}
+              data-testid="button-cancel-cancel"
+            >
+              Manter Item
+            </Button>
+            <Button
+              onClick={confirmCancel}
+              disabled={bulkCancelMutation.isPending}
+              data-testid="button-cancel-confirm"
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {bulkCancelMutation.isPending ? "Cancelando..." : "Confirmar Cancelamento"}
             </Button>
           </DialogFooter>
         </DialogContent>

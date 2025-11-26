@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, ClipboardList, Send, FolderOpen } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, ClipboardList, Send, FolderOpen, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -1029,7 +1029,6 @@ export default function Arte() {
                             reader.readAsDataURL(file);
                           }}
                           accept="image/*"
-                          className="bg-purple-600 hover:bg-purple-700 text-white"
                         >
                           <Upload className="h-4 w-4 mr-2" />
                           Fazer Upload do Thumb
@@ -1089,13 +1088,18 @@ export default function Arte() {
               </p>
               {sharedPdfUrl ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/20">
-                    <File className="h-5 w-5 text-primary" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">PDF enviado com sucesso</p>
-                      <p className="text-xs text-muted-foreground truncate">{sharedPdfUrl}</p>
+                  <a
+                    href={sharedPdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg hover-elevate text-red-700 dark:text-red-400 font-medium"
+                  >
+                    <FileText className="h-5 w-5" />
+                    <div className="flex flex-col items-start">
+                      <span>Abrir PDF Compartilhado</span>
+                      <span className="text-xs text-red-600 dark:text-red-500">Clique para visualizar</span>
                     </div>
-                  </div>
+                  </a>
                   <FileUploader
                     onGetUploadParameters={getUploadUrl}
                     onComplete={(result) => {

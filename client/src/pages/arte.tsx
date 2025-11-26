@@ -832,15 +832,39 @@ export default function Arte() {
               {selectedItem.approvalThumbUrl && (
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-                    <FileImage className="h-3.5 w-3.5" />
-                    Thumb Aprovado
+                    {selectedItem.approvalThumbUrl.toLowerCase().endsWith('.pdf') ? (
+                      <>
+                        <FileText className="h-3.5 w-3.5" />
+                        Thumb Aprovado (PDF)
+                      </>
+                    ) : (
+                      <>
+                        <FileImage className="h-3.5 w-3.5" />
+                        Thumb Aprovado
+                      </>
+                    )}
                   </Label>
                   <div className="flex justify-center rounded-lg bg-muted/50 p-3 border">
-                    <img
-                      src={selectedItem.approvalThumbUrl}
-                      alt="Thumb aprovado"
-                      className="max-h-[150px] max-w-full object-contain rounded shadow-sm"
-                    />
+                    {selectedItem.approvalThumbUrl.toLowerCase().endsWith('.pdf') ? (
+                      <a
+                        href={selectedItem.approvalThumbUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg hover-elevate text-red-700 dark:text-red-400 font-medium"
+                      >
+                        <FileText className="h-5 w-5" />
+                        <div className="flex flex-col items-start">
+                          <span>Abrir PDF</span>
+                          <span className="text-xs text-red-600 dark:text-red-500">Clique para visualizar</span>
+                        </div>
+                      </a>
+                    ) : (
+                      <img
+                        src={selectedItem.approvalThumbUrl}
+                        alt="Thumb aprovado"
+                        className="max-h-[150px] max-w-full object-contain rounded shadow-sm"
+                      />
+                    )}
                   </div>
                 </div>
               )}

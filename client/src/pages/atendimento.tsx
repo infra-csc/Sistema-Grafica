@@ -524,7 +524,7 @@ export default function Atendimento() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os eventos</SelectItem>
-                {events.map((event) => (
+                {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((event) => (
                   <SelectItem key={event.id} value={event.id}>
                     {event.name}
                   </SelectItem>
@@ -552,7 +552,7 @@ export default function Atendimento() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os patrocinadores</SelectItem>
-                {sponsors.map((sponsor) => (
+                {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map((sponsor) => (
                   <SelectItem key={sponsor.id} value={sponsor.id}>
                     {sponsor.name}
                   </SelectItem>

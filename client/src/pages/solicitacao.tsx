@@ -1,12 +1,13 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, FileText, Check, Search, X, XCircle } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, FileText, Check, Search, X, XCircle, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import {
   Dialog,
   DialogContent,
@@ -81,6 +82,7 @@ export default function Solicitacao() {
       return await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {});
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
@@ -105,6 +107,7 @@ export default function Solicitacao() {
       return await Promise.all(releasePromises);
     },
     onSuccess: (_, itemIds) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItemIds(new Set());
       toast({
         title: "Itens liberados para produção",
@@ -126,6 +129,7 @@ export default function Solicitacao() {
       return await apiRequest("PATCH", `/api/items/${itemId}/creator-reject`, {});
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setDialogOpen(false);
       setSelectedItem(null);
       setRejectConfirmOpen(false);
@@ -546,170 +550,54 @@ export default function Solicitacao() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Revisão Final do Criador</DialogTitle>
-            <DialogDescription>
-              Revise todas as aprovações e libere o item para produção
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedItem && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+      <ItemDetailsDialog
+        item={selectedItem}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        topActions={selectedItem ? (
+          <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2 text-green-700 dark:text-green-400">
+                <FileText className="h-4 w-4" />
+                Arquivo Final Pronto para Revisão
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {selectedItem.finalFileUrl ? (
                 <div>
-                  <h3 className="font-semibold mb-2">Informações do Item</h3>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-medium">Nome:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.name}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Tipo:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.type}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Quantidade:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.quantity}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Material:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.material || "N/A"}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Acabamento:</span>{" "}
-                      <span className="text-muted-foreground">{selectedItem.finish || "N/A"}</span>
-                    </div>
-                    {selectedItem.sponsorId && (
-                      <div>
-                        <span className="font-medium">Patrocinador:</span>{" "}
-                        <span className="text-muted-foreground">
-                          {getSponsorInfo(selectedItem.sponsorId)?.name || "N/A"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">Caminho do arquivo:</p>
+                  <p className="text-sm font-mono bg-muted p-2 rounded break-all">{selectedItem.finalFileUrl}</p>
                 </div>
-
-                <div>
-                  <h3 className="font-semibold mb-2">Informações do Evento</h3>
-                  <div className="space-y-2 text-sm">
-                    {(() => {
-                      const event = getEventInfo(selectedItem.eventId);
-                      return event ? (
-                        <>
-                          <div>
-                            <span className="font-medium">Evento:</span>{" "}
-                            <span className="text-muted-foreground">{event.name}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium">Local:</span>{" "}
-                            <span className="text-muted-foreground">{event.location}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium">Data:</span>{" "}
-                            <span className="text-muted-foreground">
-                              {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}
-                            </span>
-                          </div>
-                          {event.truckDepartureDate && (
-                            <div>
-                              <span className="font-medium">Saída do Caminhão:</span>{" "}
-                              <span className="text-muted-foreground">
-                                {format(new Date(event.truckDepartureDate), "dd/MM/yyyy HH:mm", {
-                                  locale: ptBR,
-                                })}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="text-muted-foreground">Evento não encontrado</div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t pt-4">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Check className="w-5 h-5 text-green-600" />
-                  Status de Aprovações
-                </h3>
-                <div className="space-y-2 text-sm">
-                  {selectedItem.artApprovedBy && (
-                    <div className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-green-600" />
-                      <span>
-                        <span className="font-medium">Arte:</span> Aprovado por {selectedItem.artApprovedBy}
-                        {selectedItem.artApprovedAt && (
-                          <span className="text-muted-foreground ml-1">
-                            em {format(new Date(selectedItem.artApprovedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  {selectedItem.sponsorApprovedBy && (
-                    <div className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-green-600" />
-                      <span>
-                        <span className="font-medium">Patrocinador:</span> Aprovado por {selectedItem.sponsorApprovedBy}
-                        {selectedItem.sponsorApprovedAt && (
-                          <span className="text-muted-foreground ml-1">
-                            em {format(new Date(selectedItem.sponsorApprovedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {selectedItem.notes && (
-                <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-2">Observações</h3>
-                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                    {selectedItem.notes}
-                  </p>
-                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhum arquivo final enviado</p>
               )}
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              data-testid="button-cancel"
-            >
-              Cancelar
-            </Button>
+            </CardContent>
+          </Card>
+        ) : undefined}
+        customActions={selectedItem ? (
+          <div className="flex gap-2">
             <Button
               variant="destructive"
-              onClick={() => {
-                if (selectedItem) {
-                  handleReject(selectedItem);
-                }
-              }}
+              onClick={() => handleReject(selectedItem)}
               disabled={creatorRejectMutation.isPending}
-              data-testid="button-dialog-reject"
+              data-testid="button-reject-final"
+              className="flex-1"
             >
-              <XCircle className="w-4 h-4 mr-2" />
-              Reprovar
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Devolver para Arte
             </Button>
             <Button
               onClick={handleRelease}
               disabled={creatorReviewMutation.isPending}
-              data-testid="button-release"
+              data-testid="button-release-final"
+              className="flex-1"
             >
               <CheckCircle className="w-4 h-4 mr-2" />
               {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        ) : undefined}
+      />
 
       {/* Alert Dialog para confirmar reprovação individual */}
       <AlertDialog open={rejectConfirmOpen} onOpenChange={setRejectConfirmOpen}>

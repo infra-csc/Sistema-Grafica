@@ -2294,8 +2294,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update item fields (Solicitação module - can edit)
   app.patch("/api/items/:id/edit", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem editar itens" });
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin" && req.userRole !== "grafica") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação ou Gráfica podem editar itens" });
       }
       
       const currentItem = await storage.getItem(req.params.id);
@@ -2303,7 +2303,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Item not found" });
       }
       
-      const { type, quantity, description, fileWidth, fileHeight, material, finish } = req.body;
+      const { type, quantity, description, fileWidth, fileHeight, material, finish, calculatedM2, measurement } = req.body;
+      
+      // Detect if production data was modified (Gráfica edits)
+      const hasProductionDataModified = 
+        (quantity !== undefined && quantity !== currentItem.quantity) ||
+        (calculatedM2 !== undefined && calculatedM2 !== currentItem.calculatedM2) ||
+        (measurement !== undefined && measurement !== currentItem.measurement);
       
       const item = await storage.updateItem(req.params.id, {
         type: type || currentItem.type,
@@ -2313,18 +2319,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileHeight: fileHeight !== undefined ? fileHeight : currentItem.fileHeight,
         material: material || currentItem.material,
         finish: finish || currentItem.finish,
+        calculatedM2: calculatedM2 !== undefined ? calculatedM2 : currentItem.calculatedM2,
+        measurement: measurement !== undefined ? measurement : currentItem.measurement,
+        hasModifiedData: hasProductionDataModified ? true : currentItem.hasModifiedData,
       });
       
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      const editDetails = [];
+      if (type && type !== currentItem.type) editDetails.push(`Tipo: ${currentItem.type} → ${type}`);
+      if (material && material !== currentItem.material) editDetails.push(`Material: ${currentItem.material} → ${material}`);
+      if (finish && finish !== currentItem.finish) editDetails.push(`Acabamento: ${currentItem.finish} → ${finish}`);
+      if (quantity !== undefined && quantity !== currentItem.quantity) editDetails.push(`Quantidade: ${currentItem.quantity} → ${quantity}`);
+      if (calculatedM2 !== undefined && calculatedM2 !== currentItem.calculatedM2) editDetails.push(`m² Total: ${currentItem.calculatedM2} → ${calculatedM2}`);
+      if (measurement !== undefined && measurement !== currentItem.measurement) editDetails.push(`Medida: ${currentItem.measurement} → ${measurement}`);
+      
       await createAuditLog(
         req.userName!,
         'updated',
         'item',
         item.id,
-        `Item editado pelo criador`
+        `Item editado${editDetails.length > 0 ? ': ' + editDetails.join(', ') : ''}`
       );
       
       broadcast({ type: "item_updated", item });

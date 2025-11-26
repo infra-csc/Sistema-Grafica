@@ -1947,7 +1947,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const item = await storage.updateItem(req.params.id, {
-        status: "awaiting_creator_review",
+        status: "awaiting_final_review",
         finalFileUrl: validatedData.finalFileUrl,
       });
       
@@ -1962,7 +1962,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'updated',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_creator_review")} (arquivo final adicionado)`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_final_review")} (arquivo final adicionado)`
       );
       
       // Notifica Solicitação para revisão final

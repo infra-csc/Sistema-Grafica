@@ -697,8 +697,8 @@ export default function Arte() {
                         </div>
                       </div>
                     )}
-                    <div className="mt-1">
-                      <table className="w-full border-collapse text-xs">
+                    <div className="mt-1 overflow-x-auto">
+                      <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
                         <thead className="bg-muted/20">
                           {activeTab === "criar-aprovacoes" ? (
                             <>
@@ -710,19 +710,19 @@ export default function Arte() {
                                     data-testid="checkbox-select-all"
                                   />
                                 </th>
-                                <th colSpan={6} className="text-left py-1 px-2 font-semibold">
+                                <th colSpan={8} className="text-left py-1 px-2 font-semibold">
                                   {group.type}
                                 </th>
                               </tr>
                               <tr className="border-b border-border/40">
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">ID</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Qtde</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Descrição</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Dim. Visual</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Dim. Arquivo</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">m²</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Material/Acabamento</th>
-                                <th className="text-right py-1 px-2 font-medium text-muted-foreground">Ações</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">ID</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-10">Qtde</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground flex-1">Descrição</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Visual</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Arquivo</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">m²</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-32">Material/Acabamento</th>
+                                <th className="text-right py-1 px-2 font-medium text-muted-foreground w-16">Ações</th>
                               </tr>
                             </>
                           ) : (
@@ -733,14 +733,14 @@ export default function Arte() {
                                 </th>
                               </tr>
                               <tr className="border-b border-border/40">
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">ID</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Qtde</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Descrição</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Dim. Visual</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Dim. Arquivo</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">m²</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Material/Acabamento</th>
-                                <th className="text-right py-1 px-2 font-medium text-muted-foreground">Ações</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">ID</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-10">Qtde</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground flex-1">Descrição</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Visual</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Arquivo</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">m²</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-32">Material/Acabamento</th>
+                                <th className="text-right py-1 px-2 font-medium text-muted-foreground w-16">Ações</th>
                               </tr>
                             </>
                           )}
@@ -783,16 +783,16 @@ export default function Arte() {
                                   )}
                                 </div>
                               </td>
-                              <td className="py-1 px-2 tabular-nums">{item.quantity}</td>
-                              <td className="py-1 px-2 text-sm text-muted-foreground">{item.description || '—'}</td>
-                              <td className="py-1 px-2 tabular-nums text-xs">
+                              <td className="py-1 px-2 tabular-nums w-10">{item.quantity}</td>
+                              <td className="py-1 px-2 text-sm text-muted-foreground flex-1 break-words">{item.description || '—'}</td>
+                              <td className="py-1 px-2 tabular-nums text-xs w-24">
                                 {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}` : '—'}
                               </td>
-                              <td className="py-1 px-2 tabular-nums text-xs">
+                              <td className="py-1 px-2 tabular-nums text-xs w-24">
                                 {item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}` : '—'}
                               </td>
-                              <td className="py-1 px-2 tabular-nums font-semibold">{item.calculatedM2}</td>
-                              <td className="py-1 px-2">{item.material} · {item.finish}</td>
+                              <td className="py-1 px-2 tabular-nums font-semibold w-12">{item.calculatedM2}</td>
+                              <td className="py-1 px-2 text-xs w-32">{item.material} · {item.finish}</td>
                               <td className="py-1 px-2 text-right">
                                 <Button
                                   size="icon"

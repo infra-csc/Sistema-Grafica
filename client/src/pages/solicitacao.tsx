@@ -624,7 +624,8 @@ export default function Solicitacao() {
                               <Button
                                 size="sm"
                                 onClick={() => {
-                                  creatorReviewMutation.mutate(item.id);
+                                  setSelectedItem(item);
+                                  handleReleaseConfirm();
                                 }}
                                 disabled={creatorReviewMutation.isPending}
                                 data-testid={`button-release-individual-${item.id}`}

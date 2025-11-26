@@ -56,6 +56,11 @@ export default function Solicitacao() {
   const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
   const [itemToReject, setItemToReject] = useState<any>(null);
   const [bulkRejectConfirmOpen, setBulkRejectConfirmOpen] = useState(false);
+  const [returnToArteOpen, setReturnToArteOpen] = useState(false);
+  const [returnNotes, setReturnNotes] = useState("");
+  const [bulkReturnOpen, setBulkReturnOpen] = useState(false);
+  const [bulkReturnNotes, setBulkReturnNotes] = useState("");
+  const [bulkCancelOpen, setBulkCancelOpen] = useState(false);
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -190,6 +195,77 @@ export default function Solicitacao() {
     },
   });
 
+  // Mutation para devolver com notas individual
+  const returnToArteMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}/return-to-arte`, { notes: returnNotes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setReturnToArteOpen(false);
+      setReturnNotes("");
+      setSelectedItem(null);
+      toast({
+        title: "Item devolvido para Arte",
+        description: "O item foi devolvido para modificações.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao devolver item",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para devolver em lote com notas
+  const bulkReturnToArteMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      return await apiRequest("PATCH", `/api/items/bulk-return-to-arte`, { itemIds, notes: bulkReturnNotes });
+    },
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setBulkReturnOpen(false);
+      setBulkReturnNotes("");
+      setSelectedItemIds(new Set());
+      toast({
+        title: "Itens devolvidos para Arte",
+        description: `${result.success} ${result.success === 1 ? 'item foi devolvido' : 'itens foram devolvidos'} para modificações.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao devolver itens",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para cancelar em lote
+  const bulkCancelMutation = useMutation({
+    mutationFn: async (itemIds: string[]) => {
+      return await apiRequest("PATCH", `/api/items/bulk-cancel`, { itemIds });
+    },
+    onSuccess: (result: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setBulkCancelOpen(false);
+      setSelectedItemIds(new Set());
+      toast({
+        title: "Itens cancelados",
+        description: `${result.canceled} ${result.canceled === 1 ? 'item foi cancelado' : 'itens foram cancelados'}.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao cancelar itens",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Items aguardando revisão final do criador
   const pendingItems = items.filter(item => item.status === 'awaiting_final_review');
   
@@ -267,6 +343,21 @@ export default function Solicitacao() {
   const handleReject = (item: any) => {
     setItemToReject(item);
     setRejectConfirmOpen(true);
+  };
+
+  const handleReturnToArte = (item: any) => {
+    setSelectedItem(item);
+    setReturnToArteOpen(true);
+    setReturnNotes("");
+  };
+
+  const handleBulkReturn = () => {
+    setBulkReturnOpen(true);
+    setBulkReturnNotes("");
+  };
+
+  const handleBulkCancel = () => {
+    setBulkCancelOpen(true);
   };
 
   const confirmReject = () => {

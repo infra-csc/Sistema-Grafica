@@ -2101,6 +2101,237 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Creator returns item to Arte with modification notes (Solicitação module)
+  app.patch("/api/items/:id/return-to-arte", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem devolver itens" });
+      }
+      
+      const { notes } = req.body;
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      if (currentItem.status !== "awaiting_final_review") {
+        return res.status(409).json({ error: `Item não pode ser devolvido. Status atual: ${currentItem.status}` });
+      }
+      
+      const item = await storage.updateItem(req.params.id, {
+        status: "awaiting_submission",
+        creatorReviewedAt: null,
+        finalFileUrl: null,
+        approvalThumbUrl: null,
+        rejectedByCreator: true,
+        observations: notes || currentItem.observations,
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const event = await storage.getEvent(item.eventId);
+      const detailMsg = notes ? ` Observações: ${notes}` : "";
+      
+      await createAuditLog(
+        req.userName!,
+        'rejected',
+        'item',
+        item.id,
+        `Item devolvido para Arte para modificações.${detailMsg}`
+      );
+      
+      const notification = await storage.createNotification({
+        type: "itemRejected",
+        message: `Criador devolveu item para modificações: ${item.type} - Evento: ${event?.name}${detailMsg}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["arte"],
+      });
+      
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Bulk return to Arte with notes
+  app.patch("/api/items/bulk-return-to-arte", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem devolver itens" });
+      }
+      
+      const { itemIds, notes } = req.body;
+      if (!Array.isArray(itemIds) || itemIds.length === 0) {
+        return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
+      }
+      
+      const results = [];
+      const errors = [];
+      
+      for (const itemId of itemIds) {
+        const currentItem = await storage.getItem(itemId);
+        if (!currentItem) {
+          errors.push({ itemId, error: "Item não encontrado" });
+          continue;
+        }
+        
+        if (currentItem.status !== "awaiting_final_review") {
+          errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
+          continue;
+        }
+        
+        const item = await storage.updateItem(itemId, {
+          status: "awaiting_submission",
+          creatorReviewedAt: null,
+          finalFileUrl: null,
+          approvalThumbUrl: null,
+          rejectedByCreator: true,
+          observations: notes || currentItem.observations,
+        });
+        
+        if (item) {
+          results.push(item);
+          await createAuditLog(
+            req.userName!,
+            'rejected',
+            'item',
+            item.id,
+            `Item devolvido para Arte para modificações (em lote).`
+          );
+          broadcast({ type: "item_updated", item });
+        }
+      }
+      
+      if (results.length > 0) {
+        const detailMsg = notes ? ` Observações: ${notes}` : "";
+        const notification = await storage.createNotification({
+          type: "itemRejected",
+          message: `Criador devolveu ${results.length} item(ns) para modificações.${detailMsg}`,
+          eventId: results[0].eventId,
+          itemId: null,
+          targetRoles: ["arte"],
+        });
+        broadcast({ type: "notification_created", notification });
+      }
+      
+      res.json({ success: results.length, errors: errors.length, items: results, failedItemIds: errors.map(e => e.itemId) });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Cancel item (item disappears from workflow but stays in events)
+  app.patch("/api/items/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem cancelar itens" });
+      }
+      
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const item = await storage.updateItem(req.params.id, {
+        status: "canceled",
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      await createAuditLog(
+        req.userName!,
+        'canceled',
+        'item',
+        item.id,
+        `Item cancelado`
+      );
+      
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Bulk cancel items
+  app.patch("/api/items/bulk-cancel", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem cancelar itens" });
+      }
+      
+      const { itemIds } = req.body;
+      if (!Array.isArray(itemIds) || itemIds.length === 0) {
+        return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
+      }
+      
+      const results = [];
+      
+      for (const itemId of itemIds) {
+        const item = await storage.updateItem(itemId, { status: "canceled" });
+        if (item) {
+          results.push(item);
+          await createAuditLog(req.userName!, 'canceled', 'item', item.id, `Item cancelado (em lote)`);
+          broadcast({ type: "item_updated", item });
+        }
+      }
+      
+      res.json({ canceled: results.length, items: results });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update item fields (Solicitação module - can edit)
+  app.patch("/api/items/:id/edit", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem editar itens" });
+      }
+      
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      const { type, quantity, description, fileWidth, fileHeight, material, finish } = req.body;
+      
+      const item = await storage.updateItem(req.params.id, {
+        type: type || currentItem.type,
+        quantity: quantity !== undefined ? quantity : currentItem.quantity,
+        description: description !== undefined ? description : currentItem.description,
+        fileWidth: fileWidth !== undefined ? fileWidth : currentItem.fileWidth,
+        fileHeight: fileHeight !== undefined ? fileHeight : currentItem.fileHeight,
+        material: material || currentItem.material,
+        finish: finish || currentItem.finish,
+      });
+      
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'item',
+        item.id,
+        `Item editado pelo criador`
+      );
+      
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Bulk creator reject (Solicitação module)
   app.patch("/api/items/bulk-creator-reject", requireAuth, async (req, res) => {
     try {

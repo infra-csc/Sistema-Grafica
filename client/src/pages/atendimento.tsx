@@ -188,6 +188,7 @@ export default function Atendimento() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       
       if (data.allApproved) {
         setDialogOpen(false);
@@ -232,6 +233,7 @@ export default function Atendimento() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setRejectionReason("");
       setRejectingSponsorId(null);
       
@@ -275,6 +277,7 @@ export default function Atendimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
@@ -298,6 +301,7 @@ export default function Atendimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
@@ -324,6 +328,7 @@ export default function Atendimento() {
     onSuccess: (_, itemIds) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set());
       toast({
         title: "Itens aprovados",
@@ -349,6 +354,7 @@ export default function Atendimento() {
     onSuccess: (_, itemIds) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set());
       toast({
         title: "Itens reprovados",

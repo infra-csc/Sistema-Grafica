@@ -28,7 +28,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
   if (!item) return null;
 
   const handleEditChange = (field: string, value: any) => {
-    setEditedItem(prev => ({ ...prev, [field]: value }));
+    setEditedItem((prev: any) => ({ ...prev, [field]: value }));
   };
 
   const handleSaveEdits = () => {

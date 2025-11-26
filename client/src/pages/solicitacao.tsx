@@ -153,8 +153,6 @@ export default function Solicitacao() {
       return await apiRequest("PATCH", `/api/items/bulk-creator-reject`, { itemIds });
     },
     onSuccess: (result: any) => {
-      setBulkRejectConfirmOpen(false);
-      
       if (result.errors > 0 && result.success > 0) {
         // Sucesso parcial - mantém os itens com falha selecionados
         const failedIds = new Set<string>(result.failedItemIds || []);
@@ -275,11 +273,6 @@ export default function Solicitacao() {
     }
   };
 
-  const handleBulkReject = () => {
-    if (selectedItemIds.size > 0) {
-      setBulkRejectConfirmOpen(true);
-    }
-  };
 
   const confirmBulkReject = () => {
     const itemIds = Array.from(selectedItemIds);
@@ -684,29 +677,6 @@ export default function Solicitacao() {
               data-testid="button-reject-confirm"
             >
               {creatorRejectMutation.isPending ? "Reprovando..." : "Confirmar Reprovação"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Alert Dialog para confirmar reprovação em lote */}
-      <AlertDialog open={bulkRejectConfirmOpen} onOpenChange={setBulkRejectConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Reprovação em Lote</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você tem certeza que deseja reprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'item' : 'itens'}? 
-              Eles serão devolvidos para a Arte refazer o trabalho.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-bulk-reject-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmBulkReject}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-bulk-reject-confirm"
-            >
-              {bulkRejectMutation.isPending ? "Reprovando..." : `Reprovar ${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'Item' : 'Itens'}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

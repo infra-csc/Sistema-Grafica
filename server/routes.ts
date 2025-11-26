@@ -2295,8 +2295,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update item fields (Solicitação module - can edit)
   app.patch("/api/items/:id/edit", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin" && req.userRole !== "grafica") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação ou Gráfica podem editar itens" });
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem editar itens" });
       }
       
       const currentItem = await storage.getItem(req.params.id);

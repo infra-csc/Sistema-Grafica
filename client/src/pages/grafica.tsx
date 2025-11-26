@@ -675,22 +675,6 @@ export default function Grafica() {
         auditLogs={auditLogs}
         open={!!viewDetailsItem}
         onOpenChange={(open) => !open && setViewDetailsItem(null)}
-        onEditSave={(editedItem) => {
-          if (viewDetailsItem?.id) {
-            editItemMutation.mutate({
-              itemId: viewDetailsItem.id,
-              updates: {
-                type: editedItem.type,
-                material: editedItem.material,
-                finish: editedItem.finish,
-                description: editedItem.description,
-                quantity: editedItem.quantity,
-                calculatedM2: editedItem.calculatedM2,
-                measurement: editedItem.measurement,
-              },
-            });
-          }
-        }}
       />
 
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={(open) => {

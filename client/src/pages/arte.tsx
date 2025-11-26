@@ -717,6 +717,7 @@ export default function Arte() {
                               <tr className="border-b border-border/40">
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">ID</th>
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">Qtde</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Descrição</th>
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">Dimensões</th>
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">m²</th>
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">Material/Acabamento</th>
@@ -726,13 +727,14 @@ export default function Arte() {
                           ) : (
                             <>
                               <tr className="border-b border-border/30">
-                                <th colSpan={6} className="text-left py-1 px-2 font-semibold">
+                                <th colSpan={7} className="text-left py-1 px-2 font-semibold">
                                   {group.type}
                                 </th>
                               </tr>
                               <tr className="border-b border-border/40">
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">ID</th>
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">Qtde</th>
+                                <th className="text-left py-1 px-2 font-medium text-muted-foreground">Descrição</th>
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">Dimensões</th>
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">m²</th>
                                 <th className="text-left py-1 px-2 font-medium text-muted-foreground">Material/Acabamento</th>
@@ -780,6 +782,7 @@ export default function Arte() {
                                 </div>
                               </td>
                               <td className="py-1 px-2 tabular-nums">{item.quantity}</td>
+                              <td className="py-1 px-2 text-sm text-muted-foreground">{item.description || '—'}</td>
                               <td className="py-1 px-2 tabular-nums">
                                 {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}` : '—'}
                               </td>

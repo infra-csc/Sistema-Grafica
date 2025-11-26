@@ -2006,6 +2006,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const item = await storage.updateItem(req.params.id, {
         status: "ready_for_production",
         creatorReviewedAt: new Date(),
+        hasModifiedData: false, // Reset flag - Gráfica vê como dados novos
       });
       
       if (!item) {
@@ -2125,7 +2126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         approvalThumbUrl: null,
         rejectedByCreator: true,
         observations: notes || currentItem.observations,
-        hasModifiedData: false, // Reset flag when returning to Arte
+        hasModifiedData: true, // Flag: Arte precisa revisar dados modificados
       });
       
       if (!item) {
@@ -2305,12 +2306,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { type, quantity, description, fileWidth, fileHeight, material, finish, calculatedM2, measurement } = req.body;
       
-      // Detect if production data was modified (Gráfica edits)
-      const hasProductionDataModified = 
-        (quantity !== undefined && quantity !== currentItem.quantity) ||
-        (calculatedM2 !== undefined && calculatedM2 !== currentItem.calculatedM2) ||
-        (measurement !== undefined && measurement !== currentItem.measurement);
-      
       const item = await storage.updateItem(req.params.id, {
         type: type || currentItem.type,
         quantity: quantity !== undefined ? quantity : currentItem.quantity,
@@ -2321,7 +2316,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         finish: finish || currentItem.finish,
         calculatedM2: calculatedM2 !== undefined ? calculatedM2 : currentItem.calculatedM2,
         measurement: measurement !== undefined ? measurement : currentItem.measurement,
-        hasModifiedData: hasProductionDataModified ? true : currentItem.hasModifiedData,
       });
       
       if (!item) {

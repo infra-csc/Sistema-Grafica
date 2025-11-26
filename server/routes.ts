@@ -2125,6 +2125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         approvalThumbUrl: null,
         rejectedByCreator: true,
         observations: notes || currentItem.observations,
+        hasModifiedData: false, // Reset flag when returning to Arte
       });
       
       if (!item) {
@@ -2133,18 +2134,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const event = await storage.getEvent(item.eventId);
       const detailMsg = notes ? ` Observações: ${notes}` : "";
+      const modifiedDataMsg = currentItem.hasModifiedData ? " ⚠️ DADOS MODIFICADOS: Verifique Quantidade, m² Total e Medida!" : "";
       
       await createAuditLog(
         req.userName!,
         'rejected',
         'item',
         item.id,
-        `Item devolvido para Arte para modificações.${detailMsg}`
+        `Item devolvido para Arte para modificações.${detailMsg}${modifiedDataMsg}`
       );
       
       const notification = await storage.createNotification({
         type: "itemRejected",
-        message: `Criador devolveu item para modificações: ${item.type} - Evento: ${event?.name}${detailMsg}`,
+        message: `Criador devolveu item para modificações: ${item.type} - Evento: ${event?.name}${detailMsg}${modifiedDataMsg}`,
         eventId: item.eventId,
         itemId: item.id,
         targetRoles: ["arte"],

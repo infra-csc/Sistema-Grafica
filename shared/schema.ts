@@ -88,6 +88,7 @@ export const items = pgTable("items", {
   deliveryPhotoUrl: text("delivery_photo_url"),
   skipApproval: boolean("skip_approval").notNull().default(false), // Se true, pula fase de aprovação de patrocinador
   approvalThumbUrl: text("approval_thumb_url"), // Thumb/link leve para aprovação
+  hasModifiedData: boolean("has_modified_data").notNull().default(false), // Flag: tem dados modificados para notificar Arte
   finalFileUrl: text("final_file_url"), // Link do arquivo final (Drive, S3, etc)
   sponsorApprovedBy: text("sponsor_approved_by"), // Nome do aprovador do patrocinador
   sponsorApprovedAt: timestamp("sponsor_approved_at"), // Quando foi aprovado pelo patrocinador

@@ -1819,9 +1819,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (pendingCount > 0) {
         // Still have pending approvals - keep item in Atendimento
         // But notify Arte about the rejection so they can start working on a new thumb
-        item = await storage.updateItem(itemId, {
+        item = (await storage.updateItem(itemId, {
           rejectedBySponsor: true,
-        });
+        }))!;
         
         await createAuditLog(
           req.userName!,
@@ -1851,12 +1851,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // All sponsors have decided - if any rejected, send back to Arte
-        item = await storage.updateItem(itemId, {
+        item = (await storage.updateItem(itemId, {
           status: "awaiting_submission",
           sponsorApprovedBy: null,
           sponsorApprovedAt: null,
           rejectedBySponsor: true,
-        });
+        }))!;
         
         await createAuditLog(
           req.userName!,

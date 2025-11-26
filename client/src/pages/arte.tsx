@@ -136,10 +136,17 @@ export default function Arte() {
   };
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
-    const match = gcsUrl.match(/\/replit-objstore-[^\/]+\/\.private\/(.+)/);
-    if (match) {
-      return `/objects/${match[1]}`;
+    // If it's already a local path, return as is
+    if (gcsUrl.startsWith('/')) {
+      return gcsUrl;
     }
+    // Extract the file path from GCS URL
+    const match = gcsUrl.match(/\/\.private\/(.+?)(?:\?|$)/);
+    if (match) {
+      const filePath = match[1];
+      return `/api/objects/download/${encodeURIComponent(filePath)}`;
+    }
+    // If no match, return original URL
     return gcsUrl;
   };
 

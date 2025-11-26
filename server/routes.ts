@@ -2235,6 +2235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem cancelar itens" });
       }
       
+      const { notes } = req.body;
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
@@ -2242,18 +2243,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const item = await storage.updateItem(req.params.id, {
         status: "canceled",
+        observations: notes || currentItem.observations,
       });
       
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      const detailMsg = notes ? ` Motivo: ${notes}` : "";
       await createAuditLog(
         req.userName!,
         'canceled',
         'item',
         item.id,
-        `Item cancelado`
+        `Item cancelado${detailMsg}`
       );
       
       broadcast({ type: "item_updated", item });
@@ -2270,7 +2273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem cancelar itens" });
       }
       
-      const { itemIds } = req.body;
+      const { itemIds, notes } = req.body;
       if (!Array.isArray(itemIds) || itemIds.length === 0) {
         return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
       }
@@ -2278,10 +2281,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const results = [];
       
       for (const itemId of itemIds) {
-        const item = await storage.updateItem(itemId, { status: "canceled" });
+        const currentItem = await storage.getItem(itemId);
+        if (!currentItem) continue;
+        
+        const item = await storage.updateItem(itemId, { 
+          status: "canceled",
+          observations: notes || currentItem.observations,
+        });
         if (item) {
           results.push(item);
-          await createAuditLog(req.userName!, 'canceled', 'item', item.id, `Item cancelado (em lote)`);
+          const detailMsg = notes ? ` Motivo: ${notes}` : "";
+          await createAuditLog(req.userName!, 'canceled', 'item', item.id, `Item cancelado (em lote)${detailMsg}`);
           broadcast({ type: "item_updated", item });
         }
       }

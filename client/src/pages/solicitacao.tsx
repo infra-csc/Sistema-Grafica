@@ -262,7 +262,7 @@ export default function Solicitacao() {
   const confirmBulkCancel = () => {
     const itemIds = Array.from(selectedItemIds);
     if (itemIds.length > 0) {
-      bulkCancelMutation.mutate(itemIds);
+      bulkCancelMutation.mutate({ itemIds, notes: bulkCancelObservations });
       setBulkCancelConfirmOpen(false);
     }
   };
@@ -285,7 +285,7 @@ export default function Solicitacao() {
 
   const confirmCancel = () => {
     if (selectedItem?.id) {
-      bulkCancelMutation.mutate([selectedItem.id]);
+      bulkCancelMutation.mutate({ itemIds: [selectedItem.id], notes: cancelObservations });
       setCancelConfirmOpen(false);
     }
   };
@@ -337,8 +337,8 @@ export default function Solicitacao() {
   });
 
   const bulkCancelMutation = useMutation({
-    mutationFn: async (itemIds: string[]) => {
-      return await apiRequest("PATCH", `/api/items/bulk-cancel`, { itemIds });
+    mutationFn: async (payload: { itemIds: string[], notes?: string }) => {
+      return await apiRequest("PATCH", `/api/items/bulk-cancel`, { itemIds: payload.itemIds, notes: payload.notes });
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -346,6 +346,7 @@ export default function Solicitacao() {
       setSelectedItem(null);
       setDialogOpen(false);
       setCancelConfirmOpen(false);
+      setBulkCancelConfirmOpen(false);
       toast({
         title: "Itens cancelados",
         description: `${result.canceled} ${result.canceled === 1 ? 'item foi cancelado' : 'itens foram cancelados'}.`,
@@ -670,6 +671,18 @@ export default function Solicitacao() {
                             </div>
                           </td>
                         </tr>
+                        {item.observations && (
+                          <tr className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-200/30 dark:border-amber-900/30">
+                            <td colSpan={8} className="py-2 px-3">
+                              <div className="flex gap-2 items-start">
+                                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm text-amber-800 dark:text-amber-200">
+                                  <span className="font-semibold">Observações da Ação:</span> {item.observations}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                       </Fragment>
                     );
                   })}

@@ -303,6 +303,7 @@ export default function Solicitacao() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItem(null);
       toast({
         title: "Item atualizado",
@@ -324,6 +325,7 @@ export default function Solicitacao() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setDialogOpen(false);
       setSelectedItem(null);
       setReturnObservationOpen(false);
@@ -348,6 +350,7 @@ export default function Solicitacao() {
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set());
       setSelectedItem(null);
       setDialogOpen(false);
@@ -702,6 +705,7 @@ export default function Solicitacao() {
 
       <ItemDetailsDialog
         item={selectedItem}
+        auditLogs={auditLogs}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onEditSave={(editedItem) => {

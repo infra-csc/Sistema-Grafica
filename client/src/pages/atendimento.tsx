@@ -97,6 +97,10 @@ export default function Atendimento() {
     queryKey: ["/api/sponsors"],
   });
 
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
+  });
+
   // Memoizar awaiting items para evitar fetches desnecessários
   const awaitingItems = useMemo(() => 
     items.filter(item => 

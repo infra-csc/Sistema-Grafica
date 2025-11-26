@@ -778,26 +778,32 @@ export default function Atendimento() {
                   </CardHeader>
                   <CardContent className="p-3">
                     <div className="flex items-center justify-center rounded-lg bg-muted/50 p-3 h-[200px]">
-                      {selectedItem.approvalThumbUrl.toLowerCase().endsWith('.pdf') ? (
-                        <a
-                          href={selectedItem.approvalThumbUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-4 py-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-800 rounded-lg hover-elevate text-blue-700 dark:text-blue-400 font-medium"
-                        >
-                          <FileText className="h-5 w-5" />
-                          <div className="flex flex-col items-start">
-                            <span>Abrir PDF de Aprovação</span>
-                            <span className="text-xs text-blue-600 dark:text-blue-500">Clique para visualizar</span>
-                          </div>
-                        </a>
-                      ) : (
-                        <img
-                          src={selectedItem.approvalThumbUrl}
-                          alt="Thumb de aprovação"
-                          className="max-h-full max-w-full object-contain shadow-lg"
-                        />
-                      )}
+                      {(() => {
+                        const url = selectedItem.approvalThumbUrl.toLowerCase();
+                        const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                        const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
+                        
+                        return isPdf ? (
+                          <a
+                            href={selectedItem.approvalThumbUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-800 rounded-lg hover-elevate text-blue-700 dark:text-blue-400 font-medium"
+                          >
+                            <FileText className="h-5 w-5" />
+                            <div className="flex flex-col items-start">
+                              <span>Abrir PDF de Aprovação</span>
+                              <span className="text-xs text-blue-600 dark:text-blue-500">Clique para visualizar</span>
+                            </div>
+                          </a>
+                        ) : (
+                          <img
+                            src={selectedItem.approvalThumbUrl}
+                            alt="Thumb de aprovação"
+                            className="max-h-full max-w-full object-contain shadow-lg"
+                          />
+                        );
+                      })()}
                     </div>
                   </CardContent>
                 </Card>

@@ -1146,7 +1146,8 @@ export default function Arte() {
                 <FileUploader
                   onGetUploadParameters={getUploadUrl}
                   onComplete={(result) => {
-                    setSharedPdfUrl(result.url);
+                    const localPath = convertGCSUrlToLocalPath(result.url);
+                    setSharedPdfUrl(localPath);
                     toast({
                       title: "Upload concluído",
                       description: "PDF compartilhado enviado com sucesso",

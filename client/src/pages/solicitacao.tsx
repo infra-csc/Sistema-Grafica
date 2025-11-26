@@ -288,7 +288,9 @@ export default function Solicitacao() {
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItemIds(new Set());
+      setSelectedItem(null);
       setDialogOpen(false);
+      setCancelConfirmOpen(false);
       toast({
         title: "Itens cancelados",
         description: `${result.canceled} ${result.canceled === 1 ? 'item foi cancelado' : 'itens foram cancelados'}.`,
@@ -593,7 +595,10 @@ export default function Solicitacao() {
                               </Button>
                               <Button
                                 size="sm"
-                                onClick={() => bulkCancelMutation.mutate([item.id])}
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  handleCancelConfirm();
+                                }}
                                 disabled={bulkCancelMutation.isPending}
                                 data-testid={`button-cancel-individual-${item.id}`}
                                 title="Cancelar Item"

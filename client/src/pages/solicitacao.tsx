@@ -210,6 +210,27 @@ export default function Solicitacao() {
   };
 
 
+  const editItemMutation = useMutation({
+    mutationFn: async (payload: { itemId: string; updates: any }) => {
+      return await apiRequest("PATCH", `/api/items/${payload.itemId}/edit`, payload.updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItem(null);
+      toast({
+        title: "Item atualizado",
+        description: "As especificações do item foram atualizadas com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar item",
+        description: error.message || "Ocorreu um erro",
+        variant: "destructive",
+      });
+    },
+  });
+
   const returnToArteMutation = useMutation({
     mutationFn: async (payload: { itemId: string; notes: string }) => {
       return await apiRequest("POST", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes });
@@ -503,7 +524,17 @@ export default function Solicitacao() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onEditSave={(editedItem) => {
-          setSelectedItem(editedItem);
+          if (selectedItem?.id) {
+            editItemMutation.mutate({
+              itemId: selectedItem.id,
+              updates: {
+                type: editedItem.type,
+                material: editedItem.material,
+                finish: editedItem.finish,
+                description: editedItem.description,
+              },
+            });
+          }
         }}
         topActions={selectedItem ? (
           <div className="space-y-3">

@@ -734,19 +734,13 @@ export default function Solicitacao() {
         ) : undefined}
       />
 
-      {/* Dialog para liberar com confirmação */}
+      {/* AlertDialog para liberar - sem observações */}
       <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Liberação para Produção</AlertDialogTitle>
+            <AlertDialogTitle>Liberar para Produção</AlertDialogTitle>
             <AlertDialogDescription>
-              Você tem certeza que deseja liberar este item para produção?
-              {selectedItem && (
-                <div className="mt-3 p-3 bg-muted rounded-md text-sm">
-                  <div><strong>Item:</strong> {selectedItem.displayId} - {selectedItem.type}</div>
-                  {selectedItem.name && <div><strong>Nome:</strong> {selectedItem.name}</div>}
-                </div>
-              )}
+              Deseja liberar este item para produção?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -756,7 +750,7 @@ export default function Solicitacao() {
               className="bg-green-600 hover:bg-green-700 text-white"
               data-testid="button-release-confirm"
             >
-              {creatorReviewMutation.isPending ? "Liberando..." : "Confirmar Liberação"}
+              {creatorReviewMutation.isPending ? "Liberando..." : "Liberar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

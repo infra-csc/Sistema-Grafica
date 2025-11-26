@@ -659,6 +659,18 @@ export default function Grafica() {
                             </div>
                           </td>
                         </tr>
+                        {item.observations && (
+                          <tr className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-200/30 dark:border-amber-900/30">
+                            <td colSpan={9} className="py-2 px-4">
+                              <div className="flex gap-2 items-start">
+                                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm text-amber-800 dark:text-amber-200">
+                                  <span className="font-semibold">Observações da Ação:</span> {item.observations}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                       </Fragment>
                     );
                   })}

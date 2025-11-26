@@ -144,7 +144,7 @@ export default function Arte() {
     const match = gcsUrl.match(/\/\.private\/(.+?)(?:\?|$)/);
     if (match) {
       const filePath = match[1];
-      return `/api/objects/download/${encodeURIComponent(filePath)}`;
+      return `/objects/${filePath}`;
     }
     // If no match, return original URL
     return gcsUrl;

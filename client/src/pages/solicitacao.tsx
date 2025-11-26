@@ -426,7 +426,7 @@ export default function Solicitacao() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os eventos</SelectItem>
-                {events.map((event) => (
+                {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((event) => (
                   <SelectItem key={event.id} value={event.id}>
                     {event.name}
                   </SelectItem>

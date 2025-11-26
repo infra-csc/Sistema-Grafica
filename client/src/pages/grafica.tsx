@@ -351,7 +351,7 @@ export default function Grafica() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os eventos</SelectItem>
-                    {events.map((event) => (
+                    {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((event) => (
                       <SelectItem key={event.id} value={event.id}>
                         {event.name}
                       </SelectItem>
@@ -364,10 +364,10 @@ export default function Grafica() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="delivered">Entregues</SelectItem>
                     <SelectItem value="approved">Liberados</SelectItem>
                     <SelectItem value="inProduction">Em Produção</SelectItem>
                     <SelectItem value="produced">Produzidos</SelectItem>
-                    <SelectItem value="delivered">Entregues</SelectItem>
                   </SelectContent>
                 </Select>
                 

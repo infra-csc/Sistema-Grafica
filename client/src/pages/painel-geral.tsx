@@ -394,13 +394,13 @@ export default function PainelGeral() {
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
                   <SelectItem value="awaiting_approval">Aguardando Aprovação</SelectItem>
-                  <SelectItem value="awaiting_final_review">Aguardando Revisão Final</SelectItem>
                   <SelectItem value="awaiting_finalization">Aguardando Finalização</SelectItem>
+                  <SelectItem value="awaiting_final_review">Aguardando Revisão Final</SelectItem>
                   <SelectItem value="awaiting_linking">Aguardando Vinculação</SelectItem>
                   <SelectItem value="awaiting_submission">Aguardando Envio</SelectItem>
+                  <SelectItem value="approved">Liberado</SelectItem>
                   <SelectItem value="delivered">Entregue</SelectItem>
                   <SelectItem value="inProduction">Em Produção</SelectItem>
-                  <SelectItem value="approved">Liberado</SelectItem>
                   <SelectItem value="produced">Produzido</SelectItem>
                   <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
                   <SelectItem value="requested">Solicitado</SelectItem>

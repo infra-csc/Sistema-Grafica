@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, FileText, Check, Search, X, XCircle, ArrowLeft } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, FileText, Check, Search, X, XCircle, ArrowLeft, Trash2, FileEdit } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -483,14 +483,24 @@ export default function Solicitacao() {
                   Liberar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
                 </Button>
                 <Button
-                  variant="destructive"
+                  variant="secondary"
                   size="sm"
-                  onClick={handleBulkReject}
-                  disabled={bulkRejectMutation.isPending}
-                  data-testid="button-bulk-reject"
+                  onClick={handleBulkReturn}
+                  disabled={bulkReturnToArteMutation.isPending}
+                  data-testid="button-bulk-return"
                 >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Devolver para Arte {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                  <FileEdit className="h-4 w-4 mr-2" />
+                  Devolver com Notas {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkCancel}
+                  disabled={bulkCancelMutation.isPending}
+                  data-testid="button-bulk-cancel"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Cancelar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
                 </Button>
               </>
             )}
@@ -610,24 +620,38 @@ export default function Solicitacao() {
                             </div>
                           </td>
                           <td className="py-2 px-3 text-right">
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1 flex-wrap">
                               <Button
                                 variant="outline"
-                                size="sm"
+                                size="icon"
                                 onClick={() => handleViewDetails(item)}
                                 data-testid={`button-view-${item.id}`}
+                                title="Revisar"
                               >
-                                <Eye className="h-4 w-4 mr-2" />
-                                Revisar
+                                <Eye className="h-4 w-4" />
                               </Button>
                               <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => handleReject(item)}
-                                data-testid={`button-reject-${item.id}`}
+                                variant="secondary"
+                                size="icon"
+                                onClick={() => handleReturnToArte(item)}
+                                disabled={returnToArteMutation.isPending}
+                                data-testid={`button-return-${item.id}`}
+                                title="Devolver com Notas"
                               >
-                                <XCircle className="h-4 w-4 mr-2" />
-                                Reprovar
+                                <FileEdit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => {
+                                  setItemToReject(item);
+                                  setBulkCancelOpen(false);
+                                  setRejectConfirmOpen(true);
+                                }}
+                                data-testid={`button-cancel-${item.id}`}
+                                title="Cancelar Item"
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </td>
@@ -776,6 +800,103 @@ export default function Solicitacao() {
               data-testid="button-bulk-reject-confirm"
             >
               {bulkRejectMutation.isPending ? "Reprovando..." : `Reprovar ${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'Item' : 'Itens'}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog para devolver com notas individual */}
+      <Dialog open={returnToArteOpen} onOpenChange={setReturnToArteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Devolver para Arte com Modificações</DialogTitle>
+            <DialogDescription>
+              Informe as modificações necessárias (quantidade, medidas, etc.)
+            </DialogDescription>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="space-y-4">
+              <div className="bg-muted p-3 rounded-lg text-sm">
+                <div><strong>Item:</strong> {selectedItem.displayId} - {selectedItem.type}</div>
+                <div><strong>Descrição:</strong> {selectedItem.description || "—"}</div>
+                <div><strong>Quantidade:</strong> {selectedItem.quantity}x</div>
+                {selectedItem.fileWidth && selectedItem.fileHeight && (
+                  <div><strong>Medidas:</strong> {selectedItem.fileWidth}m x {selectedItem.fileHeight}m</div>
+                )}
+              </div>
+              <textarea
+                placeholder="Descreva as modificações necessárias..."
+                value={returnNotes}
+                onChange={(e) => setReturnNotes(e.target.value)}
+                className="w-full min-h-24 p-2 border rounded-md bg-background text-foreground resize-none"
+                data-testid="textarea-return-notes"
+              />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReturnToArteOpen(false)} data-testid="button-return-cancel">
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => returnToArteMutation.mutate(selectedItem?.id)}
+              disabled={returnToArteMutation.isPending}
+              data-testid="button-return-confirm"
+            >
+              {returnToArteMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para devolver em lote com notas */}
+      <Dialog open={bulkReturnOpen} onOpenChange={setBulkReturnOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Devolver {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'} para Arte</DialogTitle>
+            <DialogDescription>
+              Informe as modificações necessárias para todos os itens selecionados
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            placeholder="Descreva as modificações necessárias..."
+            value={bulkReturnNotes}
+            onChange={(e) => setBulkReturnNotes(e.target.value)}
+            className="w-full min-h-24 p-2 border rounded-md bg-background text-foreground resize-none"
+            data-testid="textarea-bulk-return-notes"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkReturnOpen(false)} data-testid="button-bulk-return-cancel">
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => bulkReturnToArteMutation.mutate(Array.from(selectedItemIds))}
+              disabled={bulkReturnToArteMutation.isPending}
+              data-testid="button-bulk-return-confirm"
+            >
+              {bulkReturnToArteMutation.isPending ? "Devolvendo..." : `Devolver ${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'Item' : 'Itens'}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para confirmar cancelamento em lote */}
+      <AlertDialog open={bulkCancelOpen} onOpenChange={setBulkCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem certeza que deseja cancelar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'item' : 'itens'}? 
+              Os itens sairão do fluxo de trabalho mas permanecerão visíveis nos Eventos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-bulk-cancel-cancel">Não, Manter</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bulkCancelMutation.mutate(Array.from(selectedItemIds))}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-bulk-cancel-confirm"
+            >
+              {bulkCancelMutation.isPending ? "Cancelando..." : `Cancelar ${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'Item' : 'Itens'}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

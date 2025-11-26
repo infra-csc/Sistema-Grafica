@@ -53,8 +53,8 @@ export default function Solicitacao() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [rejectConfirmOpen, setRejectConfirmOpen] = useState(false);
-  const [itemToReject, setItemToReject] = useState<any>(null);
+  const [returnObservationOpen, setReturnObservationOpen] = useState(false);
+  const [returnObservations, setReturnObservations] = useState("");
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -122,70 +122,6 @@ export default function Solicitacao() {
     },
   });
 
-  // Mutation para reprovar individual
-  const creatorRejectMutation = useMutation({
-    mutationFn: async (itemId: string) => {
-      return await apiRequest("PATCH", `/api/items/${itemId}/creator-reject`, {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setDialogOpen(false);
-      setSelectedItem(null);
-      setRejectConfirmOpen(false);
-      setItemToReject(null);
-      toast({
-        title: "Item reprovado",
-        description: "O item foi devolvido para a Arte refazer.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erro ao reprovar item",
-        description: error.message || "Ocorreu um erro ao reprovar o item",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Mutation para reprovar em lote
-  const bulkRejectMutation = useMutation({
-    mutationFn: async (itemIds: string[]) => {
-      return await apiRequest("PATCH", `/api/items/bulk-creator-reject`, { itemIds });
-    },
-    onSuccess: (result: any) => {
-      if (result.errors > 0 && result.success > 0) {
-        // Sucesso parcial - mantém os itens com falha selecionados
-        const failedIds = new Set<string>(result.failedItemIds || []);
-        setSelectedItemIds(failedIds);
-        toast({
-          title: "Reprovação parcial",
-          description: `${result.success} ${result.success === 1 ? 'item foi devolvido' : 'itens foram devolvidos'} para a Arte. ${result.errors} ${result.errors === 1 ? 'item permanece selecionado (status inválido)' : 'itens permanecem selecionados (status inválido)'}.`,
-          variant: "default",
-        });
-      } else if (result.errors > 0 && result.success === 0) {
-        // Falha total - mantém todos selecionados
-        toast({
-          title: "Erro ao reprovar itens",
-          description: `Nenhum item pôde ser reprovado. Os ${result.errors} ${result.errors === 1 ? 'item selecionado tem' : 'itens selecionados têm'} status inválido para reprovação.`,
-          variant: "destructive",
-        });
-      } else {
-        // Sucesso total - limpa seleção
-        setSelectedItemIds(new Set());
-        toast({
-          title: "Itens reprovados",
-          description: `${result.success} ${result.success === 1 ? 'item foi devolvido' : 'itens foram devolvidos'} para a Arte refazer.`,
-        });
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erro ao reprovar itens",
-        description: error.message || "Ocorreu um erro ao reprovar os itens",
-        variant: "destructive",
-      });
-    },
-  });
 
 
   // Items aguardando revisão final do criador
@@ -262,22 +198,41 @@ export default function Solicitacao() {
     }
   };
 
-  const handleReject = (item: any) => {
-    setItemToReject(item);
-    setRejectConfirmOpen(true);
+  const handleReturnToArte = () => {
+    setReturnObservationOpen(true);
+    setReturnObservations("");
   };
 
-  const confirmReject = () => {
-    if (itemToReject) {
-      creatorRejectMutation.mutate(itemToReject.id);
+  const confirmReturnToArte = () => {
+    if (selectedItem) {
+      returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations });
     }
   };
 
 
-  const confirmBulkReject = () => {
-    const itemIds = Array.from(selectedItemIds);
-    bulkRejectMutation.mutate(itemIds);
-  };
+  const returnToArteMutation = useMutation({
+    mutationFn: async (payload: { itemId: string; notes: string }) => {
+      return await apiRequest("POST", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setDialogOpen(false);
+      setSelectedItem(null);
+      setReturnObservationOpen(false);
+      setReturnObservations("");
+      toast({
+        title: "Item devolvido para Arte",
+        description: "O item foi devolvido para a Arte com observações.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao devolver item",
+        description: error.message || "Ocorreu um erro",
+        variant: "destructive",
+      });
+    },
+  });
 
   const bulkCancelMutation = useMutation({
     mutationFn: async (itemIds: string[]) => {
@@ -610,77 +565,74 @@ export default function Solicitacao() {
           </div>
         ) : undefined}
         customActions={selectedItem ? (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setItemToReject(selectedItem);
-                  setDialogOpen(false);
-                  setRejectConfirmOpen(true);
-                }}
-                disabled={creatorRejectMutation.isPending}
-                data-testid="button-reject-final"
-                className="flex-1"
-              >
-                <XCircle className="w-4 h-4 mr-2" />
-                Devolver para Arte (COM FLAG)
-              </Button>
-              <Button
-                onClick={handleRelease}
-                disabled={creatorReviewMutation.isPending}
-                data-testid="button-release-final"
-                className="flex-1"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
-              </Button>
-            </div>
+          <div className="flex flex-col gap-2">
             <Button
-              variant="ghost"
-              onClick={() => {
-                setItemToReject(selectedItem);
-                setDialogOpen(false);
-                setRejectConfirmOpen(true);
-              }}
-              disabled={creatorRejectMutation.isPending}
+              onClick={handleRelease}
+              disabled={creatorReviewMutation.isPending}
+              data-testid="button-release-final"
+              className="w-full"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleReturnToArte}
+              disabled={returnToArteMutation.isPending}
+              data-testid="button-return-final"
+              className="w-full"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Devolver para Arte
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => bulkCancelMutation.mutate([selectedItem.id])}
+              disabled={bulkCancelMutation.isPending}
               data-testid="button-cancel-item"
               className="w-full"
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              Cancelar Item
+              {bulkCancelMutation.isPending ? "Cancelando..." : "Cancelar Item"}
             </Button>
           </div>
         ) : undefined}
       />
 
-      {/* Alert Dialog para confirmar reprovação individual */}
-      <AlertDialog open={rejectConfirmOpen} onOpenChange={setRejectConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Reprovação</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você tem certeza que deseja reprovar este item? Ele será devolvido para a Arte refazer o trabalho.
-              {itemToReject && (
-                <div className="mt-3 p-3 bg-muted rounded-md text-sm">
-                  <div><strong>Item:</strong> {itemToReject.displayId} - {itemToReject.type}</div>
-                  {itemToReject.name && <div><strong>Nome:</strong> {itemToReject.name}</div>}
-                </div>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-reject-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmReject}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-reject-confirm"
+      {/* Dialog para devolver com observações */}
+      <Dialog open={returnObservationOpen} onOpenChange={setReturnObservationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Devolver para Arte com Observações</DialogTitle>
+            <DialogDescription>
+              Adicione observações sobre o que precisa ser alterado
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            placeholder="Descreva as alterações necessárias..."
+            value={returnObservations}
+            onChange={(e) => setReturnObservations(e.target.value)}
+            className="w-full min-h-24 p-2 border rounded-md bg-background text-foreground resize-none"
+            data-testid="textarea-return-observations"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setReturnObservationOpen(false)}
+              data-testid="button-return-cancel"
             >
-              {creatorRejectMutation.isPending ? "Reprovando..." : "Confirmar Reprovação"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmReturnToArte}
+              disabled={returnToArteMutation.isPending}
+              data-testid="button-return-confirm"
+            >
+              {returnToArteMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

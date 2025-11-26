@@ -113,6 +113,7 @@ export default function Arte() {
       return await apiRequest("PATCH", `/api/items/${itemId}/submit-final-file`, { finalFileUrl });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
       setFinalFileUrl("");
       toast({

@@ -558,15 +558,18 @@ export default function Arte() {
             </div>
             
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              {activeTab === "criar-aprovacoes" && selectedItemIds.size > 0 && (
+              {activeTab === "criar-aprovacoes" && (
                 <Button
-                  variant="default"
+                  variant={selectedItemIds.size > 0 ? "default" : "outline"}
                   size="sm"
                   onClick={() => setShowBulkDialog(true)}
+                  disabled={selectedItemIds.size === 0}
                   data-testid="button-open-bulk-upload"
                 >
                   <File className="h-4 w-4 mr-2" />
-                  Upload PDF Compartilhado ({selectedItemIds.size})
+                  {selectedItemIds.size > 0 
+                    ? `Upload PDF Compartilhado (${selectedItemIds.size})` 
+                    : "Selecione itens para PDF"}
                 </Button>
               )}
             </div>

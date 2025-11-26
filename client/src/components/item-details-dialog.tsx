@@ -422,38 +422,91 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Dados de Produção - Linha Inteira */}
           <Card>
-            <CardHeader className="px-4 py-2 bg-emerald-50/50 dark:bg-emerald-950/20">
+            <CardHeader className="px-4 py-2 bg-emerald-50/50 dark:bg-emerald-950/20 flex flex-row items-center justify-between gap-2">
               <CardTitle className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                 <Package className="h-3.5 w-3.5" />
                 Dados de Produção
               </CardTitle>
+              {!editMode && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    setEditedItem(item);
+                    setEditMode(true);
+                  }}
+                  data-testid="button-edit-production"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
-              <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                <span className="text-muted-foreground text-xs">Quantidade</span>
-                <span className="font-semibold">{item.quantity}</span>
-              </div>
-              {(item.visualWidth && item.visualHeight) && (
-                <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                  <span className="text-muted-foreground text-xs">Área × Visual</span>
-                  <span className="font-semibold">{item.visualWidth} × {item.visualHeight}</span>
-                </div>
-              )}
-              <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                <span className="text-muted-foreground text-xs">m² Total</span>
-                <span className="font-semibold">{item.calculatedM2}</span>
-              </div>
-              {item.measurement && (
-                <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                  <span className="text-muted-foreground text-xs">Medida</span>
-                  <span className="font-semibold">{item.measurement}</span>
-                </div>
-              )}
-              {item.quantityProduced !== null && item.quantityProduced > 0 && (
-                <div className="flex justify-between items-baseline py-1">
-                  <span className="text-muted-foreground text-xs">Quantidade Produzida</span>
-                  <span className="font-semibold text-status-production">{item.quantityProduced}</span>
-                </div>
+              {editMode ? (
+                <>
+                  <div className="py-2 space-y-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Quantidade</label>
+                      <Input
+                        type="number"
+                        value={editedItem?.quantity || ""}
+                        onChange={(e) => handleEditChange("quantity", parseInt(e.target.value) || 0)}
+                        className="text-sm"
+                        data-testid="input-edit-quantity"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">m² Total</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={editedItem?.calculatedM2 || ""}
+                        onChange={(e) => handleEditChange("calculatedM2", parseFloat(e.target.value) || 0)}
+                        className="text-sm"
+                        data-testid="input-edit-m2"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Medida</label>
+                      <Input
+                        value={editedItem?.measurement || ""}
+                        onChange={(e) => handleEditChange("measurement", e.target.value)}
+                        className="text-sm"
+                        placeholder="Ex: 1.90 × 0.90"
+                        data-testid="input-edit-measurement"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">Quantidade</span>
+                    <span className="font-semibold">{editedItem?.quantity || item.quantity}</span>
+                  </div>
+                  {(item.visualWidth && item.visualHeight) && (
+                    <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                      <span className="text-muted-foreground text-xs">Área × Visual</span>
+                      <span className="font-semibold">{item.visualWidth} × {item.visualHeight}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                    <span className="text-muted-foreground text-xs">m² Total</span>
+                    <span className="font-semibold">{editedItem?.calculatedM2 || item.calculatedM2}</span>
+                  </div>
+                  {(editedItem?.measurement || item.measurement) && (
+                    <div className="flex justify-between items-baseline py-1 border-b border-border/40">
+                      <span className="text-muted-foreground text-xs">Medida</span>
+                      <span className="font-semibold">{editedItem?.measurement || item.measurement}</span>
+                    </div>
+                  )}
+                  {item.quantityProduced !== null && item.quantityProduced > 0 && (
+                    <div className="flex justify-between items-baseline py-1">
+                      <span className="text-muted-foreground text-xs">Quantidade Produzida</span>
+                      <span className="font-semibold text-status-production">{item.quantityProduced}</span>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

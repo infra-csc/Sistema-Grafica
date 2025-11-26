@@ -684,6 +684,9 @@ export default function Grafica() {
                 material: editedItem.material,
                 finish: editedItem.finish,
                 description: editedItem.description,
+                quantity: editedItem.quantity,
+                calculatedM2: editedItem.calculatedM2,
+                measurement: editedItem.measurement,
               },
             });
           }

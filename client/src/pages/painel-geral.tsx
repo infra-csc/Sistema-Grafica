@@ -102,7 +102,7 @@ export default function PainelGeral() {
   // Status cards config com valores e cores específicas
   const statusCards = [
     // LINHA 1
-    { key: 'total', label: 'Total', color: '#1a1916', textColor: '#ffffff', dot: '#1a1916', icon: '📦' },
+    { key: 'total', label: 'Total', color: '#1a4d88', textColor: '#ffffff', dot: '#1a4d88', icon: '📦' },
     { key: 'requested', label: 'Solicitado', count: statsItems.filter(i => i.status === 'requested').length, color: '#d97706', textColor: '#d97706', dot: '#d97706' },
     { key: 'awaiting_linking', label: 'Ag. Vinculação', count: statsItems.filter(i => i.status === 'awaiting_linking').length, color: '#a09d98', textColor: '#a09d98', dot: '#f59e0b' },
     { key: 'awaiting_submission', label: 'Ag. Envio', count: statsItems.filter(i => i.status === 'awaiting_submission').length, color: '#2563eb', textColor: '#2563eb', dot: '#2563eb' },

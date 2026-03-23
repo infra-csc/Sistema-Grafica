@@ -1,0 +1,55 @@
+A tela de login está quebrada — o painel esquerdo está invisível 
+(fundo claro com texto claro). Corrija completamente:
+
+PAINEL ESQUERDO (42% da largura):
+- Fundo SÓLIDO: #1c1917 (quase-preto, sem transparência)
+- NÃO usar opacity, rgba muito diluído ou gradiente claro
+- Adicionar spot decorativo laranja:
+  position absolute, bottom-left, 
+  width 300px height 300px,
+  background radial-gradient(circle, rgba(249,115,22,0.35) 0%, transparent 70%)
+  pointer-events none
+
+CONTEÚDO DO PAINEL ESQUERDO:
+- Logo "N": 
+  fundo #f97316, cor branco, border-radius 10px,
+  width 44px height 44px, font-size 20px font-weight 800
+  display flex align-items center justify-content center
+- "NORTE" em branco (#ffffff), font-weight 700, font-size 15px
+- "Marketing Esportivo" em rgba(255,255,255,0.55), font-size 12px
+
+- Linha decorativa: width 36px, height 2px, background #f97316,
+  margin: 40px 0 20px
+
+- Título "Sistema de Gestão de Produção Gráfica":
+  cor #ffffff, font-weight 800, font-size 28px, 
+  letter-spacing -0.5px, line-height 1.15
+
+- Subtítulo "Controle completo do fluxo...":
+  cor rgba(255,255,255,0.55), font-size 14px, 
+  line-height 1.6, margin-top 12px
+
+- Cards de features (substituir bullets):
+  2 cards lado a lado, fundo rgba(255,255,255,0.07),
+  borda 1px solid rgba(255,255,255,0.12),
+  border-radius 8px, padding 10px 14px
+  Ícone laranja (✓) + texto branco font-size 13px
+  Conteúdo: "Notificações em tempo real" e "Rastreamento completo"
+
+- Rodapé "© 2024 NORTE Marketing Esportivo":
+  cor rgba(255,255,255,0.3), font-size 11px
+  position absolute bottom 24px left 32px
+
+PAINEL DIREITO (58% da largura):
+- Fundo: #fafaf9
+- Inputs: fundo #ffffff, borda 1.5px solid #e7e5e4
+  Focus: borda #f97316 + ring rgba(249,115,22,0.12)
+- Botão "Entrar no Sistema": fundo #1c1917
+  Hover: fundo #f97316, transição 0.25s
+- Linha separadora sob título: 2px solid #f97316, width 32px
+
+TOAST "Logout realizado":
+- Fundo #ffffff, borda 1px solid #e7e5e4, 
+  border-left 3px solid #f97316
+- Título cor #1c1917, subtítulo cor #78716c
+- border-radius 8px, box-shadow 0 4px 12px rgba(0,0,0,0.08)

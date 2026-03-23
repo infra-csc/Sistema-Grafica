@@ -76,87 +76,256 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-[hsl(var(--norte-magenta))] to-accent p-12 flex-col justify-between relative overflow-hidden">
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+      {/* Left side - Branding - TITANIUM THEME */}
+      <div style={{
+        display: 'none',
+        width: '42%',
+        backgroundColor: '#1c1917',
+        padding: '48px',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        position: 'relative',
+        overflow: 'hidden'
+      }} className="hidden lg:flex">
+        {/* Spot decorativo laranja */}
+        <div style={{
+          position: 'absolute',
+          bottom: '0',
+          left: '0',
+          width: '300px',
+          height: '300px',
+          background: 'radial-gradient(circle, rgba(249,115,22,0.35) 0%, transparent 70%)',
+          pointerEvents: 'none'
+        }} />
         
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white font-bold text-xl border border-white/30">
-              N
+        {/* Conteúdo */}
+        <div style={{ position: 'relative', zIndex: 10 }}>
+          {/* Logo e Nome */}
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '10px',
+                backgroundColor: '#f97316',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                fontWeight: '800',
+                fontSize: '20px'
+              }}>
+                N
+              </div>
+              <div>
+                <h1 style={{
+                  fontSize: '15px',
+                  fontWeight: '700',
+                  color: '#ffffff',
+                  margin: 0
+                }}>NORTE</h1>
+                <p style={{
+                  fontSize: '12px',
+                  color: 'rgba(255,255,255,0.55)',
+                  margin: '2px 0 0'
+                }}>Marketing Esportivo</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">NORTE</h1>
-              <p className="text-white/80 text-sm">Marketing Esportivo</p>
-            </div>
-          </div>
-        </div>
 
-        <div className="relative z-10 space-y-6">
-          <h2 className="text-4xl font-bold text-white leading-tight">
+            {/* Linha decorativa */}
+            <div style={{
+              width: '36px',
+              height: '2px',
+              backgroundColor: '#f97316',
+              margin: '40px 0 20px'
+            }} />
+          </div>
+
+          {/* Título */}
+          <h2 style={{
+            fontSize: '28px',
+            fontWeight: '800',
+            color: '#ffffff',
+            letterSpacing: '-0.5px',
+            lineHeight: '1.15',
+            margin: '0 0 12px'
+          }}>
             Sistema de Gestão de Produção Gráfica
           </h2>
-          <p className="text-white/90 text-lg">
+
+          {/* Subtítulo */}
+          <p style={{
+            fontSize: '14px',
+            color: 'rgba(255,255,255,0.55)',
+            lineHeight: '1.6',
+            margin: '12px 0 0'
+          }}>
             Controle completo do fluxo de produção: Solicitação → Arte → Gráfica → Entrega
           </p>
-          <div className="flex gap-4 pt-4">
-            <div className="flex items-center gap-2 text-white/90">
-              <div className="w-2 h-2 rounded-full bg-white" />
-              <span className="text-sm">Notificações em tempo real</span>
+
+          {/* Cards de Features */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            marginTop: '20px'
+          }}>
+            <div style={{
+              flex: 1,
+              backgroundColor: 'rgba(255,255,255,0.07)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ color: '#f97316', fontSize: '16px' }}>✓</span>
+              <span style={{ color: '#ffffff', fontSize: '13px' }}>Notificações em tempo real</span>
             </div>
-            <div className="flex items-center gap-2 text-white/90">
-              <div className="w-2 h-2 rounded-full bg-white" />
-              <span className="text-sm">Rastreamento completo</span>
+            <div style={{
+              flex: 1,
+              backgroundColor: 'rgba(255,255,255,0.07)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ color: '#f97316', fontSize: '16px' }}>✓</span>
+              <span style={{ color: '#ffffff', fontSize: '13px' }}>Rastreamento completo</span>
             </div>
           </div>
         </div>
 
-        <div className="relative z-10">
-          <p className="text-white/60 text-sm">© 2024 NORTE Marketing Esportivo</p>
+        {/* Rodapé */}
+        <div style={{
+          position: 'relative',
+          zIndex: 10
+        }}>
+          <p style={{
+            fontSize: '11px',
+            color: 'rgba(255,255,255,0.3)',
+            margin: 0
+          }}>© 2024 NORTE Marketing Esportivo</p>
         </div>
       </div>
 
-      {/* Right side - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-background">
-        <div className="w-full max-w-md space-y-8">
+      {/* Right side - Login Form - TITANIUM THEME */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '32px',
+        backgroundColor: '#fafaf9'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '384px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '32px'
+        }}>
           {/* Mobile logo */}
-          <div className="lg:hidden text-center">
-            <div className="inline-flex items-center gap-3 mb-6">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary via-[hsl(var(--norte-magenta))] to-accent flex items-center justify-center text-white font-bold text-xl">
+          <div style={{ display: 'none', textAlign: 'center' }} className="lg:hidden">
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '24px'
+            }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                backgroundColor: '#f97316',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                fontWeight: '800',
+                fontSize: '20px'
+              }}>
                 N
               </div>
-              <div className="text-left">
-                <h1 className="text-2xl font-bold text-foreground">NORTE</h1>
-                <p className="text-muted-foreground text-sm">Marketing Esportivo</p>
+              <div style={{ textAlign: 'left' }}>
+                <h1 style={{
+                  fontSize: '20px',
+                  fontWeight: '700',
+                  color: '#1c1917',
+                  margin: 0
+                }}>NORTE</h1>
+                <p style={{
+                  fontSize: '12px',
+                  color: '#78716c',
+                  margin: '2px 0 0'
+                }}>Marketing Esportivo</p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2 text-center lg:text-left">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">
+          {/* Header */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <h2 style={{
+              fontSize: '28px',
+              fontWeight: '700',
+              color: '#1c1917',
+              letterSpacing: '-0.5px',
+              margin: 0,
+              lineHeight: '1.2'
+            }}>
               Bem-vindo de volta
             </h2>
-            <p className="text-muted-foreground">
+            <div style={{
+              width: '32px',
+              height: '2px',
+              backgroundColor: '#f97316'
+            }} />
+            <p style={{
+              fontSize: '13px',
+              color: '#78716c',
+              margin: '8px 0 0'
+            }}>
               Entre com suas credenciais para acessar o sistema
             </p>
           </div>
 
+          {/* Form */}
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <FormField
                 control={form.control}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-foreground font-medium">Email</FormLabel>
+                    <FormLabel style={{ color: '#1c1917', fontWeight: '500', fontSize: '13px' }}>Email</FormLabel>
                     <FormControl>
                       <Input
                         type="email"
                         placeholder="seu@email.com"
-                        className="h-11"
+                        style={{
+                          height: '44px',
+                          backgroundColor: '#ffffff',
+                          border: '1.5px solid #e7e5e4',
+                          borderRadius: '8px',
+                          color: '#1c1917',
+                          fontSize: '13px'
+                        }}
                         data-testid="input-email"
+                        onFocus={(e) => {
+                          (e.target as HTMLInputElement).style.borderColor = '#f97316';
+                          (e.target as HTMLInputElement).style.boxShadow = '0 0 0 2px rgba(249,115,22,0.12)';
+                        }}
+                        onBlur={(e) => {
+                          (e.target as HTMLInputElement).style.borderColor = '#e7e5e4';
+                          (e.target as HTMLInputElement).style.boxShadow = 'none';
+                        }}
                         {...field}
                       />
                     </FormControl>
@@ -169,13 +338,28 @@ export default function Login() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-foreground font-medium">Senha</FormLabel>
+                    <FormLabel style={{ color: '#1c1917', fontWeight: '500', fontSize: '13px' }}>Senha</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
                         placeholder="••••••••"
-                        className="h-11"
+                        style={{
+                          height: '44px',
+                          backgroundColor: '#ffffff',
+                          border: '1.5px solid #e7e5e4',
+                          borderRadius: '8px',
+                          color: '#1c1917',
+                          fontSize: '13px'
+                        }}
                         data-testid="input-password"
+                        onFocus={(e) => {
+                          (e.target as HTMLInputElement).style.borderColor = '#f97316';
+                          (e.target as HTMLInputElement).style.boxShadow = '0 0 0 2px rgba(249,115,22,0.12)';
+                        }}
+                        onBlur={(e) => {
+                          (e.target as HTMLInputElement).style.borderColor = '#e7e5e4';
+                          (e.target as HTMLInputElement).style.boxShadow = 'none';
+                        }}
                         {...field}
                       />
                     </FormControl>
@@ -185,13 +369,36 @@ export default function Login() {
               />
               <Button
                 type="submit"
-                className="w-full h-11 text-base font-medium"
+                style={{
+                  height: '44px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  backgroundColor: '#1c1917',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.25s ease'
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917';
+                }}
                 disabled={loginMutation.isPending}
                 data-testid="button-login"
               >
                 {loginMutation.isPending ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid rgba(255,255,255,0.3)',
+                      borderTop: '2px solid white',
+                      borderRadius: '50%',
+                      animation: 'spin 0.8s linear infinite'
+                    }} />
                     Entrando...
                   </span>
                 ) : (
@@ -201,11 +408,22 @@ export default function Login() {
             </form>
           </Form>
 
-          <div className="text-center text-sm text-muted-foreground">
+          {/* Footer */}
+          <div style={{
+            textAlign: 'center',
+            fontSize: '12px',
+            color: '#a8a29e'
+          }}>
             Sistema seguro com criptografia de ponta a ponta
           </div>
         </div>
       </div>
+      
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

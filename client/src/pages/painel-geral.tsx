@@ -198,10 +198,9 @@ export default function PainelGeral() {
                   borderRadius: '12px',
                   padding: selectedStatusCard === card.key ? '15px' : '16px',
                   cursor: 'pointer',
-                  transitionProperty: 'background-color, transform, box-shadow, border-color, padding',
+                  transitionProperty: 'transform, box-shadow, border-color, padding',
                   transitionDuration: '0.2s',
-                  transitionTimingFunction: 'ease',
-                  boxShadow: selectedStatusCard === card.key ? '0 4px 12px rgba(6, 182, 212, 0.15), 0 2px 4px rgba(0, 0, 0, 0.05)' : 'none'
+                  transitionTimingFunction: 'ease'
                 }}
                 onClick={() => {
                   setSelectedStatusCard(card.key);
@@ -209,15 +208,12 @@ export default function PainelGeral() {
                 }}
                 onMouseEnter={(e) => {
                   if (selectedStatusCard !== card.key) {
-                    const hoverBg = (card as any).hoverBg;
-                    (e.currentTarget as HTMLElement).style.backgroundColor = hoverBg;
                     (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
                     (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (selectedStatusCard !== card.key) {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = card.isTotal ? '#2d2d2d' : '#ffffff';
                     (e.currentTarget as HTMLElement).style.boxShadow = 'none';
                     (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                   }
@@ -266,10 +262,9 @@ export default function PainelGeral() {
                   borderRadius: '12px',
                   padding: selectedStatusCard === card.key ? '15px' : '16px',
                   cursor: 'pointer',
-                  transitionProperty: 'background-color, transform, box-shadow, border-color, padding',
+                  transitionProperty: 'transform, box-shadow, border-color, padding',
                   transitionDuration: '0.2s',
-                  transitionTimingFunction: 'ease',
-                  boxShadow: selectedStatusCard === card.key ? '0 4px 12px rgba(6, 182, 212, 0.15), 0 2px 4px rgba(0, 0, 0, 0.05)' : 'none'
+                  transitionTimingFunction: 'ease'
                 }}
                 onClick={() => {
                   setSelectedStatusCard(card.key);
@@ -277,15 +272,12 @@ export default function PainelGeral() {
                 }}
                 onMouseEnter={(e) => {
                   if (selectedStatusCard !== card.key) {
-                    const hoverBg = (card as any).hoverBg;
-                    (e.currentTarget as HTMLElement).style.backgroundColor = hoverBg;
                     (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
                     (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (selectedStatusCard !== card.key) {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff';
                     (e.currentTarget as HTMLElement).style.boxShadow = 'none';
                     (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                   }

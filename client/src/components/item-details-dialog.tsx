@@ -119,15 +119,30 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4' }}>
-        <DialogHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', paddingBottom: '20px', paddingTop: '20px', marginBottom: '0' }}>
+      <DialogContent 
+        className="max-w-6xl max-h-[90vh] overflow-y-auto" 
+        style={{ 
+          backgroundColor: '#23272E',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          backdropFilter: 'blur(8px)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+        }}
+      >
+        <DialogHeader style={{ 
+          backgroundColor: 'rgba(45, 50, 59, 0.5)', 
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          paddingBottom: '20px', 
+          paddingTop: '20px', 
+          marginBottom: '0',
+          backdropFilter: 'blur(4px)'
+        }}>
           <div className="w-full space-y-3">
             {/* ID e Subtitle em linha */}
             <div className="flex items-baseline gap-3">
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#1c1917', fontFamily: 'monospace', letterSpacing: '1px' }}>
+              <span style={{ fontSize: '20px', fontWeight: '700', color: '#00D9FF', fontFamily: 'monospace', letterSpacing: '1px' }}>
                 {item.displayId}
               </span>
-              <p style={{ fontSize: '11px', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: '600' }}>
+              <p style={{ fontSize: '11px', color: '#909CB0', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: '600' }}>
                 Detalhes do Item
               </p>
             </div>
@@ -158,14 +173,18 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
         
         <div className="space-y-6">
           {/* Barra de Progresso Visual - 6 Etapas */}
-          <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
-            <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2">
-              <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
-                <ArrowRightCircle className="h-3.5 w-3.5" />
+          <div style={{ 
+            backgroundColor: '#2D323B', 
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '12px',
+            padding: '16px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <ArrowRightCircle className="h-4 w-4" style={{ color: '#00D9FF' }} />
+              <span style={{ color: '#909CB0', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Progresso
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 py-4">
+              </span>
+            </div>
               {(() => {
                 const steps = [
                   { 
@@ -260,12 +279,16 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   </div>
                 );
               })()}
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Ações Customizadas - Logo após Timeline (Upload de Thumb, etc) */}
           {customActions && (
-            <div className="bg-white border border-[#e7e5e4] rounded-[10px] p-4">
+            <div style={{ 
+              backgroundColor: '#2D323B', 
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              padding: '16px'
+            }}>
               {customActions}
             </div>
           )}
@@ -280,29 +303,41 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           {/* Grid 2 Colunas: Evento e Especificações */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Informações do Evento */}
-            <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
-              <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2">
-                <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
-                  <Calendar className="h-3.5 w-3.5" />
+            <div style={{ 
+              backgroundColor: '#2D323B', 
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              overflow: 'hidden'
+            }}>
+              <div style={{ 
+                backgroundColor: 'rgba(0, 217, 255, 0.05)', 
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Calendar className="h-3.5 w-3.5" style={{ color: '#00D9FF' }} />
+                <span style={{ color: '#909CB0', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                   Evento
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 py-2 pt-0 space-y-1.5 text-sm">
-                <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                  <span className="text-muted-foreground text-xs">Nome do Evento</span>
-                  <span className="font-semibold text-right">{item.event?.name}</span>
+                </span>
+              </div>
+              <div style={{ padding: '12px 16px', space: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingY: '6px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <span style={{ color: '#909CB0', fontSize: '12px' }}>Nome do Evento</span>
+                  <span style={{ color: '#F0F4F8', fontWeight: '500', textAlign: 'right' }}>{item.event?.name}</span>
                 </div>
-                <div className="flex justify-between items-baseline py-1 border-b border-border/40">
-                  <span className="text-muted-foreground text-xs">Data de Início</span>
-                  <span className="font-semibold">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingY: '6px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <span style={{ color: '#909CB0', fontSize: '12px' }}>Data de Início</span>
+                  <span style={{ color: '#F0F4F8', fontWeight: '500' }}>
                     {item.event?.startDate 
                       ? format(new Date(item.event.startDate), "dd/MM/yyyy", { locale: ptBR })
                       : "—"}
                   </span>
                 </div>
-                <div className="flex justify-between items-baseline py-1">
-                  <span className="text-muted-foreground text-xs">Saída do Caminhão</span>
-                  <span className="font-semibold">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingY: '6px' }}>
+                  <span style={{ color: '#909CB0', fontSize: '12px' }}>Saída do Caminhão</span>
+                  <span style={{ color: '#F0F4F8', fontWeight: '500' }}>
                     {item.event?.truckDepartureDate 
                       ? format(new Date(item.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
                       : "—"}
@@ -323,11 +358,16 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   }
                   return null;
                 })()}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Especificações */}
-            <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
+            <div style={{ 
+              backgroundColor: '#2D323B', 
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              overflow: 'hidden'
+            }}>
               <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2 flex flex-row items-center justify-between gap-2">
                 <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
                   <ClipboardList className="h-3.5 w-3.5" />

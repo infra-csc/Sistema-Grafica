@@ -167,9 +167,9 @@ export default function PainelGeral() {
   }, [filteredItems]);
 
   return (
-    <div className="min-h-screen bg-[#f4f3f0] flex flex-col">
+    <div className="min-h-screen bg-[#f1f5f9] flex flex-col">
       {/* TOPBAR */}
-      <div className="bg-white border-b border-[#e8e5df] sticky top-0 z-40">
+      <div className="bg-white border-b border-[#e5e7eb] sticky top-0 z-40">
         <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-2.5 h-2.5 bg-black rounded-full"></div>
@@ -177,14 +177,14 @@ export default function PainelGeral() {
           </div>
           
           <div className="flex items-center gap-5">
-            <button className="relative p-2 hover:bg-[#faf9f7] rounded-lg transition-colors">
-              <Bell className="h-5 w-5 text-[#1a1916]" />
+            <button className="relative p-2 hover:bg-[#f1f5f9] rounded-lg transition-colors">
+              <Bell className="h-5 w-5 text-[#2d2d2d]" />
               <span className="absolute top-0 right-0 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white font-bold text-xs">9+</span>
             </button>
             
-            <div className="flex items-center gap-2.5 cursor-pointer hover:bg-[#faf9f7] px-3 py-2 rounded-lg transition-colors">
-              <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-white font-bold text-sm">A</div>
-              <span className="text-sm font-medium text-[#1a1916]">Administrador</span>
+            <div className="flex items-center gap-2.5 cursor-pointer hover:bg-[#f1f5f9] px-3 py-2 rounded-lg transition-colors">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: '#06b6d4' }}>A</div>
+              <span className="text-sm font-medium text-[#2d2d2d]">Administrador</span>
             </div>
           </div>
         </div>
@@ -202,8 +202,8 @@ export default function PainelGeral() {
                 onClick={() => card.key !== 'total' && setStatusFilter(card.key)}
                 className="relative rounded-[12px] p-4 border cursor-pointer transition-all hover:translate-y-[-1px] hover:shadow-sm"
                 style={{
-                  backgroundColor: card.key === 'total' ? '#1a4d88' : '#ffffff',
-                  borderColor: '#e8e5df',
+                  backgroundColor: card.key === 'total' ? '#2d2d2d' : '#ffffff',
+                  borderColor: '#e5e7eb',
                   color: card.key === 'total' ? '#ffffff' : 'inherit'
                 }}
               >
@@ -262,21 +262,22 @@ export default function PainelGeral() {
         </div>
 
         {/* FILTERS */}
-        <Card className="border-[#e8e5df] animate-fadeUp">
+        <Card className="animate-fadeUp" style={{ borderColor: '#e5e7eb' }}>
           <CardContent className="p-4">
             {/* Linha 1: Search + Filtros */}
             <div className="flex gap-3 mb-3">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#a09d98]" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#9ca3af]" />
                 <Input
                   placeholder="Buscar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 border-[#e8e5df] bg-white text-[#1a1916]"
+                  className="pl-10 bg-white"
+                  style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }}
                   data-testid="input-search"
                 />
               </div>
-              <Button variant="outline" size="sm" className="border-[#e8e5df] text-[#1a1916]">
+              <Button variant="outline" size="sm" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }}>
                 <Filter className="h-4 w-4 mr-2" />
                 Filtros
               </Button>
@@ -285,7 +286,7 @@ export default function PainelGeral() {
             {/* Linha 2: Selects */}
             <div className="grid grid-cols-5 gap-3">
               <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger className="bg-white border-[#e8e5df] text-[#1a1916]" data-testid="select-event-filter">
+                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-event-filter">
                   <SelectValue placeholder="Todos os eventos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -299,7 +300,7 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="bg-white border-[#e8e5df] text-[#1a1916]" data-testid="select-type-filter">
+                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-type-filter">
                   <SelectValue placeholder="Todos os tipos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -313,7 +314,7 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-                <SelectTrigger className="bg-white border-[#e8e5df] text-[#1a1916]" data-testid="select-sponsor-filter">
+                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-sponsor-filter">
                   <SelectValue placeholder="Todos os patrocinadores" />
                 </SelectTrigger>
                 <SelectContent>
@@ -327,7 +328,7 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="bg-white border-[#e8e5df] text-[#1a1916]" data-testid="select-status-filter">
+                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-status-filter">
                   <SelectValue placeholder="Todos os status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -347,7 +348,7 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger className="bg-white border-[#e8e5df] text-[#1a1916]" data-testid="select-date-filter">
+                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-date-filter">
                   <SelectValue placeholder="Todas as datas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -372,9 +373,9 @@ export default function PainelGeral() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
           ) : filteredItems.length === 0 ? (
-            <Card className="border-[#e8e5df]">
+            <Card style={{ borderColor: '#e5e7eb' }}>
               <CardContent className="text-center py-12">
-                <AlertCircle className="h-12 w-12 text-[#d1ccc4] mx-auto mb-4" />
+                <AlertCircle className="h-12 w-12 text-[#d1d5db] mx-auto mb-4" />
                 <p className="text-[#6b6760] font-medium">Nenhum item encontrado</p>
               </CardContent>
             </Card>
@@ -382,14 +383,14 @@ export default function PainelGeral() {
             Object.entries(itemsByEvent).map(([eventId, eventItems]) => {
               const event = events.find(e => e.id === eventId);
               return (
-                <Card key={eventId} className="border-[#e8e5df] overflow-hidden">
+                <Card key={eventId} className="overflow-hidden" style={{ borderColor: '#e5e7eb' }}>
                   {/* EVENT HEADER */}
-                  <div className="bg-white px-6 py-4 border-b border-[#e8e5df] flex items-center gap-3">
-                    <div className="w-9 h-9 bg-black rounded-[9px] flex items-center justify-center text-white text-sm">
+                  <div className="bg-white px-6 py-4 border-b flex items-center gap-3" style={{ borderColor: '#e5e7eb' }}>
+                    <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-white text-sm" style={{ backgroundColor: '#06b6d4' }}>
                       📅
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-base text-[#1a1916]">{event?.name || 'Sem Evento'}</h3>
+                      <h3 className="font-bold text-base" style={{ color: '#2d2d2d' }}>{event?.name || 'Sem Evento'}</h3>
                       <div className="text-xs text-[#6b6760] mt-1 space-y-0.5">
                         {event?.startDate && (
                           <div>📅 Evento: {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}</div>
@@ -399,7 +400,7 @@ export default function PainelGeral() {
                         )}
                       </div>
                     </div>
-                    <Badge className="ml-auto bg-[#f9f8f7] text-[#1a1916] font-mono border border-[#e8e5df]">
+                    <Badge className="ml-auto font-mono border" style={{ backgroundColor: '#f1f5f9', color: '#2d2d2d', borderColor: '#e5e7eb' }}>
                       {eventItems.length} itens
                     </Badge>
                   </div>
@@ -407,7 +408,7 @@ export default function PainelGeral() {
                   {/* TABLE */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-[#faf9f7] border-b border-[#e8e5df]">
+                      <thead className="border-b" style={{ backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' }}>
                         <tr>
                           <th className="text-left px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">ID</th>
                           <th className="text-left px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">Tipo</th>
@@ -426,21 +427,24 @@ export default function PainelGeral() {
                           return (
                             <Fragment key={item.id}>
                               <tr 
-                                className="border-b border-[#e8e5df] hover:bg-[#faf9f7] cursor-pointer transition-colors"
+                                className="cursor-pointer transition-colors"
                                 onClick={() => setSelectedItem(item)}
                                 data-testid={`row-item-${item.id}`}
+                                style={{ borderBottom: '1px solid #e5e7eb' }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                               >
                                 <td className="px-4 py-3">
-                                  <code className="bg-[#f4f3f0] px-2 py-1 rounded-[6px] text-xs font-mono font-semibold text-[#1a1916] border border-[#e8e5df]">
+                                  <code className="px-2 py-1 rounded-[6px] text-xs font-mono font-semibold border" style={{ backgroundColor: '#f1f5f9', color: '#2d2d2d', borderColor: '#e5e7eb' }}>
                                     {item.displayId || item.id}
                                   </code>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <Badge variant="outline" className="border-[#e8e5df] bg-[#f9f8f7] text-[#1a1916]">
+                                  <Badge variant="outline" className="border" style={{ borderColor: '#e5e7eb', backgroundColor: '#f3f4f6', color: '#2d2d2d' }}>
                                     {item.type}
                                   </Badge>
                                 </td>
-                                <td className="px-4 py-3 text-[#1a1916]">{item.description || item.name || '—'}</td>
+                                <td className="px-4 py-3" style={{ color: '#2d2d2d' }}>{item.description || item.name || '—'}</td>
                                 <td className="px-4 py-3 font-mono text-xs text-[#6b6760]">
                                   {item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}m` : '—'}
                                 </td>
@@ -449,7 +453,7 @@ export default function PainelGeral() {
                                 </td>
                                 <td className="px-4 py-3 text-center text-[#6b6760]">{item.quantity || '—'}</td>
                                 <td className="px-4 py-3 text-right">
-                                  <span className="font-bold font-mono" style={m2 > 100 ? {color: '#dc2626'} : {color: '#1a1916'}}>
+                                  <span className="font-bold font-mono" style={m2 > 100 ? {color: '#dc2626'} : {color: '#2d2d2d'}}>
                                     {m2.toFixed(2)}
                                   </span>
                                 </td>
@@ -468,7 +472,7 @@ export default function PainelGeral() {
                                 </td>
                               </tr>
                               {item.observations && (
-                                <tr className="bg-amber-50/40 border-b border-[#e8e5df]">
+                                <tr className="border-b" style={{ backgroundColor: 'rgba(248, 113, 113, 0.05)', borderColor: '#e5e7eb' }}>
                                   <td colSpan={8} className="px-4 py-3">
                                     <div className="flex gap-2 items-start">
                                       <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />

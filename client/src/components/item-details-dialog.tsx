@@ -78,26 +78,62 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
         {/* Timeline Horizontal */}
         <div style={{ 
           padding: '16px 24px',
-          borderBottom: '1px solid #e7e5e4',
-          overflowX: 'auto'
+          borderBottom: '1px solid #e7e5e4'
         }}>
-          <div style={{ display: 'flex', gap: '12px', minWidth: 'fit-content' }}>
-            {['Criado', 'Em Aprovação', 'Aprovado', 'Pronto', 'Aguardando Revisão Final'].map((step, idx) => (
-              <Badge 
-                key={idx}
-                style={{
-                  backgroundColor: '#ffffff',
-                  color: '#1c1917',
-                  border: '1px solid #e7e5e4',
-                  padding: '6px 12px',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {step}
-              </Badge>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0' }}>
+            {[
+              { label: 'Vinculação', color: '#f97316', icon: Link2 },
+              { label: 'Arte', color: '#a855f7', icon: Palette },
+              { label: 'Aprovação', color: '#f97316', icon: CheckCircle },
+              { label: 'Finalização', color: '#10b981', icon: Zap },
+              { label: 'Revisão', color: '#3b82f6', icon: Eye },
+              { label: 'Produção', color: '#a8a29e', icon: Cog }
+            ].map((step, idx) => {
+              const Icon = step.icon;
+              return (
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
+                  {/* Linha conectora */}
+                  {idx < 5 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '12px',
+                      left: 'calc(50% + 12px)',
+                      right: '-50%',
+                      height: '2px',
+                      backgroundColor: step.color,
+                      zIndex: 1
+                    }} />
+                  )}
+                  
+                  {/* Ícone */}
+                  <div style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    backgroundColor: step.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    marginBottom: '6px',
+                    zIndex: 2,
+                    position: 'relative'
+                  }}>
+                    <Icon size={14} strokeWidth={2} />
+                  </div>
+                  
+                  {/* Rótulo */}
+                  <span style={{
+                    fontSize: '11px',
+                    color: '#a8a29e',
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

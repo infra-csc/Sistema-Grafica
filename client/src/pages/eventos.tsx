@@ -764,13 +764,14 @@ export default function Eventos() {
                         </div>
                       </div>
                       <div style={{ 
-                        backgroundColor: truckUrgency === 'urgent' ? '#fef2f2' : truckUrgency === 'warning' ? '#fffbeb' : '#f5f5f4', 
-                        borderRadius: '8px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px' 
+                        backgroundColor: truckUrgency === 'urgent' ? '#ef444415' : truckUrgency === 'warning' ? '#f59e0b15' : '#f5f5f4', 
+                        borderRadius: '8px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px',
+                        border: truckUrgency === 'urgent' ? '1px solid #ef444430' : truckUrgency === 'warning' ? '1px solid #f59e0b30' : '1px solid transparent'
                       }}>
-                        <Truck style={{ color: truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : '#f97316', width: '14px', height: '14px', flexShrink: 0 }} />
+                        <Truck style={{ color: truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : cardBorderHex, width: '14px', height: '14px', flexShrink: 0 }} />
                         <div>
                           <div style={{ color: '#a8a29e', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Saída</div>
-                          <div style={{ color: truckUrgency === 'urgent' ? '#ef4444' : '#1c1917', fontSize: '12px', fontWeight: '700' }}>
+                          <div style={{ color: truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : '#1c1917', fontSize: '12px', fontWeight: '700' }}>
                             {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                           </div>
                         </div>

@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
-import { Search, Calendar, AlertCircle, Filter } from "lucide-react";
+import { Search, Calendar, AlertCircle, Filter, Grid3X3 } from "lucide-react";
 import { useState, Fragment, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -99,22 +99,20 @@ export default function PainelGeral() {
 
   const filteredItems = statsItems.filter(item => matchesStatusFilter(item, statusFilter));
 
-  // Status cards config com valores e cores específicas
   const statusCards = [
-    // LINHA 1
-    { key: 'total', label: 'Total', color: '#1a4d88', textColor: '#ffffff', dot: '#1a4d88', icon: '📦' },
-    { key: 'requested', label: 'Solicitado', count: statsItems.filter(i => i.status === 'requested').length, color: '#d97706', textColor: '#d97706', dot: '#d97706' },
-    { key: 'awaiting_linking', label: 'Ag. Vinculação', count: statsItems.filter(i => i.status === 'awaiting_linking').length, color: '#a09d98', textColor: '#a09d98', dot: '#f59e0b' },
-    { key: 'awaiting_submission', label: 'Ag. Envio', count: statsItems.filter(i => i.status === 'awaiting_submission').length, color: '#2563eb', textColor: '#2563eb', dot: '#2563eb' },
-    { key: 'awaiting_approval', label: 'Ag. Aprovação', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_approval')).length, color: '#dc2626', textColor: '#dc2626', dot: '#dc2626' },
-    { key: 'awaiting_finalization', label: 'Ag. Finalização', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_finalization')).length, color: '#a09d98', textColor: '#a09d98', dot: '#6d28d9' },
-    { key: 'awaiting_final_review', label: 'Ag. Revisão', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_final_review')).length, color: '#7c3aed', textColor: '#7c3aed', dot: '#7c3aed' },
-    // LINHA 2
-    { key: 'ready_for_production', label: 'Pronto Produção', count: statsItems.filter(i => i.status === 'ready_for_production').length, color: '#0891b2', textColor: '#0891b2', dot: '#0891b2' },
-    { key: 'approved', label: 'Liberado', count: statsItems.filter(i => i.status === 'approved').length, color: '#16a34a', textColor: '#16a34a', dot: '#16a34a' },
-    { key: 'inProduction', label: 'Em Produção', count: statsItems.filter(i => i.status === 'inProduction').length, color: '#d97706', textColor: '#d97706', dot: '#d97706' },
-    { key: 'produced', label: 'Produzido', count: statsItems.filter(i => i.status === 'produced').length, color: '#9333ea', textColor: '#9333ea', dot: '#9333ea' },
-    { key: 'delivered', label: 'Entregue', count: statsItems.filter(i => i.status === 'delivered').length, color: '#15803d', textColor: '#15803d', dot: '#15803d' },
+    { key: 'total', label: 'Total', count: statsItems.length, isTotal: true, textColor: '#06b6d4' },
+    { key: 'requested', label: 'Solicitado', count: statsItems.filter(i => i.status === 'requested').length, textColor: '#d97706', dot: '#d97706' },
+    { key: 'awaiting_linking', label: 'Ag. Vinculação', count: statsItems.filter(i => i.status === 'awaiting_linking').length, textColor: '#9ca3af', dot: '#9ca3af' },
+    { key: 'awaiting_submission', label: 'Ag. Envio', count: statsItems.filter(i => i.status === 'awaiting_submission').length, textColor: '#06b6d4', dot: '#06b6d4' },
+    { key: 'awaiting_approval', label: 'Ag. Aprovação', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_approval')).length, textColor: '#dc2626', dot: '#dc2626' },
+    { key: 'awaiting_finalization', label: 'Ag. Finalização', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_finalization')).length, textColor: '#9ca3af', dot: '#6d28d9' },
+    { key: 'awaiting_final_review', label: 'Ag. Revisão', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_final_review')).length, textColor: '#7c3aed', dot: '#7c3aed' },
+    // Linha 2
+    { key: 'ready_for_production', label: 'Pronto Produção', count: statsItems.filter(i => i.status === 'ready_for_production').length, textColor: '#06b6d4', dot: '#06b6d4' },
+    { key: 'approved', label: 'Liberado', count: statsItems.filter(i => i.status === 'approved').length, textColor: '#84cc16', dot: '#84cc16' },
+    { key: 'inProduction', label: 'Em Produção', count: statsItems.filter(i => i.status === 'inProduction').length, textColor: '#d97706', dot: '#d97706' },
+    { key: 'produced', label: 'Produzido', count: statsItems.filter(i => i.status === 'produced').length, textColor: '#9333ea', dot: '#9333ea' },
+    { key: 'delivered', label: 'Entregue', count: statsItems.filter(i => i.status === 'delivered').length, textColor: '#15803d', dot: '#15803d' },
   ];
 
   const getStatusBadgeStyle = (status: string) => {
@@ -123,13 +121,14 @@ export default function PainelGeral() {
       'awaiting_final_review': { bg: '#f5f3ff', border: '#ddd6fe', text: '#7c3aed', dot: '#7c3aed' },
       'awaiting_approval': { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', dot: '#dc2626' },
       'awaiting_sponsor_approval': { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', dot: '#dc2626' },
-      'ready_for_production': { bg: '#ecfeff', border: '#a5f3fc', text: '#0891b2', dot: '#0891b2' },
-      'approved': { bg: '#f0fdf4', border: '#bbf7d0', text: '#16a34a', dot: '#16a34a' },
+      'awaiting_submission': { bg: '#eff6ff', border: '#bfdbfe', text: '#2563eb', dot: '#2563eb' },
+      'ready_for_production': { bg: '#ecfeff', border: '#a5f3fc', text: '#06b6d4', dot: '#06b6d4' },
+      'approved': { bg: '#f7fee7', border: '#d9f99d', text: '#65a30d', dot: '#84cc16' },
       'inProduction': { bg: '#fff7ed', border: '#fed7aa', text: '#d97706', dot: '#d97706' },
       'produced': { bg: '#faf5ff', border: '#e9d5ff', text: '#9333ea', dot: '#9333ea' },
       'delivered': { bg: '#f0fdf4', border: '#86efac', text: '#15803d', dot: '#15803d' },
-      'sponsor_approved': { bg: '#ecfeff', border: '#a5f3fc', text: '#0891b2', dot: '#0891b2' },
-      'awaiting_finalization': { bg: '#ecfeff', border: '#a5f3fc', text: '#0891b2', dot: '#0891b2' },
+      'sponsor_approved': { bg: '#ecfeff', border: '#a5f3fc', text: '#06b6d4', dot: '#06b6d4' },
+      'awaiting_finalization': { bg: '#ecfeff', border: '#a5f3fc', text: '#06b6d4', dot: '#06b6d4' },
       'awaiting_creator_review': { bg: '#f5f3ff', border: '#ddd6fe', text: '#7c3aed', dot: '#7c3aed' },
     };
     return styles[status] || { bg: '#f9f8f7', border: '#e8e5df', text: '#a09d98', dot: '#a09d98' };
@@ -168,79 +167,129 @@ export default function PainelGeral() {
 
   return (
     <div className="min-h-screen bg-[#f1f5f9]">
-      {/* MAIN CONTENT */}
-      <div className="px-6 py-6 space-y-6 overflow-auto">
-        {/* STATUS CARDS - 2 linhas de 7 cards */}
-        <div className="space-y-3 animate-fadeUp">
-          {/* Linha 1 */}
+      <div className="px-6 py-6 space-y-5 overflow-auto max-w-full">
+        {/* STATUS CARDS - 2 linhas */}
+        <div className="space-y-3" style={{ animation: 'fadeUp 0.3s ease' }}>
+          {/* Linha 1 - 7 cards */}
           <div className="grid grid-cols-7 gap-3">
-            {statusCards.slice(0, 7).map((card, idx) => (
+            {statusCards.slice(0, 7).map((card) => (
               <div
                 key={card.key}
-                onClick={() => card.key !== 'total' && setStatusFilter(card.key)}
-                className="relative rounded-[12px] p-4 border cursor-pointer transition-all hover:translate-y-[-1px] hover:shadow-sm"
+                className="relative transition-all duration-200"
                 style={{
-                  backgroundColor: card.key === 'total' ? '#2d2d2d' : '#ffffff',
-                  borderColor: '#e5e7eb',
-                  color: card.key === 'total' ? '#ffffff' : 'inherit'
+                  backgroundColor: card.isTotal ? '#2d2d2d' : '#ffffff',
+                  border: card.isTotal ? '3px solid #06b6d4' : '1px solid #e5e7eb',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  if (!card.isTotal) {
+                    (e.currentTarget as HTMLElement).style.border = '1px solid #06b6d4';
+                    (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(6, 182, 212, 0.12)';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!card.isTotal) {
+                    (e.currentTarget as HTMLElement).style.border = '1px solid #e5e7eb';
+                    (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                  }
                 }}
               >
-                {/* Dot colorido no canto superior direito */}
+                {!card.isTotal && card.dot && (
+                  <div 
+                    className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: card.dot }}
+                  ></div>
+                )}
                 <div 
-                  className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: card.dot || card.color }}
-                ></div>
-                
-                <div className="text-[11.5px] font-medium mb-1.5" style={card.key === 'total' ? {color: 'rgba(255,255,255,0.7)'} : {color: '#6b6760'}}>
-                  {card.label}
-                </div>
-                <div 
-                  className="text-2xl font-bold font-mono"
-                  style={{color: card.key === 'total' ? '#ffffff' : card.textColor}}
+                  className="text-xs uppercase"
+                  style={{
+                    color: card.isTotal ? 'rgba(255,255,255,0.65)' : '#6b7280',
+                    letterSpacing: '0.5px',
+                    marginBottom: '8px',
+                    fontWeight: 600
+                  }}
                 >
-                  {card.key === 'total' ? statsItems.length : card.count}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Linha 2 */}
-          <div className="grid grid-cols-7 gap-3">
-            {statusCards.slice(7).map((card) => (
-              <div
-                key={card.key}
-                onClick={() => setStatusFilter(card.key)}
-                className="relative rounded-[12px] p-4 border cursor-pointer transition-all hover:translate-y-[-1px] hover:shadow-sm"
-                style={{
-                  backgroundColor: '#ffffff',
-                  borderColor: '#e8e5df'
-                }}
-              >
-                {/* Dot colorido no canto superior direito */}
-                <div 
-                  className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: card.dot || card.color }}
-                ></div>
-                
-                <div className="text-[11.5px] font-medium text-[#6b6760] mb-1.5">
                   {card.label}
                 </div>
                 <div 
-                  className="text-2xl font-bold font-mono"
-                  style={{color: card.textColor}}
+                  className="font-black"
+                  style={{
+                    fontSize: '26px',
+                    color: card.textColor,
+                    fontWeight: 800
+                  }}
                 >
                   {card.count}
                 </div>
               </div>
             ))}
-            {/* 2 cards invisíveis para manter grid alinhado */}
-            <div className="opacity-0 pointer-events-none"></div>
-            <div className="opacity-0 pointer-events-none"></div>
+          </div>
+
+          {/* Linha 2 - 5 cards + 2 vazios */}
+          <div className="grid grid-cols-7 gap-3">
+            {statusCards.slice(7).map((card) => (
+              <div
+                key={card.key}
+                className="relative transition-all duration-200"
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.border = '1px solid #06b6d4';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(6, 182, 212, 0.12)';
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.border = '1px solid #e5e7eb';
+                  (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                }}
+              >
+                {card.dot && (
+                  <div 
+                    className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: card.dot }}
+                  ></div>
+                )}
+                <div 
+                  className="text-xs uppercase"
+                  style={{
+                    color: '#6b7280',
+                    letterSpacing: '0.5px',
+                    marginBottom: '8px',
+                    fontWeight: 600
+                  }}
+                >
+                  {card.label}
+                </div>
+                <div 
+                  className="font-black"
+                  style={{
+                    fontSize: '26px',
+                    color: card.textColor,
+                    fontWeight: 800
+                  }}
+                >
+                  {card.count}
+                </div>
+              </div>
+            ))}
+            {/* 2 cells vazios */}
+            <div></div>
+            <div></div>
           </div>
         </div>
 
-        {/* FILTERS */}
-        <Card className="animate-fadeUp" style={{ borderColor: '#e5e7eb' }}>
+        {/* FILTROS */}
+        <Card style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', borderRadius: '12px' }}>
           <CardContent className="p-4">
             {/* Linha 1: Search + Filtros */}
             <div className="flex gap-3 mb-3">
@@ -250,12 +299,38 @@ export default function PainelGeral() {
                   placeholder="Buscar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-white"
-                  style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }}
+                  style={{
+                    paddingLeft: '40px',
+                    backgroundColor: '#f1f5f9',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '13px'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#06b6d4';
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(6, 182, 212, 0.15)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#e5e7eb';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
                   data-testid="input-search"
                 />
               </div>
-              <Button variant="outline" size="sm" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }}>
+              <Button 
+                size="sm"
+                style={{
+                  backgroundColor: '#2d2d2d',
+                  color: 'white',
+                  borderRadius: '8px'
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#06b6d4';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#2d2d2d';
+                }}
+              >
                 <Filter className="h-4 w-4 mr-2" />
                 Filtros
               </Button>
@@ -264,7 +339,16 @@ export default function PainelGeral() {
             {/* Linha 2: Selects */}
             <div className="grid grid-cols-5 gap-3">
               <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-event-filter">
+                <SelectTrigger 
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    borderColor: '#e5e7eb',
+                    borderRadius: '8px',
+                    height: '38px',
+                    fontSize: '13px'
+                  }}
+                  data-testid="select-event-filter"
+                >
                   <SelectValue placeholder="Todos os eventos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -278,7 +362,16 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-type-filter">
+                <SelectTrigger 
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    borderColor: '#e5e7eb',
+                    borderRadius: '8px',
+                    height: '38px',
+                    fontSize: '13px'
+                  }}
+                  data-testid="select-type-filter"
+                >
                   <SelectValue placeholder="Todos os tipos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -292,7 +385,16 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-sponsor-filter">
+                <SelectTrigger 
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    borderColor: '#e5e7eb',
+                    borderRadius: '8px',
+                    height: '38px',
+                    fontSize: '13px'
+                  }}
+                  data-testid="select-sponsor-filter"
+                >
                   <SelectValue placeholder="Todos os patrocinadores" />
                 </SelectTrigger>
                 <SelectContent>
@@ -306,7 +408,16 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-status-filter">
+                <SelectTrigger 
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    borderColor: '#e5e7eb',
+                    borderRadius: '8px',
+                    height: '38px',
+                    fontSize: '13px'
+                  }}
+                  data-testid="select-status-filter"
+                >
                   <SelectValue placeholder="Todos os status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -326,7 +437,16 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger className="bg-white" style={{ borderColor: '#e5e7eb', color: '#2d2d2d' }} data-testid="select-date-filter">
+                <SelectTrigger 
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    borderColor: '#e5e7eb',
+                    borderRadius: '8px',
+                    height: '38px',
+                    fontSize: '13px'
+                  }}
+                  data-testid="select-date-filter"
+                >
                   <SelectValue placeholder="Todas as datas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -344,32 +464,65 @@ export default function PainelGeral() {
           </CardContent>
         </Card>
 
-        {/* ITEMS BY EVENT */}
-        <div className="space-y-4 animate-fadeUp">
+        {/* GRUPOS DE EVENTO */}
+        <div className="space-y-4">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#06b6d4]"></div>
             </div>
           ) : filteredItems.length === 0 ? (
-            <Card style={{ borderColor: '#e5e7eb' }}>
+            <Card style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', borderRadius: '14px' }}>
               <CardContent className="text-center py-12">
                 <AlertCircle className="h-12 w-12 text-[#d1d5db] mx-auto mb-4" />
-                <p className="text-[#6b6760] font-medium">Nenhum item encontrado</p>
+                <p className="text-[#6b7280] font-medium">Nenhum item encontrado</p>
               </CardContent>
             </Card>
           ) : (
             Object.entries(itemsByEvent).map(([eventId, eventItems]) => {
               const event = events.find(e => e.id === eventId);
               return (
-                <Card key={eventId} className="overflow-hidden" style={{ borderColor: '#e5e7eb' }}>
+                <Card 
+                  key={eventId} 
+                  className="overflow-hidden"
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderColor: '#e5e7eb',
+                    borderRadius: '14px',
+                    animation: 'fadeUp 0.3s ease'
+                  }}
+                >
                   {/* EVENT HEADER */}
-                  <div className="bg-white px-6 py-4 border-b flex items-center gap-3" style={{ borderColor: '#e5e7eb' }}>
-                    <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-white text-sm" style={{ backgroundColor: '#06b6d4' }}>
+                  <div 
+                    style={{
+                      backgroundColor: '#ffffff',
+                      padding: '16px 24px',
+                      borderBottom: '1px solid #f1f5f9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}
+                  >
+                    <div 
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        backgroundColor: '#06b6d4',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: '18px',
+                        flexShrink: 0
+                      }}
+                    >
                       📅
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-base" style={{ color: '#2d2d2d' }}>{event?.name || 'Sem Evento'}</h3>
-                      <div className="text-xs text-[#6b6760] mt-1 space-y-0.5">
+                      <h3 style={{ color: '#2d2d2d', fontWeight: 700, fontSize: '15px' }}>
+                        {event?.name || 'Sem Evento'}
+                      </h3>
+                      <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px', lineHeight: '1.4' }}>
                         {event?.startDate && (
                           <div>📅 Evento: {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}</div>
                         )}
@@ -378,7 +531,17 @@ export default function PainelGeral() {
                         )}
                       </div>
                     </div>
-                    <Badge className="ml-auto font-mono border" style={{ backgroundColor: '#f1f5f9', color: '#2d2d2d', borderColor: '#e5e7eb' }}>
+                    <Badge 
+                      style={{
+                        backgroundColor: '#f1f5f9',
+                        color: '#2d2d2d',
+                        borderColor: '#e5e7eb',
+                        fontSize: '11px',
+                        fontFamily: 'monospace',
+                        borderRadius: '100px'
+                      }}
+                      className="border"
+                    >
                       {eventItems.length} itens
                     </Badge>
                   </div>
@@ -386,76 +549,129 @@ export default function PainelGeral() {
                   {/* TABLE */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="border-b" style={{ backgroundColor: '#f3f4f6', borderColor: '#e5e7eb' }}>
-                        <tr>
-                          <th className="text-left px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">ID</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">Tipo</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">Descrição</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">Arquivo</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">Visual</th>
-                          <th className="text-center px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">Qtd</th>
-                          <th className="text-right px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">m²</th>
-                          <th className="text-left px-4 py-2.5 font-semibold text-[#6b6760] text-xs uppercase tracking-[0.6px]">Status</th>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>ID</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Tipo</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Descrição</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Arquivo</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Visual</th>
+                          <th style={{ textAlign: 'center', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Qtd</th>
+                          <th style={{ textAlign: 'right', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>m²</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {eventItems.map((item) => {
+                        {eventItems.map((item, idx) => {
                           const badgeStyle = getStatusBadgeStyle(item.status);
                           const m2 = item.m2Total ? parseFloat(item.m2Total) : 0;
                           return (
                             <Fragment key={item.id}>
                               <tr 
-                                className="cursor-pointer transition-colors"
+                                style={{
+                                  borderBottom: idx === eventItems.length - 1 ? 'none' : '1px solid #f1f5f9',
+                                  cursor: 'pointer',
+                                  transition: 'background-color 0.15s'
+                                }}
                                 onClick={() => setSelectedItem(item)}
+                                onMouseEnter={(e) => {
+                                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#f8fafc';
+                                }}
+                                onMouseLeave={(e) => {
+                                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'transparent';
+                                }}
                                 data-testid={`row-item-${item.id}`}
-                                style={{ borderBottom: '1px solid #e5e7eb' }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                               >
-                                <td className="px-4 py-3">
-                                  <code className="px-2 py-1 rounded-[6px] text-xs font-mono font-semibold border" style={{ backgroundColor: '#f1f5f9', color: '#2d2d2d', borderColor: '#e5e7eb' }}>
+                                <td style={{ padding: '12px 16px' }}>
+                                  <code style={{
+                                    backgroundColor: '#f1f5f9',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '6px',
+                                    padding: '4px 8px',
+                                    fontSize: '11px',
+                                    fontFamily: 'monospace',
+                                    fontWeight: 600,
+                                    color: '#2d2d2d',
+                                    display: 'inline-block'
+                                  }}>
                                     {item.displayId || item.id}
                                   </code>
                                 </td>
-                                <td className="px-4 py-3">
-                                  <Badge variant="outline" className="border" style={{ borderColor: '#e5e7eb', backgroundColor: '#f3f4f6', color: '#2d2d2d' }}>
+                                <td style={{ padding: '12px 16px' }}>
+                                  <Badge 
+                                    style={{
+                                      backgroundColor: '#f1f5f9',
+                                      borderColor: '#e5e7eb',
+                                      color: '#2d2d2d',
+                                      fontSize: '12px',
+                                      borderRadius: '6px'
+                                    }}
+                                    className="border"
+                                  >
                                     {item.type}
                                   </Badge>
                                 </td>
-                                <td className="px-4 py-3" style={{ color: '#2d2d2d' }}>{item.description || item.name || '—'}</td>
-                                <td className="px-4 py-3 font-mono text-xs text-[#6b6760]">
+                                <td style={{ padding: '12px 16px', color: '#2d2d2d' }}>
+                                  {item.description || item.name || '—'}
+                                </td>
+                                <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#6b7280' }}>
                                   {item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}m` : '—'}
                                 </td>
-                                <td className="px-4 py-3 font-mono text-xs text-[#6b6760]">
+                                <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#6b7280' }}>
                                   {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}m` : '—'}
                                 </td>
-                                <td className="px-4 py-3 text-center text-[#6b6760]">{item.quantity || '—'}</td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className="font-bold font-mono" style={m2 > 100 ? {color: '#dc2626'} : {color: '#2d2d2d'}}>
+                                <td style={{ padding: '12px 16px', textAlign: 'center', color: '#6b7280' }}>
+                                  {item.quantity || '—'}
+                                </td>
+                                <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                                  <span 
+                                    style={{
+                                      fontFamily: 'monospace',
+                                      fontWeight: 700,
+                                      color: m2 > 10 ? '#dc2626' : (m2 === 0 ? '#9ca3af' : '#2d2d2d')
+                                    }}
+                                  >
                                     {m2.toFixed(2)}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3">
+                                <td style={{ padding: '12px 16px' }}>
                                   <div 
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold"
                                     style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      paddingLeft: '10px',
+                                      paddingRight: '10px',
+                                      paddingTop: '4px',
+                                      paddingBottom: '4px',
+                                      borderRadius: '100px',
+                                      border: `1px solid ${badgeStyle.border}`,
                                       backgroundColor: badgeStyle.bg,
-                                      borderColor: badgeStyle.border,
+                                      fontSize: '11.5px',
+                                      fontWeight: 600,
                                       color: badgeStyle.text
                                     }}
                                   >
-                                    <span className="w-1.5 h-1.5 rounded-full" style={{backgroundColor: badgeStyle.dot}}></span>
+                                    <span 
+                                      style={{
+                                        width: '5px',
+                                        height: '5px',
+                                        borderRadius: '50%',
+                                        backgroundColor: badgeStyle.dot,
+                                        flexShrink: 0
+                                      }}
+                                    ></span>
                                     {getStatusLabel(item.status)}
                                   </div>
                                 </td>
                               </tr>
                               {item.observations && (
-                                <tr className="border-b" style={{ backgroundColor: 'rgba(248, 113, 113, 0.05)', borderColor: '#e5e7eb' }}>
-                                  <td colSpan={8} className="px-4 py-3">
-                                    <div className="flex gap-2 items-start">
+                                <tr style={{ backgroundColor: 'rgba(248, 113, 113, 0.05)', borderBottom: '1px solid #e5e7eb' }}>
+                                  <td colSpan={8} style={{ padding: '12px 16px' }}>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                                       <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                                      <div className="text-xs text-amber-800">
-                                        <span className="font-semibold">Observações:</span> {item.observations}
+                                      <div style={{ fontSize: '12px', color: '#b45309' }}>
+                                        <span style={{ fontWeight: 600 }}>Observações:</span> {item.observations}
                                       </div>
                                     </div>
                                   </td>
@@ -482,6 +698,19 @@ export default function PainelGeral() {
           if (!open) setSelectedItem(null);
         }}
       />
+
+      <style>{`
+        @keyframes fadeUp {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

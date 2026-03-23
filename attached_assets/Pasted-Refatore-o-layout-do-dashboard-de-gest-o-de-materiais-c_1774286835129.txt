@@ -1,0 +1,76 @@
+Refatore o layout do dashboard de gestão de materiais com as seguintes melhorias visuais:
+
+TOPBAR:
+- Logo/brand à esquerda: ponto preto + texto "Gestão de Materiais" (font-weight 700)
+- Botão de notificação (ícone 🔔) com badge vermelho mostrando "9+"
+- Avatar do usuário em chip arredondado: círculo preto com inicial "A" + texto "Administrador"
+
+CARDS DE STATUS (2 linhas, 7 colunas cada):
+
+LINHA 1:
+1. Total → valor: 62 | fundo preto (#1a1916), texto branco | ícone 📦
+2. Solicitado → valor: 38 | cor do valor: #d97706 (âmbar) | dot: #d97706
+3. Ag. Vinculação → valor: 0 | cor do valor: cinza (#a09d98) | dot: #f59e0b
+4. Ag. Envio → valor: 2 | cor do valor: #2563eb (azul) | dot: #2563eb
+5. Ag. Aprovação → valor: 4 | cor do valor: #dc2626 (vermelho) | dot: #dc2626
+6. Ag. Finalização → valor: 0 | cor do valor: cinza (#a09d98) | dot: #6d28d9
+7. Ag. Revisão → valor: 9 | cor do valor: #7c3aed (roxo) | dot: #7c3aed
+
+LINHA 2:
+1. Pronto Produção → valor: 1 | cor do valor: #0891b2 (ciano) | dot: #0891b2
+2. Liberado → valor: 3 | cor do valor: #16a34a (verde) | dot: #16a34a
+3. Em Produção → valor: 1 | cor do valor: #d97706 (âmbar) | dot: #d97706
+4. Produzido → valor: 2 | cor do valor: #9333ea (roxo claro) | dot: #9333ea
+5. Entregue → valor: 2 | cor do valor: #15803d (verde escuro) | dot: #15803d
+6 e 7. Deixar invisíveis (opacity: 0) para manter o grid alinhado
+
+Todos os cards:
+- Fundo branco, borda #e8e5df, border-radius 12px, padding 14px 16px
+- Label em cima (font-size 11.5px, cinza), valor embaixo (font-size 24px, bold)
+- Dot colorido no canto superior direito (7px, circle)
+- Hover: translateY(-1px) + box-shadow sutil
+
+SEÇÃO DE FILTROS:
+- Linha 1: input de busca (com ícone lupa interno à esquerda) + botão "Filtros" com ícone de funil
+- Linha 2: 5 selects → "Todos os eventos", "Todos os tipos", "Todos os patrocinadores", "Todos os status", "Todas as datas"
+- Selects com aparência customizada (sem estilo nativo), fundo #faf9f7, border-radius 8px
+
+HEADER DO EVENTO:
+- Ícone quadrado preto (36x36, border-radius 9px) com 📅 branco à esquerda
+- Nome: "Night Run — Etapa 3 — SP — 2025" em negrito (font-size 16px)
+- Metadados abaixo em cinza (font-size 12px): "📅 Evento: 27/11/2025" e "🚛 Saída caminhão: 27/11/2025 às 12:29"
+- Badge "16 itens" alinhado à direita, fundo cinza claro, font monospace
+
+TABELA (colunas: ID, Tipo, Descrição, Arquivo, Visual, Qtd, m², Status):
+- Header da tabela: fundo #faf9f7, texto uppercase 11px, letra-espaçamento 0.6px, cor cinza
+- IDs como chips clicáveis: fonte DM Mono, fundo #f4f3f0, borda, border-radius 6px
+- Tipo como badge com borda e fundo cinza claro
+- Arquivo e Visual em fonte monospace, cor secundária
+- m² em negrito monospace; valores acima de 100 em vermelho (#dc2626)
+- Qtd em cinza médio
+- Hover nas linhas: fundo #faf9f7
+- Valores ausentes exibidos como "—" em cinza
+
+STATUS BADGES (ponto colorido + texto + borda + fundo tintado):
+- Solicitado: fundo #fffbeb, borda #fde68a, texto #d97706
+- Ag. Revisão Final: fundo #f5f3ff, borda #ddd6fe, texto #7c3aed
+- Ag. Aprovação: fundo #fef2f2, borda #fecaca, texto #dc2626
+- Pronto p/ Produção: fundo #ecfeff, borda #a5f3fc, texto #0891b2
+- Liberado: fundo #f0fdf4, borda #bbf7d0, texto #16a34a
+- Em Produção: fundo #fff7ed, borda #fed7aa, texto #d97706
+- Produzido: fundo #faf5ff, borda #e9d5ff, texto #9333ea
+- Entregue: fundo #f0fdf4, borda #86efac, texto #15803d
+- Cada badge: border-radius 100px, padding 4px 10px, font-size 11.5px, font-weight 600
+- Ponto colorido (5px circle) antes do texto
+
+TIPOGRAFIA E CORES GERAIS:
+- Fonte principal: DM Sans (Google Fonts)
+- Fonte numérica/código: DM Mono (Google Fonts)
+- Fundo geral: #f4f3f0
+- Superfície (cards/tabela): #ffffff
+- Bordas: #e8e5df
+- Texto primário: #1a1916
+- Texto secundário: #6b6760
+- Texto mudo: #a09d98
+- Sem sombras pesadas — apenas bordas sutis e elevação suave no hover
+- Animação de entrada nos grupos: fadeUp (opacity 0→1 + translateY 10px→0)

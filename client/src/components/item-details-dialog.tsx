@@ -62,12 +62,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', margin: '0 0 4px 0' }}>
+              <h2 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', margin: '0' }}>
                 {item.displayId} • {item.event?.name}
               </h2>
-              <p style={{ color: '#a8a29e', fontSize: '13px', margin: '0' }}>
-                {item.event?.startDate && format(new Date(item.event.startDate), "MMMM d, yyyy", { locale: ptBR })}
-              </p>
             </div>
             <Button size="icon" variant="ghost" onClick={() => onOpenChange(false)}>
               <X className="h-5 w-5" />

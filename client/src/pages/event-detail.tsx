@@ -1420,131 +1420,186 @@ export default function EventDetail() {
       {/* Dialog separado para editar item */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Item</DialogTitle>
-            <DialogDescription>Atualize as informações do item</DialogDescription>
+          {/* Cabeçalho Titanium */}
+          <DialogHeader style={{ borderBottom: "1px solid #e7e5e4", paddingBottom: "16px", marginBottom: "4px" }}>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ backgroundColor: "#fff7ed" }}>
+                <Pencil className="h-4 w-4" style={{ color: "#f97316" }} />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold" style={{ color: "#1c1917" }}>Editar Item</DialogTitle>
+                <DialogDescription className="text-xs mt-0.5" style={{ color: "#a8a29e" }}>
+                  {editingItem ? `#${editingItem.displayId} · ${editingItem.type}` : "Atualize as informações do item"}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
+
           <form onSubmit={(e) => {
             e.preventDefault();
             if (editingItem) {
               updateItemMutation.mutate({ id: editingItem.id, data: formData });
             }
-          }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label>Tipo de Item</Label>
+          }} className="flex flex-col gap-0">
+            <div className="flex flex-col gap-4 py-4">
+
+              {/* Tipo | Descrição */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Tipo de Item</Label>
                 <Input
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   placeholder="Digite o tipo"
+                  className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                   data-testid="input-edit-type"
                 />
               </div>
-              
-              <div className="col-span-2 space-y-2">
-                <Label>Descrição</Label>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Descrição <span style={{ color: "#a8a29e", fontWeight: 400 }}>(opcional)</span></Label>
                 <Input
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Descrição opcional"
+                  className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                   data-testid="input-edit-description"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Quantidade</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
-                  data-testid="input-edit-quantity"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>m² Calculado</Label>
-                <Input
-                  value={calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2)}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-
-              <div className="col-span-2 grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Visual Largura (m)</Label>
+              {/* Quantidade | m² Calculado */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Quantidade</Label>
                   <Input
                     type="number"
-                    step="0.01"
-                    value={formData.visualWidth}
-                    onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
-                    data-testid="input-edit-visual-width"
+                    min="1"
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+                    className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                    style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                    data-testid="input-edit-quantity"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Visual Altura (m)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.visualHeight}
-                    onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
-                    data-testid="input-edit-visual-height"
-                  />
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>m² Total</Label>
+                  <div className="flex items-center h-9 px-3 rounded-md text-sm font-semibold tabular-nums" style={{ backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#a8a29e" }}>
+                    {formData.fileWidth && formData.fileHeight
+                      ? calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2) + " m²"
+                      : "—"
+                    }
+                  </div>
                 </div>
               </div>
 
-              <div className="col-span-2 grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Arquivo Largura (m)</Label>
+              {/* Dimensões Visuais */}
+              <div className="rounded-lg p-3 space-y-3" style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4" }}>
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-0.5 rounded-full" style={{ backgroundColor: "#f97316" }}></div>
+                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#78716c" }}>Dimensões Visuais (m)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Largura</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.visualWidth}
+                      onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
+                      className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                      style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                      data-testid="input-edit-visual-width"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Altura</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.visualHeight}
+                      onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
+                      className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                      style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                      data-testid="input-edit-visual-height"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dimensões Arquivo */}
+              <div className="rounded-lg p-3 space-y-3" style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4" }}>
+                <div className="flex items-center gap-2">
+                  <div className="h-2.5 w-0.5 rounded-full" style={{ backgroundColor: "#78716c" }}></div>
+                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#78716c" }}>Dimensões Arquivo (m)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Largura</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.fileWidth}
+                      onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
+                      className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                      style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                      data-testid="input-edit-file-width"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Altura</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formData.fileHeight}
+                      onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
+                      className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                      style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                      data-testid="input-edit-file-height"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Material | Acabamento */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Material</Label>
                   <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.fileWidth}
-                    onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
-                    data-testid="input-edit-file-width"
+                    value={formData.material}
+                    onChange={(e) => setFormData({ ...formData, material: e.target.value })}
+                    placeholder="Material"
+                    className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                    style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                    data-testid="input-edit-material"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Arquivo Altura (m)</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Acabamento</Label>
                   <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.fileHeight}
-                    onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
-                    data-testid="input-edit-file-height"
+                    value={formData.finish}
+                    onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
+                    placeholder="Acabamento"
+                    className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                    style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                    data-testid="input-edit-finish"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Material</Label>
-                <Input
-                  value={formData.material}
-                  onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                  placeholder="Material"
-                  data-testid="input-edit-material"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Acabamento</Label>
-                <Input
-                  value={formData.finish}
-                  onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
-                  placeholder="Acabamento"
-                  data-testid="input-edit-finish"
-                />
-              </div>
-
-              <div className="col-span-2 space-y-2">
-                <Label>Patrocinador</Label>
-                <Select 
-                  value={formData.sponsorId || "none"} 
+              {/* Patrocinador */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Patrocinador</Label>
+                <Select
+                  value={formData.sponsorId || "none"}
                   onValueChange={(value) => setFormData({ ...formData, sponsorId: value === "none" ? "" : value })}
                 >
-                  <SelectTrigger data-testid="select-edit-sponsor">
-                    <SelectValue placeholder="Selecione" />
+                  <SelectTrigger
+                    className="text-sm focus:ring-[#f97316] focus:border-[#f97316]"
+                    style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                    data-testid="select-edit-sponsor"
+                  >
+                    <SelectValue placeholder="Selecionar patrocinador" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nenhum</SelectItem>
@@ -1558,19 +1613,23 @@ export default function EventDetail() {
                 </Select>
               </div>
 
-              <div className="col-span-2 space-y-2">
-                <Label>Observações</Label>
+              {/* Observações */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Observações <span style={{ color: "#a8a29e", fontWeight: 400 }}>(opcional)</span></Label>
                 <Textarea
                   value={formData.observations}
                   onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                  placeholder="Observações adicionais"
-                  className="min-h-[80px]"
+                  placeholder="Observações adicionais sobre este item..."
+                  rows={3}
+                  className="text-sm resize-y focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                   data-testid="textarea-edit-observations"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
+            {/* Rodapé */}
+            <div className="flex justify-end gap-2 pt-4" style={{ borderTop: "1px solid #e7e5e4" }}>
               <Button
                 type="button"
                 variant="outline"
@@ -1578,6 +1637,7 @@ export default function EventDetail() {
                   setEditDialogOpen(false);
                   setEditingItem(null);
                 }}
+                style={{ borderColor: "#e7e5e4", color: "#1c1917", backgroundColor: "#ffffff" }}
                 data-testid="button-cancel-edit"
               >
                 Cancelar
@@ -1585,6 +1645,9 @@ export default function EventDetail() {
               <Button
                 type="submit"
                 disabled={updateItemMutation.isPending}
+                style={{ backgroundColor: "#1c1917", color: "#ffffff" }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#000000")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#1c1917")}
                 data-testid="button-save-edit"
               >
                 {updateItemMutation.isPending ? "Salvando..." : "Salvar Alterações"}

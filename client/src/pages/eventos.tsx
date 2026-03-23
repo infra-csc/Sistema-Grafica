@@ -298,58 +298,58 @@ export default function Eventos() {
     const configs = {
       baixa: { 
         label: "Baixa", 
-        color: "bg-blue-500/15 text-blue-700 border-blue-500/30", 
-        icon: "🔵",
-        borderColor: 'border-l-blue-500',
-        bgCard: 'bg-blue-500/5',
-        titleColor: 'text-blue-700',
-        bg: 'bg-blue-500/10',
-        border: 'border-blue-500/20',
-        iconColor: 'text-blue-600'
+        color: "bg-[#1c1917] text-white border-[#1c1917]", 
+        icon: "",
+        borderColor: 'border-l-[#3b82f6]',
+        bgCard: '',
+        titleColor: 'text-[#1c1917]',
+        bg: 'bg-[#3b82f6]/10',
+        border: 'border-[#3b82f6]/20',
+        iconColor: 'text-[#f97316]'
       },
       media: { 
         label: "Média", 
-        color: "bg-purple-600/15 text-purple-700 border-purple-600/30", 
-        icon: "🟣",
-        borderColor: 'border-l-purple-600',
-        bgCard: 'bg-purple-600/5',
-        titleColor: 'text-purple-700',
-        bg: 'bg-purple-600/10',
-        border: 'border-purple-600/20',
-        iconColor: 'text-purple-700'
+        color: "bg-[#1c1917] text-white border-[#1c1917]", 
+        icon: "",
+        borderColor: 'border-l-[#a855f7]',
+        bgCard: '',
+        titleColor: 'text-[#1c1917]',
+        bg: 'bg-[#a855f7]/10',
+        border: 'border-[#a855f7]/20',
+        iconColor: 'text-[#f97316]'
       },
       alta: { 
         label: "Alta", 
-        color: "bg-yellow-500/15 text-yellow-700 border-yellow-500/30", 
-        icon: "🟡",
-        borderColor: 'border-l-yellow-500',
-        bgCard: 'bg-yellow-500/5',
-        titleColor: 'text-yellow-700',
-        bg: 'bg-yellow-500/10',
-        border: 'border-yellow-500/20',
-        iconColor: 'text-yellow-600'
+        color: "bg-[#1c1917] text-white border-[#1c1917]", 
+        icon: "",
+        borderColor: 'border-l-[#f59e0b]',
+        bgCard: '',
+        titleColor: 'text-[#1c1917]',
+        bg: 'bg-[#f59e0b]/10',
+        border: 'border-[#f59e0b]/20',
+        iconColor: 'text-[#f97316]'
       },
       urgente: { 
         label: "Urgente", 
-        color: "bg-red-600/15 text-red-700 border-red-600/30", 
-        icon: "🔴",
-        borderColor: 'border-l-red-600',
-        bgCard: 'bg-red-600/5',
-        titleColor: 'text-red-700',
-        bg: 'bg-red-600/10',
-        border: 'border-red-600/20',
-        iconColor: 'text-red-700'
+        color: "bg-[#1c1917] text-white border-[#1c1917]", 
+        icon: "",
+        borderColor: 'border-l-[#ef4444]',
+        bgCard: '',
+        titleColor: 'text-[#1c1917]',
+        bg: 'bg-[#ef4444]/10',
+        border: 'border-[#ef4444]/20',
+        iconColor: 'text-[#f97316]'
       },
       sem_prioridade: { 
         label: "Sem Prioridade", 
-        color: "bg-gray-400/15 text-gray-600 border-gray-400/30", 
-        icon: "⚪",
-        borderColor: 'border-l-gray-400',
-        bgCard: 'bg-gray-400/5',
-        titleColor: 'text-gray-600',
-        bg: 'bg-gray-400/10',
-        border: 'border-gray-400/20',
-        iconColor: 'text-gray-500'
+        color: "bg-[#1c1917] text-white border-[#1c1917]", 
+        icon: "",
+        borderColor: 'border-l-[#e7e5e4]',
+        bgCard: '',
+        titleColor: 'text-[#1c1917]',
+        bg: 'bg-[#e7e5e4]/30',
+        border: 'border-[#e7e5e4]',
+        iconColor: 'text-[#78716c]'
       }
     };
     
@@ -441,33 +441,34 @@ export default function Eventos() {
     });
 
   const priorityFilterConfig = {
-    urgente: { label: 'Urgente', color: 'bg-red-600 text-white', icon: '🔴', count: events.filter(e => getEventPriority(e) === 'urgente').length },
-    alta: { label: 'Alta', color: 'bg-yellow-500 text-foreground', icon: '🟡', count: events.filter(e => getEventPriority(e) === 'alta').length },
-    media: { label: 'Média', color: 'bg-purple-600 text-white', icon: '🟣', count: events.filter(e => getEventPriority(e) === 'media').length },
-    baixa: { label: 'Baixa', color: 'bg-blue-500 text-white', icon: '🔵', count: events.filter(e => getEventPriority(e) === 'baixa').length },
-    sem_prioridade: { label: 'Sem Prioridade', color: 'bg-gray-400 text-white', icon: '⚪', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
-    completed: { label: 'Concluído', color: 'bg-status-completed text-white', icon: '✓', count: events.filter(e => getEventPriority(e) === 'completed').length },
+    urgente: { label: 'Urgente', color: '', count: events.filter(e => getEventPriority(e) === 'urgente').length },
+    alta: { label: 'Alta', color: '', count: events.filter(e => getEventPriority(e) === 'alta').length },
+    media: { label: 'Média', color: '', count: events.filter(e => getEventPriority(e) === 'media').length },
+    baixa: { label: 'Baixa', color: '', count: events.filter(e => getEventPriority(e) === 'baixa').length },
+    sem_prioridade: { label: 'Sem Prioridade', color: '', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
+    completed: { label: 'Concluído', color: '', count: events.filter(e => getEventPriority(e) === 'completed').length },
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div style={{ backgroundColor: '#fafaf9', minHeight: '100%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-testid="title-eventos">
+          <h1 style={{ color: '#1c1917', fontSize: '22px', fontWeight: '700', margin: 0 }} data-testid="title-eventos">
             Eventos
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p style={{ color: '#78716c', fontSize: '13px', margin: '2px 0 0 0' }}>
             Gerencie todos os eventos de produção gráfica
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:flex-initial">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="flex gap-2">
+          <div className="relative">
+            <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#a8a29e', width: '14px', height: '14px' }} />
             <Input
               placeholder="Buscar eventos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 w-full sm:w-64"
+              style={{ paddingLeft: '32px', width: '220px', borderColor: '#e7e5e4' }}
               data-testid="input-search-events"
             />
           </div>
@@ -476,7 +477,7 @@ export default function Eventos() {
             else setOpen(isOpen);
           }}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-event">
+              <Button style={{ backgroundColor: '#1c1917', color: '#ffffff' }} data-testid="button-create-event">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Evento
               </Button>
@@ -592,370 +593,272 @@ export default function Eventos() {
         </div>
       </div>
 
-      {/* Filtros de Prioridade */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Filtrar por prioridade:</span>
-          </div>
-          
-          {/* Legenda discreta à direita */}
-          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/50">
-            <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-red-600"></div>
-              <span>Urgente</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-yellow-500"></div>
-              <span>Alta</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-purple-600"></div>
-              <span>Média</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
-              <span>Baixa</span>
-            </span>
-            <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full bg-status-completed"></div>
-              <span>Concluído</span>
-            </span>
-          </div>
+      {/* Filtros */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px' }}>
+          <Filter style={{ width: '14px', height: '14px', color: '#a8a29e' }} />
+          <span style={{ color: '#78716c', fontSize: '12px', fontWeight: '600' }}>Prioridade:</span>
         </div>
-        
-        <div className="flex flex-wrap gap-2">
-          {(Object.entries(priorityFilterConfig) as [PriorityLevel, typeof priorityFilterConfig.urgente][]).map(([priority, config]) => (
-            <Badge
+        {(Object.entries(priorityFilterConfig) as [PriorityLevel, typeof priorityFilterConfig.urgente][]).map(([priority, config]) => {
+          const isSelected = selectedPriorities.includes(priority);
+          return (
+            <button
               key={priority}
-              variant={selectedPriorities.includes(priority) ? "default" : "outline"}
-              className={`cursor-pointer transition-all ${
-                selectedPriorities.includes(priority) 
-                  ? config.color 
-                  : 'hover-elevate'
-              }`}
               onClick={() => togglePriority(priority)}
               data-testid={`filter-priority-${priority}`}
-            >
-              {config.label} ({config.count})
-            </Badge>
-          ))}
-          {selectedPriorities.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedPriorities([])}
-              className="h-auto py-1 px-2 text-xs"
-              data-testid="button-clear-filters"
-            >
-              Limpar filtros
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Filtros de Data */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-muted-foreground">Filtros de data:</span>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Select value={monthFilter} onValueChange={setMonthFilter}>
-            <SelectTrigger className="w-[200px]" data-testid="select-month-filter">
-              <SelectValue placeholder="Mês de saída" />
-            </SelectTrigger>
-            <SelectContent>
-              {months.map((month) => (
-                <SelectItem key={month.value} value={month.value}>
-                  {month.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant={next10DaysFilter ? "default" : "outline"}
-            size="sm"
-            onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-            data-testid="button-next-10-days-filter"
-          >
-            <Truck className="h-4 w-4 mr-2" />
-            {next10DaysFilter ? "Próximos 10 dias ✓" : "Próximos 10 dias"}
-          </Button>
-
-          {(monthFilter !== "all" || next10DaysFilter) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setMonthFilter("all");
-                setNext10DaysFilter(false);
+              style={{
+                padding: '4px 12px',
+                borderRadius: '99px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                border: `1px solid ${isSelected ? '#1c1917' : '#e7e5e4'}`,
+                backgroundColor: isSelected ? '#1c1917' : '#ffffff',
+                color: isSelected ? '#ffffff' : '#1c1917',
+                transition: 'all 0.15s'
               }}
-              className="text-xs"
-              data-testid="button-clear-date-filters"
             >
-              Limpar filtros de data
-            </Button>
-          )}
+              {config.label} <span style={{ opacity: 0.6 }}>({config.count})</span>
+            </button>
+          );
+        })}
+        {selectedPriorities.length > 0 && (
+          <button
+            onClick={() => setSelectedPriorities([])}
+            data-testid="button-clear-filters"
+            style={{ padding: '4px 10px', borderRadius: '99px', fontSize: '11px', cursor: 'pointer', border: '1px solid transparent', backgroundColor: 'transparent', color: '#a8a29e' }}
+          >
+            Limpar
+          </button>
+        )}
+
+        <div style={{ width: '1px', height: '20px', backgroundColor: '#e7e5e4', margin: '0 4px' }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px' }}>
+          <Calendar style={{ width: '14px', height: '14px', color: '#a8a29e' }} />
+          <span style={{ color: '#78716c', fontSize: '12px', fontWeight: '600' }}>Mês:</span>
         </div>
+        <Select value={monthFilter} onValueChange={setMonthFilter}>
+          <SelectTrigger style={{ width: '160px', borderColor: '#e7e5e4', fontSize: '12px' }} data-testid="select-month-filter">
+            <SelectValue placeholder="Mês de saída" />
+          </SelectTrigger>
+          <SelectContent>
+            {months.map((month) => (
+              <SelectItem key={month.value} value={month.value}>
+                {month.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <button
+          onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+          data-testid="button-next-10-days-filter"
+          style={{
+            padding: '4px 12px',
+            borderRadius: '99px',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            border: `1px solid ${next10DaysFilter ? '#1c1917' : '#e7e5e4'}`,
+            backgroundColor: next10DaysFilter ? '#1c1917' : '#ffffff',
+            color: next10DaysFilter ? '#ffffff' : '#1c1917',
+            transition: 'all 0.15s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          <Truck style={{ width: '13px', height: '13px' }} />
+          Próximos 10 dias
+        </button>
+
+        {(monthFilter !== "all" || next10DaysFilter) && (
+          <button
+            onClick={() => { setMonthFilter("all"); setNext10DaysFilter(false); }}
+            data-testid="button-clear-date-filters"
+            style={{ padding: '4px 10px', borderRadius: '99px', fontSize: '11px', cursor: 'pointer', border: '1px solid transparent', backgroundColor: 'transparent', color: '#a8a29e' }}
+          >
+            Limpar datas
+          </button>
+        )}
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+          <div style={{ width: '32px', height: '32px', border: '3px solid #e7e5e4', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
         </div>
       ) : events.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhum evento criado</h3>
-              <p className="text-muted-foreground mb-4">Comece criando seu primeiro evento</p>
-              <Button onClick={() => setOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Criar Primeiro Evento
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '60px 24px', textAlign: 'center' }}>
+          <AlertCircle style={{ width: '40px', height: '40px', color: '#a8a29e', margin: '0 auto 16px' }} />
+          <h3 style={{ color: '#1c1917', fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>Nenhum evento criado</h3>
+          <p style={{ color: '#78716c', fontSize: '13px', marginBottom: '20px' }}>Comece criando seu primeiro evento</p>
+          <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#1c1917', color: '#ffffff' }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Criar Primeiro Evento
+          </Button>
+        </div>
       ) : filteredEvents.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhum evento encontrado</h3>
-              <p className="text-muted-foreground">Tente uma busca diferente</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '60px 24px', textAlign: 'center' }}>
+          <Search style={{ width: '40px', height: '40px', color: '#a8a29e', margin: '0 auto 16px' }} />
+          <h3 style={{ color: '#1c1917', fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>Nenhum evento encontrado</h3>
+          <p style={{ color: '#78716c', fontSize: '13px' }}>Tente uma busca ou filtro diferente</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredEvents.map((event) => {
             const itemCount = event.items?.length || 0;
             
-            // Status para INÍCIO DO EVENTO
-            const getEventStartStatus = () => {
-              const now = new Date();
-              const start = new Date(event.startDate);
-              const hoursUntilStart = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-              if (hoursUntilStart < 0) {
-                return { bg: 'bg-status-completed/10', border: 'border-status-completed/20', icon: 'text-status-completed' };
-              }
-              if (hoursUntilStart < 24) {
-                return { bg: 'bg-status-urgent/10', border: 'border-status-urgent/20', icon: 'text-status-urgent' };
-              }
-              if (hoursUntilStart < 48) {
-                return { bg: 'bg-status-pending/10', border: 'border-status-pending/20', icon: 'text-status-pending' };
-              }
-              return { bg: 'bg-primary/10', border: 'border-primary/20', icon: 'text-primary' };
-            };
-
-            // Status para SAÍDA DO CAMINHÃO (define título e card)
-            const getTruckStatus = () => {
+            // Status para SAÍDA DO CAMINHÃO (define urgência do card)
+            const getTruckUrgency = () => {
               const now = new Date();
               const departure = new Date(event.truckDepartureDate);
               const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-              // Verde: Caminhão já saiu
-              if (hoursUntilDeparture < 0) {
-                return { 
-                  borderColor: 'border-l-status-completed',
-                  bgCard: 'bg-status-completed/5',
-                  titleColor: 'text-status-completed',
-                  bg: 'bg-status-completed/10',
-                  border: 'border-status-completed/20',
-                  icon: 'text-status-completed'
-                };
-              }
-              
-              // Vermelho: Menos de 24h para saída - URGENTE!
-              if (hoursUntilDeparture < 24) {
-                return { 
-                  borderColor: 'border-l-status-urgent',
-                  bgCard: 'bg-status-urgent/5',
-                  titleColor: 'text-status-urgent',
-                  bg: 'bg-status-urgent/10',
-                  border: 'border-status-urgent/20',
-                  icon: 'text-status-urgent'
-                };
-              }
-              
-              // Amarelo: Entre 24h e 48h para saída - ATENÇÃO
-              if (hoursUntilDeparture < 48) {
-                return { 
-                  borderColor: 'border-l-status-pending',
-                  bgCard: 'bg-status-pending/5',
-                  titleColor: 'text-status-pending',
-                  bg: 'bg-status-pending/10',
-                  border: 'border-status-pending/20',
-                  icon: 'text-status-pending'
-                };
-              }
-              
-              // Azul: Mais de 48h para saída - NORMAL
-              return { 
-                borderColor: 'border-l-primary',
-                bgCard: 'bg-primary/5',
-                titleColor: 'text-primary',
-                bg: 'bg-primary/10',
-                border: 'border-primary/20',
-                icon: 'text-primary'
-              };
+              if (hoursUntilDeparture < 0) return 'departed';
+              if (hoursUntilDeparture < 24) return 'urgent';
+              if (hoursUntilDeparture < 48) return 'warning';
+              return 'normal';
             };
 
-            const eventStartColors = getEventStartStatus();
-            const truckColors = getTruckStatus();
+            const truckUrgency = getTruckUrgency();
             
-            // Se houver prioridade definida, usa as cores da prioridade em vez das cores de urgência
+            // Cores Titanium para o card
             const priorityConfig = getPriorityConfig(event.priority);
-            const cardColors = event.status === 'completed' 
-              ? { 
-                  borderColor: 'border-l-status-completed', 
-                  bgCard: 'bg-status-completed/5',
-                  titleColor: 'text-status-completed',
-                  icon: 'text-status-completed'
-                }
-              : event.priority && priorityConfig 
-                ? {
-                    borderColor: priorityConfig.borderColor,
-                    bgCard: priorityConfig.bgCard,
-                    titleColor: priorityConfig.titleColor,
-                    icon: priorityConfig.iconColor
-                  }
-                : {
-                    // Sem prioridade: usa cores cinza para indicar que precisa definir
-                    borderColor: 'border-l-gray-400',
-                    bgCard: 'bg-gray-400/5',
-                    titleColor: 'text-gray-600',
-                    icon: 'text-gray-500'
-                  };
+
+            // Borda lateral e ícone: laranja=ativo, cinza=concluído, vermelho=urgente
+            const cardBorderColor = event.status === 'completed'
+              ? 'border-l-[#a8a29e]'
+              : truckUrgency === 'urgent'
+                ? 'border-l-[#ef4444]'
+                : 'border-l-[#f97316]';
+
+            const cardColors = {
+              borderColor: cardBorderColor,
+              bgCard: '',
+              titleColor: 'text-[#1c1917]',
+              icon: event.status === 'completed' ? 'text-[#a8a29e]' : 'text-[#f97316]'
+            };
             
+            const deliveredCount = event.items?.filter((item: any) => item.status === 'delivered').length || 0;
+            const progressPct = itemCount > 0 ? Math.round((deliveredCount / itemCount) * 100) : 0;
+
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
-                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${cardColors.borderColor} ${cardColors.bgCard}`} data-testid={`card-event-${event.id}`}>
-                  <CardHeader className="pb-3 pt-4">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <CardTitle className={`text-base font-bold ${cardColors.titleColor} truncate min-w-0`} title={event.name}>{event.name}</CardTitle>
+                <div
+                  className={`hover-elevate cursor-pointer bg-white border-l-4 ${cardColors.borderColor} rounded-xl`}
+                  style={{ border: '1px solid #e7e5e4', borderLeftWidth: '4px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
+                  data-testid={`card-event-${event.id}`}
+                >
+                  {/* Card Header */}
+                  <div style={{ padding: '16px 16px 12px 16px' }}>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <h3 style={{ color: '#1c1917', fontSize: '15px', fontWeight: '700', margin: 0, lineHeight: '1.3' }} title={event.name}>
+                        {event.name}
+                      </h3>
                       <div className="flex gap-1 flex-shrink-0 ml-auto">
                         {event.status === 'completed' && (
-                          <Badge variant="outline" className="bg-status-completed/15 text-status-completed border-status-completed/30 text-xs">
+                          <Badge variant="outline" style={{ backgroundColor: '#f5f5f4', color: '#78716c', borderColor: '#e7e5e4', fontSize: '11px' }}>
                             ✓ Concluído
                           </Badge>
                         )}
                         {!event.priority && event.status !== 'completed' && (
-                          <Badge 
-                            variant="outline" 
-                            className="text-xs bg-orange-500/15 text-orange-600 border-orange-500/30 animate-pulse"
-                          >
+                          <Badge variant="outline" style={{ backgroundColor: '#fff7ed', color: '#f97316', borderColor: '#fed7aa', fontSize: '11px' }} className="animate-pulse">
                             <AlertCircle className="h-3 w-3 mr-1" />
                             Definir Prioridade
                           </Badge>
                         )}
                         {event.priority && event.status !== 'completed' && priorityConfig && (
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs border ${priorityConfig.color}`}
-                          >
-                            {priorityConfig.icon} {priorityConfig.label}
+                          <Badge variant="outline" style={{ backgroundColor: '#f5f5f4', color: '#1c1917', borderColor: '#e7e5e4', fontSize: '11px', fontWeight: '600' }}>
+                            {priorityConfig.label}
                           </Badge>
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="flex items-center gap-2 p-2 rounded bg-card border">
-                        <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${cardColors.icon}`} />
-                        <div className="flex flex-col gap-0 min-w-0">
-                          <span className={`text-[10px] font-medium uppercase ${cardColors.icon}`}>Início</span>
-                          <span className="text-xs font-semibold text-foreground whitespace-nowrap">
-                            {new Date(event.startDate).toLocaleDateString('pt-BR', { 
-                              day: '2-digit', 
-                              month: '2-digit',
-                              year: 'numeric'
-                            })}
-                          </span>
+
+                    {/* Boxes de data */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div style={{ backgroundColor: '#f5f5f4', borderRadius: '8px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Calendar style={{ color: '#f97316', width: '14px', height: '14px', flexShrink: 0 }} />
+                        <div>
+                          <div style={{ color: '#a8a29e', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Início</div>
+                          <div style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700' }}>
+                            {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 p-2 rounded bg-card border">
-                        <Truck className={`h-3.5 w-3.5 flex-shrink-0 ${cardColors.icon}`} />
-                        <div className="flex flex-col gap-0 min-w-0">
-                          <span className={`text-[10px] font-medium uppercase ${cardColors.icon}`}>Saída</span>
-                          <span className="text-xs font-bold text-foreground whitespace-nowrap">
-                            {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { 
-                              day: '2-digit', 
-                              month: '2-digit'
-                            })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </span>
+                      <div style={{ 
+                        backgroundColor: truckUrgency === 'urgent' ? '#fef2f2' : truckUrgency === 'warning' ? '#fffbeb' : '#f5f5f4', 
+                        borderRadius: '8px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px' 
+                      }}>
+                        <Truck style={{ color: truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : '#f97316', width: '14px', height: '14px', flexShrink: 0 }} />
+                        <div>
+                          <div style={{ color: '#a8a29e', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Saída</div>
+                          <div style={{ color: truckUrgency === 'urgent' ? '#ef4444' : '#1c1917', fontSize: '12px', fontWeight: '700' }}>
+                            {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardFooter className="border-t pt-2 pb-3 flex-row flex-wrap items-center gap-3">
-                    <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
-                      <div className="flex items-center justify-between text-xs gap-2">
-                        <span className="text-muted-foreground font-medium whitespace-nowrap">
-                          {event.items?.filter((item: any) => item.status === 'delivered').length || 0}/{itemCount} concluídos
-                        </span>
-                        <span className="text-muted-foreground font-semibold whitespace-nowrap">
-                          {itemCount > 0 ? Math.round(((event.items?.filter((item: any) => item.status === 'delivered').length || 0) / itemCount) * 100) : 0}%
-                        </span>
+                  </div>
+
+                  {/* Card Footer */}
+                  <div style={{ borderTop: '1px solid #e7e5e4', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {/* Barra de progresso */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ color: '#a8a29e', fontSize: '11px' }}>{deliveredCount}/{itemCount} entregues</span>
+                        <span style={{ color: '#1c1917', fontSize: '11px', fontWeight: '700' }}>{progressPct}%</span>
                       </div>
-                      {itemCount > 0 && (
-                        <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                          <div 
-                            className="h-full bg-status-completed transition-all"
-                            style={{ 
-                              width: `${Math.round(((event.items?.filter((item: any) => item.status === 'delivered').length || 0) / itemCount) * 100)}%` 
-                            }}
-                          />
-                        </div>
-                      )}
+                      <div style={{ width: '100%', backgroundColor: '#e7e5e4', borderRadius: '99px', height: '5px' }}>
+                        <div style={{ height: '100%', backgroundColor: progressPct === 100 ? '#a8a29e' : '#f97316', borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.3s' }} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    {/* Ações */}
+                    <div className="flex items-center gap-1">
                       <Button 
                         variant="ghost" 
                         size="icon"
-                        className="h-7 w-7 hover:bg-primary/10"
+                        style={{ width: '28px', height: '28px' }}
                         onClick={(e) => handleSetPriority(event, e)}
                         title={event.status === 'completed' ? 'Evento concluído - prioridade bloqueada' : 'Definir prioridade'}
                         disabled={event.status === 'completed'}
                         data-testid={`button-priority-event-${event.id}`}
                       >
-                        <Flag className={`h-3.5 w-3.5 ${event.priority ? 'fill-current' : ''}`} />
+                        <Flag style={{ width: '13px', height: '13px', color: event.priority ? '#f97316' : '#a8a29e' }} className={event.priority ? 'fill-[#f97316]' : ''} />
                       </Button>
                       {hasPermission("admin") && (
                         <>
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            className="h-7 w-7 hover:bg-primary/10"
+                            style={{ width: '28px', height: '28px' }}
                             onClick={(e) => handleEdit(event, e)}
                             data-testid={`button-edit-event-${event.id}`}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil style={{ width: '13px', height: '13px', color: '#78716c' }} />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            className="h-7 w-7 hover:bg-destructive/10"
+                            style={{ width: '28px', height: '28px' }}
                             onClick={(e) => handleDelete(event.id, e)}
                             data-testid={`button-delete-event-${event.id}`}
                           >
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            <Trash2 style={{ width: '13px', height: '13px', color: '#ef4444' }} />
                           </Button>
                         </>
                       )}
-                      <Button variant="default" size="sm" className="h-7 text-xs">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        style={{ height: '28px', fontSize: '11px', fontWeight: '600', borderColor: '#e7e5e4', color: '#1c1917' }}
+                      >
                         Ver detalhes
                       </Button>
                     </div>
-                  </CardFooter>
-                </Card>
+                  </div>
+                </div>
               </Link>
             );
           })}
@@ -994,42 +897,23 @@ export default function Eventos() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-4">
-            <Button
-              variant="outline"
-              className="h-20 flex flex-col gap-2 hover:bg-blue-500/10 hover:border-blue-500 border-2"
-              onClick={() => handlePrioritySelect("baixa")}
-              disabled={updatePriorityMutation.isPending}
-            >
-              <span className="text-2xl">🔵</span>
-              <span className="font-semibold">Baixa</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex flex-col gap-2 hover:bg-purple-600/10 hover:border-purple-600 border-2"
-              onClick={() => handlePrioritySelect("media")}
-              disabled={updatePriorityMutation.isPending}
-            >
-              <span className="text-2xl">🟣</span>
-              <span className="font-semibold">Média</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex flex-col gap-2 hover:bg-yellow-500/10 hover:border-yellow-500 border-2"
-              onClick={() => handlePrioritySelect("alta")}
-              disabled={updatePriorityMutation.isPending}
-            >
-              <span className="text-2xl">🟡</span>
-              <span className="font-semibold">Alta</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 flex flex-col gap-2 hover:bg-red-600/10 hover:border-red-600 border-2"
-              onClick={() => handlePrioritySelect("urgente")}
-              disabled={updatePriorityMutation.isPending}
-            >
-              <span className="text-2xl">🔴</span>
-              <span className="font-semibold">Urgente</span>
-            </Button>
+            {[
+              { key: 'baixa', label: 'Baixa', color: '#3b82f6' },
+              { key: 'media', label: 'Média', color: '#a855f7' },
+              { key: 'alta', label: 'Alta', color: '#f59e0b' },
+              { key: 'urgente', label: 'Urgente', color: '#ef4444' },
+            ].map(({ key, label, color }) => (
+              <Button
+                key={key}
+                variant="outline"
+                style={{ height: '72px', display: 'flex', flexDirection: 'column', gap: '6px', borderColor: '#e7e5e4' }}
+                onClick={() => handlePrioritySelect(key)}
+                disabled={updatePriorityMutation.isPending}
+              >
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: color }} />
+                <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{label}</span>
+              </Button>
+            ))}
           </div>
         </DialogContent>
       </Dialog>

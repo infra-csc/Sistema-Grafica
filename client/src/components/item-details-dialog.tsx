@@ -77,33 +77,47 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
         {/* Timeline Horizontal */}
         <div style={{ 
-          padding: '16px 24px',
+          padding: '20px 24px',
           borderBottom: '1px solid #e7e5e4',
           overflowX: 'auto'
         }}>
-          <div style={{ display: 'flex', gap: '12px', minWidth: 'fit-content' }}>
+          <div style={{ display: 'flex', gap: '16px', minWidth: 'fit-content', alignItems: 'center' }}>
             {[
-              { label: 'Criado', active: false },
-              { label: 'Em Aprovação', active: false },
-              { label: 'Aprovado', active: false },
-              { label: 'Pronto', active: false },
-              { label: 'Aguardando Revisão Final', active: item.status === 'aguardando_revisao_final' }
-            ].map((step, idx) => (
-              <Badge 
-                key={idx}
-                style={{
-                  backgroundColor: step.active ? '#f97316' : '#ffffff',
-                  color: step.active ? '#ffffff' : '#1c1917',
-                  border: step.active ? '1px solid #f97316' : '1px solid #e7e5e4',
-                  padding: '6px 12px',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {step.label}
-              </Badge>
-            ))}
+              { label: 'Criado', status: 'created' },
+              { label: 'Em Aprovação', status: 'em_aprovacao' },
+              { label: 'Aprovado', status: 'approved' },
+              { label: 'Pronto', status: 'ready' },
+              { label: 'Aguardando Revisão Final', status: 'aguardando_revisao_final' }
+            ].map((step, idx) => {
+              const isActive = item.status === step.status || 
+                (item.status === 'aguardando_revisao_final' && step.status === 'aguardando_revisao_final');
+              return (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Badge 
+                    style={{
+                      backgroundColor: isActive ? '#f97316' : '#ffffff',
+                      color: isActive ? '#ffffff' : '#1c1917',
+                      border: isActive ? '1px solid #f97316' : '1px solid #e7e5e4',
+                      padding: '8px 14px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap',
+                      borderRadius: '6px'
+                    }}
+                  >
+                    {step.label}
+                  </Badge>
+                  {idx < 4 && (
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: isActive ? '#f97316' : '#e7e5e4'
+                    }} />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 

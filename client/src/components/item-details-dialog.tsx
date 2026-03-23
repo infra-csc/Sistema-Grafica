@@ -156,6 +156,24 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             )}
           </div>
 
+          {/* Descrição Card - MOST IMPORTANT */}
+          {item.description && (
+            <div style={{ 
+              backgroundColor: '#fafaf9',
+              border: '1px solid #e7e5e4',
+              borderRadius: '12px',
+              padding: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <FileText className="h-5 w-5" style={{ color: '#f97316' }} />
+                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+                  Descrição
+                </h3>
+              </div>
+              <p style={{ color: '#1c1917', fontSize: '13px', whiteSpace: 'pre-wrap', margin: '0' }}>{item.description}</p>
+            </div>
+          )}
+
           {/* Grid: Evento + Especificações */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
             {/* Evento Card */}
@@ -268,24 +286,6 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               )}
             </div>
           </div>
-
-          {/* Descrição Card */}
-          {item.description && (
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '16px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <FileText className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                  Descrição
-                </h3>
-              </div>
-              <p style={{ color: '#1c1917', fontSize: '13px', whiteSpace: 'pre-wrap', margin: '0' }}>{item.description}</p>
-            </div>
-          )}
 
           {/* Dados de Produção Card */}
           <div style={{ 

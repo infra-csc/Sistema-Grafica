@@ -184,6 +184,42 @@ export default function PainelGeral() {
   return (
     <div className="min-h-screen bg-[#f1f5f9]">
       <div className="px-6 py-6 space-y-5 overflow-auto max-w-full">
+        {/* HEADER */}
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <div 
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: '#06b6d4',
+                flexShrink: 0
+              }}
+            ></div>
+            <h1 
+              style={{
+                color: '#2d2d2d',
+                fontSize: '32px',
+                fontWeight: 800,
+                letterSpacing: '-0.5px',
+                margin: 0
+              }}
+            >
+              Painel Geral
+            </h1>
+          </div>
+          <p 
+            style={{
+              color: '#6b7280',
+              fontSize: '14px',
+              margin: 0,
+              paddingLeft: '20px'
+            }}
+          >
+            Acompanhamento de status e progresso de itens
+          </p>
+        </div>
+
         {/* STATUS CARDS - 2 linhas */}
         <div className="space-y-3" style={{ animation: 'fadeUp 0.3s ease' }}>
           {/* Linha 1 - 7 cards */}

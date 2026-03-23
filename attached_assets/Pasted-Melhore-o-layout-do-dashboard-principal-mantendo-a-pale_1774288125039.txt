@@ -1,0 +1,99 @@
+Melhore o layout do dashboard principal mantendo a paleta Minimalista Moderna:
+
+PALETA OBRIGATÓRIA:
+- Primária: #2d2d2d (Charcoal)
+- Ciano: #06b6d4
+- Verde Limão: #84cc16
+- Fundo: #f1f5f9
+- Superfície: #ffffff
+- Bordas: #e5e7eb
+
+TOPBAR:
+- Fundo branco com border-bottom 1px solid #e5e7eb
+- Ícone de sidebar à esquerda com hover ciano
+- Badge de notificação: fundo #06b6d4 (não vermelho) com número "9+"
+- Avatar "A" com fundo #2d2d2d e texto branco
+- Botão de logout com ícone, hover cor #06b6d4
+
+SUBHEADER "Painel Geral":
+- Remover o subheader separado — integrar título na topbar à esquerda
+- Ponto decorativo antes do título em #06b6d4
+
+CARDS DE STATUS — LINHA 1 (7 colunas):
+1. Total → fundo #2d2d2d, texto branco, valor "62" em #06b6d4, font-size 28px
+2. Solicitado → valor "38" cor #d97706 | dot #d97706
+3. Ag. Vinculação → valor "0" cor #9ca3af | dot #9ca3af
+4. Ag. Envio → valor "2" cor #06b6d4 | dot #06b6d4
+5. Ag. Aprovação → valor "4" cor #dc2626 | dot #dc2626
+6. Ag. Finalização → valor "0" cor #9ca3af | dot #6d28d9
+7. Ag. Revisão → valor "9" cor #7c3aed | dot #7c3aed
+
+CARDS DE STATUS — LINHA 2 (5 colunas + 2 vazios):
+1. Pronto Produção → valor "1" cor #06b6d4 | dot #06b6d4
+2. Liberado → valor "3" cor #84cc16 | dot #84cc16
+3. Em Produção → valor "1" cor #d97706 | dot #d97706
+4. Produzido → valor "2" cor #9333ea | dot #9333ea
+5. Entregue → valor "2" cor #15803d | dot #15803d
+
+Todos os cards:
+- Fundo: #ffffff | Borda: 1px solid #e5e7eb | border-radius: 12px
+- Padding: 16px | Label font-size 11px uppercase letter-spacing 0.5px cor #6b7280
+- Valor font-size 26px font-weight 800
+- Hover: borda #06b6d4 + translateY(-2px) + box-shadow 0 4px 12px rgba(6,182,212,0.12)
+- Card Total: borda-left 3px solid #06b6d4
+
+SEÇÃO DE FILTROS:
+- Card com fundo #ffffff, borda #e5e7eb, border-radius 12px
+- Linha 1: input de busca (largura total menos botão) + botão "Filtros" 
+  com ícone funil, fundo #2d2d2d, texto branco, hover fundo #06b6d4
+- Input: fundo #f1f5f9, borda #e5e7eb, focus borda #06b6d4 
+  + ring rgba(6,182,212,0.15), border-radius 8px
+- Linha 2: 5 selects com fundo #f1f5f9, borda #e5e7eb, 
+  border-radius 8px, height 38px, font-size 13px
+  Focus/hover: borda #06b6d4
+
+GRUPOS DE EVENTO:
+- Card container: fundo #ffffff, borda #e5e7eb, border-radius 14px, overflow hidden
+- Header do evento:
+  - Ícone quadrado: fundo #06b6d4 (não ciano genérico), border-radius 10px, 
+    ícone branco 📅 ou grid
+  - Nome do evento: font-weight 700, font-size 15px, cor #2d2d2d
+  - Metadados: font-size 12px, cor #9ca3af, ícones coloridos
+  - Badge "X itens": fundo #f1f5f9, borda #e5e7eb, font-family monospace,
+    font-size 11px, border-radius 100px
+  - Separador horizontal: 1px solid #f1f5f9
+
+TABELA:
+- Header: fundo #f8fafc, texto uppercase 11px letter-spacing 0.6px cor #6b7280
+  borda-bottom 1px solid #e5e7eb
+- IDs: chip fundo #f1f5f9, borda #e5e7eb, font monospace, border-radius 6px
+  hover: borda #06b6d4
+- Tipo badge: fundo #f1f5f9, borda #e5e7eb, border-radius 6px, font-size 12px
+- Arquivo/Visual: font monospace, font-size 12px, cor #6b7280
+- M²: font monospace font-weight 700, cor #2d2d2d
+  Se valor > 10: cor #dc2626
+  Se valor = 0.00: cor #9ca3af
+- Qtd: cor #6b7280
+- Linhas: hover fundo #f8fafc, border-bottom 1px solid #f1f5f9
+- Última linha sem border-bottom
+
+STATUS BADGES (ponto 5px + texto + borda + fundo):
+- Solicitado: fundo #fffbeb, borda #fde68a, texto #d97706, ponto #d97706
+- Ag. Revisão Final: fundo #f5f3ff, borda #ddd6fe, texto #7c3aed, ponto #7c3aed
+- Ag. Aprovação: fundo #fef2f2, borda #fecaca, texto #dc2626, ponto #dc2626
+- Ag. Envio: fundo #eff6ff, borda #bfdbfe, texto #2563eb, ponto #2563eb
+- Pronto p/ Produção: fundo #ecfeff, borda #a5f3fc, texto #06b6d4, ponto #06b6d4
+- Liberado: fundo #f7fee7, borda #d9f99d, texto #65a30d, ponto #84cc16
+- Em Produção: fundo #fff7ed, borda #fed7aa, texto #d97706, ponto #d97706
+- Produzido: fundo #faf5ff, borda #e9d5ff, texto #9333ea, ponto #9333ea
+- Entregue: fundo #f0fdf4, borda #86efac, texto #15803d, ponto #15803d
+- Todos: border-radius 100px, padding 4px 10px, font-size 11.5px, font-weight 600
+
+DETALHES GERAIS:
+- Fonte: 'DM Sans' + 'DM Mono' para valores numéricos (Google Fonts)
+- Fundo geral: #f1f5f9
+- Espaçamento entre seções: 20px
+- Scroll suave na página
+- Animação fadeUp (opacity 0→1, translateY 8px→0, 0.3s ease) 
+  em cada grupo de evento ao carregar
+- Sem sombras pesadas — profundidade apenas via borda + hover

@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
-import { Search, Bell, Calendar, AlertCircle, Filter } from "lucide-react";
+import { Search, Calendar, AlertCircle, Filter } from "lucide-react";
 import { useState, Fragment, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -167,31 +167,9 @@ export default function PainelGeral() {
   }, [filteredItems]);
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] flex flex-col">
-      {/* TOPBAR */}
-      <div className="bg-white border-b border-[#e5e7eb] sticky top-0 z-40">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 bg-black rounded-full"></div>
-            <span className="font-bold text-base text-[#1a1916]">Painel Geral</span>
-          </div>
-          
-          <div className="flex items-center gap-5">
-            <button className="relative p-2 hover:bg-[#f1f5f9] rounded-lg transition-colors">
-              <Bell className="h-5 w-5 text-[#2d2d2d]" />
-              <span className="absolute top-0 right-0 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white font-bold text-xs">9+</span>
-            </button>
-            
-            <div className="flex items-center gap-2.5 cursor-pointer hover:bg-[#f1f5f9] px-3 py-2 rounded-lg transition-colors">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: '#06b6d4' }}>A</div>
-              <span className="text-sm font-medium text-[#2d2d2d]">Administrador</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="min-h-screen bg-[#f1f5f9]">
       {/* MAIN CONTENT */}
-      <div className="flex-1 px-6 py-6 space-y-6 overflow-auto">
+      <div className="px-6 py-6 space-y-6 overflow-auto">
         {/* STATUS CARDS - 2 linhas de 7 cards */}
         <div className="space-y-3 animate-fadeUp">
           {/* Linha 1 */}

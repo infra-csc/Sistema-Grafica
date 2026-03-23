@@ -86,9 +86,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               <Badge 
                 key={idx}
                 style={{
-                  backgroundColor: item.status === 'aguardando_revisao_final' && idx === 4 ? '#a855f7' : '#ffffff',
-                  color: item.status === 'aguardando_revisao_final' && idx === 4 ? '#ffffff' : '#1c1917',
-                  border: item.status === 'aguardando_revisao_final' && idx === 4 ? '1px solid #a855f7' : '1px solid #e7e5e4',
+                  backgroundColor: '#ffffff',
+                  color: '#1c1917',
+                  border: '1px solid #e7e5e4',
                   padding: '6px 12px',
                   fontSize: '12px',
                   fontWeight: '600',

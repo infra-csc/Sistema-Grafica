@@ -6,18 +6,6 @@ import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { LogIn } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -44,7 +32,6 @@ export default function Login() {
       return await res.json();
     },
     onSuccess: async (user) => {
-      // Invalidate auth query to refresh user data
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       
       toast({
@@ -52,7 +39,6 @@ export default function Login() {
         description: `Bem-vindo, ${user.name}!`,
       });
 
-      // Small delay to ensure auth context updates
       setTimeout(() => {
         if (user.mustChangePassword) {
           setLocation("/change-password");
@@ -75,351 +61,398 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - Branding - TITANIUM THEME */}
+    <div style={{
+      display: 'flex',
+      width: '100vw',
+      height: '100vh',
+      overflow: 'hidden',
+      margin: 0,
+      padding: 0
+    }}>
+      {/* LEFT COLUMN - Dark branding */}
       <div style={{
-        display: 'none',
         width: '42%',
+        height: '100%',
         backgroundColor: '#1c1917',
-        padding: '48px',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
+        color: 'white',
         position: 'relative',
-        overflow: 'hidden'
-      }} className="hidden lg:flex">
-        {/* Spot decorativo laranja */}
+        overflow: 'hidden',
+        padding: '40px 48px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between'
+      }}>
+        {/* Decorative orange spot */}
         <div style={{
           position: 'absolute',
-          bottom: '0',
-          left: '0',
-          width: '300px',
-          height: '300px',
-          background: 'radial-gradient(circle, rgba(249,115,22,0.35) 0%, transparent 70%)',
-          pointerEvents: 'none'
+          bottom: '-80px',
+          left: '-80px',
+          width: '400px',
+          height: '400px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(249,115,22,0.4) 0%, transparent 65%)',
+          pointerEvents: 'none',
+          zIndex: 0
         }} />
-        
-        {/* Conteúdo */}
-        <div style={{ position: 'relative', zIndex: 10 }}>
-          {/* Logo e Nome */}
-          <div style={{ marginBottom: '32px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              marginBottom: '16px'
-            }}>
-              <div style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '10px',
-                backgroundColor: '#f97316',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                fontWeight: '800',
-                fontSize: '20px'
-              }}>
-                N
-              </div>
-              <div>
-                <h1 style={{
-                  fontSize: '15px',
-                  fontWeight: '700',
-                  color: '#ffffff',
-                  margin: 0
-                }}>NORTE</h1>
-                <p style={{
-                  fontSize: '12px',
-                  color: 'rgba(255,255,255,0.55)',
-                  margin: '2px 0 0'
-                }}>Marketing Esportivo</p>
-              </div>
-            </div>
 
-            {/* Linha decorativa */}
-            <div style={{
-              width: '36px',
-              height: '2px',
-              backgroundColor: '#f97316',
-              margin: '40px 0 20px'
-            }} />
-          </div>
-
-          {/* Título */}
-          <h2 style={{
-            fontSize: '28px',
+        {/* TOP - Logo and brand */}
+        <div style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            backgroundColor: '#f97316',
+            borderRadius: '10px',
+            color: 'white',
+            fontSize: '20px',
             fontWeight: '800',
-            color: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            N
+          </div>
+          <div>
+            <div style={{
+              color: 'white',
+              fontWeight: '700',
+              fontSize: '15px',
+              margin: 0
+            }}>NORTE</div>
+            <div style={{
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '12px',
+              margin: 0
+            }}>Marketing Esportivo</div>
+          </div>
+        </div>
+
+        {/* MIDDLE - Content */}
+        <div style={{
+          position: 'relative',
+          zIndex: 1,
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center'
+        }}>
+          {/* Decorative line */}
+          <div style={{
+            width: '36px',
+            height: '3px',
+            backgroundColor: '#f97316',
+            borderRadius: '2px',
+            marginBottom: '24px'
+          }} />
+
+          {/* Title */}
+          <h2 style={{
+            color: 'white',
+            fontSize: '30px',
+            fontWeight: '800',
             letterSpacing: '-0.5px',
             lineHeight: '1.15',
-            margin: '0 0 12px'
+            margin: '0 0 16px 0'
           }}>
             Sistema de Gestão de Produção Gráfica
           </h2>
 
-          {/* Subtítulo */}
+          {/* Subtitle */}
           <p style={{
-            fontSize: '14px',
             color: 'rgba(255,255,255,0.55)',
-            lineHeight: '1.6',
-            margin: '12px 0 0'
+            fontSize: '14px',
+            lineHeight: '1.7',
+            margin: '0 0 32px 0'
           }}>
             Controle completo do fluxo de produção: Solicitação → Arte → Gráfica → Entrega
           </p>
 
-          {/* Cards de Features */}
+          {/* Feature cards */}
           <div style={{
             display: 'flex',
-            gap: '12px',
-            marginTop: '20px'
+            gap: '10px'
           }}>
             <div style={{
               flex: 1,
               backgroundColor: 'rgba(255,255,255,0.07)',
               border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: '8px',
-              padding: '10px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
+              padding: '12px 14px'
             }}>
-              <span style={{ color: '#f97316', fontSize: '16px' }}>✓</span>
-              <span style={{ color: '#ffffff', fontSize: '13px' }}>Notificações em tempo real</span>
+              <div style={{
+                color: '#f97316',
+                fontSize: '14px',
+                fontWeight: '600'
+              }}>✓</div>
+              <div style={{
+                color: 'white',
+                fontSize: '13px',
+                marginTop: '6px'
+              }}>Notificações em tempo real</div>
             </div>
             <div style={{
               flex: 1,
               backgroundColor: 'rgba(255,255,255,0.07)',
               border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: '8px',
-              padding: '10px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
+              padding: '12px 14px'
             }}>
-              <span style={{ color: '#f97316', fontSize: '16px' }}>✓</span>
-              <span style={{ color: '#ffffff', fontSize: '13px' }}>Rastreamento completo</span>
+              <div style={{
+                color: '#f97316',
+                fontSize: '14px',
+                fontWeight: '600'
+              }}>✓</div>
+              <div style={{
+                color: 'white',
+                fontSize: '13px',
+                marginTop: '6px'
+              }}>Rastreamento completo</div>
             </div>
           </div>
         </div>
 
-        {/* Rodapé */}
+        {/* BOTTOM - Footer */}
         <div style={{
           position: 'relative',
-          zIndex: 10
+          zIndex: 1
         }}>
           <p style={{
-            fontSize: '11px',
             color: 'rgba(255,255,255,0.3)',
+            fontSize: '11px',
             margin: 0
           }}>© 2024 NORTE Marketing Esportivo</p>
         </div>
       </div>
 
-      {/* Right side - Login Form - TITANIUM THEME */}
+      {/* RIGHT COLUMN - Login form */}
       <div style={{
-        flex: 1,
+        width: '58%',
+        height: '100%',
+        backgroundColor: '#fafaf9',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '32px',
-        backgroundColor: '#fafaf9'
+        padding: '48px'
       }}>
         <div style={{
           width: '100%',
-          maxWidth: '384px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '32px'
+          maxWidth: '420px'
         }}>
-          {/* Mobile logo */}
-          <div style={{ display: 'none', textAlign: 'center' }} className="lg:hidden">
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '12px',
-              marginBottom: '24px'
-            }}>
-              <div style={{
-                width: '48px',
+          {/* Header */}
+          <h1 style={{
+            color: '#1c1917',
+            fontSize: '28px',
+            fontWeight: '800',
+            letterSpacing: '-0.5px',
+            margin: '0 0 6px 0',
+            lineHeight: '1.2'
+          }}>
+            Bem-vindo de volta
+          </h1>
+          
+          {/* Decorative line */}
+          <div style={{
+            width: '32px',
+            height: '2px',
+            backgroundColor: '#f97316',
+            marginBottom: '10px'
+          }} />
+
+          {/* Subtitle */}
+          <p style={{
+            color: '#78716c',
+            fontSize: '14px',
+            margin: '0 0 32px 0',
+            lineHeight: '1.5'
+          }}>
+            Entre com suas credenciais para acessar o sistema
+          </p>
+
+          {/* Form */}
+          <form onSubmit={form.handleSubmit(onSubmit)} style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px'
+          }}>
+            {/* Email field */}
+            <div>
+              <label style={{
+                display: 'block',
+                color: '#1c1917',
+                fontSize: '12px',
+                fontWeight: '600',
+                textTransform: 'uppercase',
+                letterSpacing: '0.4px',
+                marginBottom: '6px'
+              }}>
+                Email
+              </label>
+              <input
+                type="email"
+                placeholder="seu@email.com"
+                {...form.register('email')}
+                style={{
+                  width: '100%',
+                  height: '44px',
+                  backgroundColor: 'white',
+                  border: '1.5px solid #e7e5e4',
+                  borderRadius: '10px',
+                  padding: '0 14px',
+                  fontSize: '14px',
+                  color: '#1c1917',
+                  boxSizing: 'border-box',
+                  fontFamily: 'inherit',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+                data-testid="input-email"
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#f97316';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#e7e5e4';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              />
+              {form.formState.errors.email && (
+                <p style={{
+                  color: '#dc2626',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  margin: '4px 0 0 0'
+                }}>
+                  {form.formState.errors.email.message}
+                </p>
+              )}
+            </div>
+
+            {/* Password field */}
+            <div>
+              <label style={{
+                display: 'block',
+                color: '#1c1917',
+                fontSize: '12px',
+                fontWeight: '600',
+                textTransform: 'uppercase',
+                letterSpacing: '0.4px',
+                marginBottom: '6px'
+              }}>
+                Senha
+              </label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                {...form.register('password')}
+                style={{
+                  width: '100%',
+                  height: '44px',
+                  backgroundColor: 'white',
+                  border: '1.5px solid #e7e5e4',
+                  borderRadius: '10px',
+                  padding: '0 14px',
+                  fontSize: '14px',
+                  color: '#1c1917',
+                  boxSizing: 'border-box',
+                  fontFamily: 'inherit',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+                data-testid="input-password"
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = '#f97316';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = '#e7e5e4';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              />
+              {form.formState.errors.password && (
+                <p style={{
+                  color: '#dc2626',
+                  fontSize: '12px',
+                  marginTop: '4px',
+                  margin: '4px 0 0 0'
+                }}>
+                  {form.formState.errors.password.message}
+                </p>
+              )}
+            </div>
+
+            {/* Login button */}
+            <button
+              type="submit"
+              disabled={loginMutation.isPending}
+              style={{
+                width: '100%',
                 height: '48px',
-                borderRadius: '12px',
-                backgroundColor: '#f97316',
+                backgroundColor: '#1c1917',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '15px',
+                fontWeight: '700',
+                cursor: loginMutation.isPending ? 'not-allowed' : 'pointer',
+                marginTop: '8px',
+                transition: 'background-color 0.25s',
+                opacity: loginMutation.isPending ? 0.8 : 1,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#ffffff',
-                fontWeight: '800',
-                fontSize: '20px'
-              }}>
-                N
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <h1 style={{
-                  fontSize: '20px',
-                  fontWeight: '700',
-                  color: '#1c1917',
-                  margin: 0
-                }}>NORTE</h1>
-                <p style={{
-                  fontSize: '12px',
-                  color: '#78716c',
-                  margin: '2px 0 0'
-                }}>Marketing Esportivo</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Header */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h2 style={{
-              fontSize: '28px',
-              fontWeight: '700',
-              color: '#1c1917',
-              letterSpacing: '-0.5px',
-              margin: 0,
-              lineHeight: '1.2'
-            }}>
-              Bem-vindo de volta
-            </h2>
-            <div style={{
-              width: '32px',
-              height: '2px',
-              backgroundColor: '#f97316'
-            }} />
-            <p style={{
-              fontSize: '13px',
-              color: '#78716c',
-              margin: '8px 0 0'
-            }}>
-              Entre com suas credenciais para acessar o sistema
-            </p>
-          </div>
-
-          {/* Form */}
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel style={{ color: '#1c1917', fontWeight: '500', fontSize: '13px' }}>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="seu@email.com"
-                        style={{
-                          height: '44px',
-                          backgroundColor: '#ffffff',
-                          border: '1.5px solid #e7e5e4',
-                          borderRadius: '8px',
-                          color: '#1c1917',
-                          fontSize: '13px'
-                        }}
-                        data-testid="input-email"
-                        onFocus={(e) => {
-                          (e.target as HTMLInputElement).style.borderColor = '#f97316';
-                          (e.target as HTMLInputElement).style.boxShadow = '0 0 0 2px rgba(249,115,22,0.12)';
-                        }}
-                        onBlur={(e) => {
-                          (e.target as HTMLInputElement).style.borderColor = '#e7e5e4';
-                          (e.target as HTMLInputElement).style.boxShadow = 'none';
-                        }}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel style={{ color: '#1c1917', fontWeight: '500', fontSize: '13px' }}>Senha</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        style={{
-                          height: '44px',
-                          backgroundColor: '#ffffff',
-                          border: '1.5px solid #e7e5e4',
-                          borderRadius: '8px',
-                          color: '#1c1917',
-                          fontSize: '13px'
-                        }}
-                        data-testid="input-password"
-                        onFocus={(e) => {
-                          (e.target as HTMLInputElement).style.borderColor = '#f97316';
-                          (e.target as HTMLInputElement).style.boxShadow = '0 0 0 2px rgba(249,115,22,0.12)';
-                        }}
-                        onBlur={(e) => {
-                          (e.target as HTMLInputElement).style.borderColor = '#e7e5e4';
-                          (e.target as HTMLInputElement).style.boxShadow = 'none';
-                        }}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                style={{
-                  height: '44px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  backgroundColor: '#1c1917',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.25s ease'
-                }}
-                onMouseEnter={(e) => {
+                gap: '8px'
+              }}
+              data-testid="button-login"
+              onMouseEnter={(e) => {
+                if (!loginMutation.isPending) {
                   (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316';
-                }}
-                onMouseLeave={(e) => {
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loginMutation.isPending) {
                   (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917';
-                }}
-                disabled={loginMutation.isPending}
-                data-testid="button-login"
-              >
-                {loginMutation.isPending ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                      width: '16px',
-                      height: '16px',
-                      border: '2px solid rgba(255,255,255,0.3)',
-                      borderTop: '2px solid white',
-                      borderRadius: '50%',
-                      animation: 'spin 0.8s linear infinite'
-                    }} />
-                    Entrando...
-                  </span>
-                ) : (
-                  "Entrar no Sistema"
-                )}
-              </Button>
-            </form>
-          </Form>
+                }
+              }}
+            >
+              {loginMutation.isPending ? (
+                <>
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid rgba(255,255,255,0.3)',
+                    borderTopColor: 'white',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite'
+                  }} />
+                  Entrando...
+                </>
+              ) : (
+                'Entrar no Sistema'
+              )}
+            </button>
+          </form>
 
           {/* Footer */}
-          <div style={{
+          <p style={{
             textAlign: 'center',
+            color: '#a8a29e',
             fontSize: '12px',
-            color: '#a8a29e'
+            marginTop: '20px',
+            margin: '20px 0 0 0'
           }}>
-            Sistema seguro com criptografia de ponta a ponta
-          </div>
+            🔒 Sistema seguro com criptografia de ponta a ponta
+          </p>
         </div>
       </div>
-      
+
       <style>{`
+        * {
+          margin: 0;
+          padding: 0;
+        }
         @keyframes spin {
           to { transform: rotate(360deg); }
         }

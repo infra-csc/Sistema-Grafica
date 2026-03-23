@@ -200,9 +200,12 @@ export default function PainelGeral() {
               <div
                 key={card.key}
                 onClick={() => card.key !== 'total' && setStatusFilter(card.key)}
-                className={`relative bg-white rounded-[12px] p-4 border border-[#e8e5df] cursor-pointer transition-all hover:translate-y-[-1px] hover:shadow-sm ${
-                  card.key === 'total' ? 'bg-[#1a1916] text-white' : ''
-                }`}
+                className="relative rounded-[12px] p-4 border cursor-pointer transition-all hover:translate-y-[-1px] hover:shadow-sm"
+                style={{
+                  backgroundColor: card.key === 'total' ? '#1a4d88' : '#ffffff',
+                  borderColor: '#e8e5df',
+                  color: card.key === 'total' ? '#ffffff' : 'inherit'
+                }}
               >
                 {/* Dot colorido no canto superior direito */}
                 <div 
@@ -229,7 +232,11 @@ export default function PainelGeral() {
               <div
                 key={card.key}
                 onClick={() => setStatusFilter(card.key)}
-                className={`relative bg-white rounded-[12px] p-4 border border-[#e8e5df] cursor-pointer transition-all hover:translate-y-[-1px] hover:shadow-sm`}
+                className="relative rounded-[12px] p-4 border cursor-pointer transition-all hover:translate-y-[-1px] hover:shadow-sm"
+                style={{
+                  backgroundColor: '#ffffff',
+                  borderColor: '#e8e5df'
+                }}
               >
                 {/* Dot colorido no canto superior direito */}
                 <div 

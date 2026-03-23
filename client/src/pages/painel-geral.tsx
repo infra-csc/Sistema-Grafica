@@ -99,20 +99,35 @@ export default function PainelGeral() {
 
   const filteredItems = statsItems.filter(item => matchesStatusFilter(item, statusFilter));
 
+  const statusCardHoverBg: Record<string, string> = {
+    'total': '#f0fafb',
+    'requested': '#fffbeb',
+    'awaiting_linking': '#f9fafb',
+    'awaiting_submission': '#eff6ff',
+    'awaiting_approval': '#fef2f2',
+    'awaiting_finalization': '#f5f3ff',
+    'awaiting_final_review': '#f5f3ff',
+    'ready_for_production': '#ecfeff',
+    'approved': '#f7fee7',
+    'inProduction': '#fff7ed',
+    'produced': '#faf5ff',
+    'delivered': '#f0fdf4',
+  };
+
   const statusCards = [
-    { key: 'total', label: 'Total', count: statsItems.length, isTotal: true, textColor: '#06b6d4' },
-    { key: 'requested', label: 'Solicitado', count: statsItems.filter(i => i.status === 'requested').length, textColor: '#d97706', dot: '#d97706' },
-    { key: 'awaiting_linking', label: 'Ag. Vinculação', count: statsItems.filter(i => i.status === 'awaiting_linking').length, textColor: '#9ca3af', dot: '#9ca3af' },
-    { key: 'awaiting_submission', label: 'Ag. Envio', count: statsItems.filter(i => i.status === 'awaiting_submission').length, textColor: '#06b6d4', dot: '#06b6d4' },
-    { key: 'awaiting_approval', label: 'Ag. Aprovação', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_approval')).length, textColor: '#dc2626', dot: '#dc2626' },
-    { key: 'awaiting_finalization', label: 'Ag. Finalização', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_finalization')).length, textColor: '#9ca3af', dot: '#6d28d9' },
-    { key: 'awaiting_final_review', label: 'Ag. Revisão', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_final_review')).length, textColor: '#7c3aed', dot: '#7c3aed' },
+    { key: 'total', label: 'Total', count: statsItems.length, isTotal: true, textColor: '#06b6d4', hoverBg: '#374151' },
+    { key: 'requested', label: 'Solicitado', count: statsItems.filter(i => i.status === 'requested').length, textColor: '#d97706', dot: '#d97706', hoverBg: statusCardHoverBg.requested },
+    { key: 'awaiting_linking', label: 'Ag. Vinculação', count: statsItems.filter(i => i.status === 'awaiting_linking').length, textColor: '#9ca3af', dot: '#9ca3af', hoverBg: statusCardHoverBg.awaiting_linking },
+    { key: 'awaiting_submission', label: 'Ag. Envio', count: statsItems.filter(i => i.status === 'awaiting_submission').length, textColor: '#06b6d4', dot: '#06b6d4', hoverBg: statusCardHoverBg.awaiting_submission },
+    { key: 'awaiting_approval', label: 'Ag. Aprovação', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_approval')).length, textColor: '#dc2626', dot: '#dc2626', hoverBg: statusCardHoverBg.awaiting_approval },
+    { key: 'awaiting_finalization', label: 'Ag. Finalização', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_finalization')).length, textColor: '#9ca3af', dot: '#6d28d9', hoverBg: statusCardHoverBg.awaiting_finalization },
+    { key: 'awaiting_final_review', label: 'Ag. Revisão', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_final_review')).length, textColor: '#7c3aed', dot: '#7c3aed', hoverBg: statusCardHoverBg.awaiting_final_review },
     // Linha 2
-    { key: 'ready_for_production', label: 'Pronto Produção', count: statsItems.filter(i => i.status === 'ready_for_production').length, textColor: '#06b6d4', dot: '#06b6d4' },
-    { key: 'approved', label: 'Liberado', count: statsItems.filter(i => i.status === 'approved').length, textColor: '#84cc16', dot: '#84cc16' },
-    { key: 'inProduction', label: 'Em Produção', count: statsItems.filter(i => i.status === 'inProduction').length, textColor: '#d97706', dot: '#d97706' },
-    { key: 'produced', label: 'Produzido', count: statsItems.filter(i => i.status === 'produced').length, textColor: '#9333ea', dot: '#9333ea' },
-    { key: 'delivered', label: 'Entregue', count: statsItems.filter(i => i.status === 'delivered').length, textColor: '#15803d', dot: '#15803d' },
+    { key: 'ready_for_production', label: 'Pronto Produção', count: statsItems.filter(i => i.status === 'ready_for_production').length, textColor: '#06b6d4', dot: '#06b6d4', hoverBg: statusCardHoverBg.ready_for_production },
+    { key: 'approved', label: 'Liberado', count: statsItems.filter(i => i.status === 'approved').length, textColor: '#84cc16', dot: '#84cc16', hoverBg: statusCardHoverBg.approved },
+    { key: 'inProduction', label: 'Em Produção', count: statsItems.filter(i => i.status === 'inProduction').length, textColor: '#d97706', dot: '#d97706', hoverBg: statusCardHoverBg.inProduction },
+    { key: 'produced', label: 'Produzido', count: statsItems.filter(i => i.status === 'produced').length, textColor: '#9333ea', dot: '#9333ea', hoverBg: statusCardHoverBg.produced },
+    { key: 'delivered', label: 'Entregue', count: statsItems.filter(i => i.status === 'delivered').length, textColor: '#15803d', dot: '#15803d', hoverBg: statusCardHoverBg.delivered },
   ];
 
   const getStatusBadgeStyle = (status: string) => {
@@ -175,20 +190,26 @@ export default function PainelGeral() {
             {statusCards.slice(0, 7).map((card) => (
               <div
                 key={card.key}
-                className="relative transition-all duration-200"
+                className="relative transition-all"
                 style={{
                   backgroundColor: card.isTotal ? '#2d2d2d' : '#ffffff',
                   border: '1px solid #e5e7eb',
                   borderRadius: '12px',
                   padding: '16px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transitionProperty: 'background-color, transform, box-shadow',
+                  transitionDuration: '0.2s',
+                  transitionTimingFunction: 'ease'
                 }}
                 onClick={() => setStatusFilter(card.key === 'total' ? 'all' : card.key)}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                  const hoverBg = (card as any).hoverBg;
+                  (e.currentTarget as HTMLElement).style.backgroundColor = hoverBg;
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
                   (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
                 }}
                 onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = card.isTotal ? '#2d2d2d' : '#ffffff';
                   (e.currentTarget as HTMLElement).style.boxShadow = 'none';
                   (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                 }}
@@ -229,20 +250,26 @@ export default function PainelGeral() {
             {statusCards.slice(7).map((card) => (
               <div
                 key={card.key}
-                className="relative transition-all duration-200"
+                className="relative transition-all"
                 style={{
                   backgroundColor: '#ffffff',
                   border: '1px solid #e5e7eb',
                   borderRadius: '12px',
                   padding: '16px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transitionProperty: 'background-color, transform, box-shadow',
+                  transitionDuration: '0.2s',
+                  transitionTimingFunction: 'ease'
                 }}
                 onClick={() => setStatusFilter(card.key)}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                  const hoverBg = (card as any).hoverBg;
+                  (e.currentTarget as HTMLElement).style.backgroundColor = hoverBg;
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
                   (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
                 }}
                 onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff';
                   (e.currentTarget as HTMLElement).style.boxShadow = 'none';
                   (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                 }}

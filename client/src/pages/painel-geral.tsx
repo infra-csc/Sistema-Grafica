@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 export default function PainelGeral() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedStatusCard, setSelectedStatusCard] = useState<string>("total");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -193,25 +194,33 @@ export default function PainelGeral() {
                 className="relative transition-all"
                 style={{
                   backgroundColor: card.isTotal ? '#2d2d2d' : '#ffffff',
-                  border: '1px solid #e5e7eb',
+                  border: selectedStatusCard === card.key ? '2px solid #06b6d4' : '1px solid #e5e7eb',
                   borderRadius: '12px',
-                  padding: '16px',
+                  padding: selectedStatusCard === card.key ? '15px' : '16px',
                   cursor: 'pointer',
-                  transitionProperty: 'background-color, transform, box-shadow',
+                  transitionProperty: 'background-color, transform, box-shadow, border-color, padding',
                   transitionDuration: '0.2s',
-                  transitionTimingFunction: 'ease'
+                  transitionTimingFunction: 'ease',
+                  boxShadow: selectedStatusCard === card.key ? '0 4px 12px rgba(6, 182, 212, 0.15), 0 2px 4px rgba(0, 0, 0, 0.05)' : 'none'
                 }}
-                onClick={() => setStatusFilter(card.key === 'total' ? 'all' : card.key)}
+                onClick={() => {
+                  setSelectedStatusCard(card.key);
+                  setStatusFilter(card.key === 'total' ? 'all' : card.key);
+                }}
                 onMouseEnter={(e) => {
-                  const hoverBg = (card as any).hoverBg;
-                  (e.currentTarget as HTMLElement).style.backgroundColor = hoverBg;
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
-                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                  if (selectedStatusCard !== card.key) {
+                    const hoverBg = (card as any).hoverBg;
+                    (e.currentTarget as HTMLElement).style.backgroundColor = hoverBg;
+                    (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.backgroundColor = card.isTotal ? '#2d2d2d' : '#ffffff';
-                  (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                  (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                  if (selectedStatusCard !== card.key) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = card.isTotal ? '#2d2d2d' : '#ffffff';
+                    (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                  }
                 }}
               >
                 {!card.isTotal && card.dot && (
@@ -253,25 +262,33 @@ export default function PainelGeral() {
                 className="relative transition-all"
                 style={{
                   backgroundColor: '#ffffff',
-                  border: '1px solid #e5e7eb',
+                  border: selectedStatusCard === card.key ? '2px solid #06b6d4' : '1px solid #e5e7eb',
                   borderRadius: '12px',
-                  padding: '16px',
+                  padding: selectedStatusCard === card.key ? '15px' : '16px',
                   cursor: 'pointer',
-                  transitionProperty: 'background-color, transform, box-shadow',
+                  transitionProperty: 'background-color, transform, box-shadow, border-color, padding',
                   transitionDuration: '0.2s',
-                  transitionTimingFunction: 'ease'
+                  transitionTimingFunction: 'ease',
+                  boxShadow: selectedStatusCard === card.key ? '0 4px 12px rgba(6, 182, 212, 0.15), 0 2px 4px rgba(0, 0, 0, 0.05)' : 'none'
                 }}
-                onClick={() => setStatusFilter(card.key)}
+                onClick={() => {
+                  setSelectedStatusCard(card.key);
+                  setStatusFilter(card.key);
+                }}
                 onMouseEnter={(e) => {
-                  const hoverBg = (card as any).hoverBg;
-                  (e.currentTarget as HTMLElement).style.backgroundColor = hoverBg;
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
-                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                  if (selectedStatusCard !== card.key) {
+                    const hoverBg = (card as any).hoverBg;
+                    (e.currentTarget as HTMLElement).style.backgroundColor = hoverBg;
+                    (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff';
-                  (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                  (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                  if (selectedStatusCard !== card.key) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff';
+                    (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                  }
                 }}
               >
                 {card.dot && (

@@ -1417,18 +1417,19 @@ export default function EventDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog separado para editar item */}
+      {/* Dialog separado para editar item — layout compacto sem scroll */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          {/* Cabeçalho Titanium */}
-          <DialogHeader style={{ borderBottom: "1px solid #e7e5e4", paddingBottom: "16px", marginBottom: "4px" }}>
+        <DialogContent style={{ maxWidth: "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "12px" }}>
+
+          {/* Cabeçalho */}
+          <DialogHeader style={{ padding: "16px 20px", borderBottom: "1px solid #e7e5e4" }}>
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ backgroundColor: "#fff7ed" }}>
                 <Pencil className="h-4 w-4" style={{ color: "#f97316" }} />
               </div>
               <div>
-                <DialogTitle className="text-base font-bold" style={{ color: "#1c1917" }}>Editar Item</DialogTitle>
-                <DialogDescription className="text-xs mt-0.5" style={{ color: "#a8a29e" }}>
+                <DialogTitle className="text-sm font-bold leading-tight" style={{ color: "#1c1917" }}>Editar Item</DialogTitle>
+                <DialogDescription className="text-[11px] mt-0.5" style={{ color: "#a8a29e" }}>
                   {editingItem ? `#${editingItem.displayId} · ${editingItem.type}` : "Atualize as informações do item"}
                 </DialogDescription>
               </div>
@@ -1440,51 +1441,37 @@ export default function EventDetail() {
             if (editingItem) {
               updateItemMutation.mutate({ id: editingItem.id, data: formData });
             }
-          }} className="flex flex-col gap-0">
-            <div className="flex flex-col gap-4 py-4">
+          }}>
+            <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
 
-              {/* Tipo | Descrição */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Tipo de Item</Label>
-                <Input
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  placeholder="Digite o tipo"
-                  className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
-                  data-testid="input-edit-type"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Descrição <span style={{ color: "#a8a29e", fontWeight: 400 }}>(opcional)</span></Label>
-                <Input
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Descrição opcional"
-                  className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
-                  data-testid="input-edit-description"
-                />
-              </div>
-
-              {/* Quantidade | m² Calculado */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Quantidade</Label>
+              {/* Linha 1: Tipo (60%) | Quantidade (20%) | m² Total (20%) */}
+              <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>Tipo de Item</label>
+                  <Input
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    placeholder="Digite o tipo"
+                    className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                    style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                    data-testid="input-edit-type"
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>Quantidade</label>
                   <Input
                     type="number"
                     min="1"
                     value={formData.quantity}
                     onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
-                    className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                    className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
                     style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                     data-testid="input-edit-quantity"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>m² Total</Label>
-                  <div className="flex items-center h-9 px-3 rounded-md text-sm font-semibold tabular-nums" style={{ backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#a8a29e" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>m² Total</label>
+                  <div className="h-9 flex items-center px-3 rounded-md text-sm font-semibold tabular-nums" style={{ backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#a8a29e" }}>
                     {formData.fileWidth && formData.fileHeight
                       ? calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2) + " m²"
                       : "—"
@@ -1493,143 +1480,163 @@ export default function EventDetail() {
                 </div>
               </div>
 
-              {/* Dimensões Visuais */}
-              <div className="rounded-lg p-3 space-y-3" style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4" }}>
-                <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-0.5 rounded-full" style={{ backgroundColor: "#f97316" }}></div>
-                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#78716c" }}>Dimensões Visuais (m)</span>
+              {/* Linha 2: Descrição (100%) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>
+                  Descrição <span style={{ textTransform: "none", fontWeight: 400, color: "#a8a29e" }}>(opcional)</span>
+                </label>
+                <Input
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descrição personalizada do item"
+                  className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                  data-testid="input-edit-description"
+                />
+              </div>
+
+              {/* Linha 3: Dimensões — 4 colunas numa só linha */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingTop: "4px", borderTop: "1px solid #e7e5e4" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>Dimensões (m)</span>
+                  <span style={{ fontSize: "10px", color: "#a8a29e" }}>Visual · Arquivo</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Largura</Label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "10px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#78716c", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block", flexShrink: 0 }}></span>
+                      Visual Larg.
+                    </label>
                     <Input
                       type="number"
                       step="0.01"
                       value={formData.visualWidth}
                       onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
-                      className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                      style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                      placeholder="0.00"
+                      className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                      style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                       data-testid="input-edit-visual-width"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Altura</Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#78716c", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block", flexShrink: 0 }}></span>
+                      Visual Alt.
+                    </label>
                     <Input
                       type="number"
                       step="0.01"
                       value={formData.visualHeight}
                       onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
-                      className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                      style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                      placeholder="0.00"
+                      className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                      style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                       data-testid="input-edit-visual-height"
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* Dimensões Arquivo */}
-              <div className="rounded-lg p-3 space-y-3" style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4" }}>
-                <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-0.5 rounded-full" style={{ backgroundColor: "#78716c" }}></div>
-                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#78716c" }}>Dimensões Arquivo (m)</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Largura</Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#78716c", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#78716c", display: "inline-block", flexShrink: 0 }}></span>
+                      Arquivo Larg.
+                    </label>
                     <Input
                       type="number"
                       step="0.01"
                       value={formData.fileWidth}
                       onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
-                      className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                      style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                      placeholder="0.00"
+                      className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                      style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                       data-testid="input-edit-file-width"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Altura</Label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "11px", fontWeight: 600, color: "#78716c", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#78716c", display: "inline-block", flexShrink: 0 }}></span>
+                      Arquivo Alt.
+                    </label>
                     <Input
                       type="number"
                       step="0.01"
                       value={formData.fileHeight}
                       onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
-                      className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                      style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                      placeholder="0.00"
+                      className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                      style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                       data-testid="input-edit-file-height"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Material | Acabamento */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Material</Label>
+              {/* Linha 4: Material (33%) | Acabamento (33%) | Patrocinador (33%) */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>Material</label>
                   <Input
                     value={formData.material}
                     onChange={(e) => setFormData({ ...formData, material: e.target.value })}
                     placeholder="Material"
-                    className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                    className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
                     style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                     data-testid="input-edit-material"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Acabamento</Label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>Acabamento</label>
                   <Input
                     value={formData.finish}
                     onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
                     placeholder="Acabamento"
-                    className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                    className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
                     style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                     data-testid="input-edit-finish"
                   />
                 </div>
-              </div>
-
-              {/* Patrocinador */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Patrocinador</Label>
-                <Select
-                  value={formData.sponsorId || "none"}
-                  onValueChange={(value) => setFormData({ ...formData, sponsorId: value === "none" ? "" : value })}
-                >
-                  <SelectTrigger
-                    className="text-sm focus:ring-[#f97316] focus:border-[#f97316]"
-                    style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
-                    data-testid="select-edit-sponsor"
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>Patrocinador</label>
+                  <Select
+                    value={formData.sponsorId || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, sponsorId: value === "none" ? "" : value })}
                   >
-                    <SelectValue placeholder="Selecionar patrocinador" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {sponsors.map(sponsor => (
-                      <SelectItem key={sponsor.id} value={sponsor.id}>
-                        {sponsor.name}
-                        {sponsor.company && ` (${sponsor.company})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <SelectTrigger
+                      className="h-9 text-sm focus:ring-[#f97316] focus:border-[#f97316]"
+                      style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                      data-testid="select-edit-sponsor"
+                    >
+                      <SelectValue placeholder="Nenhum" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {sponsors.map(sponsor => (
+                        <SelectItem key={sponsor.id} value={sponsor.id}>
+                          {sponsor.name}
+                          {sponsor.company && ` (${sponsor.company})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Observações */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>Observações <span style={{ color: "#a8a29e", fontWeight: 400 }}>(opcional)</span></Label>
+              {/* Linha 5: Observações */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>
+                  Observações <span style={{ textTransform: "none", fontWeight: 400, color: "#a8a29e" }}>(opcional)</span>
+                </label>
                 <Textarea
                   value={formData.observations}
                   onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
                   placeholder="Observações adicionais sobre este item..."
-                  rows={3}
-                  className="text-sm resize-y focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                  className="text-sm resize-none focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                  style={{ height: "72px", backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                   data-testid="textarea-edit-observations"
                 />
               </div>
             </div>
 
             {/* Rodapé */}
-            <div className="flex justify-end gap-2 pt-4" style={{ borderTop: "1px solid #e7e5e4" }}>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid #e7e5e4", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
               <Button
                 type="button"
                 variant="outline"

@@ -75,98 +75,65 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           </div>
         </div>
 
-        {/* Timeline Horizontal - Progress Bar */}
+        {/* Timeline Horizontal */}
         <div style={{ 
           padding: '16px 24px',
           borderBottom: '1px solid #e7e5e4'
         }}>
-          {/* Ícones e Linha */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0', position: 'relative', marginBottom: '12px' }}>
-            {/* Linha de progresso azul */}
-            <div style={{
-              position: 'absolute',
-              top: '14px',
-              left: '0',
-              width: '100%',
-              height: '2px',
-              backgroundColor: '#e7e5e4',
-              zIndex: 0
-            }} />
-            <div style={{
-              position: 'absolute',
-              top: '14px',
-              left: '0',
-              width: item.status === 'aguardando_revisao_final' ? '83.33%' : '66.66%',
-              height: '2px',
-              backgroundColor: '#3b82f6',
-              zIndex: 1,
-              transition: 'width 0.3s ease'
-            }} />
-            
-            {/* Ícones */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', position: 'relative', zIndex: 2 }}>
-              {[
-                { icon: Link2, label: 'Vinculação', color: '#f97316', idx: 0 },
-                { icon: Palette, label: 'Arte', color: '#a855f7', idx: 1 },
-                { icon: CheckCircle, label: 'Aprovação', color: '#f97316', idx: 2 },
-                { icon: Zap, label: 'Finalização', color: '#10b981', idx: 3 },
-                { icon: Eye, label: 'Revisão', color: '#3b82f6', idx: 4 },
-                { icon: Cog, label: 'Produção', color: '#a8a29e', idx: 5 }
-              ].map((step) => {
-                const Icon = step.icon;
-                const activeIdx = item.status === 'aguardando_revisao_final' ? 4 : 3;
-                const isCompleted = step.idx < activeIdx;
-                const isActive = step.idx === activeIdx;
-                const color = isCompleted || isActive ? step.color : '#a8a29e';
-                
-                return (
-                  <div key={step.idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                    {/* Ícone */}
-                    <div style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '50%',
-                      backgroundColor: color,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      flexShrink: 0
-                    }}>
-                      <Icon size={14} strokeWidth={2.5} />
-                    </div>
-                    
-                    {/* Rótulo */}
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: isActive ? '700' : '500',
-                      color: isActive ? step.color : '#a8a29e',
-                      textAlign: 'center',
-                      whiteSpace: 'nowrap',
-                      lineHeight: '1.2'
-                    }}>
-                      {step.label}
-                    </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' }}>
+            {[
+              { icon: Link2, label: 'Vinculação', color: '#f97316' },
+              { icon: Palette, label: 'Arte', color: '#a855f7' },
+              { icon: CheckCircle, label: 'Aprovação', color: '#f97316' },
+              { icon: Zap, label: 'Finalização', color: '#10b981' },
+              { icon: Eye, label: 'Revisão', color: '#3b82f6' },
+              { icon: Cog, label: 'Produção', color: '#a8a29e' }
+            ].map((step, idx) => {
+              const Icon = step.icon;
+              return (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: idx < 5 ? 1 : 'none' }}>
+                  {/* Ícone */}
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    backgroundColor: step.color,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    flexShrink: 0
+                  }}>
+                    <Icon size={12} strokeWidth={2.5} />
                   </div>
-                );
-              })}
-            </div>
+                  
+                  {/* Linha separadora */}
+                  {idx < 5 && (
+                    <div style={{
+                      flex: 1,
+                      height: '2px',
+                      backgroundColor: step.color,
+                      minWidth: '24px'
+                    }} />
+                  )}
+                </div>
+              );
+            })}
           </div>
           
-          {/* Barra de progresso cinza */}
-          <div style={{
-            width: '100%',
-            height: '3px',
-            backgroundColor: '#d1d5db',
-            borderRadius: '2px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              height: '100%',
-              backgroundColor: '#909ca0',
-              width: item.status === 'aguardando_revisao_final' ? '83.33%' : '66.66%',
-              transition: 'width 0.3s ease'
-            }} />
+          {/* Rótulos abaixo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between', marginTop: '8px' }}>
+            {['Vinculação', 'Arte', 'Aprovação', 'Finalização', 'Revisão', 'Produção'].map((label, idx) => (
+              <span key={idx} style={{
+                fontSize: '10px',
+                color: '#a8a29e',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                flex: idx < 5 ? 1 : 'none'
+              }}>
+                {label}
+              </span>
+            ))}
           </div>
         </div>
 

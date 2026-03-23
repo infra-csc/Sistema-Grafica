@@ -158,8 +158,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Grid: Evento + Especificações */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            {/* Evento */}
-            <div>
+            {/* Evento Card */}
+            <div style={{ 
+              backgroundColor: '#fafaf9',
+              border: '1px solid #e7e5e4',
+              borderRadius: '12px',
+              padding: '16px'
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Calendar className="h-5 w-5" style={{ color: '#f97316' }} />
                 <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
@@ -186,8 +191,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               </div>
             </div>
 
-            {/* Especificações */}
-            <div>
+            {/* Especificações Card */}
+            <div style={{ 
+              backgroundColor: '#fafaf9',
+              border: '1px solid #e7e5e4',
+              borderRadius: '12px',
+              padding: '16px'
+            }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <ClipboardList className="h-5 w-5" style={{ color: '#f97316' }} />
@@ -259,8 +269,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </div>
           </div>
 
-          {/* Dados de Produção - Tabela Simplificada */}
-          <div>
+          {/* Dados de Produção Card */}
+          <div style={{ 
+            backgroundColor: '#fafaf9',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px',
+            padding: '16px'
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
               <Package className="h-5 w-5" style={{ color: '#f97316' }} />
               <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
@@ -415,8 +430,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </div>
           )}
 
-          {/* Histórico - Timeline Vertical */}
-          <div>
+          {/* Histórico Card */}
+          <div style={{ 
+            backgroundColor: '#fafaf9',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px',
+            padding: '16px'
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
               <History className="h-5 w-5" style={{ color: '#f97316' }} />
               <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
@@ -438,32 +458,34 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               
               {/* Eventos */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {mockHistory.map((event, idx) => {
-                  const isLast = idx === mockHistory.length - 1;
-                  return (
-                    <div key={idx} style={{ position: 'relative' }}>
-                      {/* Ponto */}
-                      <div style={{ 
-                        position: 'absolute',
-                        left: '-22px',
-                        top: '2px',
-                        width: '12px',
-                        height: '12px',
-                        borderRadius: '50%',
-                        backgroundColor: '#ffffff',
-                        border: `2px solid ${isLast ? '#f97316' : '#a8a29e'}`
-                      }} />
-                      
-                      {/* Conteúdo */}
-                      <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 2px 0' }}>
-                        {event.action}
-                      </p>
-                      <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>
-                        {event.timestamp}
-                      </p>
-                    </div>
-                  );
-                })}
+                {[
+                  { label: 'Vinculação iniciada', color: '#f97316', timestamp: '27/11 08:00' },
+                  { label: 'Enviado para Arte', color: '#a855f7', timestamp: '27/11 09:15' },
+                  { label: 'Em aprovação de patrocinador', color: '#f97316', timestamp: '27/11 10:30' },
+                  { label: 'Aprovado - Finalização', color: '#10b981', timestamp: '27/11 11:45' },
+                  { label: 'Aguardando revisão final', color: '#3b82f6', timestamp: '27/11 12:20' }
+                ].map((event, idx) => (
+                  <div key={idx} style={{ position: 'relative' }}>
+                    {/* Ponto colorido */}
+                    <div style={{ 
+                      position: 'absolute',
+                      left: '-22px',
+                      top: '2px',
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: event.color
+                    }} />
+                    
+                    {/* Conteúdo */}
+                    <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 2px 0' }}>
+                      {event.label}
+                    </p>
+                    <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>
+                      {event.timestamp}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

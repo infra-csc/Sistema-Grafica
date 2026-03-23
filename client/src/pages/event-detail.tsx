@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock } from "lucide-react";
 import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -490,7 +490,11 @@ export default function EventDetail() {
     }
   };
 
+  const BLOCKED_EDIT_STATUSES = ["pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
+  const isEditBlocked = (status: string) => BLOCKED_EDIT_STATUSES.includes(status);
+
   const handleEditItem = (item: any) => {
+    if (isEditBlocked(item.status)) return;
     setEditingItem(item);
     setFormData({
       type: item.type || "",
@@ -1174,6 +1178,15 @@ export default function EventDetail() {
                     </div>
                     {canManageEvent && (
                       <div className="flex items-center gap-1 ml-2">
+                        {isEditBlocked(item.status) ? (
+                          <div
+                            className="p-1.5 rounded-md"
+                            title="Edição bloqueada — item já liberado para gráfica"
+                            style={{ color: "#a8a29e", cursor: "not-allowed" }}
+                          >
+                            <Lock className="h-3.5 w-3.5" />
+                          </div>
+                        ) : (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1183,6 +1196,7 @@ export default function EventDetail() {
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1348,6 +1362,16 @@ export default function EventDetail() {
                           {hasPermission("admin") && (
                             <td className="py-2.5 px-2">
                               <div className="flex items-center gap-1">
+                                {isEditBlocked(item.status) ? (
+                                  <div
+                                    className="p-1.5 rounded-md"
+                                    title="Edição bloqueada — item já liberado para gráfica"
+                                    style={{ color: "#d1cdc9", cursor: "not-allowed" }}
+                                    data-testid={`button-edit-item-${item.id}`}
+                                  >
+                                    <Lock className="h-3.5 w-3.5" />
+                                  </div>
+                                ) : (
                                 <button
                                   className="p-1.5 rounded-md transition-colors duration-100"
                                   style={{ color: "#a8a29e", backgroundColor: "transparent" }}
@@ -1361,6 +1385,7 @@ export default function EventDetail() {
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </button>
+                                )}
                                 <button
                                   className="p-1.5 rounded-md transition-colors duration-100"
                                   style={{ color: "#a8a29e", backgroundColor: "transparent" }}

@@ -1,0 +1,86 @@
+Aplique o conceito visual "Titanium" em todo o dashboard. 
+Substitua TODAS as cores atuais pelas abaixo. Nenhuma cor antiga deve sobrar.
+
+PALETA TITANIUM — OBRIGATÓRIA:
+- Fundo geral:     #fafaf9  (off-white quente)
+- Primária:        #1c1917  (quase-preto marrom)
+- Acento:          #f97316  (laranja gráfico)
+- Superfície:      #ffffff
+- Bordas:          #e7e5e4
+- Texto primário:  #1c1917
+- Texto secundário:#78716c
+- Texto mudo:      #a8a29e
+
+TOPBAR:
+- Fundo: #ffffff | border-bottom: 1px solid #e7e5e4
+- Ponto decorativo da brand: #f97316
+- Badge notificação: fundo #f97316, texto branco
+- Avatar "A": fundo #1c1917, texto branco
+- Hover ícones: cor #f97316
+
+CARDS DE STATUS:
+- Card Total: fundo #1c1917, label cor #a8a29e, valor "62" cor #f97316
+- Todos os outros cards:
+  fundo #ffffff | borda 1px solid #e7e5e4 | border-radius 12px
+  Hover: fundo tintado conforme mapeamento abaixo + translateY(-2px)
+         box-shadow 0 4px 12px rgba(0,0,0,0.06)
+  (SEM borda colorida em nenhum estado)
+
+Hover background por card:
+- Solicitado:      #fff7ed  (laranja muito diluído)
+- Ag. Vinculação:  #fafaf9  (neutro)
+- Ag. Envio:       #eff6ff
+- Ag. Aprovação:   #fef2f2
+- Ag. Finalização: #f5f3ff
+- Ag. Revisão:     #f5f3ff
+- Pronto Produção: #ecfeff
+- Liberado:        #f7fee7
+- Em Produção:     #fff7ed
+- Produzido:       #faf5ff
+- Entregue:        #f0fdf4
+
+SEÇÃO DE FILTROS:
+- Container: fundo #ffffff, borda #e7e5e4
+- Input busca: fundo #fafaf9, borda #e7e5e4
+  Focus: borda #f97316 + ring rgba(249,115,22,0.12)
+- Botão "Filtros": fundo #1c1917, texto branco
+  Hover: fundo #f97316
+- Selects: fundo #fafaf9, borda #e7e5e4
+  Focus: borda #f97316
+
+HEADER DO EVENTO:
+- Ícone quadrado: fundo #f97316, ícone branco (não ciano)
+- Badge "X itens": fundo #fafaf9, borda #e7e5e4, texto #78716c
+
+TABELA:
+- Header: fundo #fafaf9, texto uppercase cinza #a8a29e
+- IDs chip: fundo #fafaf9, borda #e7e5e4
+  Hover: borda #f97316
+- Tipo badge: fundo #fafaf9, borda #e7e5e4
+- Hover linha: fundo #fafaf9
+- M² alto (>10): cor #f97316 (não vermelho)
+- M² zero: cor #a8a29e
+
+STATUS BADGES — manter as cores semânticas dos status
+(são informacionais, não precisam seguir o acento laranja):
+- Solicitado:       fundo #fff7ed, borda #fed7aa, texto #c2410c, ponto #f97316
+- Ag. Revisão Final:fundo #f5f3ff, borda #ddd6fe, texto #7c3aed, ponto #7c3aed
+- Ag. Aprovação:    fundo #fef2f2, borda #fecaca, texto #dc2626, ponto #dc2626
+- Ag. Envio:        fundo #eff6ff, borda #bfdbfe, texto #2563eb, ponto #2563eb
+- Pronto Produção:  fundo #ecfeff, borda #a5f3fc, texto #0891b2, ponto #0891b2
+- Liberado:         fundo #f7fee7, borda #d9f99d, texto #65a30d, ponto #65a30d
+- Em Produção:      fundo #fff7ed, borda #fed7aa, texto #c2410c, ponto #f97316
+- Produzido:        fundo #faf5ff, borda #e9d5ff, texto #9333ea, ponto #9333ea
+- Entregue:         fundo #f0fdf4, borda #86efac, texto #15803d, ponto #15803d
+
+TELA DE LOGIN (painel esquerdo):
+- Substituir gradiente roxo/rosa por:
+  fundo #1c1917 com spot laranja no canto inferior esquerdo
+  (radial-gradient: #f97316 com opacity 0.3, blur 120px)
+- Logo "N": fundo #f97316
+- Linha decorativa acima do título: 2px height, 36px width, cor #f97316
+- Botão "Entrar no Sistema": fundo #1c1917, hover fundo #f97316
+
+FONTE (manter em todo o sistema):
+- Principal: 'DM Sans' (Google Fonts)
+- Numérica/código: 'DM Mono' (Google Fonts)

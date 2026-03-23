@@ -165,267 +165,341 @@ export default function PainelGeral() {
 
       {/* Dashboard - 12 Status Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
+        <div 
+          className={`bg-[#1c1917] rounded-lg p-3 cursor-pointer hover-elevate transition-all ${statusFilter === 'all' ? 'ring-2 ring-[#f97316]' : ''}`}
           onClick={() => setStatusFilter('all')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Total</CardTitle>
-            <Package2 className="h-3.5 w-3.5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold" data-testid="stat-total">{stats.total}</div>
-          </CardContent>
-        </Card>
+          <div className="flex flex-row items-center justify-between pb-1 mb-2">
+            <span className="text-xs font-medium text-[#a8a29e]">Total</span>
+            <Package2 className="h-3.5 w-3.5 text-[#a8a29e]" />
+          </div>
+          <div className="text-xl font-bold text-[#f97316]" data-testid="stat-total">{stats.total}</div>
+        </div>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'requested' ? 'ring-2 ring-yellow-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'requested' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'requested' ? '#fff7ed' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'requested' ? 'all' : 'requested')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Solicitado</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-yellow-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Solicitado</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#f97316]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-yellow-700 dark:text-yellow-400">{stats.requested}</div>
+            <div className="text-xl font-bold text-[#c2410c]">{stats.requested}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_linking' ? 'ring-2 ring-orange-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_linking' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'awaiting_linking' ? '#fafaf9' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_linking' ? 'all' : 'awaiting_linking')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Vinculação</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-orange-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Vinculação</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#78716c]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-orange-700 dark:text-orange-400">{stats.awaitingLinking}</div>
+            <div className="text-xl font-bold text-[#78716c]">{stats.awaitingLinking}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_submission' ? 'ring-2 ring-blue-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_submission' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'awaiting_submission' ? '#eff6ff' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_submission' ? 'all' : 'awaiting_submission')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Envio</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-blue-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Envio</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#2563eb]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-blue-700 dark:text-blue-400">{stats.awaitingSubmission}</div>
+            <div className="text-xl font-bold text-[#2563eb]">{stats.awaitingSubmission}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'ring-2 ring-rose-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? '#fef2f2' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'all' : 'awaiting_approval')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Aprovação</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-rose-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Aprovação</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#dc2626]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-rose-700 dark:text-rose-400">{stats.awaitingApproval}</div>
+            <div className="text-xl font-bold text-[#dc2626]">{stats.awaitingApproval}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'ring-2 ring-purple-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? '#f5f3ff' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'all' : 'awaiting_finalization')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Finalização</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-purple-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Finalização</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#9333ea]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-purple-700 dark:text-purple-400">{stats.awaitingFinalization}</div>
+            <div className="text-xl font-bold text-[#9333ea]">{stats.awaitingFinalization}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'ring-2 ring-violet-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? '#f5f3ff' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'all' : 'awaiting_final_review')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Revisão</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-violet-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Revisão</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#7c3aed]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-violet-700 dark:text-violet-400">{stats.awaitingFinalReview}</div>
+            <div className="text-xl font-bold text-[#7c3aed]">{stats.awaitingFinalReview}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'ready_for_production' ? 'ring-2 ring-cyan-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'ready_for_production' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'ready_for_production' ? '#ecfeff' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'ready_for_production' ? 'all' : 'ready_for_production')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Pronto Produção</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-cyan-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Pronto Produção</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#0891b2]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-cyan-700 dark:text-cyan-400">{stats.readyForProduction}</div>
+            <div className="text-xl font-bold text-[#0891b2]">{stats.readyForProduction}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'approved' ? 'ring-2 ring-green-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'approved' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'approved' ? '#f7fee7' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Liberado</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Liberado</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#65a30d]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-green-700 dark:text-green-400">{stats.approved}</div>
+            <div className="text-xl font-bold text-[#65a30d]">{stats.approved}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'inProduction' ? 'ring-2 ring-status-production' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'inProduction' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'inProduction' ? '#fff7ed' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'inProduction' ? 'all' : 'inProduction')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Em Produção</CardTitle>
-            <Package2 className="h-3.5 w-3.5 text-status-production" />
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Em Produção</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#f97316]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-status-production">{stats.inProduction}</div>
+            <div className="text-xl font-bold text-[#c2410c]">{stats.inProduction}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'produced' ? 'ring-2 ring-fuchsia-500' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'produced' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'produced' ? '#faf5ff' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'produced' ? 'all' : 'produced')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Produzido</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-fuchsia-500"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Produzido</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#9333ea]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-fuchsia-700 dark:text-fuchsia-400">{stats.produced}</div>
+            <div className="text-xl font-bold text-[#9333ea]">{stats.produced}</div>
           </CardContent>
         </Card>
 
         <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'delivered' ? 'ring-2 ring-emerald-600' : ''}`}
+          className={`cursor-pointer transition-all ${statusFilter === 'delivered' ? 'ring-2 ring-[#f97316]' : ''}`}
+          style={{
+            backgroundColor: statusFilter === 'delivered' ? '#f0fdf4' : '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: '12px'
+          }}
           onClick={() => setStatusFilter(statusFilter === 'delivered' ? 'all' : 'delivered')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Entregue</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-emerald-600"></div>
+            <CardTitle className="text-xs font-medium text-[#1c1917]">Entregue</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#15803d]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{stats.delivered}</div>
+            <div className="text-xl font-bold text-[#15803d]">{stats.delivered}</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filtros */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4">
-            {/* Linha 1: Busca */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por evento, tipo ou ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                data-testid="input-search"
-              />
-            </div>
-            
-            {/* Linha 2: Selects */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger data-testid="select-event-filter">
-                  <SelectValue placeholder="Evento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os eventos</SelectItem>
-                  {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((event) => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger data-testid="select-type-filter">
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os tipos</SelectItem>
-                  {uniqueTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="lg:col-span-2">
-                <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-                  <SelectTrigger data-testid="select-sponsor-filter" className="text-left whitespace-normal leading-tight min-h-9">
-                    <SelectValue placeholder="Patrocinador" className="whitespace-normal break-words" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os patrocinadores</SelectItem>
-                    {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map((sponsor: any) => (
-                      <SelectItem key={sponsor.id} value={sponsor.id}>
-                        {sponsor.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              </div>
-
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger data-testid="select-status-filter">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="awaiting_approval">Aguardando Aprovação</SelectItem>
-                  <SelectItem value="awaiting_finalization">Aguardando Finalização</SelectItem>
-                  <SelectItem value="awaiting_final_review">Aguardando Revisão Final</SelectItem>
-                  <SelectItem value="awaiting_linking">Aguardando Vinculação</SelectItem>
-                  <SelectItem value="awaiting_submission">Aguardando Envio</SelectItem>
-                  <SelectItem value="approved">Liberado</SelectItem>
-                  <SelectItem value="delivered">Entregue</SelectItem>
-                  <SelectItem value="inProduction">Em Produção</SelectItem>
-                  <SelectItem value="produced">Produzido</SelectItem>
-                  <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
-                  <SelectItem value="requested">Solicitado</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger data-testid="select-date-filter">
-                  <SelectValue placeholder="Data" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as datas</SelectItem>
-                  <SelectItem value="overdue">Atrasados</SelectItem>
-                  <SelectItem value="today">Hoje</SelectItem>
-                  <SelectItem value="next3days">Próximos 3 dias</SelectItem>
-                  <SelectItem value="next7days">Próximos 7 dias</SelectItem>
-                  <SelectItem value="next10days">Próximos 10 dias</SelectItem>
-                  <SelectItem value="next15days">Próximos 15 dias</SelectItem>
-                  <SelectItem value="next30days">Próximos 30 dias</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '1.5rem' }}>
+        <h3 className="text-lg font-semibold text-[#1c1917] mb-4">Filtros</h3>
+        <div className="flex flex-col gap-4">
+          {/* Linha 1: Busca */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#78716c]" />
+            <Input
+              placeholder="Buscar por evento, tipo ou ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                backgroundColor: '#fafaf9',
+                border: '1px solid #e7e5e4',
+                color: '#1c1917',
+                paddingLeft: '2.5rem'
+              }}
+              data-testid="input-search"
+            />
           </div>
-        </CardContent>
-      </Card>
+          
+          {/* Linha 2: Selects */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <Select value={eventFilter} onValueChange={setEventFilter}>
+              <SelectTrigger style={{
+                backgroundColor: '#fafaf9',
+                border: '1px solid #e7e5e4',
+                color: '#1c1917'
+              }} data-testid="select-event-filter">
+                <SelectValue placeholder="Evento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os eventos</SelectItem>
+                {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((event) => (
+                  <SelectItem key={event.id} value={event.id}>
+                    {event.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger style={{
+                backgroundColor: '#fafaf9',
+                border: '1px solid #e7e5e4',
+                color: '#1c1917'
+              }} data-testid="select-type-filter">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                {uniqueTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="lg:col-span-2">
+              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+                <SelectTrigger style={{
+                  backgroundColor: '#fafaf9',
+                  border: '1px solid #e7e5e4',
+                  color: '#1c1917'
+                }} data-testid="select-sponsor-filter" className="text-left whitespace-normal leading-tight min-h-9">
+                  <SelectValue placeholder="Patrocinador" className="whitespace-normal break-words" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                  {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map((sponsor: any) => (
+                    <SelectItem key={sponsor.id} value={sponsor.id}>
+                      {sponsor.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            </div>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger style={{
+                backgroundColor: '#fafaf9',
+                border: '1px solid #e7e5e4',
+                color: '#1c1917'
+              }} data-testid="select-status-filter">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="awaiting_approval">Aguardando Aprovação</SelectItem>
+                <SelectItem value="awaiting_finalization">Aguardando Finalização</SelectItem>
+                <SelectItem value="awaiting_final_review">Aguardando Revisão Final</SelectItem>
+                <SelectItem value="awaiting_linking">Aguardando Vinculação</SelectItem>
+                <SelectItem value="awaiting_submission">Aguardando Envio</SelectItem>
+                <SelectItem value="approved">Liberado</SelectItem>
+                <SelectItem value="delivered">Entregue</SelectItem>
+                <SelectItem value="inProduction">Em Produção</SelectItem>
+                <SelectItem value="produced">Produzido</SelectItem>
+                <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
+                <SelectItem value="requested">Solicitado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger style={{
+                backgroundColor: '#fafaf9',
+                border: '1px solid #e7e5e4',
+                color: '#1c1917'
+              }} data-testid="select-date-filter">
+                <SelectValue placeholder="Data" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as datas</SelectItem>
+                <SelectItem value="overdue">Atrasados</SelectItem>
+                <SelectItem value="today">Hoje</SelectItem>
+                <SelectItem value="next3days">Próximos 3 dias</SelectItem>
+                <SelectItem value="next7days">Próximos 7 dias</SelectItem>
+                <SelectItem value="next10days">Próximos 10 dias</SelectItem>
+                <SelectItem value="next15days">Próximos 15 dias</SelectItem>
+                <SelectItem value="next30days">Próximos 30 dias</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
 
       {/* Items - Agrupados por Evento */}
       <div className="space-y-6">

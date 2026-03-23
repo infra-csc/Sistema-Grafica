@@ -2,65 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE */
+/* LIGHT MODE - TITANIUM THEME */
 :root {
-  --button-outline: rgba(0,0,0, .10);
-  --badge-outline: rgba(0,0,0, .05);
+  --button-outline: rgba(28, 25, 23, .10);
+  --badge-outline: rgba(28, 25, 23, .05);
 
   /* Automatic computation of border around primary / danger buttons */
   --opaque-button-border-intensity: -8; /* In terms of percentages */
 
   /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .08);
+  --elevate-1: rgba(28, 25, 23, .03);
+  --elevate-2: rgba(28, 25, 23, .08);
 
-  --background: 0 0% 100%;
+  --background: 40 33% 98%;  /* #fafaf9 off-white quente */
 
-  --foreground: 220 15% 15%;
+  --foreground: 20 13% 10%;  /* #1c1917 quase-preto marrom */
 
-  --border: 220 13% 91%;
+  --border: 20 12% 90%;      /* #e7e5e4 bordas */
 
-  --card: 0 0% 100%;
+  --card: 0 0% 100%;         /* #ffffff superfície */
 
-  --card-foreground: 220 15% 15%;
+  --card-foreground: 20 13% 10%;  /* #1c1917 */
 
-  --card-border: 220 13% 91%;
+  --card-border: 20 12% 90%; /* #e7e5e4 */
 
   --sidebar: 0 0% 100%;
 
-  --sidebar-foreground: 220 15% 15%;
+  --sidebar-foreground: 20 13% 10%;
 
-  --sidebar-border: 220 13% 91%;
+  --sidebar-border: 20 12% 90%;
 
-  --sidebar-primary: 210 70% 25%;
+  --sidebar-primary: 20 13% 10%;    /* #1c1917 */
 
-  --sidebar-primary-foreground: 0 0% 98%;
+  --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 220 10% 88%;
+  --sidebar-accent: 40 33% 98%;     /* #fafaf9 */
 
-  --sidebar-accent-foreground: 220 15% 20%;
+  --sidebar-accent-foreground: 20 13% 10%;
 
-  --sidebar-ring: 210 70% 25%;
+  --sidebar-ring: 25 96% 53%;       /* #f97316 */
 
   --popover: 0 0% 100%;
 
-  --popover-foreground: 220 15% 15%;
+  --popover-foreground: 20 13% 10%;
 
-  --popover-border: 220 13% 91%;
+  --popover-border: 20 12% 90%;
 
-  --primary: 210 70% 25%;
+  --primary: 20 13% 10%;    /* #1c1917 */
 
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 13% 95%;
+  --secondary: 40 33% 98%;  /* #fafaf9 */
 
-  --secondary-foreground: 220 15% 20%;
+  --secondary-foreground: 20 8% 46%;  /* #78716c */
 
-  --muted: 220 13% 95%;
+  --muted: 40 33% 98%;      /* #fafaf9 */
 
-  --muted-foreground: 220 10% 46%;
+  --muted-foreground: 18 6% 64%;     /* #a8a29e */
 
-  --accent: 188 100% 42%;
+  --accent: 25 96% 53%;     /* #f97316 laranja gráfico */
 
   --accent-foreground: 0 0% 100%;
 
@@ -68,30 +68,34 @@
 
   --destructive-foreground: 0 0% 98%;
 
-  --input: 220 12% 75%;
-  --ring: 210 70% 25%;
+  --input: 40 33% 98%;      /* #fafaf9 */
+  --ring: 25 96% 53%;       /* #f97316 */
   --chart-1: 142 76% 36%;
   --chart-2: 45 93% 47%;
   --chart-3: 217 91% 60%;
   --chart-4: 25 95% 53%;
   --chart-5: 0 84% 60%;
   
-  /* NORTE Brand Colors */
-  --norte-blue: 210 70% 25%;
-  --norte-magenta: 330 65% 50%;
-  --norte-purple: 280 55% 45%;
-  --norte-cyan: 188 100% 42%;
+  /* TITANIUM Brand Colors */
+  --titanium-bg: 40 33% 98%;         /* #fafaf9 */
+  --titanium-primary: 20 13% 10%;    /* #1c1917 */
+  --titanium-accent: 25 96% 53%;     /* #f97316 */
+  --titanium-surface: 0 0% 100%;     /* #ffffff */
+  --titanium-border: 20 12% 90%;     /* #e7e5e4 */
+  --titanium-text-primary: 20 13% 10%;    /* #1c1917 */
+  --titanium-text-secondary: 18 6% 46%;   /* #78716c */
+  --titanium-text-muted: 18 6% 64%;       /* #a8a29e */
 
   /* Status Colors - Workflow */
   --status-completed: 142 76% 36%;    /* Verde - Finalizado */
   --status-pending: 45 93% 47%;        /* Amarelo - Aguardando */
   --status-urgent: 0 84% 60%;          /* Vermelho - Urgente */
-  --status-approved: 217 91% 60%;      /* Azul - Liberado */
-  --status-production: 25 95% 53%;     /* Laranja - Em Produção */
+  --status-approved: 142 76% 36%;      /* Verde - Liberado */
+  --status-production: 25 96% 53%;     /* Laranja - Em Produção */
 
-  --font-sans: Inter, Open Sans, sans-serif;
+  --font-sans: 'DM Sans', Inter, Open Sans, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
+  --font-mono: 'DM Mono', Menlo, monospace;
   --radius: .5rem; /* 8px */
   --shadow-2xs: 0px 1px 2px 0px hsl(220 10% 10% / 0.05);
   --shadow-xs: 0px 1px 3px 0px hsl(220 10% 10% / 0.08);

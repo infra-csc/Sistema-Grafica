@@ -178,24 +178,19 @@ export default function PainelGeral() {
                 className="relative transition-all duration-200"
                 style={{
                   backgroundColor: card.isTotal ? '#2d2d2d' : '#ffffff',
-                  border: card.isTotal ? '3px solid #06b6d4' : '1px solid #e5e7eb',
+                  border: '1px solid #e5e7eb',
                   borderRadius: '12px',
                   padding: '16px',
                   cursor: 'pointer'
                 }}
+                onClick={() => setStatusFilter(card.key === 'total' ? 'all' : card.key)}
                 onMouseEnter={(e) => {
-                  if (!card.isTotal) {
-                    (e.currentTarget as HTMLElement).style.border = '1px solid #06b6d4';
-                    (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(6, 182, 212, 0.12)';
-                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                  }
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
                 }}
                 onMouseLeave={(e) => {
-                  if (!card.isTotal) {
-                    (e.currentTarget as HTMLElement).style.border = '1px solid #e5e7eb';
-                    (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                  }
+                  (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                 }}
               >
                 {!card.isTotal && card.dot && (
@@ -242,13 +237,12 @@ export default function PainelGeral() {
                   padding: '16px',
                   cursor: 'pointer'
                 }}
+                onClick={() => setStatusFilter(card.key)}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.border = '1px solid #06b6d4';
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(6, 182, 212, 0.12)';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
                   (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.border = '1px solid #e5e7eb';
                   (e.currentTarget as HTMLElement).style.boxShadow = 'none';
                   (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                 }}

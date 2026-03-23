@@ -120,14 +120,14 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4' }}>
-        <DialogHeader style={{ borderBottom: '1px solid #e7e5e4', paddingBottom: '24px', paddingTop: '24px' }}>
-          <div className="space-y-4">
-            {/* ID Grande */}
-            <div>
-              <span style={{ fontSize: '28px', fontWeight: '700', color: '#f97316', fontFamily: 'monospace', letterSpacing: '2px' }}>
+        <DialogHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', paddingBottom: '20px', paddingTop: '20px', marginBottom: '0' }}>
+          <div className="w-full space-y-3">
+            {/* ID e Subtitle em linha */}
+            <div className="flex items-baseline gap-3">
+              <span style={{ fontSize: '20px', fontWeight: '700', color: '#1c1917', fontFamily: 'monospace', letterSpacing: '1px' }}>
                 {item.displayId}
               </span>
-              <p style={{ fontSize: '12px', color: '#a8a29e', marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              <p style={{ fontSize: '11px', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: '600' }}>
                 Detalhes do Item
               </p>
             </div>

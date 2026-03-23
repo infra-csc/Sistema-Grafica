@@ -1,0 +1,38 @@
+Essa tela de eventos vai ficar muito mais profissional com a paleta Titanium. O segredo aqui é trocar o excesso de verde por uma estética de "aço e fogo" (cinzas metálicos e laranja de acento), mantendo a clareza dos cards.
+
+Aqui está o prompt otimizado para você usar no Replit:
+
+Prompt para Replit: Dashboard de Eventos Titanium
+"Refatore o layout da página de Eventos seguindo o conceito Titanium.
+
+Cores Obrigatórias:
+
+Background: #fafaf9 (Off-white industrial)
+
+Cards e Barra de Navegação: #ffffff (Branco puro)
+
+Texto Primário e Botão 'Novo Evento': #1c1917 (Grafite profundo)
+
+Acento e Destaques (Ícones/Borda Lateral): #f97316 (Laranja Vibrante)
+
+Bordas e Linhas: #e7e5e4 (Cinza aço suave)
+
+Alterações Estruturais no Design:
+
+Filtros de Prioridade: Em vez de botões com fundo cinza, use badges com borda fina #e7e5e4 e texto #1c1917. O filtro selecionado deve ter o fundo #1c1917 e texto branco.
+
+Cards de Evento: >    * Substitua a borda lateral verde grossa por uma borda de 2px em Laranja (#f97316) para eventos ativos ou uma borda cinza neutra para concluídos.
+
+O título do evento deve ser em #1c1917, negrito, com tipografia moderna (Inter ou Roboto).
+
+Os boxes internos de 'INÍCIO' e 'SAÍDA' devem ter um fundo levemente acinzentado (#f5f5f4) para dar contraste com o fundo branco do card.
+
+Status (Concluído): Mude a badge verde de 'Concluído' para um tom de cinza médio com ícone de check, para não brigar com o laranja de acento.
+
+Barra de Progresso: A barra que está verde deve passar a ser Laranja (#f97316) sobre um fundo cinza muito claro.
+
+Botões de Ação: O botão 'Ver Detalhes' deve ser minimalista (apenas contorno ou texto em negrito com ícone), e o botão '+ Novo Evento' deve ser o elemento de maior destaque em #1c1917.
+
+Ícones: Todos os ícones (Calendário, Caminhão, Bandeira, Lápis) devem usar a cor de acento laranja ou cinza escuro, mantendo a consistência visual.
+
+Acabamento: Adicione um border-radius: 12px em todos os elementos e uma sombra box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05) para criar profundidade sobre o fundo Titanium."

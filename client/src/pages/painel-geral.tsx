@@ -1,19 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
+import { StatusBadge } from "@/components/status-badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink, Truck, AlertCircle } from "lucide-react";
+import { useState, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
-import { Search, Calendar, AlertCircle, Filter, Grid3X3 } from "lucide-react";
-import { useState, Fragment, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export default function PainelGeral() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedStatusCard, setSelectedStatusCard] = useState<string>("total");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -40,11 +40,10 @@ export default function PainelGeral() {
     placeholderData: [],
   });
 
-  const uniqueTypes = useMemo(() => 
-    Array.from(new Set(items.map(item => item.type))).sort(), 
-    [items]
-  );
+  // Pegar tipos únicos dos itens
+  const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
 
+  // Função auxiliar para aplicar filtros (exceto status)
   const applyBaseFilters = (item: any) => {
     const matchesSearch = 
       item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -53,9 +52,11 @@ export default function PainelGeral() {
     const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
     const matchesType = typeFilter === "all" || item.type === typeFilter;
     
+    // Filtro por patrocinador (verifica se o item tem o patrocinador selecionado)
     const matchesSponsor = sponsorFilter === "all" || 
       (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => s.id === sponsorFilter));
     
+    // Filtro por data (várias opções)
     const matchesDate = dateFilter === "all" || (() => {
       if (!item.event?.startDate) return false;
       const eventDate = new Date(item.event.startDate);
@@ -81,341 +82,270 @@ export default function PainelGeral() {
     return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
   };
 
+  // Items para calcular stats (SEM filtro de status - números fixos nos cards)
   const statsItems = items.filter(applyBaseFilters);
 
+  // Função para verificar se o item corresponde ao status selecionado (incluindo status antigos)
   const matchesStatusFilter = (item: any, filter: string) => {
     if (filter === "all") return true;
     
+    // Mapeamento de status antigos para novos
     const statusMap: Record<string, string[]> = {
       'awaiting_approval': ['awaiting_approval', 'awaiting_sponsor_approval'],
       'awaiting_finalization': ['awaiting_finalization', 'sponsor_approved'],
       'awaiting_final_review': ['awaiting_final_review', 'awaiting_creator_review'],
     };
     
+    // Se o filtro tem mapeamento, aceita qualquer um dos status
     if (statusMap[filter]) {
       return statusMap[filter].includes(item.status);
     }
+    
+    // Senão, comparação exata
     return item.status === filter;
   };
 
-  const filteredItems = statsItems.filter(item => matchesStatusFilter(item, statusFilter));
+  // Items para exibir na tabela (COM filtro de status)
+  const filteredItems = statsItems
+    .filter((item) => matchesStatusFilter(item, statusFilter))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  const statusCardHoverBg: Record<string, string> = {
-    'total': '#f0fafb',
-    'requested': '#fffbeb',
-    'awaiting_linking': '#f9fafb',
-    'awaiting_submission': '#eff6ff',
-    'awaiting_approval': '#fef2f2',
-    'awaiting_finalization': '#f5f3ff',
-    'awaiting_final_review': '#f5f3ff',
-    'ready_for_production': '#ecfeff',
-    'approved': '#f7fee7',
-    'inProduction': '#fff7ed',
-    'produced': '#faf5ff',
-    'delivered': '#f0fdf4',
+  // Agrupar itens por evento (usando eventId como chave única)
+  const groupedItems = filteredItems.reduce((acc, item) => {
+    const eventKey = item.eventId || "no-event";
+    const eventName = item.event?.name || "Sem Evento";
+    if (!acc[eventKey]) {
+      acc[eventKey] = {
+        eventId: item.eventId,
+        eventName: eventName,
+        items: []
+      };
+    }
+    acc[eventKey].items.push(item);
+    return acc;
+  }, {} as Record<string, { eventId: string | null, eventName: string, items: any[] }>);
+
+  // Stats baseados APENAS nos filtros dropdown (não muda ao clicar nos cards)
+  const stats = {
+    total: statsItems.length,
+    requested: statsItems.filter(i => i.status === 'requested').length,
+    awaitingLinking: statsItems.filter(i => i.status === 'awaiting_linking').length,
+    awaitingSubmission: statsItems.filter(i => i.status === 'awaiting_submission').length,
+    awaitingApproval: statsItems.filter(i => i.status === 'awaiting_approval' || i.status === 'awaiting_sponsor_approval').length,
+    awaitingFinalization: statsItems.filter(i => i.status === 'awaiting_finalization' || i.status === 'sponsor_approved').length,
+    awaitingFinalReview: statsItems.filter(i => i.status === 'awaiting_final_review' || i.status === 'awaiting_creator_review').length,
+    readyForProduction: statsItems.filter(i => i.status === 'ready_for_production').length,
+    approved: statsItems.filter(i => i.status === 'approved').length,
+    inProduction: statsItems.filter(i => i.status === 'inProduction').length,
+    produced: statsItems.filter(i => i.status === 'produced').length,
+    delivered: statsItems.filter(i => i.status === 'delivered').length,
   };
 
-  const statusCards = [
-    { key: 'total', label: 'Total', count: statsItems.length, isTotal: true, textColor: '#06b6d4', hoverBg: '#374151' },
-    { key: 'requested', label: 'Solicitado', count: statsItems.filter(i => i.status === 'requested').length, textColor: '#d97706', dot: '#d97706', hoverBg: statusCardHoverBg.requested },
-    { key: 'awaiting_linking', label: 'Ag. Vinculação', count: statsItems.filter(i => i.status === 'awaiting_linking').length, textColor: '#9ca3af', dot: '#9ca3af', hoverBg: statusCardHoverBg.awaiting_linking },
-    { key: 'awaiting_submission', label: 'Ag. Envio', count: statsItems.filter(i => i.status === 'awaiting_submission').length, textColor: '#06b6d4', dot: '#06b6d4', hoverBg: statusCardHoverBg.awaiting_submission },
-    { key: 'awaiting_approval', label: 'Ag. Aprovação', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_approval')).length, textColor: '#dc2626', dot: '#dc2626', hoverBg: statusCardHoverBg.awaiting_approval },
-    { key: 'awaiting_finalization', label: 'Ag. Finalização', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_finalization')).length, textColor: '#9ca3af', dot: '#6d28d9', hoverBg: statusCardHoverBg.awaiting_finalization },
-    { key: 'awaiting_final_review', label: 'Ag. Revisão', count: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_final_review')).length, textColor: '#7c3aed', dot: '#7c3aed', hoverBg: statusCardHoverBg.awaiting_final_review },
-    // Linha 2
-    { key: 'ready_for_production', label: 'Pronto Produção', count: statsItems.filter(i => i.status === 'ready_for_production').length, textColor: '#06b6d4', dot: '#06b6d4', hoverBg: statusCardHoverBg.ready_for_production },
-    { key: 'approved', label: 'Liberado', count: statsItems.filter(i => i.status === 'approved').length, textColor: '#84cc16', dot: '#84cc16', hoverBg: statusCardHoverBg.approved },
-    { key: 'inProduction', label: 'Em Produção', count: statsItems.filter(i => i.status === 'inProduction').length, textColor: '#d97706', dot: '#d97706', hoverBg: statusCardHoverBg.inProduction },
-    { key: 'produced', label: 'Produzido', count: statsItems.filter(i => i.status === 'produced').length, textColor: '#9333ea', dot: '#9333ea', hoverBg: statusCardHoverBg.produced },
-    { key: 'delivered', label: 'Entregue', count: statsItems.filter(i => i.status === 'delivered').length, textColor: '#15803d', dot: '#15803d', hoverBg: statusCardHoverBg.delivered },
-  ];
-
-  const getStatusBadgeStyle = (status: string) => {
-    const styles: Record<string, {bg: string, border: string, text: string, dot: string}> = {
-      'requested': { bg: '#fffbeb', border: '#fde68a', text: '#d97706', dot: '#d97706' },
-      'awaiting_final_review': { bg: '#f5f3ff', border: '#ddd6fe', text: '#7c3aed', dot: '#7c3aed' },
-      'awaiting_approval': { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', dot: '#dc2626' },
-      'awaiting_sponsor_approval': { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', dot: '#dc2626' },
-      'awaiting_submission': { bg: '#eff6ff', border: '#bfdbfe', text: '#2563eb', dot: '#2563eb' },
-      'ready_for_production': { bg: '#ecfeff', border: '#a5f3fc', text: '#06b6d4', dot: '#06b6d4' },
-      'approved': { bg: '#f7fee7', border: '#d9f99d', text: '#65a30d', dot: '#84cc16' },
-      'inProduction': { bg: '#fff7ed', border: '#fed7aa', text: '#d97706', dot: '#d97706' },
-      'produced': { bg: '#faf5ff', border: '#e9d5ff', text: '#9333ea', dot: '#9333ea' },
-      'delivered': { bg: '#f0fdf4', border: '#86efac', text: '#15803d', dot: '#15803d' },
-      'sponsor_approved': { bg: '#ecfeff', border: '#a5f3fc', text: '#06b6d4', dot: '#06b6d4' },
-      'awaiting_finalization': { bg: '#ecfeff', border: '#a5f3fc', text: '#06b6d4', dot: '#06b6d4' },
-      'awaiting_creator_review': { bg: '#f5f3ff', border: '#ddd6fe', text: '#7c3aed', dot: '#7c3aed' },
-    };
-    return styles[status] || { bg: '#f9f8f7', border: '#e8e5df', text: '#a09d98', dot: '#a09d98' };
+  const getItemLogs = (itemId: string) => {
+    return auditLogs
+      .filter(log => log.entityId === itemId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   };
 
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      'requested': 'Solicitado',
-      'awaiting_linking': 'Ag. Vinculação',
-      'awaiting_submission': 'Ag. Envio',
-      'awaiting_sponsor_approval': 'Ag. Aprovação',
-      'awaiting_approval': 'Ag. Aprovação',
-      'sponsor_approved': 'Ag. Finalização',
-      'awaiting_creator_review': 'Ag. Revisão Final',
-      'awaiting_finalization': 'Ag. Finalização',
-      'awaiting_final_review': 'Ag. Revisão Final',
-      'ready_for_production': 'Pronto p/ Produção',
-      'approved': 'Liberado',
-      'inProduction': 'Em Produção',
-      'produced': 'Produzido',
-      'delivered': 'Entregue',
-    };
-    return labels[status] || status;
+  const formatDateTime = (dateString: string) => {
+    return format(new Date(dateString), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
   };
-
-  const itemsByEvent = useMemo(() => {
-    const grouped: Record<string, any[]> = {};
-    filteredItems.forEach(item => {
-      if (!grouped[item.eventId]) {
-        grouped[item.eventId] = [];
-      }
-      grouped[item.eventId].push(item);
-    });
-    return grouped;
-  }, [filteredItems]);
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9]">
-      <div className="px-6 py-6 space-y-5 overflow-auto max-w-full">
-        {/* HEADER */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-            <div 
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: '#06b6d4',
-                flexShrink: 0
-              }}
-            ></div>
-            <h1 
-              style={{
-                color: '#2d2d2d',
-                fontSize: '32px',
-                fontWeight: 800,
-                letterSpacing: '-0.5px',
-                margin: 0
-              }}
-            >
-              Painel Geral
-            </h1>
-          </div>
-          <p 
-            style={{
-              color: '#6b7280',
-              fontSize: '14px',
-              margin: 0,
-              paddingLeft: '20px'
-            }}
-          >
-            Acompanhamento de status e progresso de itens
-          </p>
-        </div>
+    <div className="flex flex-col gap-6 p-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="title-painel-geral">
+          Painel de Status Geral
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Acompanhamento em tempo real de todos os itens em produção
+        </p>
+      </div>
 
-        {/* STATUS CARDS - 2 linhas */}
-        <div className="space-y-3" style={{ animation: 'fadeUp 0.3s ease' }}>
-          {/* Linha 1 - 7 cards */}
-          <div className="grid grid-cols-7 gap-3">
-            {statusCards.slice(0, 7).map((card) => (
-              <div
-                key={card.key}
-                className="relative transition-all"
-                style={{
-                  backgroundColor: card.isTotal ? '#2d2d2d' : '#ffffff',
-                  border: selectedStatusCard === card.key ? '2px solid #06b6d4' : '1px solid #e5e7eb',
-                  borderRadius: '12px',
-                  padding: selectedStatusCard === card.key ? '15px' : '16px',
-                  cursor: 'pointer',
-                  transitionProperty: 'transform, box-shadow, border-color, padding',
-                  transitionDuration: '0.2s',
-                  transitionTimingFunction: 'ease'
-                }}
-                onClick={() => {
-                  setSelectedStatusCard(card.key);
-                  setStatusFilter(card.key === 'total' ? 'all' : card.key);
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedStatusCard !== card.key) {
-                    (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
-                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedStatusCard !== card.key) {
-                    (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                  }
-                }}
-              >
-                {!card.isTotal && card.dot && (
-                  <div 
-                    className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: card.dot }}
-                  ></div>
-                )}
-                <div 
-                  className="text-xs uppercase"
-                  style={{
-                    color: card.isTotal ? 'rgba(255,255,255,0.65)' : '#6b7280',
-                    letterSpacing: '0.5px',
-                    marginBottom: '8px',
-                    fontWeight: 600
-                  }}
-                >
-                  {card.label}
-                </div>
-                <div 
-                  className="font-black"
-                  style={{
-                    fontSize: '26px',
-                    color: card.textColor,
-                    fontWeight: 800
-                  }}
-                >
-                  {card.count}
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Dashboard - 12 Status Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Total</CardTitle>
+            <Package2 className="h-3.5 w-3.5 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold" data-testid="stat-total">{stats.total}</div>
+          </CardContent>
+        </Card>
 
-          {/* Linha 2 - 5 cards + 2 vazios */}
-          <div className="grid grid-cols-7 gap-3">
-            {statusCards.slice(7).map((card) => (
-              <div
-                key={card.key}
-                className="relative transition-all"
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: selectedStatusCard === card.key ? '2px solid #06b6d4' : '1px solid #e5e7eb',
-                  borderRadius: '12px',
-                  padding: selectedStatusCard === card.key ? '15px' : '16px',
-                  cursor: 'pointer',
-                  transitionProperty: 'transform, box-shadow, border-color, padding',
-                  transitionDuration: '0.2s',
-                  transitionTimingFunction: 'ease'
-                }}
-                onClick={() => {
-                  setSelectedStatusCard(card.key);
-                  setStatusFilter(card.key);
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedStatusCard !== card.key) {
-                    (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.07)';
-                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedStatusCard !== card.key) {
-                    (e.currentTarget as HTMLElement).style.boxShadow = 'none';
-                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                  }
-                }}
-              >
-                {card.dot && (
-                  <div 
-                    className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: card.dot }}
-                  ></div>
-                )}
-                <div 
-                  className="text-xs uppercase"
-                  style={{
-                    color: '#6b7280',
-                    letterSpacing: '0.5px',
-                    marginBottom: '8px',
-                    fontWeight: 600
-                  }}
-                >
-                  {card.label}
-                </div>
-                <div 
-                  className="font-black"
-                  style={{
-                    fontSize: '26px',
-                    color: card.textColor,
-                    fontWeight: 800
-                  }}
-                >
-                  {card.count}
-                </div>
-              </div>
-            ))}
-            {/* 2 cells vazios */}
-            <div></div>
-            <div></div>
-          </div>
-        </div>
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'requested' ? 'ring-2 ring-yellow-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'requested' ? 'all' : 'requested')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Solicitado</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-yellow-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-yellow-700 dark:text-yellow-400">{stats.requested}</div>
+          </CardContent>
+        </Card>
 
-        {/* FILTROS */}
-        <Card style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', borderRadius: '12px' }}>
-          <CardContent className="p-4">
-            {/* Linha 1: Search + Filtros */}
-            <div className="flex gap-3 mb-3">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#9ca3af]" />
-                <Input
-                  placeholder="Buscar..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{
-                    paddingLeft: '40px',
-                    backgroundColor: '#f1f5f9',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    fontSize: '13px'
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#06b6d4';
-                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(6, 182, 212, 0.15)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#e5e7eb';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  data-testid="input-search"
-                />
-              </div>
-              <Button 
-                size="sm"
-                style={{
-                  backgroundColor: '#2d2d2d',
-                  color: 'white',
-                  borderRadius: '8px'
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#06b6d4';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#2d2d2d';
-                }}
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                Filtros
-              </Button>
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_linking' ? 'ring-2 ring-orange-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'awaiting_linking' ? 'all' : 'awaiting_linking')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Aguard. Vinculação</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-orange-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-orange-700 dark:text-orange-400">{stats.awaitingLinking}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_submission' ? 'ring-2 ring-blue-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'awaiting_submission' ? 'all' : 'awaiting_submission')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Aguard. Envio</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-blue-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-blue-700 dark:text-blue-400">{stats.awaitingSubmission}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'ring-2 ring-rose-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'all' : 'awaiting_approval')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Aguard. Aprovação</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-rose-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-rose-700 dark:text-rose-400">{stats.awaitingApproval}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'ring-2 ring-purple-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'all' : 'awaiting_finalization')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Aguard. Finalização</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-purple-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-purple-700 dark:text-purple-400">{stats.awaitingFinalization}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'ring-2 ring-violet-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'all' : 'awaiting_final_review')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Aguard. Revisão</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-violet-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-violet-700 dark:text-violet-400">{stats.awaitingFinalReview}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'ready_for_production' ? 'ring-2 ring-cyan-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'ready_for_production' ? 'all' : 'ready_for_production')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Pronto Produção</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-cyan-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-cyan-700 dark:text-cyan-400">{stats.readyForProduction}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'approved' ? 'ring-2 ring-green-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Liberado</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-green-700 dark:text-green-400">{stats.approved}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'inProduction' ? 'ring-2 ring-status-production' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'inProduction' ? 'all' : 'inProduction')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Em Produção</CardTitle>
+            <Package2 className="h-3.5 w-3.5 text-status-production" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-status-production">{stats.inProduction}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'produced' ? 'ring-2 ring-fuchsia-500' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'produced' ? 'all' : 'produced')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Produzido</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-fuchsia-500"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-fuchsia-700 dark:text-fuchsia-400">{stats.produced}</div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer hover-elevate ${statusFilter === 'delivered' ? 'ring-2 ring-emerald-600' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'delivered' ? 'all' : 'delivered')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
+            <CardTitle className="text-xs font-medium">Entregue</CardTitle>
+            <div className="h-2.5 w-2.5 rounded-full bg-emerald-600"></div>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{stats.delivered}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filtros */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Filtros</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4">
+            {/* Linha 1: Busca */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por evento, tipo ou ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+                data-testid="input-search"
+              />
             </div>
-
+            
             {/* Linha 2: Selects */}
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger 
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    borderColor: '#e5e7eb',
-                    borderRadius: '8px',
-                    height: '38px',
-                    fontSize: '13px'
-                  }}
-                  data-testid="select-event-filter"
-                >
-                  <SelectValue placeholder="Todos os eventos" />
+                <SelectTrigger data-testid="select-event-filter">
+                  <SelectValue placeholder="Evento" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os eventos</SelectItem>
@@ -428,17 +358,8 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger 
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    borderColor: '#e5e7eb',
-                    borderRadius: '8px',
-                    height: '38px',
-                    fontSize: '13px'
-                  }}
-                  data-testid="select-type-filter"
-                >
-                  <SelectValue placeholder="Todos os tipos" />
+                <SelectTrigger data-testid="select-type-filter">
+                  <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os tipos</SelectItem>
@@ -450,70 +371,45 @@ export default function PainelGeral() {
                 </SelectContent>
               </Select>
 
-              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-                <SelectTrigger 
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    borderColor: '#e5e7eb',
-                    borderRadius: '8px',
-                    height: '38px',
-                    fontSize: '13px'
-                  }}
-                  data-testid="select-sponsor-filter"
-                >
-                  <SelectValue placeholder="Todos os patrocinadores" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os patrocinadores</SelectItem>
-                  {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map((sponsor: any) => (
-                    <SelectItem key={sponsor.id} value={sponsor.id}>
-                      {sponsor.name}
-                    </SelectItem>
-                  ))}
+              <div className="lg:col-span-2">
+                <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+                  <SelectTrigger data-testid="select-sponsor-filter" className="text-left whitespace-normal leading-tight min-h-9">
+                    <SelectValue placeholder="Patrocinador" className="whitespace-normal break-words" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                    {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map((sponsor: any) => (
+                      <SelectItem key={sponsor.id} value={sponsor.id}>
+                        {sponsor.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
+              </div>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger 
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    borderColor: '#e5e7eb',
-                    borderRadius: '8px',
-                    height: '38px',
-                    fontSize: '13px'
-                  }}
-                  data-testid="select-status-filter"
-                >
-                  <SelectValue placeholder="Todos os status" />
+                <SelectTrigger data-testid="select-status-filter">
+                  <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="requested">Solicitado</SelectItem>
-                  <SelectItem value="awaiting_approval">Ag. Aprovação</SelectItem>
-                  <SelectItem value="awaiting_final_review">Ag. Revisão Final</SelectItem>
-                  <SelectItem value="awaiting_finalization">Ag. Finalização</SelectItem>
-                  <SelectItem value="awaiting_linking">Ag. Vinculação</SelectItem>
-                  <SelectItem value="awaiting_submission">Ag. Envio</SelectItem>
+                  <SelectItem value="awaiting_approval">Aguardando Aprovação</SelectItem>
+                  <SelectItem value="awaiting_finalization">Aguardando Finalização</SelectItem>
+                  <SelectItem value="awaiting_final_review">Aguardando Revisão Final</SelectItem>
+                  <SelectItem value="awaiting_linking">Aguardando Vinculação</SelectItem>
+                  <SelectItem value="awaiting_submission">Aguardando Envio</SelectItem>
                   <SelectItem value="approved">Liberado</SelectItem>
                   <SelectItem value="delivered">Entregue</SelectItem>
                   <SelectItem value="inProduction">Em Produção</SelectItem>
                   <SelectItem value="produced">Produzido</SelectItem>
                   <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
+                  <SelectItem value="requested">Solicitado</SelectItem>
                 </SelectContent>
               </Select>
 
               <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger 
-                  style={{
-                    backgroundColor: '#f1f5f9',
-                    borderColor: '#e5e7eb',
-                    borderRadius: '8px',
-                    height: '38px',
-                    fontSize: '13px'
-                  }}
-                  data-testid="select-date-filter"
-                >
-                  <SelectValue placeholder="Todas as datas" />
+                <SelectTrigger data-testid="select-date-filter">
+                  <SelectValue placeholder="Data" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as datas</SelectItem>
@@ -527,256 +423,148 @@ export default function PainelGeral() {
                 </SelectContent>
               </Select>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* GRUPOS DE EVENTO */}
-        <div className="space-y-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#06b6d4]"></div>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <Card style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', borderRadius: '14px' }}>
-              <CardContent className="text-center py-12">
-                <AlertCircle className="h-12 w-12 text-[#d1d5db] mx-auto mb-4" />
-                <p className="text-[#6b7280] font-medium">Nenhum item encontrado</p>
-              </CardContent>
-            </Card>
-          ) : (
-            Object.entries(itemsByEvent).map(([eventId, eventItems]) => {
-              const event = events.find(e => e.id === eventId);
-              return (
-                <Card 
-                  key={eventId} 
-                  className="overflow-hidden"
-                  style={{
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e5e7eb',
-                    borderRadius: '14px',
-                    animation: 'fadeUp 0.3s ease'
-                  }}
-                >
-                  {/* EVENT HEADER */}
-                  <div 
-                    style={{
-                      backgroundColor: '#ffffff',
-                      padding: '16px 24px',
-                      borderBottom: '1px solid #f1f5f9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px'
-                    }}
-                  >
-                    <div 
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        backgroundColor: '#06b6d4',
-                        borderRadius: '10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
-                        fontSize: '18px',
-                        flexShrink: 0
-                      }}
-                    >
-                      📅
-                    </div>
-                    <div className="flex-1">
-                      <h3 style={{ color: '#2d2d2d', fontWeight: 700, fontSize: '15px' }}>
-                        {event?.name || 'Sem Evento'}
-                      </h3>
-                      <div style={{ color: '#9ca3af', fontSize: '12px', marginTop: '4px', lineHeight: '1.4' }}>
-                        {event?.startDate && (
-                          <div>📅 Evento: {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}</div>
-                        )}
-                        {event?.truckDepartureDate && (
-                          <div>🚛 Saída caminhão: {format(new Date(event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>
-                        )}
-                      </div>
-                    </div>
-                    <Badge 
-                      style={{
-                        backgroundColor: '#f1f5f9',
-                        color: '#2d2d2d',
-                        borderColor: '#e5e7eb',
-                        fontSize: '11px',
-                        fontFamily: 'monospace',
-                        borderRadius: '100px'
-                      }}
-                      className="border"
-                    >
-                      {eventItems.length} itens
+      {/* Items - Agrupados por Evento */}
+      <div className="space-y-6">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <p className="text-muted-foreground">Nenhum item encontrado</p>
+            </CardContent>
+          </Card>
+        ) : (
+          Object.entries(groupedItems).map(([eventKey, eventData]) => {
+            const groupData = eventData as { eventId: string | null, eventName: string, items: any[] };
+            return (
+              <Card key={eventKey}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    {groupData.eventName}
+                    <Badge variant="secondary" className="ml-2">
+                      {groupData.items.length} {groupData.items.length === 1 ? 'item' : 'itens'}
                     </Badge>
-                  </div>
-
-                  {/* TABLE */}
+                  </CardTitle>
+                  {/* Datas do Evento */}
+                  {groupData.items[0]?.event && (
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-2">
+                      {groupData.items[0].event.startDate && (
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>Evento: {format(new Date(groupData.items[0].event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                        </div>
+                      )}
+                      {groupData.items[0].event.truckDepartureDate && (
+                        <div className="flex items-center gap-1.5">
+                          <Truck className="h-3.5 w-3.5" />
+                          <span>Saída caminhão: {format(new Date(groupData.items[0].event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="p-0">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full">
                       <thead>
-                        <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>ID</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Tipo</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Descrição</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Arquivo</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Visual</th>
-                          <th style={{ textAlign: 'center', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Qtd</th>
-                          <th style={{ textAlign: 'right', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>m²</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600, fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>Status</th>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">ID</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Tipo</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Descrição</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Arquivo</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Visual</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">Qtd</th>
+                          <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">m²</th>
+                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {eventItems.map((item, idx) => {
-                          const badgeStyle = getStatusBadgeStyle(item.status);
-                          const m2 = item.m2Total ? parseFloat(item.m2Total) : 0;
-                          return (
-                            <Fragment key={item.id}>
-                              <tr 
-                                style={{
-                                  borderBottom: idx === eventItems.length - 1 ? 'none' : '1px solid #f1f5f9',
-                                  cursor: 'pointer',
-                                  transition: 'background-color 0.15s'
-                                }}
-                                onClick={() => setSelectedItem(item)}
-                                onMouseEnter={(e) => {
-                                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#f8fafc';
-                                }}
-                                onMouseLeave={(e) => {
-                                  (e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'transparent';
-                                }}
-                                data-testid={`row-item-${item.id}`}
-                              >
-                                <td style={{ padding: '12px 16px' }}>
-                                  <code style={{
-                                    backgroundColor: '#f1f5f9',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: '6px',
-                                    padding: '4px 8px',
-                                    fontSize: '11px',
-                                    fontFamily: 'monospace',
-                                    fontWeight: 600,
-                                    color: '#2d2d2d',
-                                    display: 'inline-block'
-                                  }}>
-                                    {item.displayId || item.id}
-                                  </code>
-                                </td>
-                                <td style={{ padding: '12px 16px' }}>
-                                  <Badge 
-                                    style={{
-                                      backgroundColor: '#f1f5f9',
-                                      borderColor: '#e5e7eb',
-                                      color: '#2d2d2d',
-                                      fontSize: '12px',
-                                      borderRadius: '6px'
-                                    }}
-                                    className="border"
-                                  >
-                                    {item.type}
-                                  </Badge>
-                                </td>
-                                <td style={{ padding: '12px 16px', color: '#2d2d2d' }}>
-                                  {item.description || item.name || '—'}
-                                </td>
-                                <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#6b7280' }}>
-                                  {item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}m` : '—'}
-                                </td>
-                                <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px', color: '#6b7280' }}>
-                                  {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}m` : '—'}
-                                </td>
-                                <td style={{ padding: '12px 16px', textAlign: 'center', color: '#6b7280' }}>
-                                  {item.quantity || '—'}
-                                </td>
-                                <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                                  <span 
-                                    style={{
-                                      fontFamily: 'monospace',
-                                      fontWeight: 700,
-                                      color: m2 > 10 ? '#dc2626' : (m2 === 0 ? '#9ca3af' : '#2d2d2d')
-                                    }}
-                                  >
-                                    {m2.toFixed(2)}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '12px 16px' }}>
-                                  <div 
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px',
-                                      paddingLeft: '10px',
-                                      paddingRight: '10px',
-                                      paddingTop: '4px',
-                                      paddingBottom: '4px',
-                                      borderRadius: '100px',
-                                      border: `1px solid ${badgeStyle.border}`,
-                                      backgroundColor: badgeStyle.bg,
-                                      fontSize: '11.5px',
-                                      fontWeight: 600,
-                                      color: badgeStyle.text
-                                    }}
-                                  >
-                                    <span 
-                                      style={{
-                                        width: '5px',
-                                        height: '5px',
-                                        borderRadius: '50%',
-                                        backgroundColor: badgeStyle.dot,
-                                        flexShrink: 0
-                                      }}
-                                    ></span>
-                                    {getStatusLabel(item.status)}
-                                  </div>
-                                </td>
-                              </tr>
-                              {item.observations && (
-                                <tr style={{ backgroundColor: 'rgba(248, 113, 113, 0.05)', borderBottom: '1px solid #e5e7eb' }}>
-                                  <td colSpan={8} style={{ padding: '12px 16px' }}>
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                                      <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                                      <div style={{ fontSize: '12px', color: '#b45309' }}>
-                                        <span style={{ fontWeight: 600 }}>Observações:</span> {item.observations}
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
+                        {groupData.items.map((item: any, index: number) => (
+                          <Fragment key={item.id}>
+                          <tr
+                            className={`border-b hover-elevate cursor-pointer transition-colors ${
+                              index % 2 === 0 ? 'bg-background' : 'bg-muted/20'
+                            }`}
+                            onClick={() => setSelectedItem(item)}
+                            data-testid={`item-row-${item.id}`}
+                          >
+                            <td className="py-3 px-4">
+                              <span className="font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
+                                {item.displayId}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-semibold text-sm">{item.type}</span>
+                            </td>
+                            <td className="py-3 px-4 max-w-xs">
+                              {item.description ? (
+                                <span className="text-sm text-muted-foreground truncate block">{item.description}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs italic">—</span>
                               )}
-                            </Fragment>
-                          );
-                        })}
+                            </td>
+                            <td className="py-3 px-4">
+                              {item.fileWidth && item.fileHeight ? (
+                                <span className="text-sm">{item.fileWidth} × {item.fileHeight}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              {item.visualWidth && item.visualHeight ? (
+                                <span className="text-sm">{item.visualWidth} × {item.visualHeight}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="font-bold text-sm">{item.quantity} un.</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="font-bold text-primary text-sm">{item.calculatedM2}</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <StatusBadge status={item.status} />
+                            </td>
+                          </tr>
+                          {item.observations && (
+                            <tr className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-200/30 dark:border-amber-900/30">
+                              <td colSpan={8} className="py-2 px-4">
+                                <div className="flex gap-2 items-start">
+                                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                  <div className="text-sm text-amber-800 dark:text-amber-200">
+                                    <span className="font-semibold">Observações da Ação:</span> {item.observations}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
+                        ))}
                       </tbody>
                     </table>
                   </div>
-                </Card>
-              );
-            })
-          )}
-        </div>
+              </CardContent>
+            </Card>
+          );
+        })
+        )}
       </div>
 
+      {/* Modal de Detalhes do Item */}
       <ItemDetailsDialog
         item={selectedItem}
         auditLogs={auditLogs}
         open={!!selectedItem}
-        onOpenChange={(open) => {
-          if (!open) setSelectedItem(null);
-        }}
+        onOpenChange={(open) => !open && setSelectedItem(null)}
       />
-
-      <style>{`
-        @keyframes fadeUp {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   );
 }

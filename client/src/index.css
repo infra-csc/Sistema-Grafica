@@ -2,18 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* TYPOGRAPHY */
-@layer base {
-  body {
-    @apply font-sans;
-    font-family: 'DM Sans', sans-serif;
-  }
-  
-  code, pre, .font-mono {
-    font-family: 'DM Mono', monospace;
-  }
-}
-
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);
@@ -26,17 +14,17 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 244 10% 94%;
+  --background: 0 0% 100%;
 
   --foreground: 220 15% 15%;
 
-  --border: 232 11% 88%;
+  --border: 220 13% 91%;
 
   --card: 0 0% 100%;
 
   --card-foreground: 220 15% 15%;
 
-  --card-border: 232 11% 88%;
+  --card-border: 220 13% 91%;
 
   --sidebar: 0 0% 100%;
 
@@ -438,20 +426,4 @@
   .border-status-production {
     border-color: hsl(var(--status-production));
   }
-}
-
-/* Animações */
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fadeUp {
-  animation: fadeUp 0.5s ease-out;
 }

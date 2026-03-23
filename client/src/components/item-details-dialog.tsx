@@ -119,24 +119,18 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3 flex-wrap">
-            <DialogTitle style={{ color: '#2d2d2d', fontSize: '24px', fontWeight: 800 }}>Detalhes do Item</DialogTitle>
-            <code style={{ fontSize: '13px', fontWeight: 600, color: '#06b6d4', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+            <DialogTitle>Detalhes do Item</DialogTitle>
+            <span className="text-sm font-mono font-medium text-primary">
               {item.displayId}
-            </code>
+            </span>
             <StatusBadge status={item.status} />
             {item.rejectedBySponsor && (
               <Badge 
-                style={{
-                  backgroundColor: '#fef2f2',
-                  borderColor: '#fecaca',
-                  color: '#dc2626',
-                  borderWidth: '1px',
-                  fontSize: '12px'
-                }}
-                className="border"
+                variant="outline" 
+                className="text-xs border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
                 data-testid="badge-rejected-sponsor"
               >
                 Reprovado Patrocinador
@@ -144,21 +138,15 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             )}
             {item.rejectedByCreator && (
               <Badge 
-                style={{
-                  backgroundColor: '#fff7ed',
-                  borderColor: '#fed7aa',
-                  color: '#d97706',
-                  borderWidth: '1px',
-                  fontSize: '12px'
-                }}
-                className="border"
+                variant="outline" 
+                className="text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-400"
                 data-testid="badge-rejected-creator"
               >
                 Reprovado Criador
               </Badge>
             )}
           </div>
-          <DialogDescription style={{ color: '#6b7280' }}>
+          <DialogDescription>
             Informações completas do item
           </DialogDescription>
         </DialogHeader>
@@ -281,9 +269,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           {/* Grid 2 Colunas: Evento e Especificações */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {/* Informações do Evento */}
-            <Card style={{ borderColor: '#e5e7eb' }}>
-              <CardHeader className="px-4 py-2" style={{ backgroundColor: '#f1f5f9' }}>
-                <CardTitle className="text-xs font-semibold uppercase flex items-center gap-2" style={{ color: '#06b6d4' }}>
+            <Card>
+              <CardHeader className="px-4 py-2 bg-blue-50/50 dark:bg-blue-950/20">
+                <CardTitle className="text-xs font-semibold uppercase text-blue-700 dark:text-blue-400 flex items-center gap-2">
                   <Calendar className="h-3.5 w-3.5" />
                   Evento
                 </CardTitle>

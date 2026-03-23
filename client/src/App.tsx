@@ -28,7 +28,6 @@ import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
 import Historico from "@/pages/historico";
 import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
-import SidebarColorsPreview from "@/pages/sidebar-colors-preview";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -153,9 +152,6 @@ function Router() {
       </Route>
       <Route path="/patrocinadores">
         {() => <ProtectedRoute component={Patrocinadores} />}
-      </Route>
-      <Route path="/preview/sidebar-colors">
-        {() => <SidebarColorsPreview />}
       </Route>
       <Route component={NotFound} />
     </Switch>

@@ -1,0 +1,41 @@
+Prompt 1: Design Geral do Dashboard
+"Gere um mock-up de alta fidelidade para o painel de controle (dashboard) de um aplicativo web moderno de gestão de eventos, focado no conceito de design 'Titanium'. A estética deve ser minimalista, elegante e profissional, com tipografia limpa e espaçamento generoso.
+
+Paleta de Cores 'Titanium':
+
+Fundo Principal (Background): Use o tom de pedra clara #fafaf9.
+
+Texto Primário e Ícones Principal: Use o cinza escuro #1c1917.
+
+Cor de Acento (CTA, Destaques): Use o laranja vibrante #f97316 (para botões, links ativos e status importantes).
+
+Bordas e Divisores: Use o cinza suave #e7e5e4 para linhas finas e bordas de cards.
+
+Superfícies (Cards, Elementos Elevados): Use o branco puro #ffffff para destacar o conteúdo principal.
+
+Layout:
+
+Uma barra de navegação lateral (sidebar) à esquerda, estreita e limpa, com ícones e rótulos simples.
+
+Um cabeçalho superior com o título da página ('Painel de Eventos') e um perfil de usuário.
+
+O corpo principal deve conter cards de conteúdo. Um card de destaque no centro deve estar aberto, revelando o modal de detalhes do evento, conforme descrito no prompt 2."
+
+Prompt 2: Refinamento Detalhado do Modal (Foco na imagem fornecida)
+"Com base no layout do dashboard e na paleta de cores 'Titanium' (fundo #fafaf9, primária #1c1917, acento #f97316, bordas #e7e5e4, superfície #ffffff), gere um design de interface (UI) detalhado para o modal aberto. Este modal deve ser uma versão aprimorada e mais moderna do conteúdo da imagem fornecida, organizando as informações de forma mais intuitiva e visualmente atraente.
+
+Detalhes do Design:
+
+Fundo do Modal: Use a superfície branca (#ffffff) com cantos arredondados generosos. Use uma borda muito fina em #e7e5e4 para separá-lo do fundo #fafaf9.
+
+Cabeçalho: Adicione um título claro ao modal (ex: 'Detalhes do Evento: Night Run') no topo, usando a cor primária #1c1917. Inclua um ícone de fechar (X) no canto superior direito.
+
+Seção 'EVENTO': Use um pequeno ícone de calendário laranja (#f97316) ao lado do título 'EVENTO'. Exiba os campos ('Nome', 'Data', 'Saída') com rótulos menores em cinza claro e os valores em negrito #1c1917, alinhados à direita.
+
+Seção 'ESPECIFICAÇÕES': Semelhante à anterior, mas com um ícone de configurações laranja (#f97316). Adicione os ícones de edição ao lado dos títulos das seções, mas use uma cor primária mais discreta para eles (#1c1917, talvez com opacidade reduzida).
+
+Seção 'DADOS DE PRODUÇÃO': Esta seção deve ser o destaque visual. Use ícones sutis para cada campo (ex: régua para 'Área', 'Medida', ícone de pacote para 'Quantidade'). Considere usar um pequeno gráfico de barras horizontal discreto para representar 'Quantidade' ou 'Área'. Os valores devem ser claros, com o acento laranja (#f97316) usado estrategicamente, talvez na borda de um card de destaque para 'Quantidade'.
+
+Seção 'PATROCINADORES': Transforme o patrocinador 'Sponsor A' em um chip ou badge moderno, com fundo branco (#ffffff), uma borda fina #e7e5e4, e talvez um pequeno ícone de aperto de mão laranja (#f97316).
+
+Estilo Geral: Aplique cantos arredondados a todos os sub-elementos. Use tipografia limpa (ex: Inter ou Roboto). Garanta que os rótulos e valores estejam perfeitamente alinhados, usando um layout de grade para clareza."

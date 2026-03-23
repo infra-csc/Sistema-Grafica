@@ -156,10 +156,16 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           </div>
         </DialogHeader>
         
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Barra de Progresso Visual - 6 Etapas */}
           <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
-            <CardContent className="px-4 py-3">
+            <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2">
+              <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
+                <ArrowRightCircle className="h-3.5 w-3.5" />
+                Progresso
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 py-4">
               {(() => {
                 const steps = [
                   { 
@@ -259,20 +265,20 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Ações Customizadas - Logo após Timeline (Upload de Thumb, etc) */}
           {customActions && (
-            <div>
+            <div className="bg-white border border-[#e7e5e4] rounded-[10px] p-4">
               {customActions}
             </div>
           )}
 
           {/* Ações no Topo - Prioridade (ex: Finalização de Layout) */}
           {topActions && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {topActions}
             </div>
           )}
 
           {/* Grid 2 Colunas: Evento e Especificações */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Informações do Evento */}
             <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
               <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2">
@@ -425,6 +431,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </Card>
           </div>
 
+          {/* Separator com margin */}
+          <div style={{ height: '1px', backgroundColor: '#e7e5e4' }} />
+
           {/* Dados de Produção - Linha Inteira */}
           <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
             <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2 flex flex-row items-center justify-between gap-2">
@@ -516,6 +525,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </CardContent>
           </Card>
 
+          {/* Separator */}
+          <div style={{ height: '1px', backgroundColor: '#e7e5e4' }} />
+
           {/* Patrocinadores */}
           {item.sponsors && item.sponsors.length > 0 && (
             <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
@@ -536,6 +548,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               </CardContent>
             </Card>
           )}
+
+          {/* Separator */}
+          <div style={{ height: '1px', backgroundColor: '#e7e5e4' }} />
 
           {/* Observações */}
           {item.observations && (

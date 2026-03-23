@@ -140,7 +140,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
         </div>
 
         {/* Content */}
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {/* Status */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <StatusBadge status={item.status} />

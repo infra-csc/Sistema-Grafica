@@ -208,7 +208,14 @@ export default function PainelGeral() {
           {/* Linha 1: Total + 3 cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             {/* Card Total - destaque */}
-            <div className="bg-slate-900 rounded-lg p-4 text-white cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-lg">
+            <div 
+              onClick={() => setStatusFilter('all')}
+              className={`rounded-lg p-4 text-white cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-lg ${
+                statusFilter === 'all' 
+                  ? 'bg-slate-900 shadow-lg' 
+                  : 'bg-slate-800'
+              }`}
+            >
               <div className="text-xs font-medium opacity-80 mb-1">{statusConfig.total.label}</div>
               <div className="text-3xl font-bold">{statusCounts.total}</div>
               <div className="text-xs opacity-60 mt-2">Total de itens</div>
@@ -222,7 +229,12 @@ export default function PainelGeral() {
             ].map(item => (
               <div 
                 key={item.key}
-                className="bg-white rounded-lg p-4 border border-[#e8e5df] cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-md"
+                onClick={() => setStatusFilter(item.key)}
+                className={`rounded-lg p-4 border cursor-pointer transition-all hover:translate-y-[-2px] ${
+                  statusFilter === item.key
+                    ? 'border-current shadow-md bg-slate-50'
+                    : 'border-[#e8e5df] bg-white'
+                }`}
               >
                 <div className="text-xs font-medium text-slate-600 mb-1">{statusConfig[item.key as keyof typeof statusConfig].label}</div>
                 <div className={`text-2xl font-bold ${statusConfig[item.key as keyof typeof statusConfig].textColor}`}>
@@ -245,7 +257,12 @@ export default function PainelGeral() {
               ) : (
                 <div 
                   key={item.key}
-                  className="bg-white rounded-lg p-4 border border-[#e8e5df] cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-md"
+                  onClick={() => setStatusFilter(item.key)}
+                  className={`rounded-lg p-4 border cursor-pointer transition-all hover:translate-y-[-2px] ${
+                    statusFilter === item.key
+                      ? 'border-current shadow-md bg-slate-50'
+                      : 'border-[#e8e5df] bg-white'
+                  }`}
                 >
                   <div className="text-xs font-medium text-slate-600 mb-1">{statusConfig[item.key as keyof typeof statusConfig].label}</div>
                   <div className={`text-2xl font-bold ${statusConfig[item.key as keyof typeof statusConfig].textColor}`}>

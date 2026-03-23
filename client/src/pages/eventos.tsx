@@ -294,63 +294,37 @@ export default function Eventos() {
     }
   };
 
+  const PRIORITY_COLORS: Record<string, string> = {
+    urgente:       '#ef4444',
+    alta:          '#f97316',
+    media:         '#f59e0b',
+    baixa:         '#3b82f6',
+    completed:     '#10b981',
+    sem_prioridade:'#a8a29e',
+  };
+
   const getPriorityConfig = (priority: string | null | undefined) => {
     const configs = {
       baixa: { 
         label: "Baixa", 
-        color: "bg-[#1c1917] text-white border-[#1c1917]", 
-        icon: "",
-        borderColor: 'border-l-[#3b82f6]',
-        bgCard: '',
-        titleColor: 'text-[#1c1917]',
-        bg: 'bg-[#3b82f6]/10',
-        border: 'border-[#3b82f6]/20',
-        iconColor: 'text-[#f97316]'
+        hex: '#3b82f6',
       },
       media: { 
         label: "Média", 
-        color: "bg-[#1c1917] text-white border-[#1c1917]", 
-        icon: "",
-        borderColor: 'border-l-[#a855f7]',
-        bgCard: '',
-        titleColor: 'text-[#1c1917]',
-        bg: 'bg-[#a855f7]/10',
-        border: 'border-[#a855f7]/20',
-        iconColor: 'text-[#f97316]'
+        hex: '#f59e0b',
       },
       alta: { 
         label: "Alta", 
-        color: "bg-[#1c1917] text-white border-[#1c1917]", 
-        icon: "",
-        borderColor: 'border-l-[#f59e0b]',
-        bgCard: '',
-        titleColor: 'text-[#1c1917]',
-        bg: 'bg-[#f59e0b]/10',
-        border: 'border-[#f59e0b]/20',
-        iconColor: 'text-[#f97316]'
+        hex: '#f97316',
       },
       urgente: { 
         label: "Urgente", 
-        color: "bg-[#1c1917] text-white border-[#1c1917]", 
-        icon: "",
-        borderColor: 'border-l-[#ef4444]',
-        bgCard: '',
-        titleColor: 'text-[#1c1917]',
-        bg: 'bg-[#ef4444]/10',
-        border: 'border-[#ef4444]/20',
-        iconColor: 'text-[#f97316]'
+        hex: '#ef4444',
       },
       sem_prioridade: { 
         label: "Sem Prioridade", 
-        color: "bg-[#1c1917] text-white border-[#1c1917]", 
-        icon: "",
-        borderColor: 'border-l-[#e7e5e4]',
-        bgCard: '',
-        titleColor: 'text-[#1c1917]',
-        bg: 'bg-[#e7e5e4]/30',
-        border: 'border-[#e7e5e4]',
-        iconColor: 'text-[#78716c]'
-      }
+        hex: '#a8a29e',
+      },
     };
     
     if (!priority) return configs.sem_prioridade;
@@ -441,12 +415,12 @@ export default function Eventos() {
     });
 
   const priorityFilterConfig = {
-    urgente: { label: 'Urgente', color: '', count: events.filter(e => getEventPriority(e) === 'urgente').length },
-    alta: { label: 'Alta', color: '', count: events.filter(e => getEventPriority(e) === 'alta').length },
-    media: { label: 'Média', color: '', count: events.filter(e => getEventPriority(e) === 'media').length },
-    baixa: { label: 'Baixa', color: '', count: events.filter(e => getEventPriority(e) === 'baixa').length },
-    sem_prioridade: { label: 'Sem Prioridade', color: '', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
-    completed: { label: 'Concluído', color: '', count: events.filter(e => getEventPriority(e) === 'completed').length },
+    urgente:       { label: 'Urgente',       hex: '#ef4444', count: events.filter(e => getEventPriority(e) === 'urgente').length },
+    alta:          { label: 'Alta',          hex: '#f97316', count: events.filter(e => getEventPriority(e) === 'alta').length },
+    media:         { label: 'Média',         hex: '#f59e0b', count: events.filter(e => getEventPriority(e) === 'media').length },
+    baixa:         { label: 'Baixa',         hex: '#3b82f6', count: events.filter(e => getEventPriority(e) === 'baixa').length },
+    sem_prioridade:{ label: 'Sem Prioridade',hex: '#a8a29e', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
+    completed:     { label: 'Concluído',     hex: '#10b981', count: events.filter(e => getEventPriority(e) === 'completed').length },
   };
 
   return (
@@ -607,18 +581,24 @@ export default function Eventos() {
               onClick={() => togglePriority(priority)}
               data-testid={`filter-priority-${priority}`}
               style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
                 padding: '4px 12px',
                 borderRadius: '99px',
                 fontSize: '12px',
                 fontWeight: '600',
                 cursor: 'pointer',
-                border: `1px solid ${isSelected ? '#1c1917' : '#e7e5e4'}`,
-                backgroundColor: isSelected ? '#1c1917' : '#ffffff',
+                border: `1px solid ${isSelected ? config.hex : '#e7e5e4'}`,
+                backgroundColor: isSelected ? config.hex : '#ffffff',
                 color: isSelected ? '#ffffff' : '#1c1917',
                 transition: 'all 0.15s'
               }}
             >
-              {config.label} <span style={{ opacity: 0.6 }}>({config.count})</span>
+              {!isSelected && (
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: config.hex, flexShrink: 0, display: 'inline-block' }} />
+              )}
+              {config.label} <span style={{ opacity: isSelected ? 0.8 : 0.5 }}>({config.count})</span>
             </button>
           );
         })}
@@ -722,31 +702,28 @@ export default function Eventos() {
 
             const truckUrgency = getTruckUrgency();
             
-            // Cores Titanium para o card
+            // Config de prioridade do evento
             const priorityConfig = getPriorityConfig(event.priority);
 
-            // Borda lateral e ícone: laranja=ativo, cinza=concluído, vermelho=urgente
-            const cardBorderColor = event.status === 'completed'
-              ? 'border-l-[#a8a29e]'
-              : truckUrgency === 'urgent'
-                ? 'border-l-[#ef4444]'
-                : 'border-l-[#f97316]';
+            // Borda lateral: cor da prioridade — concluído usa verde, sem prioridade usa cinza
+            const cardBorderHex = event.status === 'completed'
+              ? '#10b981'
+              : priorityConfig.hex;
 
-            const cardColors = {
-              borderColor: cardBorderColor,
-              bgCard: '',
-              titleColor: 'text-[#1c1917]',
-              icon: event.status === 'completed' ? 'text-[#a8a29e]' : 'text-[#f97316]'
-            };
-            
             const deliveredCount = event.items?.filter((item: any) => item.status === 'delivered').length || 0;
             const progressPct = itemCount > 0 ? Math.round((deliveredCount / itemCount) * 100) : 0;
+            // Cor da barra de progresso: verde se concluído (100%), senão cor da prioridade
+            const progressColor = progressPct === 100 ? '#10b981' : cardBorderHex;
 
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
                 <div
-                  className={`hover-elevate cursor-pointer bg-white border-l-4 ${cardColors.borderColor} rounded-xl`}
-                  style={{ border: '1px solid #e7e5e4', borderLeftWidth: '4px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
+                  className="hover-elevate cursor-pointer bg-white rounded-xl"
+                  style={{ 
+                    border: '1px solid #e7e5e4', 
+                    borderLeft: `4px solid ${cardBorderHex}`,
+                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' 
+                  }}
                   data-testid={`card-event-${event.id}`}
                 >
                   {/* Card Header */}
@@ -757,7 +734,7 @@ export default function Eventos() {
                       </h3>
                       <div className="flex gap-1 flex-shrink-0 ml-auto">
                         {event.status === 'completed' && (
-                          <Badge variant="outline" style={{ backgroundColor: '#f5f5f4', color: '#78716c', borderColor: '#e7e5e4', fontSize: '11px' }}>
+                          <Badge variant="outline" style={{ backgroundColor: '#10b981' + '1a', color: '#10b981', borderColor: '#10b981' + '40', fontSize: '11px', fontWeight: '600' }}>
                             ✓ Concluído
                           </Badge>
                         )}
@@ -768,7 +745,7 @@ export default function Eventos() {
                           </Badge>
                         )}
                         {event.priority && event.status !== 'completed' && priorityConfig && (
-                          <Badge variant="outline" style={{ backgroundColor: '#f5f5f4', color: '#1c1917', borderColor: '#e7e5e4', fontSize: '11px', fontWeight: '600' }}>
+                          <Badge variant="outline" style={{ backgroundColor: cardBorderHex + '1a', color: cardBorderHex, borderColor: cardBorderHex + '40', fontSize: '11px', fontWeight: '700' }}>
                             {priorityConfig.label}
                           </Badge>
                         )}
@@ -778,7 +755,7 @@ export default function Eventos() {
                     {/* Boxes de data */}
                     <div className="grid grid-cols-2 gap-2">
                       <div style={{ backgroundColor: '#f5f5f4', borderRadius: '8px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Calendar style={{ color: '#f97316', width: '14px', height: '14px', flexShrink: 0 }} />
+                        <Calendar style={{ color: cardBorderHex, width: '14px', height: '14px', flexShrink: 0 }} />
                         <div>
                           <div style={{ color: '#a8a29e', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Início</div>
                           <div style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700' }}>
@@ -810,7 +787,7 @@ export default function Eventos() {
                         <span style={{ color: '#1c1917', fontSize: '11px', fontWeight: '700' }}>{progressPct}%</span>
                       </div>
                       <div style={{ width: '100%', backgroundColor: '#e7e5e4', borderRadius: '99px', height: '5px' }}>
-                        <div style={{ height: '100%', backgroundColor: progressPct === 100 ? '#a8a29e' : '#f97316', borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.3s' }} />
+                        <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.3s' }} />
                       </div>
                     </div>
 
@@ -825,7 +802,7 @@ export default function Eventos() {
                         disabled={event.status === 'completed'}
                         data-testid={`button-priority-event-${event.id}`}
                       >
-                        <Flag style={{ width: '13px', height: '13px', color: event.priority ? '#f97316' : '#a8a29e' }} className={event.priority ? 'fill-[#f97316]' : ''} />
+                        <Flag style={{ width: '13px', height: '13px', color: event.priority ? cardBorderHex : '#a8a29e', fill: event.priority ? cardBorderHex : 'none' }} />
                       </Button>
                       {hasPermission("admin") && (
                         <>

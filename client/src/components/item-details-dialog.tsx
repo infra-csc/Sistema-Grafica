@@ -269,6 +269,24 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </div>
           </div>
 
+          {/* Descrição Card */}
+          {item.description && (
+            <div style={{ 
+              backgroundColor: '#fafaf9',
+              border: '1px solid #e7e5e4',
+              borderRadius: '12px',
+              padding: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <FileText className="h-5 w-5" style={{ color: '#f97316' }} />
+                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+                  Descrição
+                </h3>
+              </div>
+              <p style={{ color: '#1c1917', fontSize: '13px', whiteSpace: 'pre-wrap', margin: '0' }}>{item.description}</p>
+            </div>
+          )}
+
           {/* Dados de Produção Card */}
           <div style={{ 
             backgroundColor: '#fafaf9',
@@ -292,8 +310,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     color: '#a8a29e',
                     fontSize: '12px',
                     fontWeight: '600',
-                    width: '30%',
-                    backgroundColor: '#fafaf9'
+                    width: '30%'
                   }}>
                     QUANTIDADE
                   </td>
@@ -302,8 +319,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     borderLeft: '4px solid #f97316',
                     color: '#1c1917',
                     fontSize: '14px',
-                    fontWeight: '700',
-                    backgroundColor: '#fafaf9'
+                    fontWeight: '700'
                   }}>
                     {item.quantity || 0}
                   </td>
@@ -356,6 +372,31 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : '—'}
                   </td>
                 </tr>
+
+                {/* Arquivo */}
+                {(item.fileWidth || item.fileHeight) && (
+                  <tr>
+                    <td style={{ 
+                      padding: '12px 16px',
+                      color: '#a8a29e',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      width: '30%',
+                      borderBottom: '1px solid #e7e5e4'
+                    }}>
+                      ARQUIVO
+                    </td>
+                    <td style={{ 
+                      padding: '12px 16px',
+                      color: '#1c1917',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      borderBottom: '1px solid #e7e5e4'
+                    }}>
+                      {item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : '—'}
+                    </td>
+                  </tr>
+                )}
                 
                 {/* Medida */}
                 <tr>
@@ -379,9 +420,112 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     {item.measurement || '—'}
                   </td>
                 </tr>
+
+                {/* Produzido */}
+                {item.quantityProduced && (
+                  <tr>
+                    <td style={{ 
+                      padding: '12px 16px',
+                      color: '#a8a29e',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      width: '30%',
+                      borderTop: '1px solid #e7e5e4',
+                      borderBottom: '1px solid #e7e5e4'
+                    }}>
+                      PRODUZIDO
+                    </td>
+                    <td style={{ 
+                      padding: '12px 16px',
+                      color: '#1c1917',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      borderTop: '1px solid #e7e5e4',
+                      borderBottom: '1px solid #e7e5e4'
+                    }}>
+                      {item.quantityProduced}
+                    </td>
+                  </tr>
+                )}
+
+                {/* Recebido por */}
+                {item.receivedBy && (
+                  <tr>
+                    <td style={{ 
+                      padding: '12px 16px',
+                      color: '#a8a29e',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      width: '30%',
+                      borderTop: '1px solid #e7e5e4'
+                    }}>
+                      RECEBIDO POR
+                    </td>
+                    <td style={{ 
+                      padding: '12px 16px',
+                      color: '#1c1917',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      borderTop: '1px solid #e7e5e4'
+                    }}>
+                      {item.receivedBy}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+
+          {/* Datas Importantes Card */}
+          {(item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt) && (
+            <div style={{ 
+              backgroundColor: '#fafaf9',
+              border: '1px solid #e7e5e4',
+              borderRadius: '12px',
+              padding: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <Calendar className="h-5 w-5" style={{ color: '#f97316' }} />
+                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+                  Datas Importantes
+                </h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {item.approvedAt && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
+                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Aprovado</span>
+                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
+                      {format(new Date(item.approvedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                )}
+                {item.productionStartedAt && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
+                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Produção Iniciada</span>
+                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
+                      {format(new Date(item.productionStartedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                )}
+                {item.producedAt && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
+                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Produzido</span>
+                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
+                      {format(new Date(item.producedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                )}
+                {item.deliveredAt && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0' }}>
+                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Entregue</span>
+                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
+                      {format(new Date(item.deliveredAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Custom Actions */}
           {customActions && (

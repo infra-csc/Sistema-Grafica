@@ -1,0 +1,64 @@
+Prompt 1: Dashboard e Estrutura do Modal (Correção de Dados e Timeline)
+"Refatore o mock-up de alta fidelidade para o painel de controle (dashboard) de gestão de eventos, focando na integridade dos dados e na estética 'Titanium'. A estética deve ser minimalista e profissional.
+
+Paleta de Cores 'Titanium':
+
+Fundo (Background): #fafaf9.
+
+Texto Primário/Ícones: #1c1917.
+
+Acento/CTA: #f97316.
+
+Bordas: #e7e5e4.
+
+Superfícies/Cards: #ffffff.
+
+Correção do Modal (Foco em dados reais da image_1.png):
+
+Superfície: O modal principal é um card branco (#ffffff) sobre o fundo #fafaf9, com cantos arredondados generosos e borda #e7e5e4.
+
+Cabeçalho: Inclua o título exato '#0063 • Night Run - Etapa 3 - SP - 2025' em #1c1917. Ícone de fechar (X) no canto superior direito.
+
+Timeline (Essencial, recrie com dados de image_1.png):
+
+Logo abaixo do cabeçalho, adicione a timeline horizontal.
+
+O elemento ativo deve ser a badge roxa exata 'Aguardando Revisão Final' (reutilize a cor roxa original ou um tom de acento roxo claro, pois é um status específico).
+
+Recrie os outros passos da timeline (ex: Criado, Em Aprovação) como badges neutras em #ffffff com borda #e7e5e4 e texto em #1c1917.
+
+Seções de Detalhes: Recrie as seções 'EVENTO' e 'ESPECIFICAÇÕES' como cards internos, mantendo os ícones laranjas (#f97316) e todos os valores exatos de image_1.png (ex: Data: 27/11/2025, Saída: 27/11/2025 às 12:29, Tipo: 2x1 Padrão, Material: Sanett, Acabamento: Ilhós).
+
+Dados de Produção (Essencial): Crie quatro cards de destaque internos com borda #e7e5e4.
+
+O card 'QUANTIDADE' deve ter borda laranja acentuada (#f97316) e exibir o número exato '1'.
+
+Os outros cards ('M² TOTAL', 'VISUAL', 'MEDIDA') devem exibir os valores exatos de image_1.png (ex: 500.00, 1.90 x 0.90, 250 x 2) e ter borda neutra.
+
+Prompt 2: Patrocinadores e Histórico Detalhado (Correção de Histórico Vazio)
+"Este prompt foca no conteúdo final do modal do evento (Patrocinadores e Histórico), garantindo que os dados não sejam perdidos e se integrem à paleta de cores 'Titanium'.
+
+Layout:
+Continue o layout do modal sobre a superfície branca (#ffffff), abaixo da seção 'Dados de Produção'.
+
+Seção 'PATROCINADORES' (Correção de Dados de image_1.png):
+
+Mantenha o título e o ícone laranja (#f97316).
+
+O patrocinador deve ser o texto exato 'Sponsor A'.
+
+Exiba 'Sponsor A' como um badge moderno e limpo, com fundo branco (#ffffff), borda fina #e7e5e4 e texto em #1c1917.
+
+Seção 'HISTÓRICO' (Crucial: Correção de Histórico Vazio de image_2.png):
+
+Título 'HISTÓRICO' com ícone laranja (#f97316).
+
+Não use apenas placeholders vazios. Recrie uma timeline de histórico vertical detalhada baseada nos status de image_2.png, mas adicione informações de contexto para parecerem reais e não apenas palavras-chave. Use ícones sutis para cada status.
+
+Exemplo 1 (Sutituindo 'updated'): '[Ícone de edição] Item atualizado [Data/Hora mockada, ex: 28/11/2025 09:15]' - Texto em #1c1917.
+
+Exemplo 2 (Substituindo 'approved'): '[Ícone de checkmark] Item aprovado [Data/Hora mockada, ex: 28/11/2025 10:30]' - Texto em #1c1917.
+
+Repita este padrão para os outros 'updated' e 'updated' de image_2.png, talvez alternando ligeiramente os horários para parecer real. Use um ícone de status neutro (#1c1917).
+
+A linha do tempo vertical que conecta os pontos deve ser em #e7e5e4, com os pontos de status em #1c1917."

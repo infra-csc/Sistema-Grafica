@@ -456,16 +456,23 @@ export default function Eventos() {
                 Novo Evento
               </Button>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editingEvent ? "Editar Evento" : "Criar Novo Evento"}</DialogTitle>
-              <DialogDescription>
+          <DialogContent className="sm:max-w-lg rounded-2xl bg-white shadow-2xl p-0 gap-0">
+            {/* Cabeçalho */}
+            <div className="px-6 pt-6 pb-4 border-b border-[#e7e5e4]">
+              <h2 className="text-lg font-bold text-[#1c1917] leading-tight">
+                {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
+              </h2>
+              <p className="text-sm text-gray-400 mt-0.5">
                 {editingEvent ? "Atualize as informações do evento" : "Preencha as informações do evento"}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome do Evento</Label>
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
+              {/* Nome do Evento */}
+              <div className="space-y-1.5">
+                <Label htmlFor="name" className="text-sm font-semibold text-[#1c1917]">
+                  Nome do Evento
+                </Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -473,51 +480,62 @@ export default function Eventos() {
                   placeholder="Ex: Circuitinho BSB 2024"
                   required
                   data-testid="input-event-name"
+                  className="bg-[#fafaf9] border-[#e7e5e4] rounded-lg text-[#1c1917] placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Data de Início do Evento</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  required
-                  data-testid="input-start-date"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Quando o evento começa
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="truckDepartureDate">Data e Hora de Saída do Caminhão</Label>
-                <Input
-                  id="truckDepartureDate"
-                  type="datetime-local"
-                  value={formData.truckDepartureDate}
-                  onChange={(e) => setFormData({ ...formData, truckDepartureDate: e.target.value })}
-                  required
-                  data-testid="input-truck-date"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Prazo final para entrega dos materiais
-                </p>
+
+              {/* Datas — grid 2 colunas */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="startDate" className="text-sm font-semibold text-[#1c1917]">
+                    Data de Início
+                  </Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    required
+                    data-testid="input-start-date"
+                    className="bg-[#fafaf9] border-[#e7e5e4] rounded-lg text-[#1c1917] focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                  />
+                  <p className="text-xs text-gray-400">Quando o evento começa</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="truckDepartureDate" className="text-sm font-semibold text-[#1c1917]">
+                    Saída do Caminhão
+                  </Label>
+                  <Input
+                    id="truckDepartureDate"
+                    type="datetime-local"
+                    value={formData.truckDepartureDate}
+                    onChange={(e) => setFormData({ ...formData, truckDepartureDate: e.target.value })}
+                    required
+                    data-testid="input-truck-date"
+                    className="bg-[#fafaf9] border-[#e7e5e4] rounded-lg text-[#1c1917] focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                  />
+                  <p className="text-xs text-gray-400">Prazo para entrega</p>
+                </div>
               </div>
 
               {/* Seleção de Patrocinadores */}
-              <div className="space-y-3">
-                <Label className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  Patrocinadores (opcional)
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm font-semibold text-[#1c1917]">
+                  <Building2 className="h-4 w-4 text-[#f97316]" />
+                  Patrocinadores <span className="text-gray-400 font-normal">(opcional)</span>
                 </Label>
                 {sponsors.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum patrocinador cadastrado. <Link href="/patrocinadores" className="text-primary hover:underline">Cadastre agora</Link>
+                  <p className="text-sm text-gray-400 bg-[#fafaf9] border border-[#e7e5e4] rounded-lg p-3">
+                    Nenhum patrocinador cadastrado.{" "}
+                    <Link href="/patrocinadores" className="text-[#f97316] hover:underline font-medium">
+                      Cadastre agora
+                    </Link>
                   </p>
                 ) : (
-                  <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                  <div className="bg-[#fafaf9] border border-[#e7e5e4] rounded-lg p-3 space-y-2.5 max-h-36 overflow-y-auto">
                     {sponsors.map((sponsor) => (
-                      <div key={sponsor.id} className="flex items-center space-x-2">
+                      <div key={sponsor.id} className="flex items-center gap-2.5">
                         <Checkbox
                           id={`sponsor-${sponsor.id}`}
                           checked={selectedSponsorIds.includes(sponsor.id)}
@@ -529,33 +547,40 @@ export default function Eventos() {
                             }
                           }}
                           data-testid={`checkbox-sponsor-${sponsor.id}`}
+                          className="border-[#e7e5e4] data-[state=checked]:bg-[#1c1917] data-[state=checked]:border-[#1c1917] rounded"
                         />
                         <label
                           htmlFor={`sponsor-${sponsor.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          className="text-sm font-medium text-[#1c1917] cursor-pointer leading-none"
                         >
                           {sponsor.name}
-                          {sponsor.company && <span className="text-muted-foreground ml-1">({sponsor.company})</span>}
+                          {sponsor.company && (
+                            <span className="text-gray-400 font-normal ml-1">({sponsor.company})</span>
+                          )}
                         </label>
                       </div>
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Selecione os patrocinadores associados ao evento
-                </p>
               </div>
 
-              <div className="flex gap-2 justify-end">
-                <Button type="button" variant="outline" onClick={handleCloseDialog}>
+              {/* Rodapé com botões */}
+              <div className="flex gap-2 justify-end pt-4 border-t border-[#e7e5e4]">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCloseDialog}
+                  className="border-[#e7e5e4] text-[#1c1917] bg-white hover:bg-gray-50"
+                >
                   Cancelar
                 </Button>
-                <Button 
-                  type="submit" 
-                  disabled={createEventMutation.isPending || updateEventMutation.isPending} 
+                <Button
+                  type="submit"
+                  disabled={createEventMutation.isPending || updateEventMutation.isPending}
                   data-testid="button-submit-event"
+                  className="bg-[#1c1917] text-white border-0 hover:bg-black"
                 >
-                  {editingEvent 
+                  {editingEvent
                     ? (updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
                     : (createEventMutation.isPending ? "Criando..." : "Criar Evento")
                   }

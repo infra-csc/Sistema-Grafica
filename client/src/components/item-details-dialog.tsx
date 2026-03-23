@@ -75,70 +75,97 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           </div>
         </div>
 
-        {/* Timeline Horizontal com Ícones */}
+        {/* Timeline Horizontal - Progress Bar */}
         <div style={{ 
-          padding: '20px 24px',
-          borderBottom: '1px solid #e7e5e4',
-          overflowX: 'auto'
+          padding: '24px',
+          borderBottom: '1px solid #e7e5e4'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0', minWidth: 'fit-content', position: 'relative' }}>
-            {[
-              { icon: Link2, label: 'Vinculação', color: '#f97316' },
-              { icon: Palette, label: 'Arte', color: '#a855f7' },
-              { icon: CheckCircle, label: 'Aprovação', color: '#f97316' },
-              { icon: Zap, label: 'Finalização', color: '#10b981' },
-              { icon: Eye, label: 'Revisão', color: '#3b82f6', active: true },
-              { icon: Cog, label: 'Produção', color: '#a8a29e' }
-            ].map((step, idx) => {
-              const Icon = step.icon;
-              const isActive = step.active || (item.status === 'aguardando_revisao_final' && idx === 4);
-              return (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', flexDirection: 'column', gap: '8px', minWidth: '80px' }}>
-                  {/* Ícone Circular */}
-                  <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    backgroundColor: step.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#ffffff',
-                    flexShrink: 0,
-                    zIndex: 2,
-                    position: 'relative',
-                    opacity: isActive ? 1 : 0.6
-                  }}>
-                    <Icon size={20} strokeWidth={2} />
-                  </div>
-                  
-                  {/* Rótulo */}
-                  <span style={{
-                    fontSize: '12px',
-                    fontWeight: isActive ? '700' : '500',
-                    color: isActive ? step.color : '#a8a29e',
-                    textAlign: 'center',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {step.label}
-                  </span>
-                  
-                  {/* Linha Horizontal */}
-                  {idx < 5 && (
+          {/* Ícones e Linha */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0', position: 'relative', marginBottom: '24px' }}>
+            {/* Linha de progresso azul */}
+            <div style={{
+              position: 'absolute',
+              top: '20px',
+              left: '0',
+              width: '100%',
+              height: '3px',
+              backgroundColor: '#e7e5e4',
+              zIndex: 0
+            }} />
+            <div style={{
+              position: 'absolute',
+              top: '20px',
+              left: '0',
+              width: item.status === 'aguardando_revisao_final' ? '83.33%' : '66.66%',
+              height: '3px',
+              backgroundColor: '#3b82f6',
+              zIndex: 1,
+              transition: 'width 0.3s ease'
+            }} />
+            
+            {/* Ícones */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', position: 'relative', zIndex: 2 }}>
+              {[
+                { icon: Link2, label: 'Vinculação', color: '#f97316', idx: 0 },
+                { icon: Palette, label: 'Arte', color: '#a855f7', idx: 1 },
+                { icon: CheckCircle, label: 'Aprovação', color: '#f97316', idx: 2 },
+                { icon: Zap, label: 'Finalização', color: '#10b981', idx: 3 },
+                { icon: Eye, label: 'Revisão', color: '#3b82f6', idx: 4 },
+                { icon: Cog, label: 'Produção', color: '#a8a29e', idx: 5 }
+              ].map((step) => {
+                const Icon = step.icon;
+                const activeIdx = item.status === 'aguardando_revisao_final' ? 4 : 3;
+                const isCompleted = step.idx < activeIdx;
+                const isActive = step.idx === activeIdx;
+                const color = isCompleted || isActive ? step.color : '#a8a29e';
+                
+                return (
+                  <div key={step.idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    {/* Ícone */}
                     <div style={{
-                      position: 'absolute',
-                      top: '20px',
-                      left: 'calc(50% + 20px)',
-                      width: 'calc(100% - 40px)',
-                      height: '2px',
-                      backgroundColor: step.color,
-                      zIndex: 1,
-                      opacity: isActive ? 1 : 0.3
-                    }} />
-                  )}
-                </div>
-              );
-            })}
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      backgroundColor: color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      flexShrink: 0
+                    }}>
+                      <Icon size={20} strokeWidth={2} />
+                    </div>
+                    
+                    {/* Rótulo */}
+                    <span style={{
+                      fontSize: '12px',
+                      fontWeight: isActive ? '700' : '500',
+                      color: isActive ? step.color : '#a8a29e',
+                      textAlign: 'center',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {step.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          
+          {/* Barra de progresso cinza */}
+          <div style={{
+            width: '100%',
+            height: '4px',
+            backgroundColor: '#d1d5db',
+            borderRadius: '2px',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              height: '100%',
+              backgroundColor: '#909ca0',
+              width: item.status === 'aguardando_revisao_final' ? '83.33%' : '66.66%',
+              transition: 'width 0.3s ease'
+            }} />
           </div>
         </div>
 

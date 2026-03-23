@@ -110,6 +110,10 @@ export default function PainelGeral() {
     awaiting_approval: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_approval')).length,
     awaiting_finalization: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_finalization')).length,
     ready_for_production: statsItems.filter(i => i.status === 'ready_for_production').length,
+    approved: statsItems.filter(i => i.status === 'approved').length,
+    inProduction: statsItems.filter(i => i.status === 'inProduction').length,
+    produced: statsItems.filter(i => i.status === 'produced').length,
+    delivered: statsItems.filter(i => i.status === 'delivered').length,
   };
 
   // Agrupar itens por evento
@@ -131,7 +135,11 @@ export default function PainelGeral() {
     awaiting_submission: { label: 'Ag. Envio', color: 'bg-white text-orange-600', textColor: 'text-orange-600' },
     awaiting_approval: { label: 'Ag. Aprovação', color: 'bg-white text-red-600', textColor: 'text-red-600' },
     awaiting_finalization: { label: 'Ag. Finalização', color: 'bg-white text-cyan-600', textColor: 'text-cyan-600' },
-    ready_for_production: { label: 'Pronto', color: 'bg-white text-green-600', textColor: 'text-green-600' },
+    ready_for_production: { label: 'Pronto', color: 'bg-white text-emerald-600', textColor: 'text-emerald-600' },
+    approved: { label: 'Liberado', color: 'bg-white text-green-600', textColor: 'text-green-600' },
+    inProduction: { label: 'Produção', color: 'bg-white text-blue-600', textColor: 'text-blue-600' },
+    produced: { label: 'Produzido', color: 'bg-white text-teal-600', textColor: 'text-teal-600' },
+    delivered: { label: 'Entregue', color: 'bg-white text-emerald-700', textColor: 'text-emerald-700' },
   };
 
   const getItemStatusBadgeColor = (status: string) => {
@@ -250,6 +258,31 @@ export default function PainelGeral() {
               { key: 'awaiting_approval', count: statusCounts.awaiting_approval },
               { key: 'awaiting_finalization', count: statusCounts.awaiting_finalization },
               { key: 'ready_for_production', count: statusCounts.ready_for_production },
+              { key: 'approved', count: statusCounts.approved },
+            ].map(item => (
+              <div 
+                key={item.key}
+                onClick={() => setStatusFilter(item.key)}
+                className={`rounded-lg p-4 border cursor-pointer transition-all hover:translate-y-[-2px] ${
+                  statusFilter === item.key
+                    ? 'border-current shadow-md bg-slate-50'
+                    : 'border-[#e8e5df] bg-white'
+                }`}
+              >
+                <div className="text-xs font-medium text-slate-600 mb-1">{statusConfig[item.key as keyof typeof statusConfig].label}</div>
+                <div className={`text-2xl font-bold ${statusConfig[item.key as keyof typeof statusConfig].textColor}`}>
+                  {item.count}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Linha 3: Em Produção, Produzido, Entregue */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {[
+              { key: 'inProduction', count: statusCounts.inProduction },
+              { key: 'produced', count: statusCounts.produced },
+              { key: 'delivered', count: statusCounts.delivered },
               { key: 'empty', count: 0 }, // espaço vazio
             ].map(item => (
               item.key === 'empty' ? (

@@ -1,0 +1,61 @@
+Melhore a tela de login mantendo a paleta Minimalista Moderna já implementada:
+
+PALETA OBRIGATÓRIA:
+- Primária: #2d2d2d (Charcoal)
+- Ciano: #06b6d4
+- Verde Limão: #84cc16
+- Fundo: #f1f5f9
+- Superfície: #ffffff
+- Bordas: #e5e7eb
+
+PAINEL ESQUERDO (lado colorido):
+- Substituir o gradiente roxo/rosa/ciano genérico por:
+  mesh gradient usando #2d2d2d como base + #06b6d4 em diagonal 
+  + spot de #84cc16 no canto inferior esquerdo com blur alto (150px)
+- Logo "N" com fundo #06b6d4 sólido (não cinza), border-radius 10px
+- Título "Sistema de Gestão de Produção Gráfica" em branco, 
+  font-weight 800, letter-spacing -1px, line-height 1.1
+- Subtítulo com cor rgba(255,255,255,0.65)
+- Bullets "Notificações em tempo real" e "Rastreamento completo" 
+  substituir por cards pequenos com fundo rgba(255,255,255,0.08),
+  borda rgba(255,255,255,0.15), border-radius 8px, padding 10px 14px,
+  ícone ciano (✓ ou ⚡) + texto branco
+- Rodapé "© 2024 NORTE Marketing Esportivo" em rgba(255,255,255,0.4)
+- Adicionar uma linha decorativa horizontal em #06b6d4 com 2px de altura
+  e 40px de largura acima do título principal
+
+PAINEL DIREITO (formulário):
+- Fundo: #f1f5f9 (não branco puro)
+- Centralizar verticalmente o conteúdo com flexbox
+- Título "Bem-vindo de volta" em #2d2d2d, font-weight 800, font-size 28px,
+  letter-spacing -0.5px
+- Subtítulo em #6b7280, font-size 14px
+- Adicionar separador visual (linha 2px, cor #06b6d4, largura 32px) 
+  entre o título e o subtítulo
+- Labels "Email" e "Senha" em #2d2d2d, font-weight 600, font-size 13px,
+  letter-spacing 0.3px, uppercase
+- Inputs:
+  - Fundo: #ffffff
+  - Borda: 1.5px solid #e5e7eb
+  - Border-radius: 10px
+  - Padding: 13px 16px
+  - Font-size: 14px
+  - Focus: borda #06b6d4 + box-shadow 0 0 0 3px rgba(6,182,212,0.12)
+  - Transição suave (0.2s)
+- Botão "Entrar no Sistema":
+  - Fundo: #2d2d2d (não azul)
+  - Texto branco, font-weight 700, font-size 15px
+  - Border-radius: 10px
+  - Height: 48px
+  - Hover: fundo #06b6d4 com transição 0.25s
+  - Adicionar seta → animada no hover (translateX 4px)
+- Rodapé do form: ícone 🔒 + "Sistema seguro com criptografia de ponta a ponta"
+  em #9ca3af, font-size 12px, centralizado
+
+DETALHES GERAIS:
+- Fonte: usar 'DM Sans' ou 'Plus Jakarta Sans' (Google Fonts)
+- Divisão: 42% esquerda / 58% direita
+- Sem box-shadow pesado no painel direito — separação apenas pela cor de fundo
+- Animação de entrada no painel direito: fadeIn + slideX (translateX 20px → 0)
+  com duration 0.5s ease
+- Responsivo: em mobile empilhar os painéis (esquerdo vira header compacto)

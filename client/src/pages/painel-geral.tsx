@@ -173,7 +173,7 @@ export default function PainelGeral() {
         <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-2.5 h-2.5 bg-black rounded-full"></div>
-            <span className="font-bold text-base text-[#1a1916]">Gestão de Materiais</span>
+            <span className="font-bold text-base text-[#1a1916]">Painel Geral</span>
           </div>
           
           <div className="flex items-center gap-5">
@@ -210,7 +210,7 @@ export default function PainelGeral() {
                   style={{ backgroundColor: card.dot || card.color }}
                 ></div>
                 
-                <div className="text-[11.5px] font-medium text-[#6b6760] mb-1.5" style={card.key === 'total' ? {color: 'rgba(255,255,255,0.7)'} : {}}>
+                <div className="text-[11.5px] font-medium mb-1.5" style={card.key === 'total' ? {color: 'rgba(255,255,255,0.7)'} : {color: '#6b6760'}}>
                   {card.label}
                 </div>
                 <div 

@@ -226,14 +226,14 @@ export default function PainelGeral() {
             <div className="h-2.5 w-2.5 rounded-full bg-[#2563eb]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#2563eb]">{stats.awaitingSubmission}</div>
+            <div className="text-xl font-bold text-[#78716c]">{stats.awaitingSubmission}</div>
           </CardContent>
         </Card>
 
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? '#fef2f2' : '#ffffff',
+            backgroundColor: statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? '#f8f7f6' : '#ffffff',
             border: '1px solid #e7e5e4',
             borderRadius: '10px'
           }}
@@ -241,17 +241,17 @@ export default function PainelGeral() {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Aprovação</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#dc2626]"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#c2410c]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#dc2626]">{stats.awaitingApproval}</div>
+            <div className="text-xl font-bold text-[#c2410c]">{stats.awaitingApproval}</div>
           </CardContent>
         </Card>
 
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? '#f3e8ff' : '#ffffff',
+            backgroundColor: statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? '#f8f7f6' : '#ffffff',
             border: '1px solid #e7e5e4',
             borderRadius: '10px'
           }}
@@ -259,17 +259,17 @@ export default function PainelGeral() {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Finalização</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#9333ea]"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#78716c]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#9333ea]">{stats.awaitingFinalization}</div>
+            <div className="text-xl font-bold text-[#78716c]">{stats.awaitingFinalization}</div>
           </CardContent>
         </Card>
 
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? '#f3e8ff' : '#ffffff',
+            backgroundColor: statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? '#f8f7f6' : '#ffffff',
             border: '1px solid #e7e5e4',
             borderRadius: '10px'
           }}
@@ -277,17 +277,17 @@ export default function PainelGeral() {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Revisão</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#7c3aed]"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#78716c]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#7c3aed]">{stats.awaitingFinalReview}</div>
+            <div className="text-xl font-bold text-[#78716c]">{stats.awaitingFinalReview}</div>
           </CardContent>
         </Card>
 
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'ready_for_production' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'ready_for_production' ? '#ecfdf5' : '#ffffff',
+            backgroundColor: statusFilter === 'ready_for_production' ? '#f8f7f6' : '#ffffff',
             border: '1px solid #e7e5e4',
             borderRadius: '10px'
           }}
@@ -295,37 +295,37 @@ export default function PainelGeral() {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium text-[#1c1917]">Pronto Produção</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#0891b2]"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#78716c]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#0891b2]">{stats.readyForProduction}</div>
+            <div className="text-xl font-bold text-[#78716c]">{stats.readyForProduction}</div>
           </CardContent>
         </Card>
 
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'approved' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'approved' ? '#f7fee7' : '#ffffff',
+            backgroundColor: statusFilter === 'approved' ? '#f0fdf4' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium text-[#1c1917]">Liberado</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#65a30d]"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#15803d]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#65a30d]">{stats.approved}</div>
+            <div className="text-xl font-bold text-[#15803d]">{stats.approved}</div>
           </CardContent>
         </Card>
 
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'inProduction' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'inProduction' ? '#fff7ed' : '#ffffff',
+            backgroundColor: statusFilter === 'inProduction' ? '#fff5eb' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'inProduction' ? 'all' : 'inProduction')}
         >
@@ -334,25 +334,25 @@ export default function PainelGeral() {
             <div className="h-2.5 w-2.5 rounded-full bg-[#f97316]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#c2410c]">{stats.inProduction}</div>
+            <div className="text-xl font-bold text-[#f97316]">{stats.inProduction}</div>
           </CardContent>
         </Card>
 
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'produced' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'produced' ? '#faf5ff' : '#ffffff',
+            backgroundColor: statusFilter === 'produced' ? '#f8f7f6' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'produced' ? 'all' : 'produced')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium text-[#1c1917]">Produzido</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#9333ea]"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#78716c]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#9333ea]">{stats.produced}</div>
+            <div className="text-xl font-bold text-[#78716c]">{stats.produced}</div>
           </CardContent>
         </Card>
 
@@ -361,7 +361,7 @@ export default function PainelGeral() {
           style={{
             backgroundColor: statusFilter === 'delivered' ? '#f0fdf4' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'delivered' ? 'all' : 'delivered')}
         >

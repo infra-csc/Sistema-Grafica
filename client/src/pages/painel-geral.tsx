@@ -1,13 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink, Truck, AlertCircle } from "lucide-react";
-import { useState, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { Search, Calendar, Bell, Square, AlertCircle, Filter } from "lucide-react";
+import { useState, Fragment, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -41,7 +40,10 @@ export default function PainelGeral() {
   });
 
   // Pegar tipos únicos dos itens
-  const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
+  const uniqueTypes = useMemo(() => 
+    Array.from(new Set(items.map(item => item.type))).sort(), 
+    [items]
+  );
 
   // Função auxiliar para aplicar filtros (exceto status)
   const applyBaseFilters = (item: any) => {
@@ -52,11 +54,9 @@ export default function PainelGeral() {
     const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
     const matchesType = typeFilter === "all" || item.type === typeFilter;
     
-    // Filtro por patrocinador (verifica se o item tem o patrocinador selecionado)
     const matchesSponsor = sponsorFilter === "all" || 
       (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => s.id === sponsorFilter));
     
-    // Filtro por data (várias opções)
     const matchesDate = dateFilter === "all" || (() => {
       if (!item.event?.startDate) return false;
       const eventDate = new Date(item.event.startDate);
@@ -82,269 +82,206 @@ export default function PainelGeral() {
     return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
   };
 
-  // Items para calcular stats (SEM filtro de status - números fixos nos cards)
   const statsItems = items.filter(applyBaseFilters);
 
-  // Função para verificar se o item corresponde ao status selecionado (incluindo status antigos)
   const matchesStatusFilter = (item: any, filter: string) => {
     if (filter === "all") return true;
     
-    // Mapeamento de status antigos para novos
     const statusMap: Record<string, string[]> = {
       'awaiting_approval': ['awaiting_approval', 'awaiting_sponsor_approval'],
       'awaiting_finalization': ['awaiting_finalization', 'sponsor_approved'],
       'awaiting_final_review': ['awaiting_final_review', 'awaiting_creator_review'],
     };
     
-    // Se o filtro tem mapeamento, aceita qualquer um dos status
     if (statusMap[filter]) {
       return statusMap[filter].includes(item.status);
     }
-    
-    // Senão, comparação exata
     return item.status === filter;
   };
 
-  // Items para exibir na tabela (COM filtro de status)
-  const filteredItems = statsItems
-    .filter((item) => matchesStatusFilter(item, statusFilter))
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const filteredItems = statsItems.filter(item => matchesStatusFilter(item, statusFilter));
 
-  // Agrupar itens por evento (usando eventId como chave única)
-  const groupedItems = filteredItems.reduce((acc, item) => {
-    const eventKey = item.eventId || "no-event";
-    const eventName = item.event?.name || "Sem Evento";
-    if (!acc[eventKey]) {
-      acc[eventKey] = {
-        eventId: item.eventId,
-        eventName: eventName,
-        items: []
-      };
-    }
-    acc[eventKey].items.push(item);
-    return acc;
-  }, {} as Record<string, { eventId: string | null, eventName: string, items: any[] }>);
-
-  // Stats baseados APENAS nos filtros dropdown (não muda ao clicar nos cards)
-  const stats = {
+  // Calcular stats
+  const statusCounts = {
     total: statsItems.length,
     requested: statsItems.filter(i => i.status === 'requested').length,
-    awaitingLinking: statsItems.filter(i => i.status === 'awaiting_linking').length,
-    awaitingSubmission: statsItems.filter(i => i.status === 'awaiting_submission').length,
-    awaitingApproval: statsItems.filter(i => i.status === 'awaiting_approval' || i.status === 'awaiting_sponsor_approval').length,
-    awaitingFinalization: statsItems.filter(i => i.status === 'awaiting_finalization' || i.status === 'sponsor_approved').length,
-    awaitingFinalReview: statsItems.filter(i => i.status === 'awaiting_final_review' || i.status === 'awaiting_creator_review').length,
-    readyForProduction: statsItems.filter(i => i.status === 'ready_for_production').length,
-    approved: statsItems.filter(i => i.status === 'approved').length,
-    inProduction: statsItems.filter(i => i.status === 'inProduction').length,
-    produced: statsItems.filter(i => i.status === 'produced').length,
-    delivered: statsItems.filter(i => i.status === 'delivered').length,
+    awaiting_linking: statsItems.filter(i => i.status === 'awaiting_linking').length,
+    awaiting_submission: statsItems.filter(i => i.status === 'awaiting_submission').length,
+    awaiting_approval: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_approval')).length,
+    awaiting_finalization: statsItems.filter(i => matchesStatusFilter(i, 'awaiting_finalization')).length,
+    ready_for_production: statsItems.filter(i => i.status === 'ready_for_production').length,
   };
 
-  const getItemLogs = (itemId: string) => {
-    return auditLogs
-      .filter(log => log.entityId === itemId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  // Agrupar itens por evento
+  const itemsByEvent = useMemo(() => {
+    const grouped: Record<string, any[]> = {};
+    filteredItems.forEach(item => {
+      if (!grouped[item.eventId]) {
+        grouped[item.eventId] = [];
+      }
+      grouped[item.eventId].push(item);
+    });
+    return grouped;
+  }, [filteredItems]);
+
+  const statusConfig: Record<string, any> = {
+    total: { label: 'Total', color: 'bg-slate-900 text-white', textColor: 'text-white' },
+    requested: { label: 'Solicitado', color: 'bg-white text-yellow-600', textColor: 'text-yellow-600' },
+    awaiting_linking: { label: 'Ag. Vinculação', color: 'bg-white text-purple-600', textColor: 'text-purple-600' },
+    awaiting_submission: { label: 'Ag. Envio', color: 'bg-white text-orange-600', textColor: 'text-orange-600' },
+    awaiting_approval: { label: 'Ag. Aprovação', color: 'bg-white text-red-600', textColor: 'text-red-600' },
+    awaiting_finalization: { label: 'Ag. Finalização', color: 'bg-white text-cyan-600', textColor: 'text-cyan-600' },
+    ready_for_production: { label: 'Pronto', color: 'bg-white text-green-600', textColor: 'text-green-600' },
   };
 
-  const formatDateTime = (dateString: string) => {
-    return format(new Date(dateString), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  const getItemStatusBadgeColor = (status: string) => {
+    const statusColorMap: Record<string, {bg: string, border: string, dot: string}> = {
+      'requested': { bg: 'bg-yellow-50', border: 'border-yellow-200', dot: 'bg-yellow-400' },
+      'awaiting_linking': { bg: 'bg-purple-50', border: 'border-purple-200', dot: 'bg-purple-400' },
+      'awaiting_submission': { bg: 'bg-orange-50', border: 'border-orange-200', dot: 'bg-orange-400' },
+      'awaiting_sponsor_approval': { bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-400' },
+      'awaiting_approval': { bg: 'bg-red-50', border: 'border-red-200', dot: 'bg-red-400' },
+      'sponsor_approved': { bg: 'bg-cyan-50', border: 'border-cyan-200', dot: 'bg-cyan-400' },
+      'awaiting_creator_review': { bg: 'bg-cyan-50', border: 'border-cyan-200', dot: 'bg-cyan-400' },
+      'awaiting_finalization': { bg: 'bg-cyan-50', border: 'border-cyan-200', dot: 'bg-cyan-400' },
+      'awaiting_final_review': { bg: 'bg-cyan-50', border: 'border-cyan-200', dot: 'bg-cyan-400' },
+      'ready_for_production': { bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-400' },
+      'approved': { bg: 'bg-green-50', border: 'border-green-300', dot: 'bg-green-500' },
+      'inProduction': { bg: 'bg-blue-50', border: 'border-blue-200', dot: 'bg-blue-400' },
+      'produced': { bg: 'bg-teal-50', border: 'border-teal-200', dot: 'bg-teal-400' },
+      'delivered': { bg: 'bg-emerald-100', border: 'border-emerald-400', dot: 'bg-emerald-600' },
+    };
+    return statusColorMap[status] || { bg: 'bg-gray-50', border: 'border-gray-200', dot: 'bg-gray-400' };
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      'requested': 'Solicitado',
+      'awaiting_linking': 'Ag. Vinculação',
+      'awaiting_submission': 'Ag. Envio',
+      'awaiting_sponsor_approval': 'Ag. Aprovação',
+      'awaiting_approval': 'Ag. Aprovação',
+      'sponsor_approved': 'Ag. Finalização',
+      'awaiting_creator_review': 'Ag. Revisão Final',
+      'awaiting_finalization': 'Ag. Finalização',
+      'awaiting_final_review': 'Ag. Revisão Final',
+      'ready_for_production': 'Pronto p/ Produção',
+      'approved': 'Liberado',
+      'inProduction': 'Em Produção',
+      'produced': 'Produzido',
+      'delivered': 'Entregue',
+    };
+    return labels[status] || status;
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="title-painel-geral">
-          Painel de Status Geral
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Acompanhamento em tempo real de todos os itens em produção
-        </p>
-      </div>
-
-      {/* Dashboard - 12 Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
-          onClick={() => setStatusFilter('all')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Total</CardTitle>
-            <Package2 className="h-3.5 w-3.5 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold" data-testid="stat-total">{stats.total}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'requested' ? 'ring-2 ring-yellow-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'requested' ? 'all' : 'requested')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Solicitado</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-yellow-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-yellow-700 dark:text-yellow-400">{stats.requested}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_linking' ? 'ring-2 ring-orange-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_linking' ? 'all' : 'awaiting_linking')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Vinculação</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-orange-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-orange-700 dark:text-orange-400">{stats.awaitingLinking}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_submission' ? 'ring-2 ring-blue-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_submission' ? 'all' : 'awaiting_submission')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Envio</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-blue-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-blue-700 dark:text-blue-400">{stats.awaitingSubmission}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'ring-2 ring-rose-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'all' : 'awaiting_approval')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Aprovação</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-rose-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-rose-700 dark:text-rose-400">{stats.awaitingApproval}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'ring-2 ring-purple-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'all' : 'awaiting_finalization')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Finalização</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-purple-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-purple-700 dark:text-purple-400">{stats.awaitingFinalization}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'ring-2 ring-violet-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'all' : 'awaiting_final_review')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Aguard. Revisão</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-violet-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-violet-700 dark:text-violet-400">{stats.awaitingFinalReview}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'ready_for_production' ? 'ring-2 ring-cyan-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'ready_for_production' ? 'all' : 'ready_for_production')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Pronto Produção</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-cyan-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-cyan-700 dark:text-cyan-400">{stats.readyForProduction}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'approved' ? 'ring-2 ring-green-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Liberado</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-green-700 dark:text-green-400">{stats.approved}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'inProduction' ? 'ring-2 ring-status-production' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'inProduction' ? 'all' : 'inProduction')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Em Produção</CardTitle>
-            <Package2 className="h-3.5 w-3.5 text-status-production" />
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-status-production">{stats.inProduction}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'produced' ? 'ring-2 ring-fuchsia-500' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'produced' ? 'all' : 'produced')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Produzido</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-fuchsia-500"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-fuchsia-700 dark:text-fuchsia-400">{stats.produced}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer hover-elevate ${statusFilter === 'delivered' ? 'ring-2 ring-emerald-600' : ''}`}
-          onClick={() => setStatusFilter(statusFilter === 'delivered' ? 'all' : 'delivered')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium">Entregue</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-emerald-600"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400">{stats.delivered}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtros */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4">
-            {/* Linha 1: Busca */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por evento, tipo ou ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                data-testid="input-search"
-              />
+    <div className="min-h-screen bg-gradient-to-b from-[#f4f3f0] to-[#faf9f7] flex flex-col">
+      {/* TOPBAR */}
+      <div className="bg-white border-b border-[#e8e5df] sticky top-0 z-40">
+        <div className="px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">GD</span>
             </div>
+            <span className="font-bold text-base">Gestão de Materiais</span>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button className="relative p-2 hover-elevate rounded-lg">
+              <Bell className="h-5 w-5 text-slate-600" />
+              <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+            </button>
             
+            <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-semibold text-sm cursor-pointer hover-elevate">
+              U
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div className="flex-1 px-6 py-6 space-y-6 overflow-auto">
+        {/* STATUS CARDS - 2 linhas de 7 cards */}
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold text-slate-700">Status de Produção</h2>
+          
+          {/* Linha 1: Total + 3 cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Card Total - destaque */}
+            <div className="bg-slate-900 rounded-lg p-4 text-white cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-lg">
+              <div className="text-xs font-medium opacity-80 mb-1">{statusConfig.total.label}</div>
+              <div className="text-3xl font-bold">{statusCounts.total}</div>
+              <div className="text-xs opacity-60 mt-2">Total de itens</div>
+            </div>
+
+            {/* Cards Solicitado, Vinculação, Envio */}
+            {[
+              { key: 'requested', count: statusCounts.requested },
+              { key: 'awaiting_linking', count: statusCounts.awaiting_linking },
+              { key: 'awaiting_submission', count: statusCounts.awaiting_submission },
+            ].map(item => (
+              <div 
+                key={item.key}
+                className="bg-white rounded-lg p-4 border border-[#e8e5df] cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-md"
+              >
+                <div className="text-xs font-medium text-slate-600 mb-1">{statusConfig[item.key as keyof typeof statusConfig].label}</div>
+                <div className={`text-2xl font-bold ${statusConfig[item.key as keyof typeof statusConfig].textColor}`}>
+                  {item.count}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Linha 2: Aprovação, Finalização, Pronto */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {[
+              { key: 'awaiting_approval', count: statusCounts.awaiting_approval },
+              { key: 'awaiting_finalization', count: statusCounts.awaiting_finalization },
+              { key: 'ready_for_production', count: statusCounts.ready_for_production },
+              { key: 'empty', count: 0 }, // espaço vazio
+            ].map(item => (
+              item.key === 'empty' ? (
+                <div key="empty"></div>
+              ) : (
+                <div 
+                  key={item.key}
+                  className="bg-white rounded-lg p-4 border border-[#e8e5df] cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-md"
+                >
+                  <div className="text-xs font-medium text-slate-600 mb-1">{statusConfig[item.key as keyof typeof statusConfig].label}</div>
+                  <div className={`text-2xl font-bold ${statusConfig[item.key as keyof typeof statusConfig].textColor}`}>
+                    {item.count}
+                  </div>
+                </div>
+              )
+            ))}
+          </div>
+        </div>
+
+        {/* FILTERS - 2 linhas */}
+        <Card className="border-[#e8e5df]">
+          <CardContent className="p-4">
+            {/* Linha 1: Search + Filtros Button */}
+            <div className="flex gap-3 mb-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Buscar por evento, tipo ou ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 border-[#e8e5df] bg-white"
+                  data-testid="input-search"
+                />
+              </div>
+              <Button variant="outline" size="sm" className="border-[#e8e5df]">
+                <Filter className="h-4 w-4 mr-2" />
+                Filtros
+              </Button>
+            </div>
+
             {/* Linha 2: Selects */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger data-testid="select-event-filter">
+                <SelectTrigger className="bg-white border-[#e8e5df]" data-testid="select-event-filter">
                   <SelectValue placeholder="Evento" />
                 </SelectTrigger>
                 <SelectContent>
@@ -358,7 +295,7 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger data-testid="select-type-filter">
+                <SelectTrigger className="bg-white border-[#e8e5df]" data-testid="select-type-filter">
                   <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -371,24 +308,22 @@ export default function PainelGeral() {
                 </SelectContent>
               </Select>
 
-              <div className="lg:col-span-2">
-                <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-                  <SelectTrigger data-testid="select-sponsor-filter" className="text-left whitespace-normal leading-tight min-h-9">
-                    <SelectValue placeholder="Patrocinador" className="whitespace-normal break-words" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os patrocinadores</SelectItem>
-                    {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map((sponsor: any) => (
-                      <SelectItem key={sponsor.id} value={sponsor.id}>
-                        {sponsor.name}
-                      </SelectItem>
-                    ))}
+              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+                <SelectTrigger className="bg-white border-[#e8e5df]" data-testid="select-sponsor-filter">
+                  <SelectValue placeholder="Patrocinador" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                  {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map((sponsor: any) => (
+                    <SelectItem key={sponsor.id} value={sponsor.id}>
+                      {sponsor.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              </div>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger data-testid="select-status-filter">
+                <SelectTrigger className="bg-white border-[#e8e5df]" data-testid="select-status-filter">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -408,7 +343,7 @@ export default function PainelGeral() {
               </Select>
 
               <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger data-testid="select-date-filter">
+                <SelectTrigger className="bg-white border-[#e8e5df]" data-testid="select-date-filter">
                   <SelectValue placeholder="Data" />
                 </SelectTrigger>
                 <SelectContent>
@@ -423,147 +358,125 @@ export default function PainelGeral() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Items - Agrupados por Evento */}
-      <div className="space-y-6">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <p className="text-muted-foreground">Nenhum item encontrado</p>
-            </CardContent>
-          </Card>
-        ) : (
-          Object.entries(groupedItems).map(([eventKey, eventData]) => {
-            const groupData = eventData as { eventId: string | null, eventName: string, items: any[] };
-            return (
-              <Card key={eventKey}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    {groupData.eventName}
-                    <Badge variant="secondary" className="ml-2">
-                      {groupData.items.length} {groupData.items.length === 1 ? 'item' : 'itens'}
-                    </Badge>
-                  </CardTitle>
-                  {/* Datas do Evento */}
-                  {groupData.items[0]?.event && (
-                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-2">
-                      {groupData.items[0].event.startDate && (
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>Evento: {format(new Date(groupData.items[0].event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
-                        </div>
-                      )}
-                      {groupData.items[0].event.truckDepartureDate && (
-                        <div className="flex items-center gap-1.5">
-                          <Truck className="h-3.5 w-3.5" />
-                          <span>Saída caminhão: {format(new Date(groupData.items[0].event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
-                        </div>
-                      )}
+        {/* ITEMS GROUPED BY EVENT */}
+        <div className="space-y-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <Card className="border-[#e8e5df]">
+              <CardContent className="text-center py-12">
+                <AlertCircle className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500 font-medium">Nenhum item encontrado</p>
+                <p className="text-slate-400 text-sm mt-1">Tente ajustar os filtros</p>
+              </CardContent>
+            </Card>
+          ) : (
+            Object.entries(itemsByEvent).map(([eventId, eventItems]) => {
+              const event = events.find(e => e.id === eventId);
+              return (
+                <Card key={eventId} className="border-[#e8e5df] overflow-hidden">
+                  {/* EVENT HEADER */}
+                  <div className="bg-white px-6 py-3 border-b border-[#e8e5df] flex items-center gap-3">
+                    <div className="w-5 h-5 bg-slate-900 rounded-sm flex-shrink-0"></div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-sm">{event?.name || 'Sem Evento'}</h3>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {event?.startDate && `${format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}`}
+                        {event?.truckDepartureDate && ` • Saída: ${format(new Date(event.truckDepartureDate), "dd/MM/yyyy HH:mm", { locale: ptBR })}`}
+                      </div>
                     </div>
-                  )}
-                </CardHeader>
-                <CardContent className="p-0">
+                    <Badge variant="secondary" className="ml-auto bg-slate-100">{eventItems.length} itens</Badge>
+                  </div>
+
+                  {/* TABLE */}
                   <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">ID</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Tipo</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Descrição</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Arquivo</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Visual</th>
-                          <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">Qtd</th>
-                          <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">m²</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Status</th>
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b border-[#e8e5df]">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-semibold text-slate-700">ID</th>
+                          <th className="text-left px-4 py-2 font-semibold text-slate-700">Tipo</th>
+                          <th className="text-left px-4 py-2 font-semibold text-slate-700">Descrição</th>
+                          <th className="text-left px-4 py-2 font-semibold text-slate-700">Dimensões</th>
+                          <th className="text-right px-4 py-2 font-semibold text-slate-700">m²</th>
+                          <th className="text-left px-4 py-2 font-semibold text-slate-700">Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {groupData.items.map((item: any, index: number) => (
-                          <Fragment key={item.id}>
-                          <tr
-                            className={`border-b hover-elevate cursor-pointer transition-colors ${
-                              index % 2 === 0 ? 'bg-background' : 'bg-muted/20'
-                            }`}
-                            onClick={() => setSelectedItem(item)}
-                            data-testid={`item-row-${item.id}`}
-                          >
-                            <td className="py-3 px-4">
-                              <span className="font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
-                                {item.displayId}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className="font-semibold text-sm">{item.type}</span>
-                            </td>
-                            <td className="py-3 px-4 max-w-xs">
-                              {item.description ? (
-                                <span className="text-sm text-muted-foreground truncate block">{item.description}</span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs italic">—</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4">
-                              {item.fileWidth && item.fileHeight ? (
-                                <span className="text-sm">{item.fileWidth} × {item.fileHeight}</span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4">
-                              {item.visualWidth && item.visualHeight ? (
-                                <span className="text-sm">{item.visualWidth} × {item.visualHeight}</span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-bold text-sm">{item.quantity} un.</span>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-bold text-primary text-sm">{item.calculatedM2}</span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <StatusBadge status={item.status} />
-                            </td>
-                          </tr>
-                          {item.observations && (
-                            <tr className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-200/30 dark:border-amber-900/30">
-                              <td colSpan={8} className="py-2 px-4">
-                                <div className="flex gap-2 items-start">
-                                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                                  <div className="text-sm text-amber-800 dark:text-amber-200">
-                                    <span className="font-semibold">Observações da Ação:</span> {item.observations}
+                        {eventItems.map((item, idx) => {
+                          const colors = getItemStatusBadgeColor(item.status);
+                          const m2 = item.m2Total ? parseFloat(item.m2Total) : 0;
+                          return (
+                            <Fragment key={item.id}>
+                              <tr 
+                                className="border-b border-[#e8e5df] hover:bg-slate-50 cursor-pointer transition-colors"
+                                onClick={() => setSelectedItem(item)}
+                                data-testid={`row-item-${item.id}`}
+                              >
+                                <td className="px-4 py-3">
+                                  <code className="bg-slate-100 px-2 py-1 rounded text-xs font-mono font-semibold text-slate-700">
+                                    {item.displayId || item.id}
+                                  </code>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge variant="outline" className="border-[#e8e5df]">
+                                    {item.type}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-slate-700">{item.description || item.name}</td>
+                                <td className="px-4 py-3 font-mono text-xs text-slate-500">
+                                  {item.fileWidth && item.fileHeight && (
+                                    <span>Arq: {item.fileWidth}×{item.fileHeight}m</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 font-bold text-right">
+                                  <span className={m2 > 10 ? 'text-red-600' : 'text-slate-700'}>
+                                    {m2.toFixed(2)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${colors.bg} ${colors.border} text-xs font-medium`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`}></span>
+                                    {getStatusLabel(item.status)}
                                   </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                          </Fragment>
-                        ))}
+                                </td>
+                              </tr>
+                              {item.observations && (
+                                <tr className="bg-amber-50/60 border-b border-[#e8e5df]">
+                                  <td colSpan={6} className="px-4 py-3">
+                                    <div className="flex gap-2 items-start">
+                                      <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                      <div className="text-xs text-amber-800">
+                                        <span className="font-semibold">Observações:</span> {item.observations}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
-              </CardContent>
-            </Card>
-          );
-        })
-        )}
+                </Card>
+              );
+            })
+          )}
+        </div>
       </div>
 
-      {/* Modal de Detalhes do Item */}
       <ItemDetailsDialog
         item={selectedItem}
         auditLogs={auditLogs}
         open={!!selectedItem}
-        onOpenChange={(open) => !open && setSelectedItem(null)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedItem(null);
+        }}
       />
     </div>
   );

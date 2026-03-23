@@ -376,18 +376,19 @@ export default function PainelGeral() {
       </div>
 
       {/* Filtros */}
-      <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px', padding: '1.5rem' }}>
-        <h3 className="text-lg font-bold text-[#1c1917] mb-4">Filtros</h3>
-        <div className="flex flex-col gap-4">
+      <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: '10px', padding: '1.5rem' }}>
+        <h3 className="text-lg font-bold text-[#1c1917] mb-6">Filtros</h3>
+        <div className="flex flex-col gap-6">
           {/* Linha 1: Busca */}
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#a8a29e]" />
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Buscar</label>
+            <Search className="absolute left-3 top-12 transform -translate-y-1/2 h-4 w-4 text-[#a8a29e]" />
             <Input
-              placeholder="Buscar por evento, tipo ou ID..."
+              placeholder="Evento, tipo ou ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                backgroundColor: '#fafaf9',
+                backgroundColor: '#ffffff',
                 border: '1px solid #e7e5e4',
                 color: '#1c1917',
                 paddingLeft: '2.5rem',
@@ -398,16 +399,18 @@ export default function PainelGeral() {
           </div>
           
           {/* Linha 2: Selects */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            <Select value={eventFilter} onValueChange={setEventFilter}>
-              <SelectTrigger style={{
-                backgroundColor: '#fafaf9',
-                border: '1px solid #e7e5e4',
-                color: '#1c1917',
-                borderRadius: '10px'
-              }} data-testid="select-event-filter">
-                <SelectValue placeholder="Evento" />
-              </SelectTrigger>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Evento</label>
+              <Select value={eventFilter} onValueChange={setEventFilter}>
+                <SelectTrigger style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e7e5e4',
+                  color: '#1c1917',
+                  borderRadius: '10px'
+                }} data-testid="select-event-filter">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os eventos</SelectItem>
                 {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((event) => (
@@ -417,35 +420,40 @@ export default function PainelGeral() {
                 ))}
               </SelectContent>
             </Select>
+            </div>
 
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger style={{
-                backgroundColor: '#fafaf9',
-                border: '1px solid #e7e5e4',
-                color: '#1c1917',
-                borderRadius: '10px'
-              }} data-testid="select-type-filter">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                {uniqueTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Tipo</label>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e7e5e4',
+                  color: '#1c1917',
+                  borderRadius: '10px'
+                }} data-testid="select-type-filter">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {uniqueTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="lg:col-span-2">
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Patrocinador</label>
               <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
                 <SelectTrigger style={{
-                  backgroundColor: '#fafaf9',
+                  backgroundColor: '#ffffff',
                   border: '1px solid #e7e5e4',
                   color: '#1c1917',
                   borderRadius: '10px'
                 }} data-testid="select-sponsor-filter" className="text-left whitespace-normal leading-tight min-h-9">
-                  <SelectValue placeholder="Patrocinador" className="whitespace-normal break-words" />
+                  <SelectValue placeholder="Selecione..." className="whitespace-normal break-words" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os patrocinadores</SelectItem>
@@ -458,14 +466,17 @@ export default function PainelGeral() {
             </Select>
             </div>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger style={{
-                backgroundColor: '#fafaf9',
-                border: '1px solid #e7e5e4',
-                color: '#1c1917'
-              }} data-testid="select-status-filter">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e7e5e4',
+                  color: '#1c1917',
+                  borderRadius: '10px'
+                }} data-testid="select-status-filter">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="awaiting_approval">Aguardando Aprovação</SelectItem>
@@ -481,14 +492,18 @@ export default function PainelGeral() {
                 <SelectItem value="requested">Solicitado</SelectItem>
               </SelectContent>
             </Select>
+            </div>
 
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger style={{
-                backgroundColor: '#fafaf9',
-                border: '1px solid #e7e5e4',
-                color: '#1c1917'
-              }} data-testid="select-date-filter">
-                <SelectValue placeholder="Data" />
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Data</label>
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e7e5e4',
+                  color: '#1c1917',
+                  borderRadius: '10px'
+                }} data-testid="select-date-filter">
+                  <SelectValue placeholder="Selecione..." />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as datas</SelectItem>
@@ -499,8 +514,9 @@ export default function PainelGeral() {
                 <SelectItem value="next10days">Próximos 10 dias</SelectItem>
                 <SelectItem value="next15days">Próximos 15 dias</SelectItem>
                 <SelectItem value="next30days">Próximos 30 dias</SelectItem>
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
@@ -521,12 +537,12 @@ export default function PainelGeral() {
           Object.entries(groupedItems).map(([eventKey, eventData]) => {
             const groupData = eventData as { eventId: string | null, eventName: string, items: any[] };
             return (
-              <Card key={eventKey}>
-                <CardHeader>
+              <Card key={eventKey} style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
+                <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }}>
                   <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    {groupData.eventName}
-                    <Badge variant="secondary" className="ml-2">
+                    <Calendar className="h-5 w-5" style={{ color: '#1c1917' }} />
+                    <span style={{ color: '#1c1917', fontWeight: '700' }}>{groupData.eventName}</span>
+                    <Badge style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#1c1917', fontSize: '12px' }} className="ml-2">
                       {groupData.items.length} {groupData.items.length === 1 ? 'item' : 'itens'}
                     </Badge>
                   </CardTitle>
@@ -552,15 +568,15 @@ export default function PainelGeral() {
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">ID</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Tipo</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Descrição</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Arquivo</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Visual</th>
-                          <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">Qtd</th>
-                          <th className="text-center py-3 px-4 font-semibold text-sm text-muted-foreground">m²</th>
-                          <th className="text-left py-3 px-4 font-semibold text-sm text-muted-foreground">Status</th>
+                        <tr style={{ backgroundColor: '#1c1917', borderBottom: '2px solid #e7e5e4' }}>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>ID</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Tipo</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Descrição</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Arquivo</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Visual</th>
+                          <th style={{ textAlign: 'center', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Qtd</th>
+                          <th style={{ textAlign: 'center', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>m²</th>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -574,7 +590,7 @@ export default function PainelGeral() {
                             data-testid={`item-row-${item.id}`}
                           >
                             <td className="py-3 px-4">
-                              <span className="font-mono font-bold text-primary text-sm" data-testid={`text-display-id-${item.id}`}>
+                              <span className="font-mono font-bold text-sm" style={{ color: '#f97316' }} data-testid={`text-display-id-${item.id}`}>
                                 {item.displayId}
                               </span>
                             </td>
@@ -606,7 +622,7 @@ export default function PainelGeral() {
                               <span className="font-bold text-sm">{item.quantity} un.</span>
                             </td>
                             <td className="py-3 px-4 text-center">
-                              <span className="font-bold text-primary text-sm">{item.calculatedM2}</span>
+                              <span className="font-bold text-sm" style={{ color: '#f97316' }}>{item.calculatedM2}</span>
                             </td>
                             <td className="py-3 px-4">
                               <StatusBadge status={item.status} />

@@ -605,24 +605,32 @@ export default function EventDetail() {
         </Link>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-testid="title-event-name">
-                {event.name}
-              </h1>
-            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-[#1c1917] mb-1" data-testid="title-event-name">
+              {event.name}
+            </h1>
             <div className="mb-3">
-              <span className="text-xs text-muted-foreground/70">
+              <span className="text-xs" style={{ color: "#a8a29e" }}>
                 Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </span>
             </div>
-            <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-3.5 w-3.5" />
-                <span>Início: {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4" }}>
+                <Calendar className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#f97316" }} />
+                <div>
+                  <div className="text-xs font-medium" style={{ color: "#a8a29e", lineHeight: 1 }}>Início</div>
+                  <div className="text-xs font-semibold" style={{ color: "#1c1917" }}>
+                    {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Truck className="h-3.5 w-3.5" />
-                <span>Saída: {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4" }}>
+                <Truck className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#f97316" }} />
+                <div>
+                  <div className="text-xs font-medium" style={{ color: "#a8a29e", lineHeight: 1 }}>Saída</div>
+                  <div className="text-xs font-semibold" style={{ color: "#1c1917" }}>
+                    {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} · {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -634,6 +642,7 @@ export default function EventDetail() {
                 setOpen(true);
               }}
               data-testid="button-add-item"
+              style={{ backgroundColor: "#1c1917", color: "#ffffff" }}
             >
               <Plus className="h-4 w-4 mr-2" />
               Adicionar Item
@@ -1169,19 +1178,17 @@ export default function EventDetail() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Itens do Evento</CardTitle>
-            {isFetching && !loadingItems && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <span>Atualizando...</span>
-              </div>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
+      <div className="rounded-xl overflow-hidden" style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", boxShadow: "0 1px 4px 0 rgba(0,0,0,0.06)" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid #e7e5e4" }}>
+          <span className="text-base font-bold" style={{ color: "#1c1917" }}>Itens do Evento</span>
+          {isFetching && !loadingItems && (
+            <div className="flex items-center gap-2 text-sm" style={{ color: "#a8a29e" }}>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Atualizando...</span>
+            </div>
+          )}
+        </div>
+        <div className="p-0">
           {items.length === 0 ? (
             <div className="text-center py-12">
               <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -1199,19 +1206,19 @@ export default function EventDetail() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-muted/50 text-xs uppercase tracking-wide">
+                <thead style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium">ID</th>
-                    <th className="text-left py-3 px-4 font-medium">Descrição</th>
-                    <th className="text-left py-3 px-4 font-medium w-20">Qtd</th>
-                    <th className="text-left py-3 px-4 font-medium">Dimensões</th>
-                    <th className="text-left py-3 px-4 font-medium w-16">m²</th>
-                    <th className="text-left py-3 px-4 font-medium">Material</th>
-                    <th className="text-left py-3 px-4 font-medium">Acabamento</th>
-                    <th className="text-left py-3 px-4 font-medium">Patrocinador</th>
-                    <th className="text-left py-3 px-4 font-medium w-24">Status</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: "#a8a29e" }}>ID</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: "#a8a29e" }}>Descrição</th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wide w-20" style={{ color: "#a8a29e" }}>Qtd</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: "#a8a29e" }}>Dimensões</th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold uppercase tracking-wide w-16" style={{ color: "#a8a29e" }}>m²</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: "#a8a29e" }}>Material</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: "#a8a29e" }}>Acabamento</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: "#a8a29e" }}>Patrocinador</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide w-36" style={{ color: "#a8a29e" }}>Status</th>
                     {hasPermission("admin") && (
-                      <th className="text-left py-3 px-4 font-medium w-32">Ações</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide w-24" style={{ color: "#a8a29e" }}>Ações</th>
                     )}
                   </tr>
                 </thead>
@@ -1223,71 +1230,77 @@ export default function EventDetail() {
                     return (
                       <Fragment key={item.id}>
                         {showTypeHeader && (
-                          <tr key={`group-${item.type}`} className="bg-primary/5 border-y-2 border-primary/20">
+                          <tr key={`group-${item.type}`} style={{ backgroundColor: "#f5f5f4", borderTop: "1px solid #e7e5e4", borderBottom: "1px solid #e7e5e4" }}>
                             <td colSpan={hasPermission("admin") ? 10 : 9} className="py-2 px-4">
                               <div className="flex items-center gap-3">
-                                <div className="h-5 w-1 bg-primary rounded-full"></div>
-                                <div className="text-sm font-bold text-foreground">
+                                <div className="h-4 w-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#f97316" }}></div>
+                                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#1c1917" }}>
                                   {item.type}
-                                </div>
+                                </span>
                               </div>
                             </td>
                           </tr>
                         )}
                         <tr
                           key={item.id}
-                          className="border-b border-border hover-elevate cursor-pointer"
+                          className="cursor-pointer transition-colors duration-100"
+                          style={{ borderBottom: "1px solid #f5f5f4" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#fafaf9")}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                           data-testid={`row-item-${item.id}`}
                           onClick={() => setSelectedItemForDetails(item)}
                         >
-                          <td className="py-2 px-3">
-                            <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
+                          <td className="py-2.5 px-3">
+                            <div className="text-xs font-mono font-semibold" style={{ color: "#f97316" }} data-testid={`text-display-id-${item.id}`}>
                               {item.displayId}
                             </div>
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2.5 px-3">
                             {item.description ? (
-                              <div className="text-xs text-foreground truncate max-w-xs">{item.description}</div>
+                              <div className="text-xs font-medium truncate max-w-xs" style={{ color: "#1c1917" }}>{item.description}</div>
                             ) : (
-                              <div className="text-xs text-muted-foreground">—</div>
+                              <div className="text-xs" style={{ color: "#a8a29e" }}>—</div>
                             )}
                             {item.observations && (
-                              <div className="text-xs text-muted-foreground italic truncate max-w-xs">{item.observations}</div>
+                              <div className="text-xs italic truncate max-w-xs" style={{ color: "#a8a29e" }}>{item.observations}</div>
                             )}
                           </td>
-                          <td className="py-2 px-3 text-sm tabular-nums text-center">{item.quantity}</td>
-                          <td className="py-2 px-2 text-xs">
+                          <td className="py-2.5 px-3 text-sm tabular-nums text-center font-medium" style={{ color: "#1c1917" }}>{item.quantity}</td>
+                          <td className="py-2.5 px-2 text-xs">
                             {(item.visualWidth || item.visualHeight) && (
                               <div className="whitespace-nowrap tabular-nums space-y-0.5">
                                 <div>
-                                  <span className="text-muted-foreground font-medium">V:</span> {item.visualWidth || "—"}×{item.visualHeight || "—"}
+                                  <span className="font-medium" style={{ color: "#a8a29e" }}>V:</span>{" "}
+                                  <span style={{ color: "#1c1917" }}>{item.visualWidth || "—"}×{item.visualHeight || "—"}</span>
                                 </div>
                               </div>
                             )}
                             {(item.fileWidth || item.fileHeight) && (
-                              <div className="whitespace-nowrap tabular-nums text-muted-foreground">
+                              <div className="whitespace-nowrap tabular-nums" style={{ color: "#78716c" }}>
                                 <span className="font-medium">A:</span> {item.fileWidth || "—"}×{item.fileHeight || "—"}
                               </div>
                             )}
                             {!item.visualWidth && !item.visualHeight && !item.fileWidth && !item.fileHeight && (
-                              <div className="text-muted-foreground">—</div>
+                              <div style={{ color: "#a8a29e" }}>—</div>
                             )}
                           </td>
-                          <td className="py-2 px-2 text-sm font-medium tabular-nums text-center">{item.calculatedM2}</td>
-                          <td className="py-2 px-3 text-sm">{item.material}</td>
-                          <td className="py-2 px-3 text-sm">{item.finish}</td>
-                          <td className="py-2 px-3 text-sm">
-                            <span className="text-muted-foreground text-xs">—</span>
+                          <td className="py-2.5 px-2 text-sm font-semibold tabular-nums text-center" style={{ color: "#1c1917" }}>{item.calculatedM2}</td>
+                          <td className="py-2.5 px-3 text-xs" style={{ color: "#78716c" }}>{item.material}</td>
+                          <td className="py-2.5 px-3 text-xs" style={{ color: "#78716c" }}>{item.finish}</td>
+                          <td className="py-2.5 px-3 text-xs">
+                            <span style={{ color: "#a8a29e" }}>—</span>
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2.5 px-3">
                             <StatusBadge status={item.status} />
                           </td>
                           {hasPermission("admin") && (
-                            <td className="py-2 px-2">
+                            <td className="py-2.5 px-2">
                               <div className="flex items-center gap-1">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
+                                <button
+                                  className="p-1.5 rounded-md transition-colors duration-100"
+                                  style={{ color: "#a8a29e", backgroundColor: "transparent" }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = "#f97316"; e.currentTarget.style.backgroundColor = "#fff7ed"; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = "#a8a29e"; e.currentTarget.style.backgroundColor = "transparent"; }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleEditItem(item);
@@ -1295,18 +1308,20 @@ export default function EventDetail() {
                                   data-testid={`button-edit-item-${item.id}`}
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
+                                </button>
+                                <button
+                                  className="p-1.5 rounded-md transition-colors duration-100"
+                                  style={{ color: "#a8a29e", backgroundColor: "transparent" }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.backgroundColor = "#fef2f2"; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = "#a8a29e"; e.currentTarget.style.backgroundColor = "transparent"; }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeleteItem(item.id);
                                   }}
                                   data-testid={`button-delete-item-${item.id}`}
                                 >
-                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                </Button>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             </td>
                           )}
@@ -1318,8 +1333,8 @@ export default function EventDetail() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Dialog de Detalhes do Item */}
       <Dialog open={!!selectedItemForDetails} onOpenChange={(open) => !open && setSelectedItemForDetails(null)}>

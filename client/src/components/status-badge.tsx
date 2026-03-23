@@ -10,104 +10,138 @@ const statusConfig = {
   draft: {
     label: "Rascunho",
     shortLabel: "Rascunho",
-    color: "bg-muted/80 text-muted-foreground border-muted-foreground/30",
+    color: "border",
+    bg: "#f5f5f4",
+    text: "#78716c",
+    border: "#e7e5e4",
     icon: Clock,
   },
   created: {
     label: "Criado",
     shortLabel: "Criado",
-    color: "bg-status-pending/20 text-status-pending border-status-pending",
+    bg: "#fef3c7",
+    text: "#d97706",
+    border: "#fde68a",
     icon: Clock,
   },
   completed: {
     label: "Finalizado",
     shortLabel: "Finalizado",
-    color: "bg-status-completed/20 text-status-completed border-status-completed",
+    bg: "#f0fdf4",
+    text: "#16a34a",
+    border: "#bbf7d0",
     icon: CheckCircle,
   },
   requested: {
     label: "Solicitado",
     shortLabel: "Solicitado",
-    color: "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500",
+    bg: "#fef3c7",
+    text: "#d97706",
+    border: "#fde68a",
     icon: Clock,
   },
   awaiting_linking: {
     label: "Aguardando Vinculação",
     shortLabel: "Ag. Vinculação",
-    color: "bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500",
+    bg: "#fff7ed",
+    text: "#ea580c",
+    border: "#fed7aa",
     icon: Clock,
   },
   awaiting_submission: {
     label: "Aguardando Envio",
     shortLabel: "Ag. Envio",
-    color: "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500",
+    bg: "#eff6ff",
+    text: "#2563eb",
+    border: "#bfdbfe",
     icon: Clock,
   },
   awaiting_approval: {
     label: "Aguardando Aprovação",
     shortLabel: "Ag. Aprovação",
-    color: "bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500",
+    bg: "#fef2f2",
+    text: "#dc2626",
+    border: "#fecaca",
     icon: Clock,
   },
   awaiting_finalization: {
     label: "Aguardando Finalização",
     shortLabel: "Ag. Finalização",
-    color: "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500",
+    bg: "#f5f3ff",
+    text: "#7c3aed",
+    border: "#ddd6fe",
     icon: Clock,
   },
   awaiting_final_review: {
     label: "Aguardando Revisão Final",
     shortLabel: "Ag. Revisão",
-    color: "bg-violet-500/20 text-violet-700 dark:text-violet-400 border-violet-500",
+    bg: "#f5f3ff",
+    text: "#6d28d9",
+    border: "#ddd6fe",
     icon: Clock,
   },
   ready_for_production: {
     label: "Pronto p/ Produção",
     shortLabel: "Pronto Prod.",
-    color: "bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 border-cyan-500",
+    bg: "#ecfeff",
+    text: "#0891b2",
+    border: "#a5f3fc",
     icon: CheckCircle,
   },
   approved: {
     label: "Liberado",
     shortLabel: "Liberado",
-    color: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500",
+    bg: "#f0fdf4",
+    text: "#16a34a",
+    border: "#bbf7d0",
     icon: CheckCircle,
   },
   inProduction: {
     label: "Em Produção",
     shortLabel: "Produzindo",
-    color: "bg-status-production/20 text-status-production border-status-production",
+    bg: "#fff7ed",
+    text: "#f97316",
+    border: "#fed7aa",
     icon: Package,
   },
   produced: {
     label: "Produzido",
     shortLabel: "Produzido",
-    color: "bg-fuchsia-500/20 text-fuchsia-700 dark:text-fuchsia-400 border-fuchsia-500",
+    bg: "#f3e8ff",
+    text: "#7e22ce",
+    border: "#e9d5ff",
     icon: CheckCircle,
   },
   delivered: {
     label: "Entregue",
     shortLabel: "Entregue",
-    color: "bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 border-emerald-600",
+    bg: "#f0fdf4",
+    text: "#059669",
+    border: "#a7f3d0",
     icon: Truck,
   },
-  // Mapeamento dos status antigos para compatibilidade
   awaiting_sponsor_approval: {
     label: "Aguardando Aprovação",
     shortLabel: "Ag. Aprovação",
-    color: "bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500",
+    bg: "#fef2f2",
+    text: "#dc2626",
+    border: "#fecaca",
     icon: Clock,
   },
   sponsor_approved: {
     label: "Aguardando Finalização",
     shortLabel: "Ag. Finalização",
-    color: "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500",
+    bg: "#f5f3ff",
+    text: "#7c3aed",
+    border: "#ddd6fe",
     icon: Clock,
   },
   awaiting_creator_review: {
     label: "Aguardando Revisão Final",
     shortLabel: "Ag. Revisão",
-    color: "bg-violet-500/20 text-violet-700 dark:text-violet-400 border-violet-500",
+    bg: "#f5f3ff",
+    text: "#6d28d9",
+    border: "#ddd6fe",
     icon: Clock,
   },
 };
@@ -118,14 +152,23 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
 
   return (
     <div
-      className={cn(
-        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap",
-        config.color,
-        className
-      )}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "5px",
+        padding: "3px 10px",
+        borderRadius: "99px",
+        fontSize: "11px",
+        fontWeight: "600",
+        whiteSpace: "nowrap",
+        backgroundColor: config.bg,
+        color: config.text,
+        border: `1px solid ${config.border}`,
+      }}
+      className={cn(className)}
       data-testid={`badge-${status}`}
     >
-      <Icon className="h-3 w-3" />
+      <Icon style={{ width: "11px", height: "11px", flexShrink: 0 }} />
       <span className="hidden md:inline">{config.label}</span>
       <span className="md:hidden">{config.shortLabel}</span>
     </div>

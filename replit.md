@@ -7,7 +7,18 @@ I prefer concise and clear explanations. I want iterative development with frequ
 ## System Architecture
 
 ### UI/UX Decisions
-The system features a professional light mode theme with a clean white background, subtle borders, and brand gradients. UI prioritizes simplicity, agility, visual control through color-coded statuses, and intelligent notifications. Key visual elements include a client logo, a defined brand color palette (NORTE Blue, Cyan, Magenta, Purple), and status colors (Green, Yellow, Red, Blue, Orange). The dashboard includes real-time statistics, a filterable table, visual graphs, urgent alerts, and expanded statistics. A calendar provides a monthly grid with status-based coloring, and a history section offers a vertical timeline of activities. Navigation uses modern segmented controls with distinct color themes for different workflow stages.
+The system features a professional light mode theme with a clean white background and subtle borders. **Current Design System**: Paleta Minimalista Moderna with Primary #2d2d2d (Charcoal), Secondary #06b6d4 (Cyan), Accent #84cc16 (Verde Limão), Background #f1f5f9, Borders #e5e7eb. 
+
+Design elements:
+- Header with cyan accent dot for visual distinction
+- Frosted glass effects with mesh gradients on login
+- Status cards (2 rows × 7 columns) with hover tinting using diluted status colors
+- Selected states show 2px cyan borders
+- Item details modal with consistent #f1f5f9 headers and #06b6d4 titles
+- Event cards with white background, subtle borders, priority-based left borders
+- Filter badges and controls styled with palette colors
+- Real-time statistics, filterable tables, urgent alerts, and visual graphs
+- Monthly calendar with status-based coloring and a history section with vertical timeline
 
 ### Technical Implementations
 - **Frontend**: React, TypeScript, Tailwind CSS, Shadcn UI.

@@ -87,21 +87,21 @@ export function AppSidebar() {
   });
 
   return (
-    <Sidebar style={{ backgroundColor: '#f1f5f9' }}>
-      <SidebarHeader className="h-16 flex items-center px-4 border-b" style={{ borderColor: '#e5e7eb', backgroundColor: 'white' }}>
+    <Sidebar className="!bg-[#f1f5f9]">
+      <SidebarHeader className="h-16 flex items-center px-4 border-b !bg-white" style={{ borderColor: '#e5e7eb' }}>
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-[#2d2d2d] to-[#06b6d4] flex items-center justify-center text-white font-bold text-lg shrink-0">
             N
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-semibold leading-tight" style={{ color: '#2d2d2d' }}>Sistema de Gestão de Gráfica</h1>
-            <p className="text-xs" style={{ color: '#6b6760' }}>NORTE Marketing Esportivo</p>
+            <h1 className="text-sm font-semibold leading-tight !text-[#2d2d2d]">Sistema de Gestão de Gráfica</h1>
+            <p className="text-xs !text-[#6b6760]">NORTE Marketing Esportivo</p>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent className="bg-inherit">
+      <SidebarContent className="!bg-[#f1f5f9]">
         <SidebarGroup>
-          <SidebarGroupLabel style={{ color: '#2d2d2d' }}>Menu Principal</SidebarGroupLabel>
+          <SidebarGroupLabel className="!text-[#2d2d2d]">Menu Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMenuItems.map((item) => (
@@ -119,7 +119,7 @@ export function AppSidebar() {
         </SidebarGroup>
         {hasPermission("admin") && (
           <SidebarGroup>
-            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupLabel className="!text-[#2d2d2d]">Administração</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>

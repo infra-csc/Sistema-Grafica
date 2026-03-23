@@ -155,10 +155,10 @@ export default function PainelGeral() {
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground" data-testid="title-painel-geral">
+        <h1 className="text-3xl font-bold tracking-tight" style={{ color: '#1c1917' }} data-testid="title-painel-geral">
           Painel de Status Geral
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-sm mt-1" style={{ color: '#78716c' }}>
           Acompanhamento em tempo real de todos os itens em produção
         </p>
       </div>
@@ -179,9 +179,9 @@ export default function PainelGeral() {
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'requested' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'requested' ? '#fff7ed' : '#ffffff',
+            backgroundColor: statusFilter === 'requested' ? '#fff5eb' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'requested' ? 'all' : 'requested')}
         >
@@ -190,22 +190,22 @@ export default function PainelGeral() {
             <div className="h-2.5 w-2.5 rounded-full bg-[#f97316]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#c2410c]">{stats.requested}</div>
+            <div className="text-xl font-bold text-[#f97316]">{stats.requested}</div>
           </CardContent>
         </Card>
 
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'awaiting_linking' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'awaiting_linking' ? '#fafaf9' : '#ffffff',
+            backgroundColor: statusFilter === 'awaiting_linking' ? '#f8f7f6' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_linking' ? 'all' : 'awaiting_linking')}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
             <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Vinculação</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#78716c]"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-[#a8a29e]"></div>
           </CardHeader>
           <CardContent className="p-3 pt-0">
             <div className="text-xl font-bold text-[#78716c]">{stats.awaitingLinking}</div>
@@ -217,7 +217,7 @@ export default function PainelGeral() {
           style={{
             backgroundColor: statusFilter === 'awaiting_submission' ? '#eff6ff' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_submission' ? 'all' : 'awaiting_submission')}
         >
@@ -235,7 +235,7 @@ export default function PainelGeral() {
           style={{
             backgroundColor: statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? '#fef2f2' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'all' : 'awaiting_approval')}
         >
@@ -251,9 +251,9 @@ export default function PainelGeral() {
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? '#f5f3ff' : '#ffffff',
+            backgroundColor: statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? '#f3e8ff' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'all' : 'awaiting_finalization')}
         >
@@ -269,9 +269,9 @@ export default function PainelGeral() {
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? '#f5f3ff' : '#ffffff',
+            backgroundColor: statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? '#f3e8ff' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'all' : 'awaiting_final_review')}
         >
@@ -287,9 +287,9 @@ export default function PainelGeral() {
         <Card 
           className={`cursor-pointer transition-all ${statusFilter === 'ready_for_production' ? 'ring-2 ring-[#f97316]' : ''}`}
           style={{
-            backgroundColor: statusFilter === 'ready_for_production' ? '#ecfeff' : '#ffffff',
+            backgroundColor: statusFilter === 'ready_for_production' ? '#ecfdf5' : '#ffffff',
             border: '1px solid #e7e5e4',
-            borderRadius: '12px'
+            borderRadius: '10px'
           }}
           onClick={() => setStatusFilter(statusFilter === 'ready_for_production' ? 'all' : 'ready_for_production')}
         >
@@ -376,12 +376,12 @@ export default function PainelGeral() {
       </div>
 
       {/* Filtros */}
-      <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '1.5rem' }}>
-        <h3 className="text-lg font-semibold text-[#1c1917] mb-4">Filtros</h3>
+      <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px', padding: '1.5rem' }}>
+        <h3 className="text-lg font-bold text-[#1c1917] mb-4">Filtros</h3>
         <div className="flex flex-col gap-4">
           {/* Linha 1: Busca */}
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#78716c]" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#a8a29e]" />
             <Input
               placeholder="Buscar por evento, tipo ou ID..."
               value={searchTerm}
@@ -390,7 +390,8 @@ export default function PainelGeral() {
                 backgroundColor: '#fafaf9',
                 border: '1px solid #e7e5e4',
                 color: '#1c1917',
-                paddingLeft: '2.5rem'
+                paddingLeft: '2.5rem',
+                borderRadius: '10px'
               }}
               data-testid="input-search"
             />
@@ -402,7 +403,8 @@ export default function PainelGeral() {
               <SelectTrigger style={{
                 backgroundColor: '#fafaf9',
                 border: '1px solid #e7e5e4',
-                color: '#1c1917'
+                color: '#1c1917',
+                borderRadius: '10px'
               }} data-testid="select-event-filter">
                 <SelectValue placeholder="Evento" />
               </SelectTrigger>
@@ -420,7 +422,8 @@ export default function PainelGeral() {
               <SelectTrigger style={{
                 backgroundColor: '#fafaf9',
                 border: '1px solid #e7e5e4',
-                color: '#1c1917'
+                color: '#1c1917',
+                borderRadius: '10px'
               }} data-testid="select-type-filter">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
@@ -439,7 +442,8 @@ export default function PainelGeral() {
                 <SelectTrigger style={{
                   backgroundColor: '#fafaf9',
                   border: '1px solid #e7e5e4',
-                  color: '#1c1917'
+                  color: '#1c1917',
+                  borderRadius: '10px'
                 }} data-testid="select-sponsor-filter" className="text-left whitespace-normal leading-tight min-h-9">
                   <SelectValue placeholder="Patrocinador" className="whitespace-normal break-words" />
                 </SelectTrigger>

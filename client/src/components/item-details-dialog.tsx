@@ -120,35 +120,40 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4' }}>
-        <DialogHeader style={{ borderBottom: '1px solid #e7e5e4', paddingBottom: '16px' }}>
-          <div className="flex items-center gap-3 flex-wrap">
-            <DialogTitle style={{ color: '#1c1917' }}>Detalhes do Item</DialogTitle>
-            <span className="text-sm font-mono font-medium" style={{ color: '#f97316' }}>
-              {item.displayId}
-            </span>
-            <StatusBadge status={item.status} />
-            {item.rejectedBySponsor && (
-              <Badge 
-                variant="outline" 
-                className="text-xs border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
-                data-testid="badge-rejected-sponsor"
-              >
-                Reprovado Patrocinador
-              </Badge>
-            )}
-            {item.rejectedByCreator && (
-              <Badge 
-                variant="outline" 
-                className="text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-400"
-                data-testid="badge-rejected-creator"
-              >
-                Reprovado Criador
-              </Badge>
-            )}
+        <DialogHeader style={{ borderBottom: '1px solid #e7e5e4', paddingBottom: '24px', paddingTop: '24px' }}>
+          <div className="space-y-4">
+            {/* ID Grande */}
+            <div>
+              <span style={{ fontSize: '28px', fontWeight: '700', color: '#f97316', fontFamily: 'monospace', letterSpacing: '2px' }}>
+                {item.displayId}
+              </span>
+              <p style={{ fontSize: '12px', color: '#a8a29e', marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Detalhes do Item
+              </p>
+            </div>
+            {/* Status e Badges */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <StatusBadge status={item.status} />
+              {item.rejectedBySponsor && (
+                <Badge 
+                  variant="outline" 
+                  className="text-xs border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
+                  data-testid="badge-rejected-sponsor"
+                >
+                  Reprovado Patrocinador
+                </Badge>
+              )}
+              {item.rejectedByCreator && (
+                <Badge 
+                  variant="outline" 
+                  className="text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-400"
+                  data-testid="badge-rejected-creator"
+                >
+                  Reprovado Criador
+                </Badge>
+              )}
+            </div>
           </div>
-          <DialogDescription>
-            Informações completas do item
-          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">

@@ -82,14 +82,21 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
         }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0' }}>
             {[
-              { label: 'Vinculação', color: '#f97316', icon: Link2 },
-              { label: 'Arte', color: '#a855f7', icon: Palette },
-              { label: 'Aprovação', color: '#f97316', icon: CheckCircle },
-              { label: 'Finalização', color: '#10b981', icon: Zap },
-              { label: 'Revisão', color: '#3b82f6', icon: Eye },
-              { label: 'Produção', color: '#a8a29e', icon: Cog }
+              { label: 'Vinculação', color: '#f97316', icon: Link2, status: 'aguardando_vinculacao' },
+              { label: 'Arte', color: '#a855f7', icon: Palette, status: 'aguardando_envio' },
+              { label: 'Aprovação', color: '#f97316', icon: CheckCircle, status: 'aguardando_aprovacao' },
+              { label: 'Finalização', color: '#10b981', icon: Zap, status: 'aguardando_finalizacao' },
+              { label: 'Revisão', color: '#3b82f6', icon: Eye, status: 'aguardando_revisao_final' },
+              { label: 'Produção', color: '#a8a29e', icon: Cog, status: 'pronto_para_producao' }
             ].map((step, idx) => {
               const Icon = step.icon;
+              const statusOrder = ['aguardando_vinculacao', 'aguardando_envio', 'aguardando_aprovacao', 'aguardando_finalizacao', 'aguardando_revisao_final', 'pronto_para_producao'];
+              const currentStatusIdx = statusOrder.indexOf(item.status);
+              const isCompleted = idx < currentStatusIdx;
+              const isActive = item.status === step.status;
+              const isGrayed = !isCompleted && !isActive;
+              const iconColor = isGrayed ? '#a8a29e' : step.color;
+              
               return (
                 <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
                   {/* Linha conectora */}
@@ -100,8 +107,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                       left: 'calc(50% + 12px)',
                       right: '-50%',
                       height: '2px',
-                      backgroundColor: step.color,
-                      zIndex: 1
+                      backgroundColor: isCompleted ? step.color : '#a8a29e',
+                      zIndex: 1,
+                      opacity: isCompleted ? 1 : 0.4
                     }} />
                   )}
                   
@@ -110,14 +118,15 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     width: '28px',
                     height: '28px',
                     borderRadius: '50%',
-                    backgroundColor: step.color,
+                    backgroundColor: iconColor,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#ffffff',
                     marginBottom: '6px',
                     zIndex: 2,
-                    position: 'relative'
+                    position: 'relative',
+                    opacity: isGrayed ? 0.5 : 1
                   }}>
                     <Icon size={14} strokeWidth={2} />
                   </div>
@@ -125,7 +134,8 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   {/* Rótulo */}
                   <span style={{
                     fontSize: '11px',
-                    color: '#a8a29e',
+                    color: isGrayed ? '#a8a29e' : (isActive ? step.color : '#a8a29e'),
+                    fontWeight: isActive ? '700' : '500',
                     textAlign: 'center',
                     whiteSpace: 'nowrap'
                   }}>

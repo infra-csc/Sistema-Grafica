@@ -657,21 +657,28 @@ export default function EventDetail() {
               }
             }}>
               <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh]" : "sm:max-w-lg max-h-[90vh] overflow-y-auto"}>
-                <DialogHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <DialogTitle>
-                        {editingItem 
-                          ? "Editar Item" 
-                          : (bulkMode ? "Entrada Rápida - Múltiplos Itens" : "Adicionar Item ao Evento")
-                        }
-                      </DialogTitle>
-                      <DialogDescription>
-                        {editingItem
-                          ? "Atualize as informações do item"
-                          : (bulkMode ? "Adicione vários itens de uma vez usando a tabela" : "Preencha as informações do item gráfico")
-                        }
-                      </DialogDescription>
+                <DialogHeader style={{ borderBottom: "1px solid #e7e5e4", paddingBottom: "16px", marginBottom: "4px" }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      {editingItem && (
+                        <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ backgroundColor: "#fff7ed" }}>
+                          <Pencil className="h-4 w-4" style={{ color: "#f97316" }} />
+                        </div>
+                      )}
+                      <div>
+                        <DialogTitle className="text-base font-bold" style={{ color: "#1c1917" }}>
+                          {editingItem 
+                            ? "Editar Item" 
+                            : (bulkMode ? "Entrada Rápida - Múltiplos Itens" : "Adicionar Item ao Evento")
+                          }
+                        </DialogTitle>
+                        <DialogDescription className="text-xs mt-0.5" style={{ color: "#a8a29e" }}>
+                          {editingItem
+                            ? "Atualize as informações do item"
+                            : (bulkMode ? "Adicione vários itens de uma vez usando a tabela" : "Preencha as informações do item gráfico")
+                          }
+                        </DialogDescription>
+                      </div>
                     </div>
                     {!editingItem && (
                       <Button
@@ -712,369 +719,413 @@ export default function EventDetail() {
                   />
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="type">Tipo de Item</Label>
-                    <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={typePopoverOpen}
-                          className="w-full justify-between font-normal"
-                          data-testid="select-item-type"
-                        >
-                          <span className="truncate">
-                            {formData.type || "Selecione o tipo"}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0" align="start">
-                        <Command>
-                          <CommandInput 
-                            placeholder="Buscar ou adicionar tipo..." 
-                            value={customTypeInput}
-                            onValueChange={setCustomTypeInput}
-                          />
-                          <CommandList>
-                            <CommandEmpty>
-                              <div className="p-2 space-y-2">
-                                <p className="text-sm text-muted-foreground">Nenhum tipo encontrado.</p>
-                                {customTypeInput && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => {
-                                      setFormData({ ...formData, type: customTypeInput });
-                                      setCustomTypeInput("");
-                                      setTypePopoverOpen(false);
-                                    }}
-                                  >
-                                    <Plus className="h-3 w-3 mr-1" />
-                                    Adicionar "{customTypeInput}"
-                                  </Button>
+                  <form onSubmit={handleSubmit} className="flex flex-col gap-0">
+                    {/* Corpo com scroll */}
+                    <div className="flex flex-col gap-4 py-4">
+
+                      {/* Tipo de Item — largura total */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="type" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Tipo de Item</Label>
+                        <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={typePopoverOpen}
+                              className="w-full justify-between font-normal text-sm"
+                              style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                              data-testid="select-item-type"
+                            >
+                              <span className="truncate">
+                                {formData.type || "Selecione o tipo"}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" style={{ color: "#a8a29e" }} />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0" align="start">
+                            <Command>
+                              <CommandInput 
+                                placeholder="Buscar ou adicionar tipo..." 
+                                value={customTypeInput}
+                                onValueChange={setCustomTypeInput}
+                              />
+                              <CommandList>
+                                <CommandEmpty>
+                                  <div className="p-2 space-y-2">
+                                    <p className="text-sm text-muted-foreground">Nenhum tipo encontrado.</p>
+                                    {customTypeInput && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        className="w-full"
+                                        onClick={() => {
+                                          setFormData({ ...formData, type: customTypeInput });
+                                          setCustomTypeInput("");
+                                          setTypePopoverOpen(false);
+                                        }}
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Adicionar "{customTypeInput}"
+                                      </Button>
+                                    )}
+                                  </div>
+                                </CommandEmpty>
+                                {standardItems.length > 0 && (
+                                  <CommandGroup heading="Modelos">
+                                    {standardItems.map((item: any) => (
+                                      <CommandItem
+                                        key={item.id}
+                                        value={item.name}
+                                        onSelect={() => {
+                                          setFormData({
+                                            ...formData,
+                                            type: item.name,
+                                            visualWidth: item.visualWidth ? String(item.visualWidth) : (item.area ? String(item.area) : ""),
+                                            visualHeight: item.visualHeight ? String(item.visualHeight) : (item.visual ? String(item.visual) : ""),
+                                            fileWidth: item.fileWidth ? String(item.fileWidth) : "",
+                                            fileHeight: item.fileHeight ? String(item.fileHeight) : "",
+                                            material: item.material || "",
+                                            finish: item.finish || "",
+                                            measurement: (item.visualWidth && item.visualHeight) ? `${item.visualWidth} × ${item.visualHeight}` : (item.area && item.visual ? `${item.area} × ${item.visual}` : ""),
+                                          });
+                                          setCustomTypeInput("");
+                                          setTypePopoverOpen(false);
+                                        }}
+                                      >
+                                        <Check className={cn("mr-2 h-4 w-4", formData.type === item.name ? "opacity-100" : "opacity-0")} />
+                                        {item.name}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
                                 )}
-                              </div>
-                            </CommandEmpty>
-                            {standardItems.length > 0 && (
-                              <CommandGroup heading="Modelos">
-                                {standardItems.map((item: any) => (
-                                  <CommandItem
-                                    key={item.id}
-                                    value={item.name}
-                                    onSelect={() => {
-                                      setFormData({
-                                        ...formData,
-                                        type: item.name,
-                                        visualWidth: item.visualWidth ? String(item.visualWidth) : (item.area ? String(item.area) : ""),
-                                        visualHeight: item.visualHeight ? String(item.visualHeight) : (item.visual ? String(item.visual) : ""),
-                                        fileWidth: item.fileWidth ? String(item.fileWidth) : "",
-                                        fileHeight: item.fileHeight ? String(item.fileHeight) : "",
-                                        material: item.material || "",
-                                        finish: item.finish || "",
-                                        measurement: (item.visualWidth && item.visualHeight) ? `${item.visualWidth} × ${item.visualHeight}` : (item.area && item.visual ? `${item.area} × ${item.visual}` : ""),
-                                      });
-                                      setCustomTypeInput("");
-                                      setTypePopoverOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        formData.type === item.name ? "opacity-100" : "opacity-0"
+                                <CommandGroup heading="Outros Tipos">
+                                  {itemTypes.map((type) => (
+                                    <CommandItem
+                                      key={type}
+                                      value={type}
+                                      onSelect={() => {
+                                        setFormData({ ...formData, type });
+                                        setCustomTypeInput("");
+                                        setTypePopoverOpen(false);
+                                      }}
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", formData.type === type ? "opacity-100" : "opacity-0")} />
+                                      {type}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      {/* Descrição — largura total */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="description" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Descrição <span style={{ color: "#a8a29e", fontWeight: 400 }}>(opcional)</span></Label>
+                        <Input
+                          id="description"
+                          value={formData.description}
+                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                          placeholder="Descrição personalizada do item"
+                          className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                          style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                          data-testid="input-description"
+                        />
+                      </div>
+
+                      {/* Quantidade | m² Preview — 2 colunas */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="quantity" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Quantidade</Label>
+                          <Input
+                            id="quantity"
+                            type="number"
+                            min="1"
+                            value={formData.quantity}
+                            onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                            required
+                            className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                            style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                            data-testid="input-quantity"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>m² Total</Label>
+                          <div className="flex items-center h-9 px-3 rounded-md text-sm font-semibold tabular-nums" style={{ backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#a8a29e" }}>
+                            {formData.fileWidth && formData.fileHeight && formData.quantity
+                              ? (formData.quantity * parseFloat(formData.fileWidth || "0") * parseFloat(formData.fileHeight || "0")).toFixed(2) + " m²"
+                              : "—"
+                            }
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Seção Dimensões Visuais */}
+                      <div className="rounded-lg p-3 space-y-3" style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4" }}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2.5 w-0.5 rounded-full" style={{ backgroundColor: "#f97316" }}></div>
+                          <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#78716c" }}>Dimensões Visuais (m)</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="visualWidth" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Largura *</Label>
+                            <Input
+                              id="visualWidth"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.visualWidth}
+                              onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
+                              placeholder="Ex: 2.00"
+                              required
+                              className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                              style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                              data-testid="input-visual-width"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="visualHeight" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Altura *</Label>
+                            <Input
+                              id="visualHeight"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.visualHeight}
+                              onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
+                              placeholder="Ex: 1.00"
+                              required
+                              className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                              style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                              data-testid="input-visual-height"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Seção Dimensões Arquivo */}
+                      <div className="rounded-lg p-3 space-y-3" style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4" }}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2.5 w-0.5 rounded-full" style={{ backgroundColor: "#78716c" }}></div>
+                          <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#78716c" }}>Dimensões Arquivo (m)</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="fileWidth" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Largura *</Label>
+                            <Input
+                              id="fileWidth"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.fileWidth}
+                              onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
+                              placeholder="Ex: 1.90"
+                              required
+                              className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                              style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                              data-testid="input-file-width"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="fileHeight" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Altura *</Label>
+                            <Input
+                              id="fileHeight"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={formData.fileHeight}
+                              onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
+                              placeholder="Ex: 0.90"
+                              required
+                              className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                              style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
+                              data-testid="input-file-height"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Material | Acabamento — 2 colunas */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="material" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Material</Label>
+                          <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={materialPopoverOpen}
+                                className="w-full justify-between font-normal text-sm"
+                                style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                                data-testid="select-material"
+                              >
+                                <span className="truncate">
+                                  {formData.material || "Material"}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" style={{ color: "#a8a29e" }} />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-full p-0" align="start">
+                              <Command>
+                                <CommandInput 
+                                  placeholder="Buscar ou adicionar..." 
+                                  value={customMaterialInput}
+                                  onValueChange={setCustomMaterialInput}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>
+                                    <div className="p-2 space-y-2">
+                                      <p className="text-sm text-muted-foreground">Nenhum material encontrado.</p>
+                                      {customMaterialInput && (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          className="w-full"
+                                          onClick={() => {
+                                            setFormData({ ...formData, material: customMaterialInput });
+                                            setCustomMaterialInput("");
+                                            setMaterialPopoverOpen(false);
+                                          }}
+                                        >
+                                          <Plus className="h-3 w-3 mr-1" />
+                                          Adicionar "{customMaterialInput}"
+                                        </Button>
                                       )}
-                                    />
-                                    {item.name}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            )}
-                            <CommandGroup heading="Outros Tipos">
-                              {itemTypes.map((type) => (
-                                <CommandItem
-                                  key={type}
-                                  value={type}
-                                  onSelect={() => {
-                                    setFormData({ ...formData, type });
-                                    setCustomTypeInput("");
-                                    setTypePopoverOpen(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      formData.type === type ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {type}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="description">Descrição (opcional)</Label>
-                    <Input
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Descrição personalizada do item"
-                      data-testid="input-description"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantidade</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min="1"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
-                      required
-                      data-testid="input-quantity"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="visualWidth">Largura Visual (m)*</Label>
-                    <Input
-                      id="visualWidth"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.visualWidth}
-                      onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
-                      placeholder="Ex: 2.00"
-                      required
-                      data-testid="input-visual-width"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="visualHeight">Altura Visual (m)*</Label>
-                    <Input
-                      id="visualHeight"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.visualHeight}
-                      onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
-                      placeholder="Ex: 1.00"
-                      required
-                      data-testid="input-visual-height"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fileWidth">Largura Arquivo (m)*</Label>
-                    <Input
-                      id="fileWidth"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.fileWidth}
-                      onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
-                      placeholder="Ex: 1.90"
-                      required
-                      data-testid="input-file-width"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fileHeight">Altura Arquivo (m)*</Label>
-                    <Input
-                      id="fileHeight"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.fileHeight}
-                      onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
-                      placeholder="Ex: 0.90"
-                      required
-                      data-testid="input-file-height"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="material">Material</Label>
-                    <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={materialPopoverOpen}
-                          className="w-full justify-between font-normal"
-                          data-testid="select-material"
-                        >
-                          <span className="truncate">
-                            {formData.material || "Selecione ou digite um material"}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0" align="start">
-                        <Command>
-                          <CommandInput 
-                            placeholder="Buscar ou adicionar material..." 
-                            value={customMaterialInput}
-                            onValueChange={setCustomMaterialInput}
-                          />
-                          <CommandList>
-                            <CommandEmpty>
-                              <div className="p-2 space-y-2">
-                                <p className="text-sm text-muted-foreground">Nenhum material encontrado.</p>
-                                {customMaterialInput && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => {
-                                      setFormData({ ...formData, material: customMaterialInput });
-                                      setCustomMaterialInput("");
-                                      setMaterialPopoverOpen(false);
-                                    }}
-                                  >
-                                    <Plus className="h-3 w-3 mr-1" />
-                                    Adicionar "{customMaterialInput}"
-                                  </Button>
-                                )}
-                              </div>
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {materials.map((material) => (
-                                <CommandItem
-                                  key={material}
-                                  value={material}
-                                  onSelect={() => {
-                                    setFormData({ ...formData, material });
-                                    setCustomMaterialInput("");
-                                    setMaterialPopoverOpen(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      formData.material === material ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {material}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="finish">Acabamento</Label>
-                    <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={finishPopoverOpen}
-                          className="w-full justify-between font-normal"
-                          data-testid="select-finish"
-                        >
-                          <span className="truncate">
-                            {formData.finish || "Selecione ou digite um acabamento"}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0" align="start">
-                        <Command>
-                          <CommandInput 
-                            placeholder="Buscar ou adicionar acabamento..." 
-                            value={customFinishInput}
-                            onValueChange={setCustomFinishInput}
-                          />
-                          <CommandList>
-                            <CommandEmpty>
-                              <div className="p-2 space-y-2">
-                                <p className="text-sm text-muted-foreground">Nenhum acabamento encontrado.</p>
-                                {customFinishInput && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => {
-                                      setFormData({ ...formData, finish: customFinishInput });
-                                      setCustomFinishInput("");
-                                      setFinishPopoverOpen(false);
-                                    }}
-                                  >
-                                    <Plus className="h-3 w-3 mr-1" />
-                                    Adicionar "{customFinishInput}"
-                                  </Button>
-                                )}
-                              </div>
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {finishes.map((finish) => (
-                                <CommandItem
-                                  key={finish}
-                                  value={finish}
-                                  onSelect={() => {
-                                    setFormData({ ...formData, finish });
-                                    setCustomFinishInput("");
-                                    setFinishPopoverOpen(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      formData.finish === finish ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {finish}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="observations">Observações</Label>
-                    <Textarea
-                      id="observations"
-                      value={formData.observations}
-                      onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                      placeholder="Observações adicionais (opcional)"
-                      rows={3}
-                      data-testid="textarea-observations"
-                    />
-                  </div>
-                </div>
-                {formData.fileWidth && formData.fileHeight && formData.quantity && (
-                  <div className="p-4 bg-muted/50 rounded-md">
-                    <p className="text-sm font-medium">
-                      m² Total: {(formData.quantity * parseFloat(formData.fileWidth || "0") * parseFloat(formData.fileHeight || "0")).toFixed(2)}
-                    </p>
-                  </div>
-                )}
-                <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                    Cancelar
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={createItemMutation.isPending || updateItemMutation.isPending} 
-                    data-testid="button-submit-item"
-                  >
-                    {editingItem
-                      ? (updateItemMutation.isPending ? "Salvando..." : "Salvar Alterações")
-                      : (createItemMutation.isPending ? "Adicionando..." : "Adicionar Item")
-                    }
-                  </Button>
-                </div>
-              </form>
+                                    </div>
+                                  </CommandEmpty>
+                                  <CommandGroup>
+                                    {materials.map((material) => (
+                                      <CommandItem
+                                        key={material}
+                                        value={material}
+                                        onSelect={() => {
+                                          setFormData({ ...formData, material });
+                                          setCustomMaterialInput("");
+                                          setMaterialPopoverOpen(false);
+                                        }}
+                                      >
+                                        <Check className={cn("mr-2 h-4 w-4", formData.material === material ? "opacity-100" : "opacity-0")} />
+                                        {material}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="finish" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Acabamento</Label>
+                          <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={finishPopoverOpen}
+                                className="w-full justify-between font-normal text-sm"
+                                style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                                data-testid="select-finish"
+                              >
+                                <span className="truncate">
+                                  {formData.finish || "Acabamento"}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" style={{ color: "#a8a29e" }} />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-full p-0" align="start">
+                              <Command>
+                                <CommandInput 
+                                  placeholder="Buscar ou adicionar..." 
+                                  value={customFinishInput}
+                                  onValueChange={setCustomFinishInput}
+                                />
+                                <CommandList>
+                                  <CommandEmpty>
+                                    <div className="p-2 space-y-2">
+                                      <p className="text-sm text-muted-foreground">Nenhum acabamento encontrado.</p>
+                                      {customFinishInput && (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          className="w-full"
+                                          onClick={() => {
+                                            setFormData({ ...formData, finish: customFinishInput });
+                                            setCustomFinishInput("");
+                                            setFinishPopoverOpen(false);
+                                          }}
+                                        >
+                                          <Plus className="h-3 w-3 mr-1" />
+                                          Adicionar "{customFinishInput}"
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </CommandEmpty>
+                                  <CommandGroup>
+                                    {finishes.map((finish) => (
+                                      <CommandItem
+                                        key={finish}
+                                        value={finish}
+                                        onSelect={() => {
+                                          setFormData({ ...formData, finish });
+                                          setCustomFinishInput("");
+                                          setFinishPopoverOpen(false);
+                                        }}
+                                      >
+                                        <Check className={cn("mr-2 h-4 w-4", formData.finish === finish ? "opacity-100" : "opacity-0")} />
+                                        {finish}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+
+                      {/* Observações — largura total */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="observations" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Observações <span style={{ color: "#a8a29e", fontWeight: 400 }}>(opcional)</span></Label>
+                        <Textarea
+                          id="observations"
+                          value={formData.observations}
+                          onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+                          placeholder="Observações adicionais sobre este item..."
+                          rows={3}
+                          className="text-sm resize-y focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                          style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                          data-testid="textarea-observations"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Rodapé fixo com border-t */}
+                    <div className="flex gap-2 justify-end pt-4" style={{ borderTop: "1px solid #e7e5e4" }}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleCloseDialog}
+                        style={{ borderColor: "#e7e5e4", color: "#1c1917", backgroundColor: "#ffffff" }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        disabled={createItemMutation.isPending || updateItemMutation.isPending} 
+                        style={{ backgroundColor: "#1c1917", color: "#ffffff" }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#000000")}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#1c1917")}
+                        data-testid="button-submit-item"
+                      >
+                        {editingItem
+                          ? (updateItemMutation.isPending ? "Salvando..." : "Salvar Alterações")
+                          : (createItemMutation.isPending ? "Adicionando..." : "Adicionar Item")
+                        }
+                      </Button>
+                    </div>
+                  </form>
                 )}
               </DialogContent>
             </Dialog>

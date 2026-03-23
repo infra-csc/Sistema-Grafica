@@ -82,34 +82,28 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
         }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0' }}>
             {[
-              { label: 'Vinculação', color: '#f97316', icon: Link2, status: 'aguardando_vinculacao' },
-              { label: 'Arte', color: '#a855f7', icon: Palette, status: 'aguardando_envio' },
-              { label: 'Aprovação', color: '#f97316', icon: CheckCircle, status: 'aguardando_aprovacao' },
-              { label: 'Finalização', color: '#10b981', icon: Zap, status: 'aguardando_finalizacao' },
-              { label: 'Revisão', color: '#3b82f6', icon: Eye, status: 'aguardando_revisao_final' },
-              { label: 'Produção', color: '#a8a29e', icon: Cog, status: 'pronto_para_producao' }
-            ].map((step, idx) => {
+              { label: 'Vinculação', color: '#f97316', icon: Link2, idx: 0 },
+              { label: 'Arte', color: '#a855f7', icon: Palette, idx: 1 },
+              { label: 'Aprovação', color: '#f97316', icon: CheckCircle, idx: 2 },
+              { label: 'Finalização', color: '#10b981', icon: Zap, idx: 3 },
+              { label: 'Revisão', color: '#3b82f6', icon: Eye, idx: 4 },
+              { label: 'Produção', color: '#a8a29e', icon: Cog, idx: 5 }
+            ].map((step) => {
               const Icon = step.icon;
-              const statusOrder = ['aguardando_vinculacao', 'aguardando_envio', 'aguardando_aprovacao', 'aguardando_finalizacao', 'aguardando_revisao_final', 'pronto_para_producao'];
-              const currentStatusIdx = statusOrder.indexOf(item.status);
-              const isCompleted = idx < currentStatusIdx;
-              const isActive = item.status === step.status;
-              const isGrayed = !isCompleted && !isActive;
-              const iconColor = isGrayed ? '#a8a29e' : step.color;
+              const iconColor = step.color;
               
               return (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
+                <div key={step.idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
                   {/* Linha conectora */}
-                  {idx < 5 && (
+                  {step.idx < 5 && (
                     <div style={{
                       position: 'absolute',
                       top: '12px',
                       left: 'calc(50% + 12px)',
                       right: '-50%',
                       height: '2px',
-                      backgroundColor: isCompleted ? step.color : '#a8a29e',
-                      zIndex: 1,
-                      opacity: isCompleted ? 1 : 0.4
+                      backgroundColor: step.color,
+                      zIndex: 1
                     }} />
                   )}
                   
@@ -125,8 +119,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     color: '#ffffff',
                     marginBottom: '6px',
                     zIndex: 2,
-                    position: 'relative',
-                    opacity: isGrayed ? 0.5 : 1
+                    position: 'relative'
                   }}>
                     <Icon size={14} strokeWidth={2} />
                   </div>
@@ -134,8 +127,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   {/* Rótulo */}
                   <span style={{
                     fontSize: '11px',
-                    color: isGrayed ? '#a8a29e' : (isActive ? step.color : '#a8a29e'),
-                    fontWeight: isActive ? '700' : '500',
+                    color: '#a8a29e',
                     textAlign: 'center',
                     whiteSpace: 'nowrap'
                   }}>

@@ -77,27 +77,27 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
         {/* Timeline Horizontal - Progress Bar */}
         <div style={{ 
-          padding: '24px',
+          padding: '16px 24px',
           borderBottom: '1px solid #e7e5e4'
         }}>
           {/* Ícones e Linha */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0', position: 'relative', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0', position: 'relative', marginBottom: '12px' }}>
             {/* Linha de progresso azul */}
             <div style={{
               position: 'absolute',
-              top: '20px',
+              top: '14px',
               left: '0',
               width: '100%',
-              height: '3px',
+              height: '2px',
               backgroundColor: '#e7e5e4',
               zIndex: 0
             }} />
             <div style={{
               position: 'absolute',
-              top: '20px',
+              top: '14px',
               left: '0',
               width: item.status === 'aguardando_revisao_final' ? '83.33%' : '66.66%',
-              height: '3px',
+              height: '2px',
               backgroundColor: '#3b82f6',
               zIndex: 1,
               transition: 'width 0.3s ease'
@@ -120,11 +120,11 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                 const color = isCompleted || isActive ? step.color : '#a8a29e';
                 
                 return (
-                  <div key={step.idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div key={step.idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                     {/* Ícone */}
                     <div style={{
-                      width: '40px',
-                      height: '40px',
+                      width: '28px',
+                      height: '28px',
                       borderRadius: '50%',
                       backgroundColor: color,
                       display: 'flex',
@@ -133,16 +133,17 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                       color: '#ffffff',
                       flexShrink: 0
                     }}>
-                      <Icon size={20} strokeWidth={2} />
+                      <Icon size={14} strokeWidth={2.5} />
                     </div>
                     
                     {/* Rótulo */}
                     <span style={{
-                      fontSize: '12px',
+                      fontSize: '10px',
                       fontWeight: isActive ? '700' : '500',
                       color: isActive ? step.color : '#a8a29e',
                       textAlign: 'center',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      lineHeight: '1.2'
                     }}>
                       {step.label}
                     </span>
@@ -155,7 +156,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           {/* Barra de progresso cinza */}
           <div style={{
             width: '100%',
-            height: '4px',
+            height: '3px',
             backgroundColor: '#d1d5db',
             borderRadius: '2px',
             overflow: 'hidden'

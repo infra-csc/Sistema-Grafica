@@ -171,18 +171,18 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   Evento
                 </h3>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
                   <span style={{ color: '#a8a29e', fontSize: '12px' }}>Nome</span>
                   <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px', textAlign: 'right' }}>{item.event?.name}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
                   <span style={{ color: '#a8a29e', fontSize: '12px' }}>Data</span>
                   <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
                     {item.event?.startDate ? format(new Date(item.event.startDate), "dd/MM/yyyy", { locale: ptBR }) : "—"}
                   </span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0' }}>
                   <span style={{ color: '#a8a29e', fontSize: '12px' }}>Saída</span>
                   <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
                     {item.event?.truckDepartureDate ? format(new Date(item.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : "—"}
@@ -251,16 +251,16 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
                     <span style={{ color: '#a8a29e', fontSize: '12px' }}>Tipo</span>
                     <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.type || '—'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
                     <span style={{ color: '#a8a29e', fontSize: '12px' }}>Material</span>
                     <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.material || '—'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0' }}>
                     <span style={{ color: '#a8a29e', fontSize: '12px' }}>Acabamento</span>
                     <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.finish || '—'}</span>
                   </div>
@@ -317,6 +317,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     fontSize: '12px',
                     fontWeight: '600',
                     width: '30%',
+                    borderTop: '1px solid #e7e5e4',
                     borderBottom: '1px solid #e7e5e4'
                   }}>
                     M² TOTAL
@@ -326,6 +327,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     color: '#1c1917',
                     fontSize: '14px',
                     fontWeight: '600',
+                    borderTop: '1px solid #e7e5e4',
                     borderBottom: '1px solid #e7e5e4'
                   }}>
                     {item.calculatedM2 || 0}
@@ -362,7 +364,8 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     color: '#a8a29e',
                     fontSize: '12px',
                     fontWeight: '600',
-                    width: '30%'
+                    width: '30%',
+                    borderTop: '1px solid #e7e5e4'
                   }}>
                     MEDIDA
                   </td>
@@ -370,7 +373,8 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     padding: '12px 16px',
                     color: '#1c1917',
                     fontSize: '13px',
-                    fontWeight: '600'
+                    fontWeight: '600',
+                    borderTop: '1px solid #e7e5e4'
                   }}>
                     {item.measurement || '—'}
                   </td>
@@ -403,9 +407,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   <Badge 
                     key={sponsor.id} 
                     style={{ 
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e7e5e4',
-                      color: '#1c1917',
+                      backgroundColor: sponsor.color || '#ffffff',
+                      border: `1px solid ${sponsor.color || '#e7e5e4'}`,
+                      color: '#ffffff',
                       padding: '6px 12px',
                       fontSize: '12px'
                     }}
@@ -457,7 +461,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               }} />
               
               {/* Eventos */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {[
                   { label: 'Vinculação iniciada', color: '#f97316', timestamp: '27/11 08:00' },
                   { label: 'Enviado para Arte', color: '#a855f7', timestamp: '27/11 09:15' },

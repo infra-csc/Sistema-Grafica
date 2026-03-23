@@ -2,11 +2,9 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/status-badge";
-import { CommentsSection } from "@/components/comments-section";
-import { CheckCircle2, CircleDot, Circle, Calendar, ClipboardList, Package, Building2, FileText, History, Edit, Save, X, Check, AlertCircle } from "lucide-react";
-import { format, differenceInHours } from "date-fns";
+import { Calendar, ClipboardList, Package, Building2, FileText, History, Edit, Save, X } from "lucide-react";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
 
@@ -37,13 +35,13 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
     setEditMode(false);
   };
 
-  // Mock histórico detalhado
+  // Mock histórico
   const mockHistory = [
-    { action: 'Item criado', user: 'Sistema', timestamp: '27/11/2025 08:00', icon: CheckCircle2, color: '#10b981' },
-    { action: 'Enviado para aprovação de patrocinador', user: 'Sistema', timestamp: '27/11/2025 09:15', icon: AlertCircle, color: '#f59e0b' },
-    { action: 'Aprovado por patrocinador', user: 'Sistema', timestamp: '27/11/2025 10:30', icon: Check, color: '#10b981' },
-    { action: 'Item revisado e ajustado', user: 'Sistema', timestamp: '27/11/2025 11:45', icon: Edit, color: '#3b82f6' },
-    { action: 'Aguardando revisão final do criador', user: 'Sistema', timestamp: '27/11/2025 12:20', icon: AlertCircle, color: '#a855f7' },
+    { action: 'Item criado', timestamp: '27/11/2025 08:00' },
+    { action: 'Enviado para aprovação', timestamp: '27/11/2025 09:15' },
+    { action: 'Aprovado', timestamp: '27/11/2025 10:30' },
+    { action: 'Revisado', timestamp: '27/11/2025 11:45' },
+    { action: 'Aguardando revisão final', timestamp: '27/11/2025 12:20' },
   ];
 
   return (
@@ -52,53 +50,58 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
         className="max-w-5xl max-h-[90vh] overflow-y-auto" 
         style={{ 
           backgroundColor: '#ffffff',
-          border: '1px solid #e7e5e4',
           borderRadius: '16px',
-          padding: '0'
+          padding: '0',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)'
         }}
       >
         {/* Header */}
         <div style={{ 
-          backgroundColor: '#fafaf9',
-          borderBottom: '1px solid #e7e5e4',
           padding: '24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderRadius: '16px 16px 0 0'
+          borderBottom: '1px solid #e7e5e4'
         }}>
-          <div>
-            <h2 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', margin: '0' }}>
-              {item.displayId} • {item.event?.name}
-            </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h2 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', margin: '0 0 4px 0' }}>
+                {item.displayId} • {item.event?.name}
+              </h2>
+              <p style={{ color: '#a8a29e', fontSize: '13px', margin: '0' }}>
+                {item.event?.startDate && format(new Date(item.event.startDate), "MMMM d, yyyy", { locale: ptBR })}
+              </p>
+            </div>
+            <Button size="icon" variant="ghost" onClick={() => onOpenChange(false)}>
+              <X className="h-5 w-5" />
+            </Button>
           </div>
-          <Button size="icon" variant="ghost" onClick={() => onOpenChange(false)}>
-            <X className="h-5 w-5" />
-          </Button>
         </div>
 
         {/* Timeline Horizontal */}
         <div style={{ 
-          backgroundColor: '#fafaf9',
+          padding: '16px 24px',
           borderBottom: '1px solid #e7e5e4',
-          padding: '20px 24px',
           overflowX: 'auto'
         }}>
           <div style={{ display: 'flex', gap: '12px', minWidth: 'fit-content' }}>
-            {['Criado', 'Em Aprovação', 'Aprovado', 'Pronto', 'Aguardando Revisão'].map((step, idx) => (
+            {[
+              { label: 'Criado', active: false },
+              { label: 'Em Aprovação', active: false },
+              { label: 'Aprovado', active: false },
+              { label: 'Pronto', active: false },
+              { label: 'Aguardando Revisão Final', active: item.status === 'aguardando_revisao_final' }
+            ].map((step, idx) => (
               <Badge 
                 key={idx}
                 style={{
-                  backgroundColor: item.status === 'awaiting_final_review' && idx === 4 ? '#a855f7' : '#ffffff',
-                  color: item.status === 'awaiting_final_review' && idx === 4 ? '#ffffff' : '#1c1917',
-                  border: item.status === 'awaiting_final_review' && idx === 4 ? '1px solid #a855f7' : '1px solid #e7e5e4',
+                  backgroundColor: step.active ? '#f97316' : '#ffffff',
+                  color: step.active ? '#ffffff' : '#1c1917',
+                  border: step.active ? '1px solid #f97316' : '1px solid #e7e5e4',
                   padding: '6px 12px',
                   fontSize: '12px',
                   fontWeight: '600',
                   whiteSpace: 'nowrap'
                 }}
               >
-                {step}
+                {step.label}
               </Badge>
             ))}
           </div>
@@ -106,50 +109,45 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
         {/* Content */}
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Status Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Status */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <StatusBadge status={item.status} />
             {item.rejectedBySponsor && (
-              <Badge variant="outline" className="text-xs" style={{ borderColor: '#ef4444', color: '#ef4444' }}>
+              <Badge variant="outline" style={{ borderColor: '#ef4444', color: '#ef4444', fontSize: '11px' }}>
                 Reprovado Patrocinador
               </Badge>
             )}
             {item.rejectedByCreator && (
-              <Badge variant="outline" className="text-xs" style={{ borderColor: '#f97316', color: '#f97316' }}>
+              <Badge variant="outline" style={{ borderColor: '#f97316', color: '#f97316', fontSize: '11px' }}>
                 Reprovado Criador
               </Badge>
             )}
           </div>
 
           {/* Grid: Evento + Especificações */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
             {/* Evento */}
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '20px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Calendar className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
                   Evento
                 </h3>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <span style={{ color: '#a8a29e', fontSize: '12px' }}>Nome</span>
-                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '14px', textAlign: 'right' }}>{item.event?.name}</span>
+                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px', textAlign: 'right' }}>{item.event?.name}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ color: '#a8a29e', fontSize: '12px' }}>Data de Início</span>
-                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span style={{ color: '#a8a29e', fontSize: '12px' }}>Data</span>
+                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
                     {item.event?.startDate ? format(new Date(item.event.startDate), "dd/MM/yyyy", { locale: ptBR }) : "—"}
                   </span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ color: '#a8a29e', fontSize: '12px' }}>Saída Caminhão</span>
-                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span style={{ color: '#a8a29e', fontSize: '12px' }}>Saída</span>
+                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
                     {item.event?.truckDepartureDate ? format(new Date(item.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : "—"}
                   </span>
                 </div>
@@ -157,16 +155,11 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </div>
 
             {/* Especificações */}
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '20px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <ClipboardList className="h-5 w-5" style={{ color: '#f97316' }} />
-                  <h3 style={{ color: '#1c1917', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+                  <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
                     Especificações
                   </h3>
                 </div>
@@ -175,39 +168,39 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                     size="icon" 
                     variant="ghost" 
                     onClick={() => { setEditedItem(item); setEditMode(true); }}
-                    className="h-8 w-8"
+                    className="h-6 w-6"
                   >
                     <Edit className="h-4 w-4" style={{ color: '#1c1917' }} />
                   </Button>
                 )}
               </div>
               {editMode ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
-                    <label style={{ color: '#a8a29e', fontSize: '12px', display: 'block', marginBottom: '6px' }}>Tipo</label>
+                    <label style={{ color: '#a8a29e', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Tipo</label>
                     <Input
                       value={editedItem?.type || ""}
                       onChange={(e) => handleEditChange("type", e.target.value)}
-                      style={{ borderRadius: '8px' }}
-                      className="text-sm"
+                      style={{ borderRadius: '6px', fontSize: '13px' }}
+                      className="h-8"
                     />
                   </div>
                   <div>
-                    <label style={{ color: '#a8a29e', fontSize: '12px', display: 'block', marginBottom: '6px' }}>Material</label>
+                    <label style={{ color: '#a8a29e', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Material</label>
                     <Input
                       value={editedItem?.material || ""}
                       onChange={(e) => handleEditChange("material", e.target.value)}
-                      style={{ borderRadius: '8px' }}
-                      className="text-sm"
+                      style={{ borderRadius: '6px', fontSize: '13px' }}
+                      className="h-8"
                     />
                   </div>
                   <div>
-                    <label style={{ color: '#a8a29e', fontSize: '12px', display: 'block', marginBottom: '6px' }}>Acabamento</label>
+                    <label style={{ color: '#a8a29e', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Acabamento</label>
                     <Input
                       value={editedItem?.finish || ""}
                       onChange={(e) => handleEditChange("finish", e.target.value)}
-                      style={{ borderRadius: '8px' }}
-                      className="text-sm"
+                      style={{ borderRadius: '6px', fontSize: '13px' }}
+                      className="h-8"
                     />
                   </div>
                   <div className="flex gap-2 pt-2">
@@ -216,98 +209,132 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <span style={{ color: '#a8a29e', fontSize: '12px' }}>Tipo</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '14px' }}>{item.type || '—'}</span>
+                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.type || '—'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <span style={{ color: '#a8a29e', fontSize: '12px' }}>Material</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '14px' }}>{item.material || '—'}</span>
+                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.material || '—'}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <span style={{ color: '#a8a29e', fontSize: '12px' }}>Acabamento</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '14px' }}>{item.finish || '—'}</span>
+                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.finish || '—'}</span>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Dados de Produção - Grid 4 Cards */}
-          <div style={{ 
-            backgroundColor: '#fafaf9',
-            border: '1px solid #e7e5e4',
-            borderRadius: '12px',
-            padding: '20px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          {/* Dados de Produção - Tabela Simplificada */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
               <Package className="h-5 w-5" style={{ color: '#f97316' }} />
-              <h3 style={{ color: '#1c1917', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+              <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
                 Dados de Produção
               </h3>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px' }}>
-              {/* Quantidade */}
-              <div style={{ 
-                backgroundColor: '#ffffff',
-                border: '2px solid #f97316',
-                borderRadius: '10px',
-                padding: '12px',
-                textAlign: 'center'
-              }}>
-                <p style={{ color: '#a8a29e', fontSize: '11px', textTransform: 'uppercase', margin: '0 0 6px 0', fontWeight: '600', letterSpacing: '0.4px' }}>Quantidade</p>
-                <p style={{ color: '#f97316', fontSize: '28px', fontWeight: '700', margin: '0' }}>{item.quantity || 0}</p>
-              </div>
-
-              {/* m² Total */}
-              <div style={{ 
-                backgroundColor: '#ffffff',
-                border: '1px solid #e7e5e4',
-                borderRadius: '10px',
-                padding: '12px',
-                textAlign: 'center'
-              }}>
-                <p style={{ color: '#a8a29e', fontSize: '11px', textTransform: 'uppercase', margin: '0 0 6px 0', fontWeight: '600', letterSpacing: '0.4px' }}>m² Total</p>
-                <p style={{ color: '#1c1917', fontSize: '24px', fontWeight: '700', margin: '0' }}>{item.calculatedM2 || 0}</p>
-              </div>
-
-              {/* Visual */}
-              <div style={{ 
-                backgroundColor: '#ffffff',
-                border: '1px solid #e7e5e4',
-                borderRadius: '10px',
-                padding: '12px',
-                textAlign: 'center'
-              }}>
-                <p style={{ color: '#a8a29e', fontSize: '11px', textTransform: 'uppercase', margin: '0 0 6px 0', fontWeight: '600', letterSpacing: '0.4px' }}>Visual</p>
-                <p style={{ color: '#1c1917', fontSize: '14px', fontWeight: '600', margin: '0' }}>
-                  {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : '—'}
-                </p>
-              </div>
-
-              {/* Medida */}
-              <div style={{ 
-                backgroundColor: '#ffffff',
-                border: '1px solid #e7e5e4',
-                borderRadius: '10px',
-                padding: '12px',
-                textAlign: 'center'
-              }}>
-                <p style={{ color: '#a8a29e', fontSize: '11px', textTransform: 'uppercase', margin: '0 0 6px 0', fontWeight: '600', letterSpacing: '0.4px' }}>Medida</p>
-                <p style={{ color: '#1c1917', fontSize: '14px', fontWeight: '600', margin: '0' }}>{item.measurement || '—'}</p>
-              </div>
-            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                {/* Quantidade - com borda esquerda laranja */}
+                <tr>
+                  <td style={{ 
+                    padding: '12px 16px',
+                    borderLeft: '4px solid #f97316',
+                    color: '#a8a29e',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    width: '30%',
+                    backgroundColor: '#fafaf9'
+                  }}>
+                    QUANTIDADE
+                  </td>
+                  <td style={{ 
+                    padding: '12px 16px',
+                    borderLeft: '4px solid #f97316',
+                    color: '#1c1917',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    backgroundColor: '#fafaf9'
+                  }}>
+                    {item.quantity || 0}
+                  </td>
+                </tr>
+                
+                {/* m² Total */}
+                <tr>
+                  <td style={{ 
+                    padding: '12px 16px',
+                    color: '#a8a29e',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    width: '30%',
+                    borderBottom: '1px solid #e7e5e4'
+                  }}>
+                    M² TOTAL
+                  </td>
+                  <td style={{ 
+                    padding: '12px 16px',
+                    color: '#1c1917',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    borderBottom: '1px solid #e7e5e4'
+                  }}>
+                    {item.calculatedM2 || 0}
+                  </td>
+                </tr>
+                
+                {/* Visual */}
+                <tr>
+                  <td style={{ 
+                    padding: '12px 16px',
+                    color: '#a8a29e',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    width: '30%',
+                    borderBottom: '1px solid #e7e5e4'
+                  }}>
+                    VISUAL
+                  </td>
+                  <td style={{ 
+                    padding: '12px 16px',
+                    color: '#1c1917',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    borderBottom: '1px solid #e7e5e4'
+                  }}>
+                    {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : '—'}
+                  </td>
+                </tr>
+                
+                {/* Medida */}
+                <tr>
+                  <td style={{ 
+                    padding: '12px 16px',
+                    color: '#a8a29e',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    width: '30%'
+                  }}>
+                    MEDIDA
+                  </td>
+                  <td style={{ 
+                    padding: '12px 16px',
+                    color: '#1c1917',
+                    fontSize: '13px',
+                    fontWeight: '600'
+                  }}>
+                    {item.measurement || '—'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           {/* Custom Actions */}
           {customActions && (
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '20px'
-            }}>
+            <div>
               {customActions}
             </div>
           )}
@@ -317,15 +344,10 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Patrocinadores */}
           {item.sponsors && item.sponsors.length > 0 && (
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '20px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <Building2 className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
                   Patrocinadores
                 </h3>
               </div>
@@ -337,7 +359,8 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                       backgroundColor: '#ffffff',
                       border: '1px solid #e7e5e4',
                       color: '#1c1917',
-                      padding: '6px 12px'
+                      padding: '6px 12px',
+                      fontSize: '12px'
                     }}
                   >
                     {sponsor.name}
@@ -349,42 +372,32 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Observações */}
           {item.observations && (
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '20px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
                 <FileText className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
                   Observações
                 </h3>
               </div>
-              <p style={{ color: '#1c1917', fontSize: '14px', whiteSpace: 'pre-wrap', margin: '0' }}>{item.observations}</p>
+              <p style={{ color: '#1c1917', fontSize: '13px', whiteSpace: 'pre-wrap', margin: '0' }}>{item.observations}</p>
             </div>
           )}
 
-          {/* Histórico - Timeline Vertical Detalhada */}
-          <div style={{ 
-            backgroundColor: '#fafaf9',
-            border: '1px solid #e7e5e4',
-            borderRadius: '12px',
-            padding: '20px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+          {/* Histórico - Timeline Vertical */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
               <History className="h-5 w-5" style={{ color: '#f97316' }} />
-              <h3 style={{ color: '#1c1917', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+              <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
                 Histórico
               </h3>
             </div>
             
             {/* Timeline Vertical */}
-            <div style={{ position: 'relative', paddingLeft: '32px' }}>
+            <div style={{ position: 'relative', paddingLeft: '28px' }}>
               {/* Linha vertical */}
               <div style={{ 
                 position: 'absolute',
-                left: '12px',
+                left: '6px',
                 top: '0',
                 bottom: '0',
                 width: '1px',
@@ -392,37 +405,33 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               }} />
               
               {/* Eventos */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {mockHistory.map((event, idx) => (
-                  <div key={idx} style={{ position: 'relative' }}>
-                    {/* Ponto da timeline */}
-                    <div style={{ 
-                      position: 'absolute',
-                      left: '-24px',
-                      top: '2px',
-                      width: '16px',
-                      height: '16px',
-                      borderRadius: '50%',
-                      backgroundColor: '#ffffff',
-                      border: `2px solid ${event.color}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: event.color }} />
-                    </div>
-                    
-                    {/* Conteúdo */}
-                    <div>
-                      <p style={{ color: '#1c1917', fontSize: '14px', fontWeight: '600', margin: '0 0 4px 0' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {mockHistory.map((event, idx) => {
+                  const isLast = idx === mockHistory.length - 1;
+                  return (
+                    <div key={idx} style={{ position: 'relative' }}>
+                      {/* Ponto */}
+                      <div style={{ 
+                        position: 'absolute',
+                        left: '-22px',
+                        top: '2px',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ffffff',
+                        border: `2px solid ${isLast ? '#f97316' : '#a8a29e'}`
+                      }} />
+                      
+                      {/* Conteúdo */}
+                      <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 2px 0' }}>
                         {event.action}
                       </p>
                       <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>
-                        {event.user} • {event.timestamp}
+                        {event.timestamp}
                       </p>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

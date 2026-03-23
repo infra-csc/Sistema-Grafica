@@ -77,7 +77,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
         {/* Timeline Horizontal */}
         <div style={{ 
-          padding: '16px 24px',
+          padding: '16px 24px 8px 24px',
           borderBottom: '1px solid #e7e5e4'
         }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0' }}>

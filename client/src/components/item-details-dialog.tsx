@@ -119,11 +119,11 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4' }}>
+        <DialogHeader style={{ borderBottom: '1px solid #e7e5e4', paddingBottom: '16px' }}>
           <div className="flex items-center gap-3 flex-wrap">
-            <DialogTitle>Detalhes do Item</DialogTitle>
-            <span className="text-sm font-mono font-medium text-primary">
+            <DialogTitle style={{ color: '#1c1917' }}>Detalhes do Item</DialogTitle>
+            <span className="text-sm font-mono font-medium" style={{ color: '#f97316' }}>
               {item.displayId}
             </span>
             <StatusBadge status={item.status} />
@@ -151,9 +151,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-2">
+        <div className="space-y-4">
           {/* Barra de Progresso Visual - 6 Etapas */}
-          <Card>
+          <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
             <CardContent className="px-4 py-3">
               {(() => {
                 const steps = [
@@ -267,11 +267,11 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           )}
 
           {/* Grid 2 Colunas: Evento e Especificações */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Informações do Evento */}
-            <Card>
-              <CardHeader className="px-4 py-2 bg-blue-50/50 dark:bg-blue-950/20">
-                <CardTitle className="text-xs font-semibold uppercase text-blue-700 dark:text-blue-400 flex items-center gap-2">
+            <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
+              <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2">
+                <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
                   <Calendar className="h-3.5 w-3.5" />
                   Evento
                 </CardTitle>
@@ -316,9 +316,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </Card>
 
             {/* Especificações */}
-            <Card>
-              <CardHeader className="px-4 py-2 bg-purple-50/50 dark:bg-purple-950/20 flex flex-row items-center justify-between gap-2">
-                <CardTitle className="text-xs font-semibold uppercase text-purple-700 dark:text-purple-400 flex items-center gap-2">
+            <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
+              <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2 flex flex-row items-center justify-between gap-2">
+                <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
                   <ClipboardList className="h-3.5 w-3.5" />
                   Especificações
                 </CardTitle>
@@ -421,9 +421,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           </div>
 
           {/* Dados de Produção - Linha Inteira */}
-          <Card>
-            <CardHeader className="px-4 py-2 bg-emerald-50/50 dark:bg-emerald-950/20 flex flex-row items-center justify-between gap-2">
-              <CardTitle className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+          <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
+            <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2 flex flex-row items-center justify-between gap-2">
+              <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
                 <Package className="h-3.5 w-3.5" />
                 Dados de Produção
               </CardTitle>
@@ -513,9 +513,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Patrocinadores */}
           {item.sponsors && item.sponsors.length > 0 && (
-            <Card>
-              <CardHeader className="px-4 py-2 bg-orange-50/50 dark:bg-orange-950/20">
-                <CardTitle className="text-xs font-semibold uppercase text-orange-700 dark:text-orange-400 flex items-center gap-2">
+            <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
+              <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2">
+                <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
                   <Building2 className="h-3.5 w-3.5" />
                   Patrocinadores ({item.sponsors.length})
                 </CardTitle>
@@ -534,9 +534,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Observações */}
           {item.observations && (
-            <Card>
-              <CardHeader className="px-4 py-2 bg-amber-50/50 dark:bg-amber-950/20">
-                <CardTitle className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 flex items-center gap-2">
+            <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
+              <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2">
+                <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
                   <FileText className="h-3.5 w-3.5" />
                   Observações
                 </CardTitle>
@@ -548,9 +548,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           )}
 
           {/* Histórico de Ações */}
-          <Card>
-            <CardHeader className="px-4 py-2 bg-slate-50/50 dark:bg-slate-950/20">
-              <CardTitle className="text-xs font-semibold uppercase text-slate-700 dark:text-slate-400 flex items-center gap-2">
+          <Card style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
+            <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }} className="px-4 py-2">
+              <CardTitle style={{ color: '#78716c', fontSize: '12px' }} className="font-semibold uppercase flex items-center gap-2">
                 <History className="h-3.5 w-3.5" />
                 Histórico de Ações
               </CardTitle>

@@ -309,25 +309,25 @@ export default function Eventos() {
       },
       media: { 
         label: "Média", 
-        color: "bg-[#06b6d4]/15 text-[#06b6d4] border-[#06b6d4]/30", 
+        color: "bg-purple-600/15 text-purple-700 border-purple-600/30", 
         icon: "🟣",
-        borderColor: 'border-l-[#06b6d4]',
-        bgCard: 'bg-[#06b6d4]/5',
-        titleColor: 'text-[#06b6d4]',
-        bg: 'bg-[#06b6d4]/10',
-        border: 'border-[#06b6d4]/20',
-        iconColor: 'text-[#06b6d4]'
+        borderColor: 'border-l-purple-600',
+        bgCard: 'bg-purple-600/5',
+        titleColor: 'text-purple-700',
+        bg: 'bg-purple-600/10',
+        border: 'border-purple-600/20',
+        iconColor: 'text-purple-700'
       },
       alta: { 
         label: "Alta", 
-        color: "bg-[#84cc16]/15 text-[#84cc16] border-[#84cc16]/30", 
+        color: "bg-yellow-500/15 text-yellow-700 border-yellow-500/30", 
         icon: "🟡",
-        borderColor: 'border-l-[#84cc16]',
-        bgCard: 'bg-[#84cc16]/5',
-        titleColor: 'text-[#84cc16]',
-        bg: 'bg-[#84cc16]/10',
-        border: 'border-[#84cc16]/20',
-        iconColor: 'text-[#84cc16]'
+        borderColor: 'border-l-yellow-500',
+        bgCard: 'bg-yellow-500/5',
+        titleColor: 'text-yellow-700',
+        bg: 'bg-yellow-500/10',
+        border: 'border-yellow-500/20',
+        iconColor: 'text-yellow-600'
       },
       urgente: { 
         label: "Urgente", 
@@ -450,42 +450,13 @@ export default function Eventos() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6" style={{ backgroundColor: '#f1f5f9', minHeight: '100vh' }}>
+    <div className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-            <div 
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: '#06b6d4',
-                flexShrink: 0
-              }}
-            ></div>
-            <h1 
-              className="tracking-tight"
-              style={{
-                color: '#2d2d2d',
-                fontSize: '32px',
-                fontWeight: 800,
-                letterSpacing: '-0.5px',
-                margin: 0
-              }}
-              data-testid="title-eventos"
-            >
-              Eventos
-            </h1>
-          </div>
-          <p 
-            className="mt-1"
-            style={{
-              color: '#6b7280',
-              fontSize: '14px',
-              margin: 0,
-              paddingLeft: '20px'
-            }}
-          >
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-testid="title-eventos">
+            Eventos
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Gerencie todos os eventos de produção gráfica
           </p>
         </div>
@@ -505,22 +476,15 @@ export default function Eventos() {
             else setOpen(isOpen);
           }}>
             <DialogTrigger asChild>
-              <Button 
-                data-testid="button-create-event"
-                style={{
-                  backgroundColor: '#2d2d2d',
-                  color: 'white',
-                  fontWeight: 700
-                }}
-              >
+              <Button data-testid="button-create-event">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Evento
               </Button>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-md" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle style={{ color: '#2d2d2d', fontWeight: 800 }}>{editingEvent ? "Editar Evento" : "Criar Novo Evento"}</DialogTitle>
-              <DialogDescription style={{ color: '#6b7280' }}>
+              <DialogTitle>{editingEvent ? "Editar Evento" : "Criar Novo Evento"}</DialogTitle>
+              <DialogDescription>
                 {editingEvent ? "Atualize as informações do evento" : "Preencha as informações do evento"}
               </DialogDescription>
             </DialogHeader>
@@ -632,22 +596,22 @@ export default function Eventos() {
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4" style={{ color: '#6b7280' }} />
-            <span className="text-sm font-medium" style={{ color: '#6b7280' }}>Filtrar por prioridade:</span>
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">Filtrar por prioridade:</span>
           </div>
           
           {/* Legenda discreta à direita */}
-          <div className="flex flex-wrap items-center gap-2 text-[10px]" style={{ color: '#9ca3af' }}>
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/50">
             <span className="flex items-center gap-1">
               <div className="h-1.5 w-1.5 rounded-full bg-red-600"></div>
               <span>Urgente</span>
             </span>
             <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: '#84cc16' }}></div>
+              <div className="h-1.5 w-1.5 rounded-full bg-yellow-500"></div>
               <span>Alta</span>
             </span>
             <span className="flex items-center gap-1">
-              <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: '#06b6d4' }}></div>
+              <div className="h-1.5 w-1.5 rounded-full bg-purple-600"></div>
               <span>Média</span>
             </span>
             <span className="flex items-center gap-1">
@@ -694,8 +658,8 @@ export default function Eventos() {
       {/* Filtros de Data */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4" style={{ color: '#6b7280' }} />
-          <span className="text-sm font-medium" style={{ color: '#6b7280' }}>Filtros de data:</span>
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">Filtros de data:</span>
         </div>
         <div className="flex flex-wrap gap-3">
           <Select value={monthFilter} onValueChange={setMonthFilter}>
@@ -740,23 +704,16 @@ export default function Eventos() {
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderBottomColor: '#06b6d4' }}></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       ) : events.length === 0 ? (
-        <Card style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff' }}>
+        <Card>
           <CardContent className="pt-6">
             <div className="text-center py-12">
-              <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: '#d1d5db' }} />
-              <h3 className="text-lg font-semibold mb-2" style={{ color: '#2d2d2d' }}>Nenhum evento criado</h3>
-              <p className="mb-4" style={{ color: '#6b7280' }}>Comece criando seu primeiro evento</p>
-              <Button 
-                onClick={() => setOpen(true)}
-                style={{
-                  backgroundColor: '#2d2d2d',
-                  color: 'white',
-                  fontWeight: 700
-                }}
-              >
+              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum evento criado</h3>
+              <p className="text-muted-foreground mb-4">Comece criando seu primeiro evento</p>
+              <Button onClick={() => setOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Primeiro Evento
               </Button>
@@ -764,12 +721,12 @@ export default function Eventos() {
           </CardContent>
         </Card>
       ) : filteredEvents.length === 0 ? (
-        <Card style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff' }}>
+        <Card>
           <CardContent className="pt-6">
             <div className="text-center py-12">
-              <Search className="h-12 w-12 mx-auto mb-4" style={{ color: '#d1d5db' }} />
-              <h3 className="text-lg font-semibold mb-2" style={{ color: '#2d2d2d' }}>Nenhum evento encontrado</h3>
-              <p style={{ color: '#6b7280' }}>Tente uma busca diferente</p>
+              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum evento encontrado</h3>
+              <p className="text-muted-foreground">Tente uma busca diferente</p>
             </div>
           </CardContent>
         </Card>
@@ -878,24 +835,10 @@ export default function Eventos() {
             
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
-                <Card 
-                  className={`hover-elevate cursor-pointer transition-all border-l-4 ${cardColors.borderColor}`} 
-                  style={{ 
-                    backgroundColor: '#ffffff',
-                    borderColor: '#e5e7eb',
-                    borderLeftColor: cardColors.borderColor.replace('border-l-', '').startsWith('#') ? cardColors.borderColor.replace('border-l-', '') : 'inherit'
-                  }}
-                  data-testid={`card-event-${event.id}`}
-                >
+                <Card className={`hover-elevate cursor-pointer transition-all border-l-4 ${cardColors.borderColor} ${cardColors.bgCard}`} data-testid={`card-event-${event.id}`}>
                   <CardHeader className="pb-3 pt-4">
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <CardTitle 
-                        className={`text-base font-bold truncate min-w-0`} 
-                        style={{ color: '#2d2d2d' }}
-                        title={event.name}
-                      >
-                        {event.name}
-                      </CardTitle>
+                      <CardTitle className={`text-base font-bold ${cardColors.titleColor} truncate min-w-0`} title={event.name}>{event.name}</CardTitle>
                       <div className="flex gap-1 flex-shrink-0 ml-auto">
                         {event.status === 'completed' && (
                           <Badge variant="outline" className="bg-status-completed/15 text-status-completed border-status-completed/30 text-xs">
@@ -922,11 +865,11 @@ export default function Eventos() {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="flex items-center gap-2 p-2 rounded" style={{ backgroundColor: '#f1f5f9', borderColor: '#e5e7eb', border: '1px solid #e5e7eb' }}>
+                      <div className="flex items-center gap-2 p-2 rounded bg-card border">
                         <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${cardColors.icon}`} />
                         <div className="flex flex-col gap-0 min-w-0">
                           <span className={`text-[10px] font-medium uppercase ${cardColors.icon}`}>Início</span>
-                          <span className="text-xs font-semibold whitespace-nowrap" style={{ color: '#2d2d2d' }}>
+                          <span className="text-xs font-semibold text-foreground whitespace-nowrap">
                             {new Date(event.startDate).toLocaleDateString('pt-BR', { 
                               day: '2-digit', 
                               month: '2-digit',
@@ -935,11 +878,11 @@ export default function Eventos() {
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 p-2 rounded" style={{ backgroundColor: '#f1f5f9', borderColor: '#e5e7eb', border: '1px solid #e5e7eb' }}>
+                      <div className="flex items-center gap-2 p-2 rounded bg-card border">
                         <Truck className={`h-3.5 w-3.5 flex-shrink-0 ${cardColors.icon}`} />
                         <div className="flex flex-col gap-0 min-w-0">
                           <span className={`text-[10px] font-medium uppercase ${cardColors.icon}`}>Saída</span>
-                          <span className="text-xs font-bold whitespace-nowrap" style={{ color: '#2d2d2d' }}>
+                          <span className="text-xs font-bold text-foreground whitespace-nowrap">
                             {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { 
                               day: '2-digit', 
                               month: '2-digit'
@@ -952,13 +895,13 @@ export default function Eventos() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardFooter className="border-t pt-2 pb-3 flex-row flex-wrap items-center gap-3" style={{ borderColor: '#e5e7eb' }}>
+                  <CardFooter className="border-t pt-2 pb-3 flex-row flex-wrap items-center gap-3">
                     <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
                       <div className="flex items-center justify-between text-xs gap-2">
-                        <span className="font-medium whitespace-nowrap" style={{ color: '#6b7280' }}>
+                        <span className="text-muted-foreground font-medium whitespace-nowrap">
                           {event.items?.filter((item: any) => item.status === 'delivered').length || 0}/{itemCount} concluídos
                         </span>
-                        <span className="font-semibold whitespace-nowrap" style={{ color: '#6b7280' }}>
+                        <span className="text-muted-foreground font-semibold whitespace-nowrap">
                           {itemCount > 0 ? Math.round(((event.items?.filter((item: any) => item.status === 'delivered').length || 0) / itemCount) * 100) : 0}%
                         </span>
                       </div>

@@ -328,9 +328,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             </Card>
 
             {/* Especificações */}
-            <Card style={{ borderColor: '#e5e7eb' }}>
-              <CardHeader className="px-4 py-2 flex flex-row items-center justify-between gap-2" style={{ backgroundColor: '#f1f5f9' }}>
-                <CardTitle className="text-xs font-semibold uppercase flex items-center gap-2" style={{ color: '#06b6d4' }}>
+            <Card>
+              <CardHeader className="px-4 py-2 bg-purple-50/50 dark:bg-purple-950/20 flex flex-row items-center justify-between gap-2">
+                <CardTitle className="text-xs font-semibold uppercase text-purple-700 dark:text-purple-400 flex items-center gap-2">
                   <ClipboardList className="h-3.5 w-3.5" />
                   Especificações
                 </CardTitle>
@@ -433,9 +433,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           </div>
 
           {/* Dados de Produção - Linha Inteira */}
-          <Card style={{ borderColor: '#e5e7eb' }}>
-            <CardHeader className="px-4 py-2 flex flex-row items-center justify-between gap-2" style={{ backgroundColor: '#f1f5f9' }}>
-              <CardTitle className="text-xs font-semibold uppercase flex items-center gap-2" style={{ color: '#06b6d4' }}>
+          <Card>
+            <CardHeader className="px-4 py-2 bg-emerald-50/50 dark:bg-emerald-950/20 flex flex-row items-center justify-between gap-2">
+              <CardTitle className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                 <Package className="h-3.5 w-3.5" />
                 Dados de Produção
               </CardTitle>
@@ -525,9 +525,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Patrocinadores */}
           {item.sponsors && item.sponsors.length > 0 && (
-            <Card style={{ borderColor: '#e5e7eb' }}>
-              <CardHeader className="px-4 py-2" style={{ backgroundColor: '#f1f5f9' }}>
-                <CardTitle className="text-xs font-semibold uppercase flex items-center gap-2" style={{ color: '#06b6d4' }}>
+            <Card>
+              <CardHeader className="px-4 py-2 bg-orange-50/50 dark:bg-orange-950/20">
+                <CardTitle className="text-xs font-semibold uppercase text-orange-700 dark:text-orange-400 flex items-center gap-2">
                   <Building2 className="h-3.5 w-3.5" />
                   Patrocinadores ({item.sponsors.length})
                 </CardTitle>
@@ -546,9 +546,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Observações */}
           {item.observations && (
-            <Card style={{ borderColor: '#e5e7eb' }}>
-              <CardHeader className="px-4 py-2" style={{ backgroundColor: '#f1f5f9' }}>
-                <CardTitle className="text-xs font-semibold uppercase flex items-center gap-2" style={{ color: '#06b6d4' }}>
+            <Card>
+              <CardHeader className="px-4 py-2 bg-amber-50/50 dark:bg-amber-950/20">
+                <CardTitle className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 flex items-center gap-2">
                   <FileText className="h-3.5 w-3.5" />
                   Observações
                 </CardTitle>
@@ -560,9 +560,9 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           )}
 
           {/* Histórico de Ações */}
-          <Card style={{ borderColor: '#e5e7eb' }}>
-            <CardHeader className="px-4 py-2" style={{ backgroundColor: '#f1f5f9' }}>
-              <CardTitle className="text-xs font-semibold uppercase flex items-center gap-2" style={{ color: '#06b6d4' }}>
+          <Card>
+            <CardHeader className="px-4 py-2 bg-slate-50/50 dark:bg-slate-950/20">
+              <CardTitle className="text-xs font-semibold uppercase text-slate-700 dark:text-slate-400 flex items-center gap-2">
                 <History className="h-3.5 w-3.5" />
                 Histórico de Ações
               </CardTitle>

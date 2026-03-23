@@ -80,40 +80,43 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           padding: '16px 24px',
           borderBottom: '1px solid #e7e5e4'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between' }}>
+          {/* Ícones com linhas */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', position: 'relative' }}>
             {[
-              { icon: Link2, label: 'Vinculação', color: '#f97316' },
-              { icon: Palette, label: 'Arte', color: '#a855f7' },
-              { icon: CheckCircle, label: 'Aprovação', color: '#f97316' },
-              { icon: Zap, label: 'Finalização', color: '#10b981' },
-              { icon: Eye, label: 'Revisão', color: '#3b82f6' },
-              { icon: Cog, label: 'Produção', color: '#a8a29e' }
+              { icon: Link2, color: '#f97316' },
+              { icon: Palette, color: '#a855f7' },
+              { icon: CheckCircle, color: '#f97316' },
+              { icon: Zap, color: '#10b981' },
+              { icon: Eye, color: '#3b82f6' },
+              { icon: Cog, color: '#a8a29e' }
             ].map((step, idx) => {
               const Icon = step.icon;
               return (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: idx < 5 ? 1 : 'none' }}>
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', flex: 1, position: 'relative' }}>
                   {/* Ícone */}
                   <div style={{
-                    width: '24px',
-                    height: '24px',
+                    width: '32px',
+                    height: '32px',
                     borderRadius: '50%',
                     backgroundColor: step.color,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#ffffff',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    zIndex: 2
                   }}>
-                    <Icon size={12} strokeWidth={2.5} />
+                    <Icon size={16} strokeWidth={2} />
                   </div>
                   
-                  {/* Linha separadora */}
+                  {/* Linha conectora */}
                   {idx < 5 && (
                     <div style={{
                       flex: 1,
                       height: '2px',
                       backgroundColor: step.color,
-                      minWidth: '24px'
+                      marginLeft: '8px',
+                      zIndex: 1
                     }} />
                   )}
                 </div>
@@ -122,17 +125,18 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
           </div>
           
           {/* Rótulos abaixo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'space-between', marginTop: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             {['Vinculação', 'Arte', 'Aprovação', 'Finalização', 'Revisão', 'Produção'].map((label, idx) => (
-              <span key={idx} style={{
-                fontSize: '10px',
-                color: '#a8a29e',
-                textAlign: 'center',
-                whiteSpace: 'nowrap',
-                flex: idx < 5 ? 1 : 'none'
-              }}>
-                {label}
-              </span>
+              <div key={idx} style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                <span style={{
+                  fontSize: '11px',
+                  color: '#a8a29e',
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {label}
+                </span>
+              </div>
             ))}
           </div>
         </div>

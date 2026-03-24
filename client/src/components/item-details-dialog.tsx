@@ -24,6 +24,31 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
   if (!item) return null;
 
+  // Timeline: mapeamento de status → quantos passos estão concluídos (0–6)
+  const STATUS_STEP: Record<string, number> = {
+    solicitado: -1,
+    aguardando_vinculacao: 0,
+    aguardando_envio: 1,
+    aguardando_aprovacao: 2,
+    aguardando_finalizacao: 3,
+    aguardando_revisao_final: 4,
+    pronto_para_producao: 5,
+    liberado: 5,
+    em_producao: 5,
+    produzido: 6,
+    entregue: 6,
+  };
+  const timelineCurrentStep = STATUS_STEP[(item.status || '').trim().toLowerCase()] ?? -1;
+
+  const TIMELINE_STEPS = [
+    { label: 'Vinculação', color: '#f97316', icon: Link2,       idx: 0 },
+    { label: 'Arte',       color: '#a855f7', icon: Palette,     idx: 1 },
+    { label: 'Aprovação',  color: '#f97316', icon: CheckCircle, idx: 2 },
+    { label: 'Finalização',color: '#10b981', icon: Zap,         idx: 3 },
+    { label: 'Revisão',    color: '#3b82f6', icon: Eye,         idx: 4 },
+    { label: 'Produção',   color: '#6b7280', icon: Cog,         idx: 5 },
+  ];
+
   const handleEditChange = (field: string, value: any) => {
     setEditedItem((prev: any) => ({ ...prev, [field]: value }));
   };
@@ -73,107 +98,71 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
         </div>
 
         {/* Timeline Horizontal */}
-        {(() => {
-          // Mapeamento status → índice do passo atual (quantos passos já foram concluídos)
-          // -1 = nenhum iniciado, 0 = Vinculação ativo, 1 = Arte ativo ... 6 = tudo concluído
-          const STATUS_STEP: Record<string, number> = {
-            solicitado: -1,
-            aguardando_vinculacao: 0,
-            aguardando_envio: 1,
-            aguardando_aprovacao: 2,
-            aguardando_finalizacao: 3,
-            aguardando_revisao_final: 4,
-            pronto_para_producao: 5,
-            liberado: 5,
-            em_producao: 5,
-            produzido: 6,
-            entregue: 6,
-          };
+        <div style={{ padding: '16px 24px 12px 24px', borderBottom: '1px solid #e7e5e4' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            {TIMELINE_STEPS.map((step) => {
+              const Icon = step.icon;
+              const isDone    = step.idx < timelineCurrentStep;
+              const isCurrent = step.idx === timelineCurrentStep;
+              const isPending = step.idx > timelineCurrentStep;
 
-          const currentStep = STATUS_STEP[item.status] ?? -1;
-          // currentStep === 6 significa que todos os 6 passos (idx 0–5) foram concluídos
+              const circleBg    = isDone || isCurrent ? step.color : '#e7e5e4';
+              const circleColor = isDone || isCurrent ? '#ffffff'  : '#a8a29e';
+              const labelColor  = isPending ? '#c9c5c1' : '#78716c';
+              const connectorBg = isDone ? step.color : '#e7e5e4';
 
-          const steps = [
-            { label: 'Vinculação', color: '#f97316', icon: Link2,       idx: 0 },
-            { label: 'Arte',       color: '#a855f7', icon: Palette,     idx: 1 },
-            { label: 'Aprovação',  color: '#f97316', icon: CheckCircle, idx: 2 },
-            { label: 'Finalização',color: '#10b981', icon: Zap,         idx: 3 },
-            { label: 'Revisão',    color: '#3b82f6', icon: Eye,         idx: 4 },
-            { label: 'Produção',   color: '#6b7280', icon: Cog,         idx: 5 },
-          ];
+              return (
+                <div key={step.idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
+                  {/* Linha conectora */}
+                  {step.idx < 5 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '13px',
+                      left: 'calc(50% + 14px)',
+                      right: 'calc(-50% + 14px)',
+                      height: '2px',
+                      backgroundColor: connectorBg,
+                      zIndex: 1,
+                    }} />
+                  )}
 
-          return (
-            <div style={{ padding: '16px 24px 12px 24px', borderBottom: '1px solid #e7e5e4' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                {steps.map((step) => {
-                  const Icon = step.icon;
-                  const isDone    = step.idx < currentStep;
-                  const isCurrent = step.idx === currentStep;
-                  const isPending = step.idx > currentStep;
+                  {/* Círculo */}
+                  <div style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    backgroundColor: circleBg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: circleColor,
+                    marginBottom: '5px',
+                    zIndex: 2,
+                    position: 'relative',
+                    flexShrink: 0,
+                    boxShadow: isCurrent ? `0 0 0 3px ${step.color}33` : 'none',
+                  }}>
+                    {isDone
+                      ? <Check size={13} strokeWidth={3} />
+                      : <Icon size={13} strokeWidth={2} />
+                    }
+                  </div>
 
-                  // Cores dinâmicas
-                  const circleBg     = isDone || isCurrent ? step.color : '#e7e5e4';
-                  const circleColor  = isDone || isCurrent ? '#ffffff'  : '#a8a29e';
-                  const labelColor   = isPending ? '#c9c5c1' : '#78716c';
-                  const connectorBg  = isDone ? step.color : '#e7e5e4';
-
-                  return (
-                    <div key={step.idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
-                      {/* Linha conectora */}
-                      {step.idx < 5 && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '13px',
-                          left: 'calc(50% + 14px)',
-                          right: 'calc(-50% + 14px)',
-                          height: '2px',
-                          backgroundColor: connectorBg,
-                          zIndex: 1,
-                          transition: 'background-color 0.3s',
-                        }} />
-                      )}
-
-                      {/* Círculo */}
-                      <div style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '50%',
-                        backgroundColor: circleBg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: circleColor,
-                        marginBottom: '5px',
-                        zIndex: 2,
-                        position: 'relative',
-                        flexShrink: 0,
-                        boxShadow: isCurrent ? `0 0 0 3px ${step.color}33` : 'none',
-                        transition: 'all 0.3s',
-                      }}>
-                        {isDone
-                          ? <Check size={13} strokeWidth={3} />
-                          : <Icon size={13} strokeWidth={2} />
-                        }
-                      </div>
-
-                      {/* Rótulo */}
-                      <span style={{
-                        fontSize: '10px',
-                        fontWeight: isCurrent ? 700 : 400,
-                        color: labelColor,
-                        textAlign: 'center',
-                        whiteSpace: 'nowrap',
-                        transition: 'color 0.3s',
-                      }}>
-                        {step.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
+                  {/* Rótulo */}
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: isCurrent ? 700 : 400,
+                    color: labelColor,
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Content */}
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

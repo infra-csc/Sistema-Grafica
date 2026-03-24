@@ -620,8 +620,23 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Histórico Card */}
           {(() => {
+            // Logs com entityId exato (item.id)
             const itemLogs = auditLogs
-              .filter((log: any) => log.entityId === item.id || log.entity_id === item.id)
+              .filter((log: any) => {
+                const eid = log.entityId ?? log.entity_id ?? '';
+                return eid === item.id;
+              })
+              .sort((a: any, b: any) =>
+                new Date(a.createdAt ?? a.created_at).getTime() -
+                new Date(b.createdAt ?? b.created_at).getTime()
+              );
+
+            // Logs onde item.id está dentro de uma lista CSV (ex.: "Enviado para Arte" em lote)
+            const itemLogsInclusive = auditLogs
+              .filter((log: any) => {
+                const eid = String(log.entityId ?? log.entity_id ?? '');
+                return eid.split(',').map((s: string) => s.trim()).includes(item.id);
+              })
               .sort((a: any, b: any) =>
                 new Date(a.createdAt ?? a.created_at).getTime() -
                 new Date(b.createdAt ?? b.created_at).getTime()
@@ -632,8 +647,8 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               return `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
             };
 
-            const getLogDate = (keywords: string[]) => {
-              const log = itemLogs.find((l: any) => {
+            const getLogDate = (keywords: string[], pool: any[] = itemLogs) => {
+              const log = pool.find((l: any) => {
                 const d = (l.details || l.action || '').toLowerCase();
                 return keywords.some(k => d.includes(k.toLowerCase()));
               });
@@ -644,11 +659,42 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             };
 
             const stages = [
-              { label: 'Vinculação iniciada',          color: '#f97316', keywords: ['patrocinador', 'vinculad', 'linking', 'aguardando vincula'] },
-              { label: 'Enviado para Arte',             color: '#a855f7', keywords: ['enviado para arte', 'arte', 'aguardando envio'] },
-              { label: 'Em aprovação de patrocinador',  color: '#f97316', keywords: ['aprovação', 'aguardando aprovação', 'sponsor'] },
-              { label: 'Aprovado - Finalização',        color: '#10b981', keywords: ['finalização', 'aguardando finaliz', 'aprovado pelo patrocinador', 'todos os patrocinadores'] },
-              { label: 'Aguardando revisão final',      color: '#3b82f6', keywords: ['revisão final', 'arquivo final', 'aguardando revisão'] },
+              {
+                label: 'Vinculação iniciada',
+                color: '#f97316',
+                // "Patrocinadores atualizados - X patrocinador(es) vinculado(s)"
+                keywords: ['patrocinadores atualizados'],
+                pool: itemLogs,
+              },
+              {
+                label: 'Enviado para Arte',
+                color: '#a855f7',
+                // "X item(s) enviado(s) para Arte"  — entityId é CSV de IDs
+                keywords: ['enviado', 'para arte'],
+                pool: itemLogsInclusive,
+              },
+              {
+                label: 'Em aprovação de patrocinador',
+                color: '#f97316',
+                // "Status alterado: ... → Aguardando Aprovação"
+                keywords: ['aguardando aprovação'],
+                pool: itemLogs,
+              },
+              {
+                label: 'Aprovado - Finalização',
+                color: '#10b981',
+                // "Todos os patrocinadores aprovaram. Status alterado: ... → Aguardando Finalização"
+                // ou aprovação única (antigo fluxo): "aprovado pelo patrocinador"
+                keywords: ['todos os patrocinadores aprovaram', 'aguardando finaliz', 'aprovado pelo patrocinador'],
+                pool: itemLogs,
+              },
+              {
+                label: 'Aguardando revisão final',
+                color: '#3b82f6',
+                // "Status alterado: ... → Aguardando Revisão Final (arquivo final adicionado)"
+                keywords: ['arquivo final adicionado', 'aguardando revisão final'],
+                pool: itemLogs,
+              },
             ];
 
             const deliveryLog = itemLogs.find((l: any) => l.action === 'delivered');
@@ -666,7 +712,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   <div style={{ position: 'absolute', left: '6px', top: '0', bottom: '0', width: '1px', backgroundColor: '#e7e5e4' }} />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {stages.map((stage, idx) => {
-                      const dateStr = getLogDate(stage.keywords);
+                      const dateStr = getLogDate(stage.keywords, stage.pool);
                       return (
                         <div key={idx} style={{ position: 'relative' }}>
                           <div style={{ position: 'absolute', left: '-22px', top: '3px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: stage.color }} />

@@ -61,7 +61,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
     { label: 'Aprovação',  color: '#f97316', icon: CheckCircle, idx: 2 },
     { label: 'Finalização',color: '#10b981', icon: Zap,         idx: 3 },
     { label: 'Revisão',    color: '#3b82f6', icon: Eye,         idx: 4 },
-    { label: 'Produção',   color: '#6b7280', icon: Cog,         idx: 5 },
+    { label: 'Produção',   color: '#10b981', icon: Cog,         idx: 5 },
   ];
 
   const handleEditChange = (field: string, value: any) => {

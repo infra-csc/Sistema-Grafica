@@ -73,28 +73,32 @@ const getItemUIStatus = (
 // Cores para cada status UI — Titanium Design System
 const UI_STATUS_CONFIG = {
   RASCUNHO: {
-    label: 'Rascunho',
+    label: 'Preparado',
     icon: Circle,
-    badgeStyle: { backgroundColor: '#fef3c7', color: '#d97706' },
-    chipClass: 'bg-amber-100 text-amber-800'
+    badgeStyle: { backgroundColor: '#ffedd5', color: '#c2410c' },
+    chipClass: 'bg-orange-100 text-orange-700',
+    rowBg: '#fffbf5',
   },
   PRONTO: {
     label: 'Pronto',
     icon: CheckCircle2,
     badgeStyle: { backgroundColor: '#dcfce7', color: '#166534' },
-    chipClass: 'bg-green-100 text-green-800'
+    chipClass: 'bg-green-100 text-green-800',
+    rowBg: '#f0fdf4',
   },
   ENVIADO: {
     label: 'Enviado',
     icon: Check,
     badgeStyle: { backgroundColor: '#e0f2fe', color: '#0369a1' },
-    chipClass: 'bg-sky-100 text-sky-800'
+    chipClass: 'bg-sky-100 text-sky-800',
+    rowBg: 'transparent',
   },
   PENDENTE: {
     label: 'Pendente',
     icon: Circle,
     badgeStyle: { backgroundColor: '#f5f5f4', color: '#57534e' },
-    chipClass: 'bg-stone-100 text-stone-600'
+    chipClass: 'bg-stone-100 text-stone-600',
+    rowBg: 'transparent',
   }
 };
 
@@ -702,21 +706,28 @@ export default function VincularPatrocinadores() {
     
     if (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) {
       toast({
-        title: "⚠️ Nenhum patrocinador selecionado",
+        title: "Nenhum patrocinador selecionado",
         description: "Selecione pelo menos um patrocinador ou marque 'Pular aprovação'",
         variant: "destructive",
       });
       return;
     }
     
-    // Aplicar patrocinadores a TODOS os items selecionados
-    // Adiciona aos patrocinadores existentes (não substitui)
+    // Aplicar patrocinadores apenas a itens NÃO isentos (skipApproval=false)
+    // a menos que bulkSkipApproval seja true (nesse caso, aplica a todos)
     const itemsToUpdate: string[] = [];
+    const skippedItems: string[] = [];
     
     allSelectedItems.forEach(itemId => {
       const currentSponsors = itemSponsorsMap[itemId] || originalSponsorsMap[itemId] || [];
       const item = items.find(i => i.id === itemId);
       const originalSkipApproval = item?.skipApproval || false;
+      
+      // Pular itens isentos quando não está aplicando skipApproval
+      if (originalSkipApproval && !bulkSkipApproval) {
+        skippedItems.push(itemId);
+        return;
+      }
       
       // Combinar patrocinadores existentes com novos (sem duplicatas)
       const combinedSponsors = Array.from(new Set([...currentSponsors, ...bulkSelectedSponsors]));
@@ -752,8 +763,10 @@ export default function VincularPatrocinadores() {
     
     if (itemsToUpdate.length === 0) {
       toast({
-        title: "ℹ️ Nenhuma alteração",
-        description: "Os patrocinadores selecionados já estavam vinculados",
+        title: "Nenhuma alteração",
+        description: skippedItems.length > 0
+          ? `${skippedItems.length} item${skippedItems.length !== 1 ? 's' : ''} isento${skippedItems.length !== 1 ? 's' : ''} ignorado${skippedItems.length !== 1 ? 's' : ''}. Patrocinadores já estavam vinculados nos demais.`
+          : "Os patrocinadores selecionados já estavam vinculados",
       });
       return;
     }
@@ -1190,6 +1203,9 @@ export default function VincularPatrocinadores() {
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
                         const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
                         const isEditable = getItemEditability(item);
+                        const uiStatus = itemUIStates[item.id] || 'PENDENTE';
+                        const rowConfig = UI_STATUS_CONFIG[uiStatus];
+                        const isRascunho = uiStatus === 'RASCUNHO';
 
                         return (
                           <tr
@@ -1197,11 +1213,11 @@ export default function VincularPatrocinadores() {
                             className={`transition-colors cursor-pointer ${!isEditable ? 'opacity-55' : ''}`}
                             style={{
                               borderBottom: '1px solid #e7e5e4',
-                              borderLeft: pendingChanges[item.id]?.isDirty ? '3px solid #f97316' : '3px solid transparent',
-                              backgroundColor: pendingChanges[item.id]?.isDirty ? '#fffbf5' : 'transparent',
+                              borderLeft: isRascunho ? '3px solid #f97316' : '3px solid transparent',
+                              backgroundColor: rowConfig.rowBg,
                             }}
-                            onMouseEnter={e => { if (!pendingChanges[item.id]?.isDirty) (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; }}
-                            onMouseLeave={e => { if (!pendingChanges[item.id]?.isDirty) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isRascunho ? '#fff7ed' : '#fafaf9'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowConfig.rowBg; }}
                             onClick={() => setSelectedItemForDetails(item)}
                             data-testid={`item-row-${item.id}`}
                           >
@@ -1309,7 +1325,7 @@ export default function VincularPatrocinadores() {
                                 </span>
                               )}
                               {currentSkipApproval && (
-                                <span className="text-xs" style={{ color: '#a8a29e' }}>Sem patrocinador</span>
+                                <span className="text-xs italic" style={{ color: '#a8a29e' }}>Isento de Patrocinador</span>
                               )}
                             </td>
                             <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
@@ -1545,6 +1561,21 @@ export default function VincularPatrocinadores() {
             </div>
           </div>
 
+          {/* Aviso de isentos */}
+          {(() => {
+            const exemptCount = Array.from(selectedItemIds).filter(id => {
+              const it = items.find(i => i.id === id);
+              return it?.skipApproval === true;
+            }).length;
+            if (exemptCount === 0 || bulkSkipApproval) return null;
+            return (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md text-xs" style={{ backgroundColor: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' }}>
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>{exemptCount} item{exemptCount !== 1 ? 's' : ''} isento{exemptCount !== 1 ? 's' : ''} não será{exemptCount !== 1 ? 'ão' : ''} alterado{exemptCount !== 1 ? 's' : ''}</span>
+              </div>
+            );
+          })()}
+
           <div className="flex items-center justify-between pt-4 border-t">
             <p className="text-sm text-muted-foreground">
               {bulkSelectedSponsors.length} {bulkSelectedSponsors.length === 1 ? 'patrocinador selecionado' : 'patrocinadores selecionados'}
@@ -1559,6 +1590,7 @@ export default function VincularPatrocinadores() {
               <Button
                 onClick={handleApplyBulkSponsors}
                 data-testid="button-confirm-bulk-apply"
+                style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
               >
                 Aplicar
               </Button>

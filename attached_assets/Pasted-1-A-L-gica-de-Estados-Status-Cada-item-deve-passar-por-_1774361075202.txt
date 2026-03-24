@@ -1,0 +1,51 @@
+1. A Lógica de Estados (Status)
+Cada item deve passar por este funil lógico, refletido visualmente na linha:
+
+Pendente (Cinza): O item acaba de chegar. Não tem patrocinador e a caixa "Sem Aprov." está desmarcada. O botão "Enviar" está desabilitado.
+
+Preparado (Laranja): Você vinculou um patrocinador OU marcou "Sem Aprov.". O sistema agora entende que o item está completo, mas ainda não foi salvo.
+
+Pronto (Verde): Você clicou em "Salvar". O item agora está validado e o botão "Enviar para Arte" fica habilitado.
+
+Enviado (Sucesso): O item some da lista ou fica bloqueado, pois já seguiu para a próxima etapa.
+
+2. O "Cadeado" de Segurança (Sua maior dor)
+Para resolver o problema de salvar "Sem Patrocinador" e depois não conseguir alterar, aplique esta regra no código:
+
+Checkbox "Sem Aprov." Marcado:
+
+O seletor de patrocinadores daquela linha fica disabled.
+
+O texto "Adicione patrocinadores" muda para "Isento de Patrocinador" em itálico.
+
+Importante: Se o usuário desmarcar a caixa, o estado volta para "Pendente" e o seletor de patrocinadores volta a funcionar.
+
+Aplicação em Lote (Bulk Action): Se eu selecionar 10 itens e 2 deles estiverem com "Sem Aprov." marcado, o botão "Aplicar Patrocinadores" deve ignorar esses 2 itens ou avisar: "2 itens isentos não serão alterados".
+
+3. Refatoração Visual (Prompt para Replit)
+Copie e cole este prompt para ajustar o layout:
+
+"Refatore a página 'Vincular Patrocinadores' para o padrão Titanium.
+
+1. Cabeçalho de Itens Selecionados: > Substitua o card cinza de '1 item selecionado' por uma barra flutuante preta (bg-[#1c1917]) que aparece apenas quando há seleção. Ela deve conter o contador e o botão 'Aplicar Patrocinador' em laranja.
+
+2. Grid de Itens:
+
+Remova o fundo amarelo das linhas. Use branco para itens pendentes e um verde quase imperceptível (bg-green-50/30) para itens que já foram salvos e estão 'Prontos'.
+
+A coluna 'Vincular Patrocinadores' deve ser um botão discreto que abre um pequeno menu ou um campo de busca limpo.
+
+3. Feedback de Ação:
+
+Quando um item for salvo individualmente, mostre um ícone de 'Check' verde ao lado do botão 'Salvar' antes dele virar 'Enviar'.
+
+Agrupe o botão 'Enviar Todos' no topo, mas ele só deve ficar ativo se houver pelo menos um item no status 'Pronto' (verde)."
+
+4. Resumo do Fluxo do Usuário
+Marcar: O usuário marca quem tem e quem não tem patrocinador (individual ou lote).
+
+Salvar (Obrigatório): O sistema valida as escolhas. O botão "Salvar Tudo" deve ser o destaque.
+
+Enviar: Só após o "OK" do sistema (Status Pronto), o usuário clica em "Enviar para Arte".
+
+Dica de Ouro: Adicione uma coluna de "Preview" ou uma miniatura do item. Isso ajuda o usuário a saber exatamente qual lona ou banner ele está vinculando sem precisar abrir os detalhes.

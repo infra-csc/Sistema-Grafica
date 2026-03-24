@@ -1,0 +1,44 @@
+Prompt para Replit Agent / AI Code Assistant: Refatoração de Modais de Patrocinadores Titanium
+"Refatore os dois componentes de modal de seleção de patrocinadores (lote e individual), unificando e aprimorando seu design e funcionalidade para seguir estritamente a paleta Titanium e corrigir os problemas de usabilidade do botão 'pular aprovação'.
+
+Paleta Titanium a Aplicar:
+
+Fundo (Background): #fafaf9
+
+Superfície/Cards: #ffffff
+
+Texto Primário: #1c1917
+
+Acento: #f97316 (Laranja Titanium)
+
+Bordas: #e7e5e4
+
+Diretrizes para Ambos os Modais:
+
+Cabeçalho Unificado: Mantenha títulos limpos (#1c1917). Remova ícones corporativos e use um ícone de acento minimalista (#f97316) ou apenas tipografia em negrito.
+
+Lista de Patrocinadores Compacta: Cartões brancos (#ffffff) com borda cinza (#e7e5e4), mais compactos, mantendo os 'dots' coloridos e a hierarquia de texto (#1c1917) e subtítulo (#71717a).
+
+Correção do 'Pular Aprovação' (Essencial):
+
+Criação de Seção Comum: Crie uma seção dedicada, limpa e unificada abaixo da lista de patrocinadores, presente em ambos os modais.
+
+Substituição do Toggle: Substitua o interruptor gigante por um switch compacto e moderno. O switch deve estar embutido em uma seção limpa, sem o card cinza grande.
+
+Cor do Switch: A cor do switch ativado deve ser o Laranja Titanium (#f97316). Não use verde.
+
+Texto de Ajuda Melhorado: Reescreva o texto para ser mais direto: 'Pular Aprovação (Ir direto para produção)'. O texto de descrição deve ser menor e mais claro: 'O item irá direto para produção sem aprovação prévia.'
+
+Rodapé Harmonizado:
+
+Divisória: Adicione uma linha divisória sutil (#e7e5e4) acima do rodapé.
+
+Botões:
+
+O contador 'X patrocinadores selecionados' deve ser cinza discreto (#71717a).
+
+O botão 'Cancelar' deve ser um botão 'ghost' com texto em #1c1917.
+
+O botão final ('Aplicar' ou 'Salvar') deve ser um botão primário preto sólido (#1c1917), com texto branco puro, sem bordas. Nunca use verde para esta ação.
+
+Unificação de UI: Garanta que os dois modais pareçam idênticos visualmente, mudando apenas o título e a ação do botão final para criar consistência no app."

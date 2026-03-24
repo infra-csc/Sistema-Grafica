@@ -629,8 +629,14 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
             };
 
             const itemLogs = auditLogs
-              .filter((log: any) => log.entityId === item.id)
-              .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+              .filter((log: any) =>
+                log.entityId === item.id ||
+                (log.entity_id === item.id)  // compatibilidade snake_case
+              )
+              .sort((a: any, b: any) =>
+                new Date(a.createdAt ?? a.created_at).getTime() -
+                new Date(b.createdAt ?? b.created_at).getTime()
+              );
 
             const formatDate = (d: string) => {
               const dt = new Date(d);
@@ -669,7 +675,7 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                               {log.details || log.action}
                             </p>
                             <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>
-                              {formatDate(log.createdAt)}{log.userName ? ` · ${log.userName}` : ''}
+                              {formatDate(log.createdAt ?? log.created_at)}{(log.userName ?? log.user_name) ? ` · ${log.userName ?? log.user_name}` : ''}
                             </p>
                           </div>
                         );

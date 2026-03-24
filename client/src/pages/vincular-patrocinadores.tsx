@@ -1354,11 +1354,6 @@ export default function VincularPatrocinadores() {
                                           </div>
                                         );
                                       })}
-                                      {linkedSponsors.length > 0 && (
-                                        <div className="text-xs font-medium mt-1" style={{ color: '#f97316' }}>
-                                          {linkedSponsors.length} selecionado{linkedSponsors.length !== 1 ? 's' : ''}
-                                        </div>
-                                      )}
                                     </div>
                                   )}
                                   {eventSponsors.length === 0 && (
@@ -1540,6 +1535,8 @@ export default function VincularPatrocinadores() {
                       if (isSelected) {
                         setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
                       } else {
+                        // Selecionar patrocinador desmarca "Sem Patrocinador"
+                        setBulkSkipApproval(false);
                         setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
                       }
                     }}
@@ -1555,25 +1552,32 @@ export default function VincularPatrocinadores() {
                   </div>
                 );
               })}
-            </div>
 
-            {/* Sem Patrocinador */}
-            <div className="flex items-center justify-between gap-4 pt-3" style={{ borderTop: '1px solid #e7e5e4' }}>
-              <div>
-                <p className="text-sm font-medium" style={{ color: '#1c1917' }}>
+              {/* Sem Patrocinador — card selecionável */}
+              <div
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: bulkSkipApproval ? '1px solid #f97316' : '1px dashed #d6d3d1',
+                }}
+                data-testid="bulk-option-sem-patrocinador"
+                onClick={() => {
+                  if (bulkSkipApproval) {
+                    setBulkSkipApproval(false);
+                  } else {
+                    // Selecionar "Sem Patrocinador" desmarca todos os sponsors
+                    setBulkSelectedSponsors([]);
+                    setBulkSkipApproval(true);
+                  }
+                }}
+              >
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#a8a29e' }} />
+                <span className="text-sm font-medium flex-1" style={{ color: '#1c1917' }}>
                   Sem Patrocinador
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: '#a8a29e' }}>
-                  O item não possui patrocinador e irá direto para produção.
-                </p>
+                  <span className="ml-1.5 text-xs font-normal" style={{ color: '#a8a29e' }}>— sem aprovação de patrocinador</span>
+                </span>
+                {bulkSkipApproval && <Check className="h-3.5 w-3.5 shrink-0" style={{ color: '#f97316' }} />}
               </div>
-              <Switch
-                id="bulk-skip-approval"
-                checked={bulkSkipApproval}
-                onCheckedChange={setBulkSkipApproval}
-                data-testid="switch-bulk-skip-approval"
-                className="data-[state=checked]:bg-[#f97316] shrink-0"
-              />
             </div>
 
             {/* Aviso de isentos */}

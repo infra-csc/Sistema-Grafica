@@ -1176,7 +1176,6 @@ export default function VincularPatrocinadores() {
                             Patrocinadores
                           </div>
                         </th>
-                        <th className="px-3 py-2 text-center" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sem Aprov.</th>
                         <th className="px-3 py-2 text-center" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           <div className="flex items-center justify-center gap-1">
                             <Send className="h-3 w-3" />
@@ -1315,42 +1314,6 @@ export default function VincularPatrocinadores() {
                                   <span className="text-xs" style={{ color: '#78716c' }}>Bloqueado (Sem patrocinador)</span>
                                 </div>
                               )}
-                            </td>
-                            <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                checked={currentSkipApproval}
-                                disabled={!isEditable}
-                                onCheckedChange={(checked) => {
-                                  if (!isEditable) return;
-                                  
-                                  const originalSponsors = originalSponsorsMap[item.id] || [];
-                                  const originalSkipApproval = item.skipApproval || false;
-                                  const currentSponsors = pendingChanges[item.id]?.sponsorIds || linkedSponsors;
-                                  const newSkipApproval = !!checked;
-                                  
-                                  const hasChanges = 
-                                    !areSponsorsEqual(currentSponsors, originalSponsors) ||
-                                    newSkipApproval !== originalSkipApproval;
-                                  
-                                  // Atualizar estado local - se não houver mudanças, REMOVER do pendingChanges
-                                  setPendingChanges(prev => {
-                                    if (!hasChanges) {
-                                      const newChanges = { ...prev };
-                                      delete newChanges[item.id];
-                                      return newChanges;
-                                    }
-                                    return {
-                                      ...prev,
-                                      [item.id]: {
-                                        sponsorIds: currentSponsors,
-                                        skipApproval: newSkipApproval,
-                                        isDirty: true
-                                      }
-                                    };
-                                  });
-                                }}
-                                data-testid={`checkbox-skip-approval-${item.id}`}
-                              />
                             </td>
                             <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-2">

@@ -1,0 +1,37 @@
+Prompt para Replit: Refinamento da Sidebar (Titanium)
+"Refatore o componente da Sidebar (Menu Lateral) para alinhá-lo ao design system Titanium, focando em leveza e feedback tátil.
+
+1. Cabeçalho (Logo e Empresa):
+
+Adicione um padding-bottom (ex: pb-6) e uma linha divisória sutil abaixo do bloco da empresa (border-b border-[#e7e5e4]) para separá-lo claramente do menu rolável.
+
+2. Títulos de Seção ('MENU PRINCIPAL', 'ADMINISTRAÇÃO'):
+
+Deixe a fonte um pouco menor (text-[11px]), com um peso de fonte forte (font-semibold), cor cinza claro (text-gray-400) e um espaçamento entre letras maior (tracking-wider) para dar um ar mais técnico e limpo.
+
+Aumente levemente o respiro (margin-top) da seção de 'ADMINISTRAÇÃO' para separá-la melhor da linha divisória.
+
+3. Estilo dos Itens de Menu (Inativos):
+
+A cor padrão do texto e dos ícones deve ser um cinza médio elegante (text-gray-500).
+
+Hover State (Mouse em cima): Quando o usuário passar o mouse, o fundo do item deve mudar para um cinza super claro (bg-[#fafaf9]) e o texto/ícone escurecer levemente (text-[#1c1917]). Use transition-colors e cantos arredondados (rounded-lg).
+
+4. Estilo do Item Ativo (Selecionado):
+
+Remova o fundo preto pesado.
+
+Em vez disso, use um fundo sutil cinza claro (bg-[#f5f5f4] ou bg-orange-50/50) com o texto em preto forte (text-[#1c1917] font-medium).
+
+O ícone do item ativo deve receber a cor de acento Laranja Titanium (text-[#f97316]). Isso cria um destaque sofisticado e moderno sem 'gritar' na tela.
+
+5. Espaçamento Interno:
+
+Garanta que todos os itens do menu tenham um padding confortável (ex: py-2.5 px-3) e que a distância entre o ícone e o texto seja consistente (ex: gap-3)."
+
+Por que essas mudanças fazem diferença?
+Gestão de Atenção: Tirar o fundo preto do menu faz com que os olhos do usuário voltem imediatamente para a tabela ou formulário no centro da tela (onde o trabalho real acontece).
+
+Efeito Hover: Adicionar o fundo #fafaf9 ao passar o mouse dá a sensação de que o software está "vivo" e respondendo ao usuário, o que aumenta a percepção de qualidade.
+
+Hierarquia: A linha sutil abaixo do logo cria uma âncora visual. Você sabe que o menu rola, mas o logo fica fixo.

@@ -296,8 +296,8 @@ export default function Eventos() {
 
   const PRIORITY_COLORS: Record<string, string> = {
     urgente:       '#ef4444',
-    alta:          '#f97316',
-    media:         '#f59e0b',
+    alta:          '#f59e0b',
+    media:         '#a855f7',
     baixa:         '#3b82f6',
     completed:     '#10b981',
     sem_prioridade:'#a8a29e',
@@ -311,11 +311,11 @@ export default function Eventos() {
       },
       media: { 
         label: "Média", 
-        hex: '#f59e0b',
+        hex: '#a855f7',
       },
       alta: { 
         label: "Alta", 
-        hex: '#f97316',
+        hex: '#f59e0b',
       },
       urgente: { 
         label: "Urgente", 
@@ -416,8 +416,8 @@ export default function Eventos() {
 
   const priorityFilterConfig = {
     urgente:       { label: 'Urgente',       hex: '#ef4444', count: events.filter(e => getEventPriority(e) === 'urgente').length },
-    alta:          { label: 'Alta',          hex: '#f97316', count: events.filter(e => getEventPriority(e) === 'alta').length },
-    media:         { label: 'Média',         hex: '#f59e0b', count: events.filter(e => getEventPriority(e) === 'media').length },
+    alta:          { label: 'Alta',          hex: '#f59e0b', count: events.filter(e => getEventPriority(e) === 'alta').length },
+    media:         { label: 'Média',         hex: '#a855f7', count: events.filter(e => getEventPriority(e) === 'media').length },
     baixa:         { label: 'Baixa',         hex: '#3b82f6', count: events.filter(e => getEventPriority(e) === 'baixa').length },
     sem_prioridade:{ label: 'Sem Prioridade',hex: '#a8a29e', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
     completed:     { label: 'Concluído',     hex: '#10b981', count: events.filter(e => getEventPriority(e) === 'completed').length },

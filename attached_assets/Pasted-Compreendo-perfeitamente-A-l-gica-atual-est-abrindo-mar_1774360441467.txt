@@ -1,0 +1,42 @@
+Compreendo perfeitamente. A lógica atual está abrindo margem para erros humanos. Se você define que um item "Não tem patrocinador" (marcando o Sem Aprov.) e salva, o sistema deveria "travar" a adição de patrocinadores para aquele item. Para colocar um patrocinador, o usuário deveria ser obrigado a desmarcar a caixa, destravando o item.
+
+Além disso, o layout com essas faixas amarelas e azuis está fugindo da nossa identidade Titanium (premium, limpa e focada).
+
+Aqui está o prompt detalhado para você jogar no Replit, resolvendo a lógica de travamento e refinando o layout:
+
+Prompt para Replit: Lógica e Layout - Vincular Patrocinadores
+"Refatore a tela 'Vincular Patrocinadores' aplicando o design system Titanium e corrigindo a lógica de bloqueio de itens sem patrocinador.
+
+1. Correção da Lógica (Travamento de 'Sem Aprov.'):
+
+Regra de Negócio: Se o checkbox 'Sem Aprov.' (ou 'Isento') estiver marcado para um item, o campo de selecionar patrocinadores (ou o botão de aplicar em lote) deve ficar completamente desabilitado (disabled) para ele.
+
+Visual do Bloqueio: Quando travado, a área onde ficaria o nome do patrocinador deve exibir 'Bloqueado (Sem patrocinador)' em itálico e cinza claro (text-gray-400), com um pequeno ícone de cadeado (lock).
+
+Para adicionar um patrocinador a um item travado, o usuário precisa primeiro desmarcar o checkbox 'Sem Aprov.' (o que muda o status de volta para 'Pendente') e salvar.
+
+2. Refatoração do Layout (Padrão Titanium):
+
+Background e Superfícies: Fundo da página em #fafaf9. A lista de itens do evento (ex: 'Night Run - Santander') deve ser um card branco (bg-[#ffffff]) com borda fina #e7e5e4 e cantos arredondados (rounded-xl).
+
+Barra de Ação em Lote (Bulk Action): Em vez de um card cinza claro, quando o usuário selecionar 1 ou mais itens, exiba uma barra flutuante (ou substitua o cabeçalho) com fundo escuro (bg-[#1c1917]) e texto branco. Isso chama atenção imediata para a ação em lote. O botão 'Aplicar Patrocinadores' deve ter borda branca ou ser laranja #f97316.
+
+Banners de Passo (Amarelo e Azul): Remova esses banners gigantes e coloridos. Use "Alertas" mais sutis e modernos no topo.
+
+Ex: Para 'Aguardando Salvar', use uma borda esquerda laranja grossa com fundo branco.
+
+Ex: Para 'Pronto para Enviar', use uma borda esquerda verde escura sutil com fundo branco.
+
+3. Estilo da Tabela de Itens:
+
+O cabeçalho da tabela (ID, Item, Detalhes...) deve ser bem discreto, em uppercase, fonte pequena e cinza (text-gray-500).
+
+As linhas dos itens devem ter um separador super fino (border-b border-[#e7e5e4]).
+
+Status Badges: >     * 'Rascunho' (Amarelo/Laranja Titanium): fundo #fef3c7, texto #d97706.
+
+'Pendente' (Cinza neutro): fundo #f5f5f4, texto #57534e.
+
+'Pronto' (Verde Titanium): fundo #dcfce7, texto #166534.
+
+Botões na Linha: O botão 'Salvar' da linha (quando modificado) deve ser um botão primário escuro (#1c1917) compacto. O botão 'Enviar' da linha (quando pronto) deve ser apenas um outline com ícone de avião de papel."

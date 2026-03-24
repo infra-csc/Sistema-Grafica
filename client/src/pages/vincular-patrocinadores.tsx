@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock } from "lucide-react";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatusBadge } from "@/components/status-badge";
@@ -70,31 +70,31 @@ const getItemUIStatus = (
   return 'PENDENTE';
 };
 
-// Cores para cada status UI
+// Cores para cada status UI — Titanium Design System
 const UI_STATUS_CONFIG = {
   RASCUNHO: {
     label: 'Rascunho',
     icon: Circle,
-    badgeClass: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20',
-    chipClass: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+    badgeStyle: { backgroundColor: '#fef3c7', color: '#d97706' },
+    chipClass: 'bg-amber-100 text-amber-800'
   },
   PRONTO: {
     label: 'Pronto',
     icon: CheckCircle2,
-    badgeClass: 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
-    chipClass: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+    badgeStyle: { backgroundColor: '#dcfce7', color: '#166534' },
+    chipClass: 'bg-green-100 text-green-800'
   },
   ENVIADO: {
     label: 'Enviado',
-    icon: Send,
-    badgeClass: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
-    chipClass: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+    icon: Check,
+    badgeStyle: { backgroundColor: '#e0f2fe', color: '#0369a1' },
+    chipClass: 'bg-sky-100 text-sky-800'
   },
   PENDENTE: {
     label: 'Pendente',
-    icon: AlertCircle,
-    badgeClass: 'bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-500/20',
-    chipClass: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+    icon: Circle,
+    badgeStyle: { backgroundColor: '#f5f5f4', color: '#57534e' },
+    chipClass: 'bg-stone-100 text-stone-600'
   }
 };
 
@@ -897,96 +897,81 @@ export default function VincularPatrocinadores() {
           </CardContent>
         </Card>
 
-        {/* Painel de Ações - Duas Etapas Separadas */}
-        <div className="space-y-3">
-          {/* ETAPA 1: Salvar Vinculações */}
+        {/* Alertas de Ação — Titanium */}
+        <div className="space-y-2">
           {statusCounts.RASCUNHO > 0 && (
-            <Card className="border-yellow-300 dark:border-yellow-700 bg-yellow-50/50 dark:bg-yellow-950/20">
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-yellow-500 flex items-center justify-center text-white font-bold text-sm">1</div>
-                    <div>
-                      <div className="font-medium text-sm text-yellow-800 dark:text-yellow-200">Salvar Vinculações</div>
-                      <div className="text-xs text-yellow-600 dark:text-yellow-400">
-                        {statusCounts.RASCUNHO} item{statusCounts.RASCUNHO !== 1 ? 's' : ''} com patrocinadores selecionados aguardando salvar
-                      </div>
-                    </div>
+            <div className="flex items-center justify-between gap-4 bg-white border border-[#e7e5e4] rounded-md px-4 py-3" style={{ borderLeft: '3px solid #f97316' }}>
+              <div className="flex items-center gap-3">
+                <Save className="h-4 w-4 shrink-0" style={{ color: '#f97316' }} />
+                <div>
+                  <div className="font-medium text-sm" style={{ color: '#1c1917' }}>Vinculações não salvas</div>
+                  <div className="text-xs" style={{ color: '#78716c' }}>
+                    {statusCounts.RASCUNHO} item{statusCounts.RASCUNHO !== 1 ? 's' : ''} com patrocinadores selecionados aguardando salvar
                   </div>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
+                onClick={() => {
+                  const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
+                  saveLinkingMutation.mutate(ids);
+                }}
+                disabled={saveLinkingMutation.isPending}
+              >
+                <Save className="h-3.5 w-3.5 mr-1.5" />
+                Salvar Tudo ({statusCounts.RASCUNHO})
+              </Button>
+            </div>
+          )}
+
+          {statusCounts.PRONTO > 0 && (
+            <div className="flex items-center justify-between gap-4 bg-white border border-[#e7e5e4] rounded-md px-4 py-3" style={{ borderLeft: '3px solid #166534' }}>
+              <div className="flex items-center gap-3">
+                <Send className="h-4 w-4 shrink-0" style={{ color: '#166534' }} />
+                <div>
+                  <div className="font-medium text-sm" style={{ color: '#1c1917' }}>Prontos para enviar à Arte</div>
+                  <div className="text-xs" style={{ color: '#78716c' }}>
+                    {selectedForSending.size > 0
+                      ? `${selectedForSending.size} de ${statusCounts.PRONTO} selecionado${selectedForSending.size !== 1 ? 's' : ''}`
+                      : `${statusCounts.PRONTO} item${statusCounts.PRONTO !== 1 ? 's' : ''} com patrocinadores vinculados`
+                    }
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedForSending.size > 0 ? (
+                  <>
+                    <Button size="sm" variant="ghost" onClick={clearSendingSelection} style={{ color: '#78716c' }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
+                      onClick={handleSendSelectedToArte}
+                      disabled={sendToArteMutation.isPending}
+                    >
+                      <Send className="h-3.5 w-3.5 mr-1.5" />
+                      Enviar ({selectedForSending.size})
+                    </Button>
+                  </>
+                ) : (
                   <Button
                     size="sm"
-                    className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                    variant="outline"
+                    style={{ borderColor: '#166534', color: '#166534' }}
                     onClick={() => {
-                      const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
-                      saveLinkingMutation.mutate(ids);
+                      const readyItemIds = visibleItems.filter(item => itemUIStates[item.id] === 'PRONTO').map(item => item.id);
+                      sendToArteMutation.mutate(readyItemIds);
                     }}
-                    disabled={saveLinkingMutation.isPending}
+                    disabled={sendToArteMutation.isPending}
                   >
-                    <Save className="h-4 w-4 mr-2" />
-                    Salvar Tudo ({statusCounts.RASCUNHO})
+                    <Send className="h-3.5 w-3.5 mr-1.5" />
+                    Enviar Todos ({statusCounts.PRONTO})
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* ETAPA 2: Enviar para Arte */}
-          {statusCounts.PRONTO > 0 && (
-            <Card className="border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20">
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">2</div>
-                    <div>
-                      <div className="font-medium text-sm text-blue-800 dark:text-blue-200">Enviar para Arte</div>
-                      <div className="text-xs text-blue-600 dark:text-blue-400">
-                        {selectedForSending.size > 0 
-                          ? `${selectedForSending.size} de ${statusCounts.PRONTO} selecionado${selectedForSending.size !== 1 ? 's' : ''}`
-                          : `${statusCounts.PRONTO} item${statusCounts.PRONTO !== 1 ? 's' : ''} pronto${statusCounts.PRONTO !== 1 ? 's' : ''} - marque o checkbox ou clique "Enviar"`
-                        }
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {selectedForSending.size > 0 ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 px-2 text-blue-600"
-                          onClick={clearSendingSelection}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                          onClick={handleSendSelectedToArte}
-                          disabled={sendToArteMutation.isPending}
-                        >
-                          <Send className="h-4 w-4 mr-2" />
-                          Enviar Selecionados ({selectedForSending.size})
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-blue-300 text-blue-600 hover:bg-blue-50"
-                        onClick={() => {
-                          const readyItemIds = visibleItems.filter(item => itemUIStates[item.id] === 'PRONTO').map(item => item.id);
-                          sendToArteMutation.mutate(readyItemIds);
-                        }}
-                        disabled={sendToArteMutation.isPending}
-                      >
-                        <Send className="h-4 w-4 mr-2" />
-                        Enviar Todos ({statusCounts.PRONTO})
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -1067,56 +1052,37 @@ export default function VincularPatrocinadores() {
         </CardContent>
       </Card>
 
-      {/* Toolbar de Seleção em Massa - Flutuante/Sticky */}
+      {/* Toolbar de Seleção em Massa — Fundo escuro Titanium */}
       {selectedItemIds.size > 0 && (
-        <div className="sticky top-0 z-50 mb-6">
-          <Card className="border-primary shadow-lg bg-gradient-to-r from-primary/10 to-primary/5 border-2 border-primary/50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  {/* Badge de Contagem */}
-                  <div className="flex items-center gap-3 bg-background px-4 py-2 rounded-lg shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center animate-pulse">
-                        <span className="text-base font-bold text-primary-foreground">{selectedItemIds.size}</span>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-sm">
-                          {selectedItemIds.size} item{selectedItemIds.size !== 1 ? 's' : ''} selecionado{selectedItemIds.size !== 1 ? 's' : ''}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Pronto para aplicar em lote
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Botão Limpar */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedItemIds(new Set())}
-                    data-testid="button-clear-selection"
-                    className="gap-2"
-                  >
-                    <X className="h-4 w-4" />
-                    Limpar
-                  </Button>
+        <div className="sticky top-0 z-50 mb-4">
+          <div className="flex items-center justify-between gap-4 rounded-md px-4 py-3 shadow-md" style={{ backgroundColor: '#1c1917' }}>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-full flex items-center justify-center text-sm font-bold" style={{ backgroundColor: '#f97316', color: '#ffffff' }}>
+                  {selectedItemIds.size}
                 </div>
-                
-                {/* Botão de Ação Principal */}
-                <Button
-                  onClick={handleOpenBulkApplyDialog}
-                  className="gap-2 shadow-md"
-                  size="default"
-                  data-testid="button-apply-bulk-sponsors"
-                >
-                  <Users className="h-4 w-4" />
-                  Aplicar Patrocinadores
-                </Button>
+                <span className="font-medium text-sm text-white">
+                  {selectedItemIds.size} item{selectedItemIds.size !== 1 ? 's' : ''} selecionado{selectedItemIds.size !== 1 ? 's' : ''}
+                </span>
               </div>
-            </CardContent>
-          </Card>
+              <button
+                onClick={() => setSelectedItemIds(new Set())}
+                data-testid="button-clear-selection"
+                className="text-xs text-white/60 hover:text-white transition-colors"
+              >
+                Limpar seleção
+              </button>
+            </div>
+            <Button
+              onClick={handleOpenBulkApplyDialog}
+              size="sm"
+              data-testid="button-apply-bulk-sponsors"
+              style={{ backgroundColor: '#f97316', color: '#ffffff' }}
+            >
+              <Users className="h-4 w-4 mr-1.5" />
+              Aplicar Patrocinadores
+            </Button>
+          </div>
         </div>
       )}
 
@@ -1134,9 +1100,9 @@ export default function VincularPatrocinadores() {
           if (!event) return null;
 
           return (
-            <Card key={eventId}>
-              {/* Header do Evento - Compacto */}
-              <CardHeader className="border-b p-4 space-y-2">
+            <div key={eventId} className="rounded-xl border bg-white overflow-hidden" style={{ borderColor: '#e7e5e4' }}>
+              {/* Header do Evento */}
+              <div className="border-b p-4 space-y-2" style={{ borderColor: '#e7e5e4' }}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -1185,14 +1151,14 @@ export default function VincularPatrocinadores() {
                   </div>
                 )}
 
-              </CardHeader>
+              </div>
 
               {/* Tabela de Items - Compacta */}
-              <CardContent className="p-0">
+              <div className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="border-b bg-muted/30">
-                      <tr>
+                    <thead>
+                      <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
                         <th className="px-3 py-2 text-center w-[50px]">
                           <Checkbox
                             checked={displayedItems.filter(item => getItemEditability(item)).length > 0 && displayedItems.filter(item => getItemEditability(item)).every(item => selectedItemIds.has(item.id))}
@@ -1201,17 +1167,17 @@ export default function VincularPatrocinadores() {
                             data-testid={`checkbox-select-all-${event.id}`}
                           />
                         </th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">ID</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Item</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Detalhes</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ID</th>
+                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Item</th>
+                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Detalhes</th>
+                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           <div className="flex items-center gap-1">
                             <Link2 className="h-3 w-3" />
-                            Vincular Patrocinadores
+                            Patrocinadores
                           </div>
                         </th>
-                        <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Sem Aprov.</th>
-                        <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">
+                        <th className="px-3 py-2 text-center" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sem Aprov.</th>
+                        <th className="px-3 py-2 text-center" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           <div className="flex items-center justify-center gap-1">
                             <Send className="h-3 w-3" />
                             Enviar
@@ -1229,13 +1195,14 @@ export default function VincularPatrocinadores() {
                         return (
                           <tr
                             key={item.id}
-                            className={`border-b hover:bg-muted/30 transition-all cursor-pointer ${
-                              pendingChanges[item.id]?.isDirty
-                                ? 'bg-yellow-50/70 dark:bg-yellow-900/20 border-l-4 border-l-yellow-500'
-                                : itemStatus === 'linked' || itemStatus === 'skip'
-                                ? 'bg-green-50/50 dark:bg-green-900/10'
-                                : ''
-                            } ${!isEditable ? 'opacity-60' : ''}`}
+                            className={`transition-colors cursor-pointer ${!isEditable ? 'opacity-55' : ''}`}
+                            style={{
+                              borderBottom: '1px solid #e7e5e4',
+                              borderLeft: pendingChanges[item.id]?.isDirty ? '3px solid #f97316' : '3px solid transparent',
+                              backgroundColor: pendingChanges[item.id]?.isDirty ? '#fffbf5' : 'transparent',
+                            }}
+                            onMouseEnter={e => { if (!pendingChanges[item.id]?.isDirty) (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; }}
+                            onMouseLeave={e => { if (!pendingChanges[item.id]?.isDirty) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
                             onClick={() => setSelectedItemForDetails(item)}
                             data-testid={`item-row-${item.id}`}
                           >
@@ -1343,9 +1310,10 @@ export default function VincularPatrocinadores() {
                                 </span>
                               )}
                               {currentSkipApproval && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Sem patrocinador
-                                </Badge>
+                                <div className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5" style={{ backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+                                  <Lock className="h-3 w-3 shrink-0" style={{ color: '#a8a29e' }} />
+                                  <span className="text-xs" style={{ color: '#78716c' }}>Bloqueado (Sem patrocinador)</span>
+                                </div>
                               )}
                             </td>
                             <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
@@ -1394,7 +1362,7 @@ export default function VincularPatrocinadores() {
                                   
                                   return (
                                     <>
-                                      <Badge variant="secondary" className={`text-xs gap-1 ${config.badgeClass}`} data-testid={`badge-status-${item.id}`}>
+                                      <Badge variant="secondary" className="text-xs gap-1" style={config.badgeStyle} data-testid={`badge-status-${item.id}`}>
                                         <Icon className="h-3 w-3" />
                                         {config.label}
                                       </Badge>
@@ -1403,8 +1371,8 @@ export default function VincularPatrocinadores() {
                                       {uiStatus === 'RASCUNHO' && isEditable && (
                                         <Button
                                           size="sm"
-                                          variant="default"
-                                          className="gap-1 text-xs"
+                                          className="gap-1 text-xs h-7 px-2"
+                                          style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
                                           onClick={() => saveLinkingMutation.mutate([item.id])}
                                           disabled={saveLinkingMutation.isPending}
                                           data-testid={`button-save-item-${item.id}`}
@@ -1414,27 +1382,18 @@ export default function VincularPatrocinadores() {
                                         </Button>
                                       )}
                                       {uiStatus === 'PRONTO' && isEditable && (
-                                        <div className="flex items-center gap-2">
-                                          <Checkbox
-                                            checked={selectedForSending.has(item.id)}
-                                            onCheckedChange={() => toggleSendingSelection(item.id)}
-                                            data-testid={`checkbox-send-item-${item.id}`}
-                                            className="border-blue-500 data-[state=checked]:bg-blue-600"
-                                          />
-                                          {!selectedForSending.has(item.id) && (
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              className="gap-1 text-xs border-blue-300 text-blue-600 hover:bg-blue-50"
-                                              onClick={() => sendToArteMutation.mutate([item.id])}
-                                              disabled={sendToArteMutation.isPending}
-                                              data-testid={`button-send-item-${item.id}`}
-                                            >
-                                              <Send className="h-3 w-3" />
-                                              Enviar
-                                            </Button>
-                                          )}
-                                        </div>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="gap-1 text-xs h-7 px-2"
+                                          style={{ borderColor: '#166534', color: '#166534' }}
+                                          onClick={() => sendToArteMutation.mutate([item.id])}
+                                          disabled={sendToArteMutation.isPending}
+                                          data-testid={`button-send-item-${item.id}`}
+                                        >
+                                          <Send className="h-3 w-3" />
+                                          Enviar
+                                        </Button>
                                       )}
                                     </>
                                   );
@@ -1447,8 +1406,8 @@ export default function VincularPatrocinadores() {
                     </tbody>
                   </table>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           );
         })}
       </div>

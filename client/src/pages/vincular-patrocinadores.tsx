@@ -216,6 +216,32 @@ export default function VincularPatrocinadores() {
     });
   }, [items, rawEvents]);
   
+  // Toggle "Sem Patrocinador" por item individual
+  const toggleItemSkipApproval = (item: any) => {
+    const originalSponsors = originalSponsorsMap[item.id] || [];
+    const originalSkipApproval = item.skipApproval || false;
+    const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? originalSkipApproval;
+    const newSkipApproval = !currentSkipApproval;
+
+    const newSponsors = newSkipApproval ? [] : originalSponsors;
+    const hasChanges =
+      !areSponsorsEqual(newSponsors, originalSponsors) ||
+      newSkipApproval !== originalSkipApproval;
+
+    setPendingChanges(prev => {
+      if (!hasChanges) {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      }
+      return {
+        ...prev,
+        [item.id]: { sponsorIds: newSponsors, skipApproval: newSkipApproval, isDirty: true },
+      };
+    });
+    setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
+  };
+
   // Determinar quais items são editáveis (baseado no status UI)
   const getItemEditability = (item: any) => {
     const originalSponsors = originalSponsorsMap[item.id] || [];
@@ -1252,80 +1278,106 @@ export default function VincularPatrocinadores() {
                               </div>
                             </td>
                             <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                              {/* Seleção múltipla com CHECKBOXES */}
-                              {!currentSkipApproval && eventSponsors.length > 0 && (
-                                <div className="space-y-0.5">
-                                  {eventSponsors.map(sponsor => {
-                                    const isLinked = linkedSponsors.includes(sponsor.id);
-                                    const colorStyle = getSponsorColorStyle(sponsor);
-                                    return (
-                                      <div key={sponsor.id} className="flex items-center gap-1.5">
-                                        <Checkbox
-                                          checked={isLinked}
-                                          disabled={!isEditable}
-                                          onCheckedChange={(checked) => {
-                                            if (!isEditable) return;
-                                            
-                                            const newSponsors = checked
-                                              ? [...linkedSponsors, sponsor.id]
-                                              : linkedSponsors.filter(id => id !== sponsor.id);
-                                            
-                                            const originalSponsors = originalSponsorsMap[item.id] || [];
-                                            const originalSkipApproval = item.skipApproval || false;
-                                            const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? originalSkipApproval;
-                                            
-                                            const hasChanges = 
-                                              !areSponsorsEqual(newSponsors, originalSponsors) ||
-                                              currentSkipApproval !== originalSkipApproval;
-                                            
-                                            // Atualizar estado local - se não houver mudanças, REMOVER do pendingChanges
-                                            setPendingChanges(prev => {
-                                              if (!hasChanges) {
-                                                const newChanges = { ...prev };
-                                                delete newChanges[item.id];
-                                                return newChanges;
-                                              }
-                                              return {
-                                                ...prev,
-                                                [item.id]: {
-                                                  sponsorIds: newSponsors,
-                                                  skipApproval: currentSkipApproval,
-                                                  isDirty: true
-                                                }
-                                              };
-                                            });
-                                            
-                                            // Atualizar mapa de patrocinadores (visual)
-                                            setItemSponsorsMap(prev => ({
-                                              ...prev,
-                                              [item.id]: newSponsors
-                                            }));
-                                          }}
-                                          data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
-                                        />
-                                        <label 
-                                          className={`text-xs font-medium ${!isEditable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                                          style={{ color: colorStyle.color }}
-                                        >
-                                          {sponsor.name}
-                                        </label>
-                                      </div>
-                                    );
-                                  })}
-                                  {linkedSponsors.length > 0 && (
-                                    <div className="text-xs text-primary font-medium mt-1">
-                                      ✓ {linkedSponsors.length} selecionado{linkedSponsors.length !== 1 ? 's' : ''}
-                                    </div>
+                              {/* Estado: Sem Patrocinador */}
+                              {currentSkipApproval ? (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span
+                                    className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+                                    style={
+                                      pendingChanges[item.id]?.skipApproval && pendingChanges[item.id]?.isDirty
+                                        ? { backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }
+                                        : { backgroundColor: '#f5f5f4', color: '#78716c', border: '1px solid #e7e5e4' }
+                                    }
+                                  >
+                                    Sem Patrocinador
+                                  </span>
+                                  {isEditable && (
+                                    <button
+                                      className="text-xs underline"
+                                      style={{ color: '#a8a29e' }}
+                                      onClick={() => toggleItemSkipApproval(item)}
+                                      data-testid={`btn-undo-skip-${item.id}`}
+                                    >
+                                      desfazer
+                                    </button>
                                   )}
                                 </div>
-                              )}
-                              {!currentSkipApproval && eventSponsors.length === 0 && (
-                                <span className="text-xs text-muted-foreground italic">
-                                  Adicione patrocinadores ao evento
-                                </span>
-                              )}
-                              {currentSkipApproval && (
-                                <span className="text-xs italic" style={{ color: '#a8a29e' }}>Isento de Patrocinador</span>
+                              ) : (
+                                <div>
+                                  {/* Seleção múltipla com CHECKBOXES */}
+                                  {eventSponsors.length > 0 && (
+                                    <div className="space-y-0.5">
+                                      {eventSponsors.map(sponsor => {
+                                        const isLinked = linkedSponsors.includes(sponsor.id);
+                                        const colorStyle = getSponsorColorStyle(sponsor);
+                                        return (
+                                          <div key={sponsor.id} className="flex items-center gap-1.5">
+                                            <Checkbox
+                                              checked={isLinked}
+                                              disabled={!isEditable}
+                                              onCheckedChange={(checked) => {
+                                                if (!isEditable) return;
+                                                const newSponsors = checked
+                                                  ? [...linkedSponsors, sponsor.id]
+                                                  : linkedSponsors.filter(id => id !== sponsor.id);
+                                                const originalSponsors = originalSponsorsMap[item.id] || [];
+                                                const originalSkipApproval = item.skipApproval || false;
+                                                const currentSkipApprovalLocal = pendingChanges[item.id]?.skipApproval ?? originalSkipApproval;
+                                                const hasChanges =
+                                                  !areSponsorsEqual(newSponsors, originalSponsors) ||
+                                                  currentSkipApprovalLocal !== originalSkipApproval;
+                                                setPendingChanges(prev => {
+                                                  if (!hasChanges) {
+                                                    const newChanges = { ...prev };
+                                                    delete newChanges[item.id];
+                                                    return newChanges;
+                                                  }
+                                                  return {
+                                                    ...prev,
+                                                    [item.id]: {
+                                                      sponsorIds: newSponsors,
+                                                      skipApproval: currentSkipApprovalLocal,
+                                                      isDirty: true,
+                                                    },
+                                                  };
+                                                });
+                                                setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
+                                              }}
+                                              data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
+                                            />
+                                            <label
+                                              className={`text-xs font-medium ${!isEditable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                                              style={{ color: colorStyle.color }}
+                                            >
+                                              {sponsor.name}
+                                            </label>
+                                          </div>
+                                        );
+                                      })}
+                                      {linkedSponsors.length > 0 && (
+                                        <div className="text-xs font-medium mt-1" style={{ color: '#f97316' }}>
+                                          {linkedSponsors.length} selecionado{linkedSponsors.length !== 1 ? 's' : ''}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {eventSponsors.length === 0 && (
+                                    <span className="text-xs text-muted-foreground italic">
+                                      Adicione patrocinadores ao evento
+                                    </span>
+                                  )}
+                                  {/* Botão Sem Patrocinador individual */}
+                                  {isEditable && (
+                                    <button
+                                      className="text-xs mt-1 underline block"
+                                      style={{ color: '#a8a29e' }}
+                                      onClick={() => toggleItemSkipApproval(item)}
+                                      data-testid={`btn-skip-sponsor-${item.id}`}
+                                    >
+                                      sem patrocinador
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </td>
                             <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
@@ -1505,14 +1557,14 @@ export default function VincularPatrocinadores() {
               })}
             </div>
 
-            {/* Pular Aprovação */}
+            {/* Sem Patrocinador */}
             <div className="flex items-center justify-between gap-4 pt-3" style={{ borderTop: '1px solid #e7e5e4' }}>
               <div>
                 <p className="text-sm font-medium" style={{ color: '#1c1917' }}>
-                  Pular Aprovação <span className="font-normal" style={{ color: '#71717a' }}>(ir direto para produção)</span>
+                  Sem Patrocinador
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: '#a8a29e' }}>
-                  O item irá direto para produção sem aprovação prévia.
+                  O item não possui patrocinador e irá direto para produção.
                 </p>
               </div>
               <Switch

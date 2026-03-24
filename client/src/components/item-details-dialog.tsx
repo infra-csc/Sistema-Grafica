@@ -620,28 +620,38 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Histórico Card */}
           {(() => {
-            // Busca o primeiro log de entrega para este item
-            const deliveryLog = auditLogs.find((log: any) =>
-              (log.action === 'delivered') &&
-              (log.entityId === item.id || log.entity_id === item.id)
-            );
+            const itemLogs = auditLogs
+              .filter((log: any) => log.entityId === item.id || log.entity_id === item.id)
+              .sort((a: any, b: any) =>
+                new Date(a.createdAt ?? a.created_at).getTime() -
+                new Date(b.createdAt ?? b.created_at).getTime()
+              );
 
             const formatDate = (d: string) => {
               const dt = new Date(d);
-              const day = dt.getDate().toString().padStart(2, '0');
-              const mon = (dt.getMonth() + 1).toString().padStart(2, '0');
-              const h   = dt.getHours().toString().padStart(2, '0');
-              const min = dt.getMinutes().toString().padStart(2, '0');
-              return `${day}/${mon} ${h}:${min}`;
+              return `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
             };
 
-            const staticEntries = [
-              { label: 'Vinculação iniciada',            color: '#f97316' },
-              { label: 'Enviado para Arte',              color: '#a855f7' },
-              { label: 'Em aprovação de patrocinador',   color: '#f97316' },
-              { label: 'Aprovado - Finalização',         color: '#10b981' },
-              { label: 'Aguardando revisão final',       color: '#3b82f6' },
+            const getLogDate = (keywords: string[]) => {
+              const log = itemLogs.find((l: any) => {
+                const d = (l.details || l.action || '').toLowerCase();
+                return keywords.some(k => d.includes(k.toLowerCase()));
+              });
+              if (!log) return null;
+              const ts = log.createdAt ?? log.created_at;
+              const name = log.userName ?? log.user_name;
+              return `${formatDate(ts)}${name ? ` · ${name}` : ''}`;
+            };
+
+            const stages = [
+              { label: 'Vinculação iniciada',          color: '#f97316', keywords: ['patrocinador', 'vinculad', 'linking', 'aguardando vincula'] },
+              { label: 'Enviado para Arte',             color: '#a855f7', keywords: ['enviado para arte', 'arte', 'aguardando envio'] },
+              { label: 'Em aprovação de patrocinador',  color: '#f97316', keywords: ['aprovação', 'aguardando aprovação', 'sponsor'] },
+              { label: 'Aprovado - Finalização',        color: '#10b981', keywords: ['finalização', 'aguardando finaliz', 'aprovado pelo patrocinador', 'todos os patrocinadores'] },
+              { label: 'Aguardando revisão final',      color: '#3b82f6', keywords: ['revisão final', 'arquivo final', 'aguardando revisão'] },
             ];
+
+            const deliveryLog = itemLogs.find((l: any) => l.action === 'delivered');
 
             return (
               <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '16px' }}>
@@ -655,19 +665,25 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                 <div style={{ position: 'relative', paddingLeft: '28px' }}>
                   <div style={{ position: 'absolute', left: '6px', top: '0', bottom: '0', width: '1px', backgroundColor: '#e7e5e4' }} />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {staticEntries.map((entry, idx) => (
-                      <div key={idx} style={{ position: 'relative' }}>
-                        <div style={{ position: 'absolute', left: '-22px', top: '2px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entry.color }} />
-                        <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0' }}>{entry.label}</p>
-                      </div>
-                    ))}
+                    {stages.map((stage, idx) => {
+                      const dateStr = getLogDate(stage.keywords);
+                      return (
+                        <div key={idx} style={{ position: 'relative' }}>
+                          <div style={{ position: 'absolute', left: '-22px', top: '3px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: stage.color }} />
+                          <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 1px 0' }}>{stage.label}</p>
+                          {dateStr && (
+                            <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>{dateStr}</p>
+                          )}
+                        </div>
+                      );
+                    })}
 
-                    {/* Entrada de entrega — dinâmica, só aparece se existir */}
+                    {/* Entregue — dinâmico */}
                     {deliveryLog && (
                       <div style={{ position: 'relative' }}>
-                        <div style={{ position: 'absolute', left: '-22px', top: '2px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                        <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 2px 0' }}>
-                          {deliveryLog.details || deliveryLog.action || 'Entregue'}
+                        <div style={{ position: 'absolute', left: '-22px', top: '3px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                        <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 1px 0' }}>
+                          {deliveryLog.details || 'Entregue'}
                         </p>
                         <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>
                           {formatDate(deliveryLog.createdAt ?? deliveryLog.created_at)}

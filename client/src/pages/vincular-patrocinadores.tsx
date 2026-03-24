@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -153,9 +152,6 @@ export default function VincularPatrocinadores() {
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
-  // Estado para controlar quais eventos estão abertos no accordion
-  const [openEvents, setOpenEvents] = useState<string[]>([]);
-  
   // Estado para seleção de items para ENVIAR (separado da seleção para aplicar patrocinadores)
   const [selectedForSending, setSelectedForSending] = useState<Set<string>>(new Set());
 
@@ -300,18 +296,6 @@ export default function VincularPatrocinadores() {
       return filteredItems.length > 0;
     });
   }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, originalSponsorsMap]);
-
-  // Auto-expandir todos os eventos quando filteredEventEntries muda
-  useEffect(() => {
-    const allEventIds = filteredEventEntries.map(([id]) => id);
-    setOpenEvents(prev => {
-      // Adicionar novos eventos sem remover os que o usuário fechou manualmente
-      const existing = new Set(prev);
-      const newIds = allEventIds.filter(id => !existing.has(id));
-      if (newIds.length === 0) return prev;
-      return [...prev, ...newIds];
-    });
-  }, [filteredEventEntries]);
 
   // ===== FONTE ÚNICA DE VERDADE: Computar estados UI de todos os items =====
   const itemUIStates = useMemo(() => {
@@ -1006,186 +990,6 @@ export default function VincularPatrocinadores() {
           )}
         </div>
       </div>
-
-      {/* Acordeões por Evento */}
-      <Accordion type="multiple" value={openEvents} onValueChange={setOpenEvents} className="space-y-3">
-        {filteredEventEntries.map(([eventId, eventItems]) => {
-          const event = events.find(e => e.id === eventId);
-          if (!event) return null;
-
-          const eventSponsors = getEventSponsors(eventId);
-          const eventCompleted = eventItems.every(item => itemUIStates[item.id] === 'ENVIADO');
-          const eventProgress = eventItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
-          
-          return (
-            <AccordionItem key={eventId} value={eventId} className="border border-border rounded-md overflow-hidden bg-card">
-              <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30">
-                <div className="flex items-center justify-between w-full pr-4">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div className="text-left">
-                      <div className="font-semibold text-sm">{event.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {format(new Date(event.startDate), "dd 'de' MMMM", { locale: ptBR })}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {eventCompleted ? (
-                      <Badge variant="secondary" className={UI_STATUS_CONFIG.ENVIADO.chipClass}>
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Concluído
-                      </Badge>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {eventProgress}/{eventItems.length}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pb-3 px-4">
-                <div className="space-y-2">
-                  {eventItems.map((item) => {
-                    const uiStatus = itemUIStates[item.id] || 'PENDENTE';
-                    const config = UI_STATUS_CONFIG[uiStatus];
-                    const Icon = config.icon;
-                    const linkedSponsors = itemSponsorsMap[item.id] || [];
-                    const isExpanded = expandedItems.has(item.id);
-                    const isLocked = uiStatus === 'ENVIADO';
-                    
-                    return (
-                      <Card key={item.id} className={`overflow-hidden ${isLocked ? 'opacity-75' : ''}`}>
-                        {/* Linha do Item */}
-                        <div className="p-2">
-                          <div className="flex items-center justify-between gap-2">
-                            {/* Info do Item */}
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <button
-                                onClick={() => !isLocked && toggleItemExpansion(item.id)}
-                                className={`p-1 rounded transition-colors ${isLocked ? 'cursor-not-allowed' : 'hover:bg-muted'}`}
-                                disabled={isLocked}
-                              >
-                                <ChevronDown 
-                                  className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''} ${isLocked ? 'text-muted-foreground' : ''}`}
-                                />
-                              </button>
-                              <span className="text-xs font-mono font-semibold text-primary">{item.displayId}</span>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium truncate">{item.type}</div>
-                                {item.description && (
-                                  <div className="text-xs text-muted-foreground truncate">{item.description}</div>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Status e Ações */}
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className={`text-xs gap-1 ${config.badgeClass}`}>
-                                <Icon className="h-3 w-3" />
-                                {config.label}
-                              </Badge>
-                              
-                              {uiStatus === 'RASCUNHO' && (
-                                <Button 
-                                  size="sm" 
-                                  onClick={() => saveLinkingMutation.mutate([item.id])} 
-                                  disabled={saveLinkingMutation.isPending}
-                                >
-                                  <Save className="h-3 w-3 mr-1" />
-                                  Salvar
-                                </Button>
-                              )}
-                              {uiStatus === 'PRONTO' && (
-                                <Button 
-                                  size="sm" 
-                                  variant="default"
-                                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                                  onClick={() => sendToArteMutation.mutate([item.id])} 
-                                  disabled={sendToArteMutation.isPending}
-                                >
-                                  <Send className="h-3 w-3 mr-1" />
-                                  Enviar
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Área Expandida - Patrocinadores */}
-                          {isExpanded && isLocked && (
-                            <div className="mt-2 pt-2 border-t">
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <CheckCircle2 className="h-3 w-3" />
-                                <span>Item já enviado - não pode ser editado</span>
-                              </div>
-                            </div>
-                          )}
-                          {isExpanded && !isLocked && (
-                            <div className="mt-2 pt-2 border-t">
-                              <div className="text-xs font-medium mb-1">Selecione os patrocinadores:</div>
-                              {eventSponsors.length === 0 ? (
-                                <p className="text-xs text-muted-foreground italic">Nenhum patrocinador cadastrado neste evento</p>
-                              ) : (
-                                <div className="grid grid-cols-2 gap-1">
-                                  {eventSponsors.map(sponsor => (
-                                    <div key={sponsor.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50">
-                                      <Checkbox
-                                        id={`sponsor-${item.id}-${sponsor.id}`}
-                                        checked={linkedSponsors.includes(sponsor.id)}
-                                        onCheckedChange={(checked) => {
-                                          const newSponsors = checked
-                                            ? [...linkedSponsors, sponsor.id]
-                                            : linkedSponsors.filter(id => id !== sponsor.id);
-                                          
-                                          const originalSponsors = originalSponsorsMap[item.id] || [];
-                                          const hasChanges = !areSponsorsEqual(newSponsors, originalSponsors);
-                                          
-                                          if (hasChanges) {
-                                            setPendingChanges(prev => ({
-                                              ...prev,
-                                              [item.id]: {
-                                                sponsorIds: newSponsors,
-                                                skipApproval: item.skipApproval || false,
-                                                isDirty: true
-                                              }
-                                            }));
-                                          } else {
-                                            setPendingChanges(prev => {
-                                              const newChanges = { ...prev };
-                                              delete newChanges[item.id];
-                                              return newChanges;
-                                            });
-                                          }
-                                          
-                                          setItemSponsorsMap(prev => ({
-                                            ...prev,
-                                            [item.id]: newSponsors
-                                          }));
-                                        }}
-                                        data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
-                                      />
-                                      <label 
-                                        htmlFor={`sponsor-${item.id}-${sponsor.id}`}
-                                        className="text-sm cursor-pointer flex-1"
-                                      >
-                                        {sponsor.name}
-                                      </label>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          );
-        })}
-      </Accordion>
 
       {/* Dialogs e Modals */}
       <Card className="mb-6">

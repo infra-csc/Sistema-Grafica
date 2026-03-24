@@ -1,0 +1,31 @@
+O Gemini disse
+Aqui está o novo layout para a tela de eventos, agora totalmente integrado à paleta de cores Titanium que definimos (#fafaf9, #1c1917, #f97316, #e7e5e4, #ffffff), removendo todo o verde e deixando o visual mais moderno e profissional.
+
+Prompt para o Replit Agent / AI Code Assistant
+Copie e cole este prompt no seu Replit para gerar o código com este novo design:
+
+"Refatore a tela de listagem de eventos para adotar o design system Titanium absoluto, focado em leveza, densidade de informações e hierarquia visual técnica.
+
+1. Identidade Visual (Titanium):
+
+Background da Página: Use o tom de pedra clara #fafaf9 para dar respiro.
+
+Container de Conteúdo (Card): Use branco puro (#ffffff), com cantos arredondados (rounded-2xl) e uma sombra suave para dar profundidade.
+
+Tipografia: Use o preto grafite #1c1917 para os textos principais e o laranja #f97316 apenas para ícones de acento e estados ativos.
+
+2. Estrutura e Hierarquia:
+
+Adicione o título da página 'Eventos' em destaque no topo em #1c1917.
+
+Barra de Ferramentas: Unifique a barra de busca e filtros com o botão '+ Novo Evento' no topo do card. A barra de busca deve ter um fundo sutil #fafaf9, borda #e7e5e4 e ícones em laranja #f97316.
+
+Filtros de Prioridade: Substitua as pílulas antigas por um design mais limpo (borda fina #e7e5e4 e texto #1c1917). Use pontos (dots) de cor nítidos e distintos para cada prioridade (ex: Vermelho nítido para Urgente, Laranja nítido para Alta). O filtro selecionado deve ter o fundo #1c1917 e texto branco.
+
+3. Estilo da Tabela de Itens:
+
+Remova o verde e use tons de cinza para os separadores.
+
+Diferencial de Prioridade (Harmonizado): Para cada linha, adicione uma borda esquerda mais grossa (ex: border-l-4) usando a cor exata da prioridade do evento. O restante da borda da linha deve ser cinza #e7e5e4. Isso permite identificar a prioridade sem brigar com a paleta.
+
+Adicione um hover:bg-[#fafaf9] sutil nas linhas para melhorar a navegabilidade tátil. Use tipografia limpa (ex: Inter ou Roboto).

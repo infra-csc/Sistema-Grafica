@@ -1200,9 +1200,9 @@ export default function VincularPatrocinadores() {
                       <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
                         <th className="px-3 py-2 text-center w-[50px]">
                           <Checkbox
-                            checked={displayedItems.filter(item => getItemEditability(item)).length > 0 && displayedItems.filter(item => getItemEditability(item)).every(item => selectedItemIds.has(item.id))}
-                            onCheckedChange={() => toggleAllItemsInEvent(displayedItems.filter(item => getItemEditability(item)))}
-                            disabled={displayedItems.filter(item => getItemEditability(item)).length === 0}
+                            checked={displayedItems.filter(item => (itemUIStates[item.id] || 'PENDENTE') === 'PENDENTE').length > 0 && displayedItems.filter(item => (itemUIStates[item.id] || 'PENDENTE') === 'PENDENTE').every(item => selectedItemIds.has(item.id))}
+                            onCheckedChange={() => toggleAllItemsInEvent(displayedItems.filter(item => (itemUIStates[item.id] || 'PENDENTE') === 'PENDENTE'))}
+                            disabled={displayedItems.filter(item => (itemUIStates[item.id] || 'PENDENTE') === 'PENDENTE').length === 0}
                             data-testid={`checkbox-select-all-${event.id}`}
                           />
                         </th>
@@ -1250,8 +1250,9 @@ export default function VincularPatrocinadores() {
                             <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
-                                onCheckedChange={() => isEditable && toggleItemSelection(item.id)}
-                                disabled={!isEditable}
+                                onCheckedChange={() => uiStatus === 'PENDENTE' && toggleItemSelection(item.id)}
+                                disabled={uiStatus !== 'PENDENTE'}
+                                title={uiStatus === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : uiStatus === 'RASCUNHO' ? 'Salve as alterações antes de selecionar' : uiStatus === 'ENVIADO' ? 'Item já enviado' : undefined}
                                 data-testid={`checkbox-item-${item.id}`}
                               />
                             </td>

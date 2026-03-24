@@ -24,21 +24,36 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
   if (!item) return null;
 
-  // Timeline: mapeamento de status → quantos passos estão concluídos (0–6)
+  // Timeline: mapeamento de status (valores reais do banco) → etapa ativa
+  // -1 = nenhuma | 0 = Vinculação | 1 = Arte | 2 = Aprovação | 3 = Finalização | 4 = Revisão | 5 = Produção | 6 = tudo concluído
   const STATUS_STEP: Record<string, number> = {
-    solicitado: -1,
-    aguardando_vinculacao: 0,
-    aguardando_envio: 1,
-    aguardando_aprovacao: 2,
-    aguardando_finalizacao: 3,
-    aguardando_revisao_final: 4,
-    pronto_para_producao: 5,
-    liberado: 5,
-    em_producao: 5,
-    produzido: 6,
-    entregue: 6,
+    // Não iniciado
+    requested: -1,
+    draft: -1,
+    // Vinculação ativa
+    awaiting_linking: 0,
+    // Arte ativa (Vinculação concluída)
+    awaiting_submission: 1,
+    // Aprovação ativa (Arte concluída)
+    awaiting_approval: 2,
+    awaiting_sponsor_approval: 2,
+    // Finalização ativa (Aprovação concluída)
+    awaiting_finalization: 3,
+    sponsor_approved: 3,
+    // Revisão ativa (Finalização concluída)
+    awaiting_final_review: 4,
+    awaiting_creator_review: 4,
+    // Produção ativa (Revisão concluída)
+    ready_for_production: 5,
+    approved: 5,
+    inproduction: 5,
+    inProduction: 5,
+    // Tudo concluído
+    produced: 6,
+    delivered: 6,
   };
-  const timelineCurrentStep = STATUS_STEP[(item.status || '').trim().toLowerCase()] ?? -1;
+  const rawStatus = (item.status || '').trim();
+  const timelineCurrentStep = STATUS_STEP[rawStatus] ?? STATUS_STEP[rawStatus.toLowerCase()] ?? -1;
 
   const TIMELINE_STEPS = [
     { label: 'Vinculação', color: '#f97316', icon: Link2,       idx: 0 },

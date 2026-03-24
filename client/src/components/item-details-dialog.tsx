@@ -620,23 +620,11 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
 
           {/* Histórico Card */}
           {(() => {
-            const ACTION_COLOR: Record<string, string> = {
-              created:   '#f97316',
-              updated:   '#3b82f6',
-              approved:  '#10b981',
-              delivered: '#10b981',
-              rejected:  '#ef4444',
-            };
-
-            const itemLogs = auditLogs
-              .filter((log: any) =>
-                log.entityId === item.id ||
-                (log.entity_id === item.id)  // compatibilidade snake_case
-              )
-              .sort((a: any, b: any) =>
-                new Date(a.createdAt ?? a.created_at).getTime() -
-                new Date(b.createdAt ?? b.created_at).getTime()
-              );
+            // Busca o primeiro log de entrega para este item
+            const deliveryLog = auditLogs.find((log: any) =>
+              (log.action === 'delivered') &&
+              (log.entityId === item.id || log.entity_id === item.id)
+            );
 
             const formatDate = (d: string) => {
               const dt = new Date(d);
@@ -647,6 +635,14 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               return `${day}/${mon} ${h}:${min}`;
             };
 
+            const staticEntries = [
+              { label: 'Vinculação iniciada',            color: '#f97316' },
+              { label: 'Enviado para Arte',              color: '#a855f7' },
+              { label: 'Em aprovação de patrocinador',   color: '#f97316' },
+              { label: 'Aprovado - Finalização',         color: '#10b981' },
+              { label: 'Aguardando revisão final',       color: '#3b82f6' },
+            ];
+
             return (
               <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -656,33 +652,31 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
                   </h3>
                 </div>
 
-                {itemLogs.length === 0 ? (
-                  <p style={{ color: '#a8a29e', fontSize: '13px', margin: '0' }}>Nenhum registro encontrado.</p>
-                ) : (
-                  <div style={{ position: 'relative', paddingLeft: '28px' }}>
-                    {/* Linha vertical */}
-                    <div style={{ position: 'absolute', left: '6px', top: '0', bottom: '0', width: '1px', backgroundColor: '#e7e5e4' }} />
+                <div style={{ position: 'relative', paddingLeft: '28px' }}>
+                  <div style={{ position: 'absolute', left: '6px', top: '0', bottom: '0', width: '1px', backgroundColor: '#e7e5e4' }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {staticEntries.map((entry, idx) => (
+                      <div key={idx} style={{ position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '-22px', top: '2px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entry.color }} />
+                        <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0' }}>{entry.label}</p>
+                      </div>
+                    ))}
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {itemLogs.map((log: any, idx: number) => {
-                        const color = ACTION_COLOR[log.action] ?? '#a8a29e';
-                        return (
-                          <div key={idx} style={{ position: 'relative' }}>
-                            {/* Ponto colorido */}
-                            <div style={{ position: 'absolute', left: '-22px', top: '3px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: color }} />
-                            {/* Rótulo = details ou action */}
-                            <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 2px 0' }}>
-                              {log.details || log.action}
-                            </p>
-                            <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>
-                              {formatDate(log.createdAt ?? log.created_at)}{(log.userName ?? log.user_name) ? ` · ${log.userName ?? log.user_name}` : ''}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    {/* Entrada de entrega — dinâmica, só aparece se existir */}
+                    {deliveryLog && (
+                      <div style={{ position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: '-22px', top: '2px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                        <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 2px 0' }}>
+                          {deliveryLog.details || deliveryLog.action || 'Entregue'}
+                        </p>
+                        <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>
+                          {formatDate(deliveryLog.createdAt ?? deliveryLog.created_at)}
+                          {(deliveryLog.userName ?? deliveryLog.user_name) ? ` · ${deliveryLog.userName ?? deliveryLog.user_name}` : ''}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             );
           })()}

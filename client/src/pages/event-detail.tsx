@@ -1594,6 +1594,21 @@ export default function EventDetail() {
                 </div>
               </div>
 
+              {/* Medida textual (opcional) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>
+                  Medida <span style={{ textTransform: "none", fontWeight: 400, color: "#a8a29e" }}>(ex: 1.90 × 0.90 m)</span>
+                </label>
+                <Input
+                  value={formData.measurement}
+                  onChange={(e) => setFormData({ ...formData, measurement: e.target.value })}
+                  placeholder="Ex: 1.90 × 0.90 m"
+                  className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
+                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                  data-testid="input-edit-measurement"
+                />
+              </div>
+
               {/* Linha 4: Material (33%) | Acabamento (33%) | Patrocinador (33%) */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -1658,6 +1673,26 @@ export default function EventDetail() {
                   data-testid="textarea-edit-observations"
                 />
               </div>
+
+              {/* Pular Aprovação — apenas Admin */}
+              {user?.role === 'admin' && (
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px" }}>
+                  <Checkbox
+                    id="skip-approval-edit"
+                    checked={formData.skipApproval}
+                    onCheckedChange={(checked) => setFormData({ ...formData, skipApproval: !!checked })}
+                    data-testid="checkbox-skip-approval"
+                  />
+                  <div>
+                    <label htmlFor="skip-approval-edit" style={{ fontSize: "12px", fontWeight: 700, color: "#c2410c", cursor: "pointer" }}>
+                      Pular aprovação de patrocinador
+                    </label>
+                    <p style={{ fontSize: "11px", color: "#ea580c", margin: "1px 0 0 0" }}>
+                      Item irá diretamente para revisão do criador sem aprovação dos patrocinadores
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Rodapé */}

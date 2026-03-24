@@ -1594,21 +1594,6 @@ export default function EventDetail() {
                 </div>
               </div>
 
-              {/* Medida textual (opcional) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <label style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c" }}>
-                  Medida <span style={{ textTransform: "none", fontWeight: 400, color: "#a8a29e" }}>(ex: 1.90 × 0.90 m)</span>
-                </label>
-                <Input
-                  value={formData.measurement}
-                  onChange={(e) => setFormData({ ...formData, measurement: e.target.value })}
-                  placeholder="Ex: 1.90 × 0.90 m"
-                  className="h-9 text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                  style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
-                  data-testid="input-edit-measurement"
-                />
-              </div>
-
               {/* Linha 4: Material (33%) | Acabamento (33%) | Patrocinador (33%) */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>

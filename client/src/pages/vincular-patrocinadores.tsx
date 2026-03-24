@@ -152,6 +152,9 @@ export default function VincularPatrocinadores() {
   
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  // Estado para controlar quais eventos estão abertos no accordion
+  const [openEvents, setOpenEvents] = useState<string[]>([]);
   
   // Estado para seleção de items para ENVIAR (separado da seleção para aplicar patrocinadores)
   const [selectedForSending, setSelectedForSending] = useState<Set<string>>(new Set());
@@ -297,6 +300,18 @@ export default function VincularPatrocinadores() {
       return filteredItems.length > 0;
     });
   }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, originalSponsorsMap]);
+
+  // Auto-expandir todos os eventos quando filteredEventEntries muda
+  useEffect(() => {
+    const allEventIds = filteredEventEntries.map(([id]) => id);
+    setOpenEvents(prev => {
+      // Adicionar novos eventos sem remover os que o usuário fechou manualmente
+      const existing = new Set(prev);
+      const newIds = allEventIds.filter(id => !existing.has(id));
+      if (newIds.length === 0) return prev;
+      return [...prev, ...newIds];
+    });
+  }, [filteredEventEntries]);
 
   // ===== FONTE ÚNICA DE VERDADE: Computar estados UI de todos os items =====
   const itemUIStates = useMemo(() => {
@@ -993,7 +1008,7 @@ export default function VincularPatrocinadores() {
       </div>
 
       {/* Acordeões por Evento */}
-      <Accordion type="multiple" className="space-y-3">
+      <Accordion type="multiple" value={openEvents} onValueChange={setOpenEvents} className="space-y-3">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
           if (!event) return null;
@@ -1003,8 +1018,8 @@ export default function VincularPatrocinadores() {
           const eventProgress = eventItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
           
           return (
-            <AccordionItem key={eventId} value={eventId} className="border-0">
-              <AccordionTrigger className="hidden">
+            <AccordionItem key={eventId} value={eventId} className="border border-border rounded-md overflow-hidden bg-card">
+              <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30">
                 <div className="flex items-center justify-between w-full pr-4">
                   <div className="flex items-center gap-3">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -1029,7 +1044,7 @@ export default function VincularPatrocinadores() {
                   </div>
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="pb-0">
+              <AccordionContent className="pb-3 px-4">
                 <div className="space-y-2">
                   {eventItems.map((item) => {
                     const uiStatus = itemUIStates[item.id] || 'PENDENTE';

@@ -182,6 +182,7 @@ export default function EventDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setOpen(false);
       setFormData({
         type: "",
@@ -247,6 +248,7 @@ export default function EventDetail() {
       
       // Atualizar com dados reais do servidor (substitui os temporários)
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       
       // NÃO FECHA O DIALOG - deixa usuário fechar quando quiser
       // Assim não causa re-fetches múltiplos e não fica tela branca
@@ -337,6 +339,7 @@ export default function EventDetail() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       toast({
         title: "Itens enviados com sucesso",
         description: `${data.count} ${data.count === 1 ? 'item foi enviado' : 'itens foram enviados'} para vinculação de patrocinadores`,

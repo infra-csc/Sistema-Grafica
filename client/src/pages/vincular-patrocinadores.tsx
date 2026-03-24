@@ -1388,83 +1388,65 @@ export default function VincularPatrocinadores() {
         })}
       </div>
       
-      {/* Dialog para Gerenciar Patrocinadores do Evento */}
+      {/* Dialog — Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={setSponsorDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Gerenciar Patrocinadores do Evento
+        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9' }}>
+          <div className="px-5 pt-5 pb-4" style={{ borderBottom: '1px solid #e7e5e4' }}>
+            <DialogTitle className="text-base font-semibold" style={{ color: '#1c1917' }}>
+              Patrocinadores do Evento
             </DialogTitle>
-            <DialogDescription>
-              {selectedEventForSponsors && (
-                <span>Selecione os patrocinadores para <strong>{selectedEventForSponsors.name}</strong></span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 max-h-[400px] overflow-y-auto">
-            {sponsors.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Nenhum patrocinador cadastrado no sistema
+            {selectedEventForSponsors && (
+              <p className="text-xs mt-0.5" style={{ color: '#71717a' }}>
+                {selectedEventForSponsors.name}
               </p>
-            ) : (
-              <div className="space-y-2">
-                {sponsors.map((sponsor) => (
-                  <div 
-                    key={sponsor.id} 
-                    className={`flex items-center space-x-3 p-3 border-2 rounded-lg transition-all cursor-pointer hover-elevate ${
-                      selectedSponsorIds.includes(sponsor.id)
-                        ? 'border-primary bg-primary/5' 
-                        : 'border-border bg-background'
-                    }`}
-                    onClick={() => {
-                      if (selectedSponsorIds.includes(sponsor.id)) {
-                        setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
-                      } else {
-                        setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
-                      }
-                    }}
-                  >
-                    <Checkbox
-                      id={`event-sponsor-${sponsor.id}`}
-                      checked={selectedSponsorIds.includes(sponsor.id)}
-                      onCheckedChange={() => {}} // Controlled by div onClick
-                      data-testid={`checkbox-event-sponsor-${sponsor.id}`}
-                    />
-                    <label
-                      htmlFor={`event-sponsor-${sponsor.id}`}
-                      className="text-sm font-medium leading-tight cursor-pointer flex-1"
-                    >
-                      {sponsor.name}
-                      {sponsor.company && (
-                        <span className="text-muted-foreground ml-1">({sponsor.company})</span>
-                      )}
-                    </label>
-                    {selectedSponsorIds.includes(sponsor.id) && (
-                      <Check className="h-4 w-4 text-primary shrink-0" />
-                    )}
-                  </div>
-                ))}
-              </div>
             )}
           </div>
-          <div className="flex items-center justify-between pt-4 border-t">
-            <p className="text-sm text-muted-foreground">
-              {selectedSponsorIds.length} {selectedSponsorIds.length === 1 ? 'patrocinador selecionado' : 'patrocinadores selecionados'}
-            </p>
+
+          <div className="px-5 py-4 max-h-[360px] overflow-y-auto space-y-1.5">
+            {sponsors.length === 0 ? (
+              <p className="text-sm text-center py-8" style={{ color: '#71717a' }}>
+                Nenhum patrocinador cadastrado
+              </p>
+            ) : sponsors.map((sponsor) => {
+              const isSelected = selectedSponsorIds.includes(sponsor.id);
+              return (
+                <div
+                  key={sponsor.id}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
+                  style={{
+                    backgroundColor: isSelected ? '#ffffff' : '#ffffff',
+                    border: isSelected ? '1px solid #f97316' : '1px solid #e7e5e4',
+                  }}
+                  onClick={() => {
+                    if (isSelected) {
+                      setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                    } else {
+                      setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                    }
+                  }}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sponsor.color || '#3b82f6' }} />
+                  <span className="text-sm font-medium flex-1" style={{ color: '#1c1917' }}>
+                    {sponsor.name}
+                    {sponsor.company && (
+                      <span className="ml-1.5 font-normal" style={{ color: '#71717a' }}>({sponsor.company})</span>
+                    )}
+                  </span>
+                  {isSelected && <Check className="h-3.5 w-3.5 shrink-0" style={{ color: '#f97316' }} />}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderTop: '1px solid #e7e5e4' }}>
+            <span className="text-xs" style={{ color: '#71717a' }}>
+              {selectedSponsorIds.length} {selectedSponsorIds.length === 1 ? 'selecionado' : 'selecionados'}
+            </span>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setSponsorDialogOpen(false)}
-                disabled={manageEventSponsorsMutation.isPending}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setSponsorDialogOpen(false)} disabled={manageEventSponsorsMutation.isPending} style={{ color: '#1c1917' }}>
                 Cancelar
               </Button>
-              <Button
-                onClick={handleSaveEventSponsors}
-                disabled={manageEventSponsorsMutation.isPending}
-                data-testid="button-save-event-sponsors"
-              >
+              <Button size="sm" onClick={handleSaveEventSponsors} disabled={manageEventSponsorsMutation.isPending} data-testid="button-save-event-sponsors" style={{ backgroundColor: '#1c1917', color: '#ffffff' }}>
                 {manageEventSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
               </Button>
             </div>
@@ -1472,84 +1454,65 @@ export default function VincularPatrocinadores() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog para Aplicar Patrocinadores em Lote */}
+      {/* Dialog — Aplicar Patrocinadores em Lote */}
       <Dialog open={bulkApplyDialogOpen} onOpenChange={setBulkApplyDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
+        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9' }}>
+          <div className="px-5 pt-5 pb-4" style={{ borderBottom: '1px solid #e7e5e4' }}>
+            <DialogTitle className="text-base font-semibold" style={{ color: '#1c1917' }}>
               Aplicar Patrocinadores em Lote
             </DialogTitle>
-            <DialogDescription>
-              Selecione os patrocinadores para aplicar aos {selectedItemIds.size} items selecionados
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
+            <p className="text-xs mt-0.5" style={{ color: '#71717a' }}>
+              {selectedItemIds.size} item{selectedItemIds.size !== 1 ? 's' : ''} selecionado{selectedItemIds.size !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          <div className="px-5 py-4 space-y-4">
             {/* Lista de Patrocinadores */}
-            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+            <div className="max-h-[280px] overflow-y-auto space-y-1.5">
               {sponsors.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Nenhum patrocinador cadastrado no sistema
+                <p className="text-sm text-center py-8" style={{ color: '#71717a' }}>
+                  Nenhum patrocinador cadastrado
                 </p>
-              ) : (
-                <div className="space-y-2">
-                  {sponsors.map((sponsor) => {
-                    const colorStyle = getSponsorColorStyle(sponsor);
-                    const isSelected = bulkSelectedSponsors.includes(sponsor.id);
-                    return (
-                      <div 
-                        key={sponsor.id} 
-                        className={`flex items-center space-x-3 p-3 border-2 rounded-lg transition-all cursor-pointer hover-elevate ${
-                          isSelected ? 'border-primary' : 'border-border bg-background'
-                        }`}
-                        style={isSelected ? { backgroundColor: colorStyle.backgroundColor } : undefined}
-                        onClick={() => {
-                          if (isSelected) {
-                            setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
-                          } else {
-                            setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
-                          }
-                        }}
-                      >
-                        <Checkbox
-                          id={`bulk-sponsor-${sponsor.id}`}
-                          checked={isSelected}
-                          onCheckedChange={() => {}}
-                          data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
-                        />
-                        <div 
-                          className="w-3 h-3 rounded-full shrink-0"
-                          style={{ backgroundColor: sponsor.color || "#3b82f6" }}
-                        />
-                        <label
-                          htmlFor={`bulk-sponsor-${sponsor.id}`}
-                          className="text-sm font-medium leading-tight cursor-pointer flex-1"
-                          style={{ color: colorStyle.color }}
-                        >
-                          {sponsor.name}
-                          {sponsor.company && (
-                            <span className="text-muted-foreground ml-1">({sponsor.company})</span>
-                          )}
-                        </label>
-                        {isSelected && (
-                          <Check className="h-4 w-4 text-primary shrink-0" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              ) : sponsors.map((sponsor) => {
+                const isSelected = bulkSelectedSponsors.includes(sponsor.id);
+                return (
+                  <div
+                    key={sponsor.id}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
+                    style={{
+                      backgroundColor: '#ffffff',
+                      border: isSelected ? '1px solid #f97316' : '1px solid #e7e5e4',
+                    }}
+                    data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
+                    onClick={() => {
+                      if (isSelected) {
+                        setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
+                      } else {
+                        setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
+                      }
+                    }}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sponsor.color || '#3b82f6' }} />
+                    <span className="text-sm font-medium flex-1" style={{ color: '#1c1917' }}>
+                      {sponsor.name}
+                      {sponsor.company && (
+                        <span className="ml-1.5 font-normal" style={{ color: '#71717a' }}>({sponsor.company})</span>
+                      )}
+                    </span>
+                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0" style={{ color: '#f97316' }} />}
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Opção Skip Approval */}
-            <div className="flex items-center justify-between p-3 border-2 rounded-lg bg-muted/30">
-              <div className="flex-1">
-                <label htmlFor="bulk-skip-approval" className="text-sm font-medium cursor-pointer">
-                  Pular aprovação de patrocinadores
-                </label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Items irão direto para produção sem aprovação
+            {/* Pular Aprovação */}
+            <div className="flex items-center justify-between gap-4 pt-3" style={{ borderTop: '1px solid #e7e5e4' }}>
+              <div>
+                <p className="text-sm font-medium" style={{ color: '#1c1917' }}>
+                  Pular Aprovação <span className="font-normal" style={{ color: '#71717a' }}>(ir direto para produção)</span>
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: '#a8a29e' }}>
+                  O item irá direto para produção sem aprovação prévia.
                 </p>
               </div>
               <Switch
@@ -1557,41 +1520,35 @@ export default function VincularPatrocinadores() {
                 checked={bulkSkipApproval}
                 onCheckedChange={setBulkSkipApproval}
                 data-testid="switch-bulk-skip-approval"
+                className="data-[state=checked]:bg-[#f97316] shrink-0"
               />
             </div>
+
+            {/* Aviso de isentos */}
+            {(() => {
+              const exemptCount = Array.from(selectedItemIds).filter(id => {
+                const it = items.find(i => i.id === id);
+                return it?.skipApproval === true;
+              }).length;
+              if (exemptCount === 0 || bulkSkipApproval) return null;
+              return (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md text-xs" style={{ backgroundColor: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' }}>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{exemptCount} item{exemptCount !== 1 ? 's' : ''} isento{exemptCount !== 1 ? 's' : ''} não será{exemptCount !== 1 ? 'ão' : ''} alterado{exemptCount !== 1 ? 's' : ''}</span>
+                </div>
+              );
+            })()}
           </div>
 
-          {/* Aviso de isentos */}
-          {(() => {
-            const exemptCount = Array.from(selectedItemIds).filter(id => {
-              const it = items.find(i => i.id === id);
-              return it?.skipApproval === true;
-            }).length;
-            if (exemptCount === 0 || bulkSkipApproval) return null;
-            return (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-md text-xs" style={{ backgroundColor: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' }}>
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                <span>{exemptCount} item{exemptCount !== 1 ? 's' : ''} isento{exemptCount !== 1 ? 's' : ''} não será{exemptCount !== 1 ? 'ão' : ''} alterado{exemptCount !== 1 ? 's' : ''}</span>
-              </div>
-            );
-          })()}
-
-          <div className="flex items-center justify-between pt-4 border-t">
-            <p className="text-sm text-muted-foreground">
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderTop: '1px solid #e7e5e4' }}>
+            <span className="text-xs" style={{ color: '#71717a' }}>
               {bulkSelectedSponsors.length} {bulkSelectedSponsors.length === 1 ? 'patrocinador selecionado' : 'patrocinadores selecionados'}
-            </p>
+            </span>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setBulkApplyDialogOpen(false)}
-              >
+              <Button variant="ghost" size="sm" onClick={() => setBulkApplyDialogOpen(false)} style={{ color: '#1c1917' }}>
                 Cancelar
               </Button>
-              <Button
-                onClick={handleApplyBulkSponsors}
-                data-testid="button-confirm-bulk-apply"
-                style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
-              >
+              <Button size="sm" onClick={handleApplyBulkSponsors} data-testid="button-confirm-bulk-apply" style={{ backgroundColor: '#1c1917', color: '#ffffff' }}>
                 Aplicar
               </Button>
             </div>

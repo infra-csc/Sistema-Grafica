@@ -338,6 +338,19 @@ export default function VincularPatrocinadores() {
     return states;
   }, [visibleItems, originalSponsorsMap, pendingChanges]);
 
+  // Auto-deselect items que saíram do estado PENDENTE (ex: após vincular patrocinador individualmente)
+  useEffect(() => {
+    setSelectedItemIds(prev => {
+      const next = new Set<string>();
+      prev.forEach(id => {
+        if ((itemUIStates[id] || 'PENDENTE') === 'PENDENTE') {
+          next.add(id);
+        }
+      });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [itemUIStates]);
+
   // ===== Contadores globais baseados nos estados UI =====
   const statusCounts = useMemo(() => {
     const counts = {

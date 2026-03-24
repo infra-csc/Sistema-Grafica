@@ -1309,10 +1309,7 @@ export default function VincularPatrocinadores() {
                                 </span>
                               )}
                               {currentSkipApproval && (
-                                <div className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5" style={{ backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4' }}>
-                                  <Lock className="h-3 w-3 shrink-0" style={{ color: '#a8a29e' }} />
-                                  <span className="text-xs" style={{ color: '#78716c' }}>Bloqueado (Sem patrocinador)</span>
-                                </div>
+                                <span className="text-xs" style={{ color: '#a8a29e' }}>Sem patrocinador</span>
                               )}
                             </td>
                             <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>

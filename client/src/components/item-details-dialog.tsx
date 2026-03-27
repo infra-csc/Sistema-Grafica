@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/status-badge";
-import { Calendar, ClipboardList, Package, Building2, FileText, History, Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check } from "lucide-react";
+import { Calendar, ClipboardList, Package, Building2, FileText, History, Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check, FileImage, FolderOpen, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
@@ -515,6 +515,113 @@ export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, cu
               </tbody>
             </table>
           </div>
+
+          {/* Arquivos de Arte Card */}
+          {(item.approvalThumbUrl || item.finalFileUrl) && (
+            <div style={{ 
+              backgroundColor: '#fafaf9',
+              border: '1px solid #e7e5e4',
+              borderRadius: '12px',
+              padding: '16px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <FileImage className="h-5 w-5" style={{ color: '#f97316' }} />
+                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
+                  Arquivos de Arte
+                </h3>
+              </div>
+
+              {/* Thumb de Aprovação */}
+              {item.approvalThumbUrl && (() => {
+                const url = item.approvalThumbUrl.toLowerCase();
+                const isImage = /\.(png|jpg|jpeg|gif|webp)/i.test(url);
+                const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
+                return (
+                  <div style={{ marginBottom: item.finalFileUrl ? '12px' : '0' }}>
+                    <p style={{ color: '#a8a29e', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                      Thumb de Aprovação
+                    </p>
+                    {isImage ? (
+                      <div style={{ 
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e7e5e4',
+                        borderRadius: '8px',
+                        padding: '8px',
+                        display: 'flex',
+                        justifyContent: 'center'
+                      }}>
+                        <img
+                          src={item.approvalThumbUrl}
+                          alt="Thumb de aprovação"
+                          style={{ maxHeight: '160px', maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }}
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    ) : (
+                      <a
+                        href={item.approvalThumbUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ 
+                          display: 'inline-flex', alignItems: 'center', gap: '6px',
+                          backgroundColor: '#fff7ed', color: '#c2410c',
+                          border: '1px solid #fed7aa', borderRadius: '6px',
+                          padding: '6px 12px', fontSize: '13px', fontWeight: '500',
+                          textDecoration: 'none'
+                        }}
+                      >
+                        <FileText className="h-4 w-4" />
+                        {isPdf ? 'Abrir PDF de Aprovação' : 'Ver Arquivo'}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Separador */}
+              {item.approvalThumbUrl && item.finalFileUrl && (
+                <div style={{ borderTop: '1px solid #e7e5e4', margin: '12px 0' }} />
+              )}
+
+              {/* Caminho do Arquivo Final */}
+              {item.finalFileUrl && (
+                <div>
+                  <p style={{ color: '#a8a29e', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Arquivo Final
+                  </p>
+                  <div style={{ 
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e7e5e4',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px'
+                  }}>
+                    <span style={{ 
+                      fontFamily: 'monospace', fontSize: '12px', color: '#1c1917',
+                      wordBreak: 'break-all', flex: 1
+                    }}>
+                      {item.finalFileUrl}
+                    </span>
+                    {item.finalFileUrl.startsWith('http') && (
+                      <a
+                        href={item.finalFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#f97316', flexShrink: 0 }}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Datas Importantes Card */}
           {(item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt) && (

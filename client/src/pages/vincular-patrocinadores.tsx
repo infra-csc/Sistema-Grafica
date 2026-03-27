@@ -1010,8 +1010,7 @@ export default function VincularPatrocinadores() {
                 ) : (
                   <Button
                     size="sm"
-                    variant="outline"
-                    style={{ borderColor: '#166534', color: '#166534' }}
+                    style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none' }}
                     onClick={() => {
                       const readyItemIds = visibleItems.filter(item => itemUIStates[item.id] === 'PRONTO').map(item => item.id);
                       sendToArteMutation.mutate(readyItemIds);
@@ -1152,57 +1151,52 @@ export default function VincularPatrocinadores() {
           if (!event) return null;
 
           return (
-            <div key={eventId} className="rounded-xl border bg-white overflow-hidden" style={{ borderColor: '#e7e5e4' }}>
-              {/* Header do Evento */}
-              <div className="border-b p-4 space-y-2" style={{ borderColor: '#e7e5e4' }}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CardTitle className="text-base truncate">{event.name}</CardTitle>
-                      <Badge variant="secondary" className="text-xs shrink-0">
+            <div key={eventId} className="rounded-2xl overflow-hidden" style={{ border: '1px solid #e7e5e4' }}>
+
+              {/* ── Cabeçalho escuro Titanium ── */}
+              <div style={{ backgroundColor: '#1c1917', padding: '10px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {event.name}
+                      </span>
+                      <span style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {progress.completed}/{progress.total}
-                      </Badge>
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
-                      <span>{format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
-                      <span>•</span>
-                      <Truck className="h-3 w-3" />
-                      <span>{format(new Date(event.truckDepartureDate), "dd/MM HH:mm", { locale: ptBR })}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#a8a29e' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Calendar style={{ width: 11, height: 11 }} />
+                        {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                      <span style={{ opacity: 0.4 }}>•</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Truck style={{ width: 11, height: 11 }} />
+                        {format(new Date(event.truckDepartureDate), "dd/MM HH:mm", { locale: ptBR })}
+                      </span>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleOpenSponsorDialog(event)}
-                    className="gap-1.5 shrink-0"
-                    data-testid={`button-manage-event-sponsors-${event.id}`}
-                  >
-                    <Building2 className="h-3.5 w-3.5" />
-                    {eventSponsors.length === 0 ? 'Adicionar' : `${eventSponsors.length} Pat.`}
-                  </Button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {/* Dots dos patrocinadores do evento */}
+                    {eventSponsors.length > 0 && (
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                        {eventSponsors.map(sponsor => (
+                          <span key={sponsor.id} title={sponsor.name}
+                            style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', display: 'inline-block', flexShrink: 0 }} />
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => handleOpenSponsorDialog(event)}
+                      data-testid={`button-manage-event-sponsors-${event.id}`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 500 }}>
+                      <Building2 style={{ width: 12, height: 12 }} />
+                      {eventSponsors.length === 0 ? 'Adicionar' : `${eventSponsors.length} Pat.`}
+                    </button>
+                  </div>
                 </div>
-
-                {/* Patrocinadores do Evento - Badges Compactos com Cores Personalizadas */}
-                {eventSponsors.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {eventSponsors.map(sponsor => {
-                      const colorStyle = getSponsorColorStyle(sponsor);
-                      return (
-                        <Badge 
-                          key={sponsor.id} 
-                          variant="secondary" 
-                          className="text-xs gap-1 border"
-                          style={colorStyle}
-                        >
-                          <Building2 className="h-3 w-3" />
-                          {sponsor.name}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                )}
-
               </div>
 
               {/* Tabela de Items - Compacta */}
@@ -1237,7 +1231,7 @@ export default function VincularPatrocinadores() {
                       </tr>
                     </thead>
                     <tbody>
-                      {displayedItems.map(item => {
+                      {displayedItems.map((item, itemIndex) => {
                         const itemStatus = getItemStatus(item);
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
                         const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
@@ -1245,8 +1239,26 @@ export default function VincularPatrocinadores() {
                         const uiStatus = itemUIStates[item.id] || 'PENDENTE';
                         const rowConfig = UI_STATUS_CONFIG[uiStatus];
                         const isRascunho = uiStatus === 'RASCUNHO';
+                        const prevItem = itemIndex > 0 ? displayedItems[itemIndex - 1] : null;
+                        const showTypeGrouper = !prevItem || prevItem.type !== item.type;
 
                         return (
+                          <>
+                          {/* ── Agrupador de Tipo ── */}
+                          {showTypeGrouper && (
+                            <tr key={`type-${item.type}-${itemIndex}`}>
+                              <td colSpan={6} style={{ padding: 0 }}>
+                                <div style={{ backgroundColor: '#f5f5f4', borderLeft: '4px solid #f97316', padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                    {item.type}
+                                  </span>
+                                  <span style={{ fontSize: 10, color: '#a8a29e' }}>
+                                    — {displayedItems.filter(i => i.type === item.type).length} item{displayedItems.filter(i => i.type === item.type).length !== 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                           <tr
                             key={item.id}
                             className={`transition-colors cursor-pointer ${!isEditable ? 'opacity-55' : ''}`}
@@ -1421,9 +1433,8 @@ export default function VincularPatrocinadores() {
                                       {uiStatus === 'PRONTO' && isEditable && (
                                         <Button
                                           size="sm"
-                                          variant="outline"
                                           className="gap-1 text-xs h-7 px-2"
-                                          style={{ borderColor: '#166534', color: '#166534' }}
+                                          style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none' }}
                                           onClick={() => sendToArteMutation.mutate([item.id])}
                                           disabled={sendToArteMutation.isPending}
                                           data-testid={`button-send-item-${item.id}`}
@@ -1438,6 +1449,7 @@ export default function VincularPatrocinadores() {
                               </div>
                             </td>
                           </tr>
+                          </>
                         );
                       })}
                     </tbody>

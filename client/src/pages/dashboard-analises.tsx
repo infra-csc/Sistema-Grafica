@@ -1,331 +1,486 @@
 import { useQuery } from "@tanstack/react-query";
-import { StatusBadge } from "@/components/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Package, CheckCircle, TrendingUp, AlertTriangle, Download, BarChart3 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { differenceInHours, differenceInMinutes } from "date-fns";
+import { Clock, Package, CheckCircle, TrendingUp, AlertTriangle, Download, BarChart3, Timer } from "lucide-react";
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+} from "recharts";
+import { differenceInHours, differenceInMinutes, subDays, subWeeks, subMonths, isAfter } from "date-fns";
+import { useState } from "react";
 
-const STATUS_COLORS = {
-  requested: "hsl(var(--status-pending))",
-  approved: "hsl(var(--status-inProgress))",
-  inProduction: "hsl(var(--status-production))",
-  produced: "hsl(var(--status-completed))",
-  delivered: "hsl(var(--status-completed))",
+// Titanium palette
+const TI = {
+  bg: "#fafaf9",
+  surface: "#ffffff",
+  border: "#e7e5e4",
+  text: "#1c1917",
+  secondary: "#78716c",
+  muted: "#a8a29e",
+  accent: "#f97316",
+  // Monochrome scale for charts
+  c1: "#1c1917",
+  c2: "#44403c",
+  c3: "#78716c",
+  c4: "#a8a29e",
+  c5: "#d6d3d1",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  requested: "Solicitado",
+  awaiting_linking: "Aguard. Vinculação",
+  awaiting_submission: "Aguard. Envio",
+  awaiting_sponsor_approval: "Aguard. Patrocinador",
+  sponsor_approved: "Patroc. Aprovado",
+  awaiting_final_review: "Aguard. Finalização",
+  awaiting_creator_review: "Revisão Final",
+  ready_for_production: "Pronto p/ Produção",
+  approved: "Liberado",
+  inProduction: "Em Produção",
+  produced: "Produzido",
+  delivered: "Entregue",
+};
+
+const PERIOD_OPTIONS = [
+  { label: "Hoje", value: "today" },
+  { label: "Semana", value: "week" },
+  { label: "Mês", value: "month" },
+  { label: "Tudo", value: "all" },
+];
+
+// Custom tooltip
+const ChartTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      backgroundColor: TI.surface, border: `1px solid ${TI.border}`,
+      borderRadius: 8, padding: "8px 12px", fontSize: 12, color: TI.text,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    }}>
+      {label && <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>}
+      {payload.map((p: any, i: number) => (
+        <p key={i} style={{ color: p.color || TI.text }}>
+          {p.name}: <strong>{p.value}</strong>
+        </p>
+      ))}
+    </div>
+  );
 };
 
 export default function DashboardAnalises() {
-  const { data: items = [] } = useQuery<any[]>({
-    queryKey: ["/api/items"],
-  });
+  const [period, setPeriod] = useState("all");
 
-  const { data: events = [] } = useQuery<any[]>({
-    queryKey: ["/api/events"],
-  });
+  const { data: items = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
 
-  const stats = {
-    total: items.length,
-    requested: items.filter(i => i.status === 'requested').length,
-    approved: items.filter(i => i.status === 'approved').length,
-    inProduction: items.filter(i => i.status === 'inProduction').length,
-    produced: items.filter(i => i.status === 'produced').length,
-    delivered: items.filter(i => i.status === 'delivered').length,
-  };
-
-  // Gráfico de pizza para status
-  const pieData = [
-    { name: 'Solicitado', value: stats.requested, color: STATUS_COLORS.requested },
-    { name: 'Liberado', value: stats.approved, color: STATUS_COLORS.approved },
-    { name: 'Em Produção', value: stats.inProduction, color: STATUS_COLORS.inProduction },
-    { name: 'Produzido', value: stats.produced, color: STATUS_COLORS.produced },
-    { name: 'Entregue', value: stats.delivered, color: STATUS_COLORS.delivered },
-  ].filter(item => item.value > 0);
-
-  // Gráfico de barras para itens por evento
-  const barData = events.map(event => ({
-    name: event.name.length > 15 ? event.name.substring(0, 15) + '...' : event.name,
-    items: items.filter(i => i.eventId === event.id).length,
-    delivered: items.filter(i => i.eventId === event.id && i.status === 'delivered').length,
-  })).filter(e => e.items > 0);
-
-  // Eventos urgentes (< 48h para saída do caminhão)
+  // Filter items by period
   const now = new Date();
-  const urgentEvents = events.filter(event => {
-    const departure = new Date(event.truckDepartureDate);
-    const hoursUntil = differenceInHours(departure, now);
-    return hoursUntil > 0 && hoursUntil < 48;
-  }).sort((a, b) => {
-    const aTime = new Date(a.truckDepartureDate).getTime();
-    const bTime = new Date(b.truckDepartureDate).getTime();
-    return aTime - bTime;
-  });
+  const periodStart = period === "today" ? subDays(now, 1)
+    : period === "week" ? subWeeks(now, 1)
+    : period === "month" ? subMonths(now, 1)
+    : null;
 
-  // Estatísticas de desempenho
-  const approvedItems = items.filter(i => i.approvedAt);
+  const filteredItems = periodStart
+    ? items.filter(i => isAfter(new Date(i.createdAt), periodStart))
+    : items;
+
+  // KPI calculations
+  const totalItems = filteredItems.length;
+  const totalM2 = filteredItems.reduce((sum, i) => sum + (parseFloat(i.calculatedM2) || 0), 0);
+  const deliveredCount = filteredItems.filter(i => i.status === "delivered").length;
+  const deliveryRate = totalItems > 0 ? Math.round((deliveredCount / totalItems) * 100) : 0;
+
+  const approvedItems = filteredItems.filter(i => i.approvedAt && i.createdAt);
   const avgApprovalTime = approvedItems.length > 0
     ? approvedItems.reduce((sum, item) => {
-        const created = new Date(item.createdAt);
-        const approved = new Date(item.approvedAt!);
-        return sum + differenceInHours(approved, created);
+        return sum + differenceInHours(new Date(item.approvedAt), new Date(item.createdAt));
       }, 0) / approvedItems.length
     : 0;
 
-  const deliveredItems = items.filter(i => i.deliveredAt);
-  const avgProductionTime = deliveredItems.length > 0
-    ? deliveredItems.reduce((sum, item) => {
-        if (!item.approvedAt) return sum;
-        const approved = new Date(item.approvedAt);
-        const delivered = new Date(item.deliveredAt!);
-        return sum + differenceInHours(delivered, approved);
-      }, 0) / deliveredItems.length
-    : 0;
+  // Status distribution for donut
+  const statusCounts: Record<string, number> = {};
+  filteredItems.forEach(i => {
+    statusCounts[i.status] = (statusCounts[i.status] || 0) + 1;
+  });
 
-  // Taxa de entrega no prazo
-  const completedEvents = events.filter(e => e.status === 'completed');
-  const onTimeRate = completedEvents.length > 0
-    ? (completedEvents.filter(e => {
-        const eventItems = items.filter(i => i.eventId === e.id);
-        const allDelivered = eventItems.every(i => i.status === 'delivered');
-        return allDelivered;
-      }).length / completedEvents.length) * 100
-    : 0;
-
-  // Itens mais produzidos
-  const itemTypeCounts = items.reduce((acc: Record<string, number>, item) => {
-    acc[item.type] = (acc[item.type] || 0) + 1;
-    return acc;
-  }, {});
-  const topItems = Object.entries(itemTypeCounts)
+  const MONO_COLORS = [TI.c1, TI.c2, TI.c3, TI.c4, TI.c5, "#e7e5e4"];
+  const donutData = Object.entries(statusCounts)
     .sort(([, a], [, b]) => b - a)
+    .map(([status, value], i) => ({
+      name: STATUS_LABELS[status] || status,
+      value,
+      color: MONO_COLORS[i % MONO_COLORS.length],
+    }));
+
+  // Bar chart: items per event (top 8 by item count)
+  const barData = events
+    .map(event => {
+      const eventItems = filteredItems.filter(i => i.eventId === event.id);
+      return {
+        name: event.name.length > 18 ? event.name.substring(0, 18) + "…" : event.name,
+        total: eventItems.length,
+        entregues: eventItems.filter(i => i.status === "delivered").length,
+      };
+    })
+    .filter(e => e.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8);
+
+  // Urgent events (< 48h)
+  const urgentEvents = events
+    .filter(event => {
+      if (!event.truckDepartureDate) return false;
+      const hrs = differenceInHours(new Date(event.truckDepartureDate), now);
+      return hrs > 0 && hrs < 48;
+    })
+    .sort((a, b) => new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
+
+  // Top 5 events table (by item count)
+  const topEvents = events
+    .map(event => {
+      const evItems = filteredItems.filter(i => i.eventId === event.id);
+      return {
+        id: event.id,
+        name: event.name,
+        total: evItems.length,
+        delivered: evItems.filter(i => i.status === "delivered").length,
+        m2: evItems.reduce((sum, i) => sum + (parseFloat(i.calculatedM2) || 0), 0),
+        priority: event.priority,
+      };
+    })
+    .filter(e => e.total > 0)
+    .sort((a, b) => b.total - a.total)
     .slice(0, 5);
 
-  const exportToCSV = () => {
-    const headers = ["Evento", "Item", "Qtd Total", "Qtd Produzida", "Área", "Visual", "m²", "Status", "Material", "Acabamento"];
-    const rows = items.map(item => [
-      item.event?.name || "N/A",
-      item.type,
-      item.quantity,
-      item.quantityProduced || 0,
-      item.area,
-      item.visual,
-      item.calculatedM2,
-      item.status,
-      item.material,
-      item.finish,
-    ]);
-
-    const csvContent = [headers, ...rows].map(row => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `relatorio-completo-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+  const PRIORITY_DOT: Record<string, string> = {
+    urgente: "#ef4444",
+    alta: "#f59e0b",
+    media: "#a855f7",
+    baixa: "#3b82f6",
   };
 
+  const exportToCSV = () => {
+    const headers = ["Evento", "Item", "Qtd Total", "Qtd Produzida", "m²", "Status", "Material", "Acabamento"];
+    const rows = filteredItems.map(item => [
+      item.event?.name || "N/A",
+      item.type, item.quantity, item.quantityProduced || 0,
+      item.calculatedM2, item.status, item.material, item.finish,
+    ]);
+    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    a.download = `relatorio-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+  };
+
+  // Shared card style
+  const card = {
+    backgroundColor: TI.surface,
+    border: `1px solid ${TI.border}`,
+    borderRadius: 12,
+    padding: "20px 24px",
+  } as React.CSSProperties;
+
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2" data-testid="title-dashboard-analises">
-            <BarChart3 className="h-6 w-6" />
-            Dashboard de Análises e Desempenho
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Métricas avançadas, gráficos e relatórios de produtividade
-          </p>
+    <div style={{ backgroundColor: TI.bg, minHeight: "100%", padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ backgroundColor: TI.accent, borderRadius: 8, padding: "6px 8px", display: "flex" }}>
+            <BarChart3 style={{ color: "#fff", width: 18, height: 18 }} />
+          </div>
+          <div>
+            <h1 style={{ color: TI.text, fontSize: 18, fontWeight: 700, margin: 0 }} data-testid="title-dashboard-analises">
+              Análise de Produção
+            </h1>
+            <p style={{ color: TI.muted, fontSize: 12, margin: 0 }}>Métricas e desempenho operacional</p>
+          </div>
         </div>
-        <Button onClick={exportToCSV} variant="outline" data-testid="button-export-csv">
-          <Download className="h-4 w-4 mr-2" />
-          Exportar Relatório Completo
-        </Button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Period selector */}
+          <div style={{
+            display: "flex", alignItems: "center",
+            backgroundColor: TI.surface, border: `1px solid ${TI.border}`,
+            borderRadius: 8, padding: 3, gap: 2
+          }}>
+            {PERIOD_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setPeriod(opt.value)}
+                data-testid={`button-period-${opt.value}`}
+                style={{
+                  padding: "5px 12px", borderRadius: 6, border: "none", cursor: "pointer",
+                  fontSize: 12, fontWeight: 600,
+                  backgroundColor: period === opt.value ? TI.text : "transparent",
+                  color: period === opt.value ? "#fff" : TI.secondary,
+                  transition: "all 0.15s",
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          <Button variant="outline" onClick={exportToCSV} data-testid="button-export-csv"
+            style={{ fontSize: 12, height: 36 }}>
+            <Download className="h-4 w-4 mr-1.5" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
-      {/* Alertas de Prazo */}
+      {/* Urgent alert */}
       {urgentEvents.length > 0 && (
-        <Card className="border-destructive bg-destructive/5">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              ⚠️ Eventos Urgentes - Saída do Caminhão Próxima!
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div style={{
+          backgroundColor: "#fff7ed", border: `1px solid #fed7aa`,
+          borderRadius: 12, padding: "14px 20px",
+          display: "flex", alignItems: "flex-start", gap: 12
+        }}>
+          <AlertTriangle style={{ color: TI.accent, width: 18, height: 18, flexShrink: 0, marginTop: 2 }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ color: "#9a3412", fontWeight: 700, fontSize: 13, margin: "0 0 8px" }}>
+              {urgentEvents.length} evento{urgentEvents.length > 1 ? "s" : ""} com saída do caminhão nas próximas 48h
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {urgentEvents.map(event => {
-                const departure = new Date(event.truckDepartureDate);
-                const hoursUntil = differenceInHours(departure, now);
-                const minutesUntil = differenceInMinutes(departure, now) % 60;
-                const isVeryUrgent = hoursUntil < 24;
-
+                const hrs = differenceInHours(new Date(event.truckDepartureDate), now);
+                const mins = differenceInMinutes(new Date(event.truckDepartureDate), now) % 60;
                 return (
-                  <div 
-                    key={event.id} 
-                    className={`p-4 rounded-lg border-2 ${isVeryUrgent ? 'border-destructive bg-destructive/10' : 'border-orange-500 bg-orange-500/10'}`}
+                  <div key={event.id}
                     data-testid={`alert-urgent-${event.id}`}
-                  >
-                    <h3 className="font-semibold mb-1">{event.name}</h3>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4" />
-                      <span className="font-bold text-lg">
-                        {hoursUntil}h {minutesUntil}min
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Saída: {new Date(event.truckDepartureDate).toLocaleString('pt-BR')}
-                    </p>
+                    style={{
+                      backgroundColor: hrs < 24 ? "#fee2e2" : "#fff7ed",
+                      border: `1px solid ${hrs < 24 ? "#fca5a5" : "#fed7aa"}`,
+                      borderRadius: 8, padding: "6px 12px", fontSize: 12
+                    }}>
+                    <span style={{ fontWeight: 600, color: TI.text }}>{event.name}</span>
+                    <span style={{ color: hrs < 24 ? "#dc2626" : "#c2410c", marginLeft: 8 }}>
+                      <Clock style={{ display: "inline", width: 11, height: 11, marginRight: 3 }} />
+                      {hrs}h {mins}min
+                    </span>
                   </div>
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* Estatísticas de Desempenho */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tempo Médio de Liberação</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="metric-approval-time">{avgApprovalTime.toFixed(1)}h</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Solicitação → Arte Liberada
-            </p>
-          </CardContent>
-        </Card>
+      {/* ROW 1 — KPI cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        {/* Total itens */}
+        <div style={card} data-testid="kpi-total-items">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <span style={{ color: TI.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Total de Itens
+            </span>
+            <Package style={{ color: TI.muted, width: 16, height: 16 }} />
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: TI.text, lineHeight: 1 }}>{totalItems}</div>
+          <p style={{ color: TI.muted, fontSize: 12, marginTop: 6 }}>
+            <span style={{ color: TI.accent, fontWeight: 600 }}>{deliveredCount}</span> entregues
+          </p>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tempo Médio de Produção</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="metric-production-time">{avgProductionTime.toFixed(1)}h</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Arte Liberada → Entregue
-            </p>
-          </CardContent>
-        </Card>
+        {/* Total m² */}
+        <div style={card} data-testid="kpi-total-m2">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <span style={{ color: TI.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Total de m²
+            </span>
+            <TrendingUp style={{ color: TI.muted, width: 16, height: 16 }} />
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: TI.text, lineHeight: 1 }}>{totalM2.toFixed(1)}</div>
+          <p style={{ color: TI.muted, fontSize: 12, marginTop: 6 }}>metros quadrados</p>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxa de Entrega</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="metric-delivery-rate">{onTimeRate.toFixed(0)}%</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Eventos finalizados completos
-            </p>
-          </CardContent>
-        </Card>
+        {/* Tempo médio liberação */}
+        <div style={card} data-testid="kpi-approval-time">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <span style={{ color: TI.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Tempo Médio Liberação
+            </span>
+            <Timer style={{ color: TI.muted, width: 16, height: 16 }} />
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: TI.text, lineHeight: 1 }}>
+            {avgApprovalTime.toFixed(1)}<span style={{ fontSize: 16, fontWeight: 400, color: TI.secondary }}>h</span>
+          </div>
+          <p style={{ color: TI.muted, fontSize: 12, marginTop: 6 }}>Solicitação → Liberação</p>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Item Mais Produzido</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" data-testid="metric-top-item">{topItems[0]?.[0] || "N/A"}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {topItems[0]?.[1] || 0} unidades
-            </p>
-          </CardContent>
-        </Card>
+        {/* Taxa de entrega */}
+        <div style={card} data-testid="kpi-delivery-rate">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <span style={{ color: TI.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Taxa de Entrega
+            </span>
+            <CheckCircle style={{ color: TI.muted, width: 16, height: 16 }} />
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: deliveryRate >= 80 ? "#16a34a" : TI.text, lineHeight: 1 }}>
+            {deliveryRate}<span style={{ fontSize: 16, fontWeight: 400, color: TI.secondary }}>%</span>
+          </div>
+          {/* mini progress bar */}
+          <div style={{ marginTop: 10, height: 4, backgroundColor: TI.border, borderRadius: 2 }}>
+            <div style={{
+              height: 4, borderRadius: 2,
+              width: `${deliveryRate}%`,
+              backgroundColor: deliveryRate >= 80 ? "#16a34a" : TI.accent,
+              transition: "width 0.4s ease"
+            }} />
+          </div>
+        </div>
       </div>
 
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Gráfico de Pizza - Distribuição por Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Distribuição por Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+      {/* ROW 2 — Bar chart + Donut */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+
+        {/* Bar chart */}
+        <div style={card}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <h2 style={{ color: TI.text, fontSize: 13, fontWeight: 700, margin: 0 }}>Produção por Evento</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: TI.secondary }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: TI.c1, display: "inline-block" }} />
+                Total
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: TI.secondary }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: TI.c4, display: "inline-block" }} />
+                Entregues
+              </span>
+            </div>
+          </div>
+          {barData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={barData} barCategoryGap="30%" barGap={4}>
+                <CartesianGrid vertical={false} strokeDasharray="0" stroke="#f5f5f4" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: TI.muted }}
+                  axisLine={false} tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: TI.muted }}
+                  axisLine={false} tickLine={false}
+                  width={28}
+                />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: "#f5f5f4" }} />
+                <Bar dataKey="total" name="Total" fill={TI.c1} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="entregues" name="Entregues" fill={TI.c4} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 220, color: TI.muted, fontSize: 13 }}>
+              Nenhum dado disponível
+            </div>
+          )}
+        </div>
+
+        {/* Donut */}
+        <div style={card}>
+          <h2 style={{ color: TI.text, fontSize: 13, fontWeight: 700, margin: "0 0 16px" }}>Distribuição por Status</h2>
+          {donutData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
+                    data={donutData}
+                    cx="50%" cy="50%"
+                    innerRadius={45} outerRadius={72}
+                    paddingAngle={2}
                     dataKey="value"
+                    strokeWidth={0}
                   >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {donutData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
-                  <Legend />
+                  <Tooltip content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                Nenhum dado disponível
+              {/* Legend with dots */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+                {donutData.slice(0, 6).map((d, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: d.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: TI.secondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 130 }}>{d.name}</span>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: TI.text }}>{d.value}</span>
+                  </div>
+                ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Gráfico de Barras - Itens por Evento */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Produção por Evento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {barData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={barData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="items" fill="hsl(var(--primary))" name="Total de Itens" />
-                  <Bar dataKey="delivered" fill="hsl(var(--status-completed))" name="Entregues" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                Nenhum dado disponível
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            </>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: TI.muted, fontSize: 13 }}>
+              Nenhum dado disponível
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Top 5 Itens Mais Produzidos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top 5 Itens Mais Produzidos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {topItems.map(([type, count], index) => (
-              <div key={type} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full font-bold">
-                    {index + 1}
-                  </div>
-                  <span className="font-medium">{type}</span>
-                </div>
-                <span className="text-2xl font-bold text-primary">{count}</span>
-              </div>
-            ))}
-            {topItems.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhum item produzido ainda
-              </div>
-            )}
+      {/* ROW 3 — Top 5 eventos */}
+      <div style={card}>
+        <h2 style={{ color: TI.text, fontSize: 13, fontWeight: 700, margin: "0 0 16px" }}>Top 5 Eventos por Volume</h2>
+        {topEvents.length > 0 ? (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                {["Evento", "Prioridade", "Total", "Entregues", "m²", "Progresso"].map(h => (
+                  <th key={h} style={{
+                    padding: "6px 12px", textAlign: h === "Progresso" || h === "Total" || h === "Entregues" || h === "m²" ? "center" : "left",
+                    fontSize: 10, fontWeight: 600, color: TI.muted, textTransform: "uppercase",
+                    letterSpacing: "0.5px", borderBottom: `1px solid ${TI.border}`
+                  }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {topEvents.map((ev, idx) => {
+                const pct = ev.total > 0 ? Math.round((ev.delivered / ev.total) * 100) : 0;
+                const dotColor = PRIORITY_DOT[ev.priority] || TI.muted;
+                return (
+                  <tr key={ev.id} data-testid={`row-top-event-${ev.id}`}
+                    style={{ borderBottom: idx < topEvents.length - 1 ? `1px solid ${TI.border}` : "none" }}>
+                    <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: TI.text }}>
+                      {ev.name.length > 30 ? ev.name.substring(0, 30) + "…" : ev.name}
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      {ev.priority ? (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: dotColor }} />
+                          <span style={{ fontSize: 11, color: TI.secondary, textTransform: "capitalize" }}>{ev.priority}</span>
+                        </div>
+                      ) : <span style={{ color: TI.muted, fontSize: 11 }}>—</span>}
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 14, fontWeight: 700, color: TI.text }}>{ev.total}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 14, fontWeight: 600, color: "#16a34a" }}>{ev.delivered}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", fontSize: 12, color: TI.secondary }}>{ev.m2.toFixed(1)}</td>
+                    <td style={{ padding: "10px 12px", minWidth: 100 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ flex: 1, height: 5, backgroundColor: TI.border, borderRadius: 3 }}>
+                          <div style={{
+                            height: 5, borderRadius: 3,
+                            width: `${pct}%`,
+                            backgroundColor: pct === 100 ? "#16a34a" : TI.accent,
+                          }} />
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, minWidth: 28, textAlign: "right" }}>{pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ textAlign: "center", padding: "32px 0", color: TI.muted, fontSize: 13 }}>
+            Nenhum dado disponível para o período selecionado
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </div>
   );
 }

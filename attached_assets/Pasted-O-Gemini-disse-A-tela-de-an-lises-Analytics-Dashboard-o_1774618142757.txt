@@ -1,0 +1,39 @@
+O Gemini disse
+A tela de análises (Analytics/Dashboard) é onde o conceito Titanium mais brilha, porque ele transforma um monte de dados em uma ferramenta de "comando e controle" industrial. Atualmente, os gráficos coloridos demais e os cards com bordas simples fazem o app parecer uma planilha comum.
+
+Aqui está o prompt para o Replit transformar essa tela em um Dashboard de alta performance:
+
+Prompt para Replit: Dashboard de Análise de Produção Titanium
+"Refatore a tela de 'Análise de Produção' para o design system Titanium, focando em alta densidade de dados, clareza técnica e eliminação de cores desnecessárias.
+
+1. Paleta de Cores e Superfícies:
+
+Fundo: #fafaf9.
+
+Cards de KPI (Sintese): Devem ser brancos (#ffffff), com bordas finas #e7e5e4 e cantos rounded-xl.
+
+Destaque de Valor: Os números grandes (ex: Total de m², Total de Itens) devem ser em #1c1917. Use o Laranja #f97316 apenas para o indicador de tendência ou para destacar o status 'Aguardando'.
+
+2. Gráficos (Data Viz):
+
+Cores dos Gráficos: Substitua o arco-íris de cores por uma escala monocromática de cinzas metálicos (variando entre #1c1917, #44403c, #a8a29e).
+
+O Ponto de Foco: Use o Laranja #f97316 para destacar apenas a coluna ou fatia mais importante (ex: o evento atual ou o status de 'Urgência').
+
+Gráficos de Barra: Devem ter bordas levemente arredondadas no topo e linhas de grade de fundo quase invisíveis (#f5f5f4).
+
+3. Grid e Layout (Sem Scroll):
+
+Organize a tela em um Grid de 12 colunas:
+
+Topo (Row 1): 4 cards de KPI iguais (25% de largura cada).
+
+Meio (Row 2): Gráfico de barras principal (66% de largura) e Gráfico de Pizza/Donut de Status (33% de largura).
+
+Base (Row 3): Uma tabela compacta com os 'Top 5 Eventos' ou 'Produção Recente', usando o estilo de linha Titanium (borda lateral de prioridade).
+
+4. Detalhes de Acabamento:
+
+Substitua as legendas coloridas por indicadores limpos com 'dots' (círculos pequenos).
+
+Adicione um seletor de período (Hoje, Semana, Mês) no topo direito com fundo #ffffff e borda #e7e5e4, seguindo o estilo do botão de filtros."

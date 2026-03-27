@@ -1,0 +1,36 @@
+Prompt para Replit: Tela de Gestão de Arte (Titanium)
+"Refatore a tela de listagem e gestão de 'Arte' para o design system Titanium, focando em clara hierarquia visual e facilidade para a equipe de design encontrar o que precisa subir.
+
+1. Abas/Filtros Superiores (Tabs):
+
+Substitua as pílulas atuais por um design de controle segmentado mais premium ou pills Titanium.
+
+Aba Inativa: Fundo #ffffff, texto #1c1917, borda fina #e7e5e4. A badge com o número deve ter fundo #f5f5f4 e texto #71717a.
+
+Aba Ativa: Fundo preto #1c1917, texto branco puro. A badge de número ganha destaque (fundo cinza escuro ou laranja #f97316).
+
+Aba Urgente: Destaque a aba 'Urgente' com um ícone de alerta e talvez texto vermelho escuro ou laranja, mesmo inativa.
+
+2. Estrutura de Cards por Evento (O Fim da Tabela Única):
+
+Em vez de uma tabela gigante, envolva cada Evento (ex: 'Night Run - Etapa 3') em seu próprio Card Branco (bg-[#ffffff]), com borda #e7e5e4, cantos arredondados (rounded-xl) e sombra leve. Fundo da página em #fafaf9.
+
+O cabeçalho do Card deve ter o nome do evento em #1c1917 (Negrito) e um botão de ação global à direita (ex: 'Download Lote').
+
+3. Subgrupos de Itens (As Categorias):
+
+Para os agrupadores como '2x1 Padrão' ou 'Rolo', crie uma barra de separação interna no card.
+
+Use fundo #fafaf9 para essa linha, texto em caixa alta (uppercase) em #71717a, e uma borda esquerda de 3px em Laranja (#f97316) para mostrar que é uma nova seção de itens.
+
+4. Linhas dos Itens e Botões de Ação:
+
+Dados: Colunas de QTD, Visual, Material e Acabamento devem ter texto limpo (#1c1917), com alinhamento rigoroso (números centralizados ou à direita).
+
+Botão 'Subir Arte': Este é o CTA (Call to Action) mais importante da linha. Use um botão com borda (border border-[#1c1917]), ícone de upload e texto escuro. No hover, ele deve preencher de #1c1917 e o texto ficar branco.
+
+Botão 'Analisar' (Para itens em revisão): Use um botão com cor de destaque (ex: borda e texto Laranja #f97316).
+
+Status Badges: Use fundos super claros. Pendente (Cinza), Revisão (Laranja claro), Aprovado (Verde muito claro - a única exceção de verde permitida).
+
+5. Espaçamento: Aumente o padding entre os agrupamentos para que o usuário não clique no botão errado por engano."

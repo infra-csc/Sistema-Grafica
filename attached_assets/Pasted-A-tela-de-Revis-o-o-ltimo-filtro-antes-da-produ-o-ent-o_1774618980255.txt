@@ -1,0 +1,34 @@
+A tela de Revisão é o último "filtro" antes da produção, então o design precisa transmitir confiança e precisão. Atualmente, ela está muito carregada com o fundo verde e o excesso de cores primárias, o que cansa a vista e dificulta encontrar erros.
+
+Para o padrão Titanium, vamos focar em contraste e organização por blocos. Aqui está o prompt para o Replit:
+
+Prompt para Replit: Tela de Revisão de Arte (Titanium Precision)
+"Refatore a tela de 'Revisão de Arte' para o padrão Titanium, eliminando o excesso de verde e focando em um layout de 'conferência técnica'.
+
+1. Estrutura de Lista (Cards por Evento):
+
+Remova o fundo verde vibrante. O fundo da página deve ser #fafaf9.
+
+Cada Evento deve ser um card branco (#ffffff) com borda fina #e7e5e4.
+
+O Cabeçalho do Card: Use uma barra superior interna no card com fundo #1c1917 e texto branco para o nome do evento. Isso cria uma separação visual fortíssima entre os eventos.
+
+2. Tabela de Itens para Revisão:
+
+Miniatura da Arte: A coluna da imagem deve ter uma borda fina e um leve shadow. Se não houver imagem, use um ícone de 'imagem' em cinza sobre fundo #f5f5f4.
+
+Dados Técnicos: Colunas como 'Visual', 'M²' e 'Material' devem usar uma fonte monoespaçada (se disponível) ou bem limpa, para parecer um relatório técnico.
+
+Status na Revisão: Substitua o verde por um badge de 'Aguardando Revisão' com fundo laranja muito claro (#fff7ed) e texto laranja (#f97316).
+
+3. Botões de Decisão (Aprovar/Reprovar):
+
+Botão Aprovar: Em vez de verde, use o preto Titanium (#1c1917). O texto deve ser 'Aprovar Arte'. No hover, ele pode ter um brilho laranja suave na borda.
+
+Botão Ajustar/Reprovar: Use um botão outline (apenas borda) em cinza escuro ou vermelho terracota suave (#b91c1c) para indicar que algo precisa mudar.
+
+Ação em Lote: O botão 'Aprovar Tudo' no topo deve ser o único elemento com fundo preto sólido e ícone de check em branco.
+
+4. Agrupadores de Categoria:
+
+Se houver categorias (2x1, Rolo), use a mesma borda lateral esquerda laranja (#f97316) que usamos nas outras telas para manter a identidade visual unificada."

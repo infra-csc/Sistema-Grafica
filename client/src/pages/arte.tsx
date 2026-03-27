@@ -950,31 +950,19 @@ export default function Arte() {
             {/* Upload de Thumb de Aprovação */}
             {(selectedItem.status === 'requested' || selectedItem.status === 'awaiting_submission') && (
               <Card className="border-purple-200 dark:border-purple-800">
-                {/* Header com Botão de Enviar */}
                 <CardHeader className="px-4 py-3 bg-purple-50/50 dark:bg-purple-950/20 border-b border-purple-100 dark:border-purple-900">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-full bg-purple-600 flex items-center justify-center">
-                        <FileImage className="h-3.5 w-3.5 text-white" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-sm font-semibold text-purple-800 dark:text-purple-300">
-                          Criar Thumb de Aprovação
-                        </CardTitle>
-                        <p className="text-xs text-purple-600 dark:text-purple-400">
-                          {approvalThumbUrl ? "Thumb pronto - clique para enviar" : "Faça upload da imagem primeiro"}
-                        </p>
-                      </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-7 w-7 rounded-full bg-purple-600 flex items-center justify-center">
+                      <FileImage className="h-3.5 w-3.5 text-white" />
                     </div>
-                    <Button
-                      onClick={handleSubmitForApproval}
-                      disabled={submitForApprovalMutation.isPending || !approvalThumbUrl}
-                      className={approvalThumbUrl ? "bg-purple-600 hover:bg-purple-700" : ""}
-                      data-testid="button-submit-approval-header"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      Enviar para Aprovação
-                    </Button>
+                    <div>
+                      <CardTitle className="text-sm font-semibold text-purple-800 dark:text-purple-300">
+                        Thumb de Aprovação
+                      </CardTitle>
+                      <p className="text-xs text-purple-600 dark:text-purple-400">
+                        {approvalThumbUrl ? "Thumb carregado — confirme o envio abaixo" : "Faça upload da imagem de aprovação"}
+                      </p>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="px-4 py-3 space-y-3">
@@ -992,45 +980,58 @@ export default function Arte() {
                             e.currentTarget.style.display = 'none';
                           }}
                         />
-                        {/* Badge de sucesso */}
                         <div className="absolute top-2 right-2">
                           <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">
                             <Check className="h-3 w-3 mr-1" />
-                            Pronto
+                            Carregado
                           </Badge>
                         </div>
                       </div>
-                      <FileUploader
-                        onGetUploadParameters={getUploadUrl}
-                        onComplete={(result) => {
-                          const localPath = convertGCSUrlToLocalPath(result.url);
-                          setApprovalThumbUrl(localPath);
-                          setApprovalThumbPreview(localPath);
-                          toast({
-                            title: "Upload concluído",
-                            description: "Thumb de aprovação enviado com sucesso",
-                          });
-                        }}
-                        onError={(error) => {
-                          toast({
-                            title: "Erro no upload",
-                            description: error.message,
-                            variant: "destructive",
-                          });
-                        }}
-                        onFileSelect={(file) => {
-                          const reader = new FileReader();
-                          reader.onload = (e) => {
-                            setApprovalThumbPreview(e.target?.result as string);
-                          };
-                          reader.readAsDataURL(file);
-                        }}
-                        accept="image/*"
-                        buttonVariant="outline"
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Alterar Thumb
-                      </FileUploader>
+                      <div className="flex items-center gap-2">
+                        <FileUploader
+                          onGetUploadParameters={getUploadUrl}
+                          onComplete={(result) => {
+                            const localPath = convertGCSUrlToLocalPath(result.url);
+                            setApprovalThumbUrl(localPath);
+                            setApprovalThumbPreview(localPath);
+                            toast({
+                              title: "Upload concluído",
+                              description: "Thumb atualizado — clique em Enviar para Aprovação para confirmar",
+                            });
+                          }}
+                          onError={(error) => {
+                            toast({
+                              title: "Erro no upload",
+                              description: error.message,
+                              variant: "destructive",
+                            });
+                          }}
+                          onFileSelect={(file) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                              setApprovalThumbPreview(e.target?.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                          accept="image/*"
+                          buttonVariant="outline"
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Alterar Thumb
+                        </FileUploader>
+                      </div>
+                      {/* Botão de envio — aparece somente após o upload */}
+                      <div className="pt-1 border-t border-purple-100 dark:border-purple-900">
+                        <Button
+                          onClick={handleSubmitForApproval}
+                          disabled={submitForApprovalMutation.isPending}
+                          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                          data-testid="button-submit-approval-header"
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar para Aprovação"}
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-3">

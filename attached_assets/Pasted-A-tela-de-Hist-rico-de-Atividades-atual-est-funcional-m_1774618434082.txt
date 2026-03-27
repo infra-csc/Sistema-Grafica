@@ -1,0 +1,36 @@
+A tela de Histórico de Atividades atual está funcional, mas tem um visual muito "tabela de banco de dados" padrão. No design system Titanium, um histórico de atividades deve se parecer com um "Audit Log" (Log de Auditoria) de um software de nível empresarial: limpo, escaneável e focado na ação.
+
+Aqui está o prompt para o Replit transformar essa tela, trazendo refinamento e facilitando a leitura rápida de quem fez o quê:
+
+Prompt para Replit: Tela de Histórico de Atividades (Audit Log Titanium)
+"Refatore a tela de 'Histórico de Atividades' para o padrão Titanium, transformando-a em um 'Audit Log' premium e escaneável.
+
+1. Estrutura e Container:
+
+O fundo da página deve ser #fafaf9.
+
+A tabela deve ficar dentro de um card branco (#ffffff) com borda fina #e7e5e4, cantos arredondados (rounded-xl) e sombra bem suave (shadow-sm).
+
+Adicione uma barra de pesquisa e filtros (ex: filtrar por usuário ou data) no topo do card, seguindo o padrão minimalista (inputs com fundo #fafaf9).
+
+2. Cabeçalho da Tabela:
+
+Fundo da linha de cabeçalho em #fafaf9.
+
+Texto em cinza médio (#71717a), tamanho pequeno (text-xs), em caixa alta (uppercase) e com espaçamento entre letras (tracking-wider) para um visual técnico.
+
+3. Estilo das Colunas e Dados (O Diferencial):
+
+Coluna 'Tipo' (Badges): Substitua as pílulas cinzas sólidas por badges mais refinadas. Fundo branco (#ffffff), borda #e7e5e4 e texto #1c1917. Para diferenciar rápido, adicione um pequeno 'dot' (círculo de 6px) dentro do badge: ex: Laranja (#f97316) para 'Evento', Grafite (#44403c) para 'Item'.
+
+Coluna 'Título' (Ação): O nome da ação deve ser o destaque da linha (#1c1917 em font-medium).
+
+Colunas 'Data' e 'Hora': Junte visualmente para não poluir. Coloque a Data em #1c1917 e, logo ao lado ou embaixo, a Hora em cinza mais claro (#a8a29e).
+
+Coluna 'Realizado por': Para dar um toque humano e premium, adicione um mini avatar circular (ex: 24x24px, fundo #f5f5f4, texto #1c1917) com as iniciais do usuário ao lado do nome dele (ex: [JS] João Silva).
+
+4. Interação:
+
+Divisórias de linha muito finas (border-b border-[#e7e5e4]).
+
+Efeito de hover nas linhas: hover:bg-[#fafaf9] para guiar os olhos do usuário ao passar o mouse."

@@ -320,140 +320,120 @@ export default function Arte() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
-            <AlertCircle className="h-4 w-4 text-status-pending" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-status-pending" data-testid="stat-pending">
-              {pendingCount}
+        {[
+          {
+            label: "Pendentes",
+            value: pendingCount,
+            sub: "Aguardando liberação",
+            icon: AlertCircle,
+            accent: "#f97316",
+            testId: "stat-pending",
+          },
+          {
+            label: "Aguard. Patrocinador",
+            value: itemsForEvent.filter(i => i.status === 'awaiting_sponsor_approval').length,
+            sub: "Enviado p/ aprovação",
+            icon: Clock,
+            accent: "#d97706",
+            testId: "stat-awaiting-sponsor",
+          },
+          {
+            label: "Patrocinador Aprovou",
+            value: itemsForEvent.filter(i => i.status === 'sponsor_approved').length,
+            sub: "Aguard. solicitação",
+            icon: CheckCircle,
+            accent: "#2563eb",
+            testId: "stat-sponsor-approved",
+          },
+          {
+            label: "Prontos p/ Produção",
+            value: itemsForEvent.filter(i => i.status === 'ready_for_production' || i.status === 'approved').length,
+            sub: "Liberados",
+            icon: Package,
+            accent: "#16a34a",
+            testId: "stat-ready-production",
+          },
+        ].map(stat => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.testId} style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e7e5e4',
+              borderRadius: 12,
+              padding: '16px 20px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  {stat.label}
+                </span>
+                <Icon style={{ width: 15, height: 15, color: '#a8a29e' }} />
+              </div>
+              <div style={{ fontSize: 32, fontWeight: 800, color: '#1c1917', lineHeight: 1 }} data-testid={stat.testId}>
+                {stat.value}
+              </div>
+              <p style={{ fontSize: 12, color: '#a8a29e', marginTop: 6 }}>{stat.sub}</p>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Aguardando liberação</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aguard. Patrocinador</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600" data-testid="stat-awaiting-sponsor">
-              {itemsForEvent.filter(i => i.status === 'awaiting_sponsor_approval').length}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Enviado p/ aprovação</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Patrocinador Aprovou</CardTitle>
-            <CheckCircle className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600" data-testid="stat-sponsor-approved">
-              {itemsForEvent.filter(i => i.status === 'sponsor_approved').length}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Aguard. solicitação</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Prontos p/ Produção</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600" data-testid="stat-ready-production">
-              {itemsForEvent.filter(i => 
-                i.status === 'ready_for_production' || 
-                i.status === 'approved'
-              ).length}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Liberados</p>
-          </CardContent>
-        </Card>
+          );
+        })}
       </div>
 
-      {/* Abas Horizontais Modernas */}
-      <Card>
-        <CardContent className="pt-6 pb-6">
-          <div className="inline-flex items-stretch rounded-lg bg-muted p-1.5 w-full gap-1">
+      {/* Abas Titanium — segmented control premium */}
+      <div style={{
+        backgroundColor: '#ffffff',
+        border: '1px solid #e7e5e4',
+        borderRadius: 12,
+        padding: 6,
+        display: 'flex',
+        gap: 4,
+      }}>
+        {[
+          { id: "criar-aprovacoes", label: "Mandar para Aprovação", count: pendingCount, icon: Send, testId: "tab-criar-aprovacoes" },
+          { id: "finalizar-layouts", label: "Finalizar Arte", count: needsFinalFileCount, icon: Upload, testId: "tab-finalizar-layouts" },
+          { id: "finalizados", label: "Finalizados", count: finalizadosCount, icon: CheckCircle, testId: "tab-finalizados" },
+        ].map(tab => {
+          const isActive = activeTab === tab.id;
+          const Icon = tab.icon;
+          return (
             <button
-              onClick={() => setActiveTab("criar-aprovacoes")}
-              data-testid="tab-criar-aprovacoes"
-              className={cn(
-                "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
-                activeTab === "criar-aprovacoes"
-                  ? "bg-background text-foreground shadow-md border-2 border-blue-500"
-                  : "text-foreground/70 hover-elevate"
-              )}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              data-testid={tab.testId}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                backgroundColor: isActive ? '#1c1917' : 'transparent',
+                color: isActive ? '#ffffff' : '#1c1917',
+              }}
             >
-              <div className="flex items-center gap-2">
-                <FileImage className={cn("h-4 w-4", activeTab === "criar-aprovacoes" ? "text-blue-600" : "text-blue-500")} />
-                <span className="font-semibold">Mandar para Aprovação</span>
-              </div>
-              <Badge 
-                className={cn(
-                  "min-w-[28px] justify-center bg-blue-600 text-white hover:bg-blue-700",
-                  activeTab !== "criar-aprovacoes" && "bg-blue-500/20 text-blue-700 hover:bg-blue-500/30"
-                )}
-              >
-                {pendingCount}
-              </Badge>
+              <Icon style={{ width: 15, height: 15, opacity: isActive ? 1 : 0.6 }} />
+              <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{tab.label}</span>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 22,
+                height: 22,
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                backgroundColor: isActive ? '#f97316' : '#f5f5f4',
+                color: isActive ? '#ffffff' : '#71717a',
+                padding: '0 6px',
+              }}>
+                {tab.count}
+              </span>
             </button>
-            
-            <button
-              onClick={() => setActiveTab("finalizar-layouts")}
-              data-testid="tab-finalizar-layouts"
-              className={cn(
-                "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
-                activeTab === "finalizar-layouts"
-                  ? "bg-background text-foreground shadow-md border-2 border-orange-500"
-                  : "text-foreground/70 hover-elevate"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <Upload className={cn("h-4 w-4", activeTab === "finalizar-layouts" ? "text-orange-600" : "text-orange-500")} />
-                <span className="font-semibold">Finalizar Arte</span>
-              </div>
-              <Badge 
-                className={cn(
-                  "min-w-[28px] justify-center bg-orange-600 text-white hover:bg-orange-700",
-                  activeTab !== "finalizar-layouts" && "bg-orange-500/20 text-orange-700 hover:bg-orange-500/30"
-                )}
-              >
-                {needsFinalFileCount}
-              </Badge>
-            </button>
-            
-            <button
-              onClick={() => setActiveTab("finalizados")}
-              data-testid="tab-finalizados"
-              className={cn(
-                "inline-flex flex-col items-center justify-center whitespace-nowrap rounded-md px-6 py-3.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 gap-2",
-                activeTab === "finalizados"
-                  ? "bg-background text-foreground shadow-md border-2 border-green-500"
-                  : "text-foreground/70 hover-elevate"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <CheckCircle className={cn("h-4 w-4", activeTab === "finalizados" ? "text-green-600" : "text-green-500")} />
-                <span className="font-semibold">Finalizados</span>
-              </div>
-              <Badge 
-                className={cn(
-                  "min-w-[28px] justify-center bg-green-600 text-white hover:bg-green-700",
-                  activeTab !== "finalizados" && "bg-green-500/20 text-green-700 hover:bg-green-500/30"
-                )}
-              >
-                {finalizadosCount}
-              </Badge>
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+          );
+        })}
+      </div>
 
       {/* Filtros */}
       <Card>
@@ -670,173 +650,224 @@ export default function Arte() {
               )}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {(() => {
-                const groups: { event: string; type: string; items: typeof filteredItems }[] = [];
+                // Group by event first, then by type within each event
+                type TypeGroup = { type: string; items: typeof filteredItems };
+                type EventGroup = { eventId: string; eventName: string; event: any; typeGroups: TypeGroup[] };
+                const eventGroups: EventGroup[] = [];
                 filteredItems.forEach(item => {
                   const eventName = item.event?.name || 'Sem Evento';
-                  const typeName = item.type;
-                  const lastGroup = groups[groups.length - 1];
-                  if (lastGroup && lastGroup.event === eventName && lastGroup.type === typeName) {
-                    lastGroup.items.push(item);
-                  } else {
-                    groups.push({ event: eventName, type: typeName, items: [item] });
+                  const eventId = item.eventId || 'no-event';
+                  let evGroup = eventGroups.find(eg => eg.eventId === eventId);
+                  if (!evGroup) {
+                    evGroup = { eventId, eventName, event: item.event, typeGroups: [] };
+                    eventGroups.push(evGroup);
                   }
+                  let tg = evGroup.typeGroups.find(t => t.type === item.type);
+                  if (!tg) { tg = { type: item.type, items: [] }; evGroup.typeGroups.push(tg); }
+                  tg.items.push(item);
                 });
-                return groups.map((group, groupIndex) => (
-                  <Fragment key={`${group.event}-${group.type}-${groupIndex}`}>
-                    {(groupIndex === 0 || groups[groupIndex - 1].event !== group.event) && (
-                      <div className="bg-gradient-to-r from-primary/10 to-primary/5 border-l-4 border-primary rounded-md p-2 mt-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-bold text-primary uppercase tracking-wide">
-                            {group.event}
-                          </div>
-                          {group.items[0].event && (
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                <span className="hidden sm:inline">Início: </span>
-                                <strong className="text-foreground">{new Date(group.items[0].event.startDate).toLocaleDateString('pt-BR')}</strong>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Truck className="h-3 w-3" />
-                                <span className="hidden sm:inline">Saída: </span>
-                                <strong className="text-foreground">{new Date(group.items[0].event.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(group.items[0].event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
-                              </div>
-                            </div>
+
+                return eventGroups.map(evGroup => (
+                  <div key={evGroup.eventId} style={{
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e7e5e4',
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                  }}>
+                    {/* Event card header */}
+                    <div style={{
+                      padding: '12px 16px',
+                      borderBottom: '1px solid #e7e5e4',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      backgroundColor: '#ffffff',
+                    }}>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: '#1c1917' }}>{evGroup.eventName}</span>
+                      {evGroup.event && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, color: '#78716c' }}>
+                          {evGroup.event.startDate && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <Calendar style={{ width: 12, height: 12 }} />
+                              Início: <strong style={{ color: '#1c1917', marginLeft: 2 }}>{new Date(evGroup.event.startDate).toLocaleDateString('pt-BR')}</strong>
+                            </span>
+                          )}
+                          {evGroup.event.truckDepartureDate && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <Truck style={{ width: 12, height: 12 }} />
+                              Saída: <strong style={{ color: '#1c1917', marginLeft: 2 }}>{new Date(evGroup.event.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(evGroup.event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
+                            </span>
                           )}
                         </div>
-                      </div>
-                    )}
-                    <div className="mt-1 overflow-x-auto">
-                      <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
-                        <thead className="bg-muted/20">
-                          {activeTab === "criar-aprovacoes" ? (
-                            <>
-                              <tr className="border-b border-border/30">
-                                <th className="text-center py-1 px-2 w-10" rowSpan={2}>
-                                  <Checkbox
-                                    checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
-                                    onCheckedChange={toggleAllSelection}
-                                    data-testid="checkbox-select-all"
-                                  />
-                                </th>
-                                <th colSpan={8} className="text-left py-1 px-2 font-semibold">
-                                  {group.type}
-                                </th>
-                              </tr>
-                              <tr className="border-b border-border/40">
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">ID</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-10">Qtde</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground flex-1">Descrição</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Visual</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Arquivo</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">m²</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-32">Material/Acabamento</th>
-                                <th className="text-right py-1 px-2 font-medium text-muted-foreground w-16">Ações</th>
-                              </tr>
-                            </>
-                          ) : (
-                            <>
-                              <tr className="border-b border-border/30">
-                                <th colSpan={8} className="text-left py-1 px-2 font-semibold">
-                                  {group.type}
-                                </th>
-                              </tr>
-                              <tr className="border-b border-border/40">
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">ID</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-10">Qtde</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground flex-1">Descrição</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Visual</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Arquivo</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">m²</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-32">Material/Acabamento</th>
-                                <th className="text-right py-1 px-2 font-medium text-muted-foreground w-16">Ações</th>
-                              </tr>
-                            </>
-                          )}
-                        </thead>
-                        <tbody>
-                          {group.items.map(item => (
-                            <Fragment key={item.id}>
-                            <tr className="border-b border-border/40 hover-elevate" data-testid={`row-pending-item-${item.id}`}>
-                              {activeTab === "criar-aprovacoes" && (
-                                <td className="text-center py-1 px-2">
-                                  <Checkbox
-                                    checked={selectedItemIds.has(item.id)}
-                                    onCheckedChange={() => toggleItemSelection(item.id)}
-                                    data-testid={`checkbox-item-${item.id}`}
-                                  />
-                                </td>
-                              )}
-                              <td className="py-1 px-2 min-w-[120px]">
-                                <div className="flex flex-col items-start gap-0.5">
-                                  <span className="font-mono font-semibold text-primary whitespace-nowrap" data-testid={`text-display-id-${item.id}`}>
-                                    {item.displayId}
-                                  </span>
-                                  {activeTab === "finalizados" && <StatusBadge status={item.status} />}
-                                  {activeTab === "criar-aprovacoes" && item.rejectedBySponsor && (
-                                    <Badge 
-                                      variant="outline" 
-                                      className="text-xs border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
-                                      data-testid={`badge-rejected-sponsor-${item.id}`}
-                                    >
-                                      {item.status === 'awaiting_sponsor_approval' ? 'Refazer Thumb' : 'Reprovado Patrocinador'}
-                                    </Badge>
-                                  )}
-                                  {activeTab === "criar-aprovacoes" && item.rejectedByCreator && (
-                                    <Badge 
-                                      variant="outline" 
-                                      className="text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-400"
-                                      data-testid={`badge-rejected-creator-${item.id}`}
-                                    >
-                                      Reprovado Criador
-                                    </Badge>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-1 px-2 tabular-nums w-10">{item.quantity}</td>
-                              <td className="py-1 px-2 text-sm text-muted-foreground flex-1 break-words">{item.description || '—'}</td>
-                              <td className="py-1 px-2 tabular-nums text-xs w-24">
-                                {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}` : '—'}
-                              </td>
-                              <td className="py-1 px-2 tabular-nums text-xs w-24">
-                                {item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}` : '—'}
-                              </td>
-                              <td className="py-1 px-2 tabular-nums font-semibold w-12">{item.calculatedM2}</td>
-                              <td className="py-1 px-2 text-xs w-32">{item.material} · {item.finish}</td>
-                              <td className="py-1 px-2 text-right">
-                                <Button
-                                  size="icon"
-                                  variant={activeTab === "criar-aprovacoes" || activeTab === "finalizar-layouts" ? "default" : "outline"}
-                                  onClick={() => handleViewDetails(item)}
-                                  data-testid={`button-view-${item.id}`}
-                                  title={activeTab === "criar-aprovacoes" ? "Enviar p/ Aprovação" : activeTab === "finalizar-layouts" ? "Finalizar Layout" : "Ver Detalhes"}
-                                >
-                                  {activeTab === "criar-aprovacoes" ? <Send className="h-4 w-4" /> : 
-                                   activeTab === "finalizar-layouts" ? <FileImage className="h-4 w-4" /> : 
-                                   <Eye className="h-4 w-4" />}
-                                </Button>
-                              </td>
-                            </tr>
-                            {item.observations && (
-                              <tr className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-200/30 dark:border-amber-900/30">
-                                <td colSpan={8} className="py-2 px-3">
-                                  <div className="flex gap-2 items-start">
-                                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                                    <div className="text-sm text-amber-800 dark:text-amber-200">
-                                      <span className="font-semibold">Observações da Ação:</span> {item.observations}
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                            </Fragment>
-                          ))}
-                        </tbody>
-                      </table>
+                      )}
                     </div>
-                  </Fragment>
+
+                    {/* Type groups within this event */}
+                    {evGroup.typeGroups.map((group, tgIndex) => (
+                      <div key={group.type}>
+                        {/* Type separator — orange left border Titanium style */}
+                        <div style={{
+                          backgroundColor: '#fafaf9',
+                          borderLeft: '3px solid #f97316',
+                          borderTop: tgIndex > 0 ? '1px solid #e7e5e4' : undefined,
+                          padding: '6px 14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {group.type}
+                          </span>
+                          {activeTab === "criar-aprovacoes" && tgIndex === 0 && (
+                            <Checkbox
+                              checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
+                              onCheckedChange={toggleAllSelection}
+                              data-testid="checkbox-select-all"
+                            />
+                          )}
+                        </div>
+
+                        {/* Column headers */}
+                        <div style={{ overflowX: 'auto' }}>
+                          <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid #e7e5e4' }}>
+                                {activeTab === "criar-aprovacoes" && (
+                                  <th style={{ width: 36, padding: '6px 8px', textAlign: 'center' }} />
+                                )}
+                                <th style={{ padding: '6px 10px', textAlign: 'left', color: '#a8a29e', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px', minWidth: 120 }}>ID</th>
+                                <th style={{ padding: '6px 10px', textAlign: 'center', color: '#a8a29e', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px', width: 52 }}>Qtde</th>
+                                <th style={{ padding: '6px 10px', textAlign: 'left', color: '#a8a29e', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Descrição</th>
+                                <th style={{ padding: '6px 10px', textAlign: 'center', color: '#a8a29e', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px', width: 90 }}>Dim. Visual</th>
+                                <th style={{ padding: '6px 10px', textAlign: 'center', color: '#a8a29e', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px', width: 90 }}>Dim. Arquivo</th>
+                                <th style={{ padding: '6px 10px', textAlign: 'right', color: '#a8a29e', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px', width: 48 }}>m²</th>
+                                <th style={{ padding: '6px 10px', textAlign: 'left', color: '#a8a29e', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px', width: 130 }}>Material · Acab.</th>
+                                <th style={{ padding: '6px 10px', textAlign: 'right', color: '#a8a29e', fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.4px', width: 90 }}>Ação</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.items.map(item => (
+                                <Fragment key={item.id}>
+                                  <tr
+                                    data-testid={`row-pending-item-${item.id}`}
+                                    style={{ borderBottom: '1px solid #f5f5f4' }}
+                                    className="hover-elevate"
+                                  >
+                                    {activeTab === "criar-aprovacoes" && (
+                                      <td style={{ padding: '8px 8px', textAlign: 'center' }}>
+                                        <Checkbox
+                                          checked={selectedItemIds.has(item.id)}
+                                          onCheckedChange={() => toggleItemSelection(item.id)}
+                                          data-testid={`checkbox-item-${item.id}`}
+                                        />
+                                      </td>
+                                    )}
+                                    <td style={{ padding: '8px 10px', minWidth: 120 }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                        <span className="font-mono" style={{ fontWeight: 700, fontSize: 12, color: '#1c1917' }} data-testid={`text-display-id-${item.id}`}>
+                                          {item.displayId}
+                                        </span>
+                                        {activeTab === "finalizados" && <StatusBadge status={item.status} />}
+                                        {activeTab === "criar-aprovacoes" && item.rejectedBySponsor && (
+                                          <Badge variant="outline" className="text-xs border-red-300 bg-red-50 text-red-700" data-testid={`badge-rejected-sponsor-${item.id}`}>
+                                            {item.status === 'awaiting_sponsor_approval' ? 'Refazer Thumb' : 'Reprovado'}
+                                          </Badge>
+                                        )}
+                                        {activeTab === "criar-aprovacoes" && item.rejectedByCreator && (
+                                          <Badge variant="outline" className="text-xs border-orange-300 bg-orange-50 text-orange-700" data-testid={`badge-rejected-creator-${item.id}`}>
+                                            Reprovado Criador
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.quantity}</td>
+                                    <td style={{ padding: '8px 10px', fontSize: 12, color: '#78716c' }}>{item.description || '—'}</td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center', fontSize: 12, color: '#1c1917', fontFamily: 'monospace' }}>
+                                      {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}` : '—'}
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'center', fontSize: 12, color: '#1c1917', fontFamily: 'monospace' }}>
+                                      {item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}` : '—'}
+                                    </td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.calculatedM2}</td>
+                                    <td style={{ padding: '8px 10px', fontSize: 11, color: '#78716c' }}>{item.material} · {item.finish}</td>
+                                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                                      {activeTab === "criar-aprovacoes" ? (
+                                        <button
+                                          onClick={() => handleViewDetails(item)}
+                                          data-testid={`button-view-${item.id}`}
+                                          title="Subir Arte"
+                                          style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                                            padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+                                            border: '1.5px solid #1c1917', backgroundColor: 'transparent',
+                                            color: '#1c1917', fontSize: 11, fontWeight: 600,
+                                            transition: 'all 0.15s',
+                                          }}
+                                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917'; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
+                                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#1c1917'; }}
+                                        >
+                                          <Send style={{ width: 11, height: 11 }} />
+                                          Subir Arte
+                                        </button>
+                                      ) : activeTab === "finalizar-layouts" ? (
+                                        <button
+                                          onClick={() => handleViewDetails(item)}
+                                          data-testid={`button-view-${item.id}`}
+                                          title="Finalizar Layout"
+                                          style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                                            padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+                                            border: '1.5px solid #f97316', backgroundColor: 'transparent',
+                                            color: '#f97316', fontSize: 11, fontWeight: 600,
+                                            transition: 'all 0.15s',
+                                          }}
+                                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#fff7ed'; }}
+                                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
+                                        >
+                                          <FileImage style={{ width: 11, height: 11 }} />
+                                          Finalizar
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => handleViewDetails(item)}
+                                          data-testid={`button-view-${item.id}`}
+                                          title="Ver Detalhes"
+                                          style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                                            padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+                                            border: '1px solid #e7e5e4', backgroundColor: 'transparent',
+                                            color: '#78716c', fontSize: 11, fontWeight: 500,
+                                          }}
+                                        >
+                                          <Eye style={{ width: 11, height: 11 }} />
+                                          Detalhes
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                  {item.observations && (
+                                    <tr style={{ backgroundColor: '#fffbeb', borderBottom: '1px solid #fde68a' }}>
+                                      <td colSpan={9} style={{ padding: '6px 12px' }}>
+                                        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                                          <AlertCircle style={{ width: 13, height: 13, color: '#d97706', flexShrink: 0, marginTop: 1 }} />
+                                          <span style={{ fontSize: 11, color: '#92400e' }}>
+                                            <strong>Observações:</strong> {item.observations}
+                                          </span>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </Fragment>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ));
               })()}
             </div>

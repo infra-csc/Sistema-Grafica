@@ -603,7 +603,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "sponsorIds deve ser um array" });
       }
 
-      await storage.bulkSyncItemSponsors(itemId, sponsorIds);
+      // Filtrar IDs nulos ou vazios antes de inserir no banco
+      const validSponsorIds = sponsorIds.filter((id: any) => id && typeof id === 'string' && id.trim() !== '');
+      await storage.bulkSyncItemSponsors(itemId, validSponsorIds);
       
       // Update item with skipApproval only (status NOT changed here - user must click "Enviar para Arte")
       const currentItem = await storage.getItem(itemId);

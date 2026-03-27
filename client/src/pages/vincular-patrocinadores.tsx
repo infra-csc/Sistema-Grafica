@@ -378,7 +378,7 @@ export default function VincularPatrocinadores() {
         try {
           const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
           const itemSponsors = await response.json();
-          const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
+          const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
           return { itemId: item.id, sponsorIds };
         } catch (error) {
           console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
@@ -427,7 +427,7 @@ export default function VincularPatrocinadores() {
       try {
         const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
         const itemSponsors = await response.json();
-        const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
+        const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
         
         // Atualizar tanto o mapa atual quanto o original
         setItemSponsorsMap(prev => ({
@@ -566,7 +566,7 @@ export default function VincularPatrocinadores() {
           try {
             const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
             const itemSponsors = await response.json();
-            const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
+            const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
             return { itemId, sponsorIds };
           } catch (error) {
             console.error(`Erro ao recarregar sponsors do item ${itemId}:`, error);

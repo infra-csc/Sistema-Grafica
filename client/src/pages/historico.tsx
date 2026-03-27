@@ -1,28 +1,29 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Calendar, 
-  Package, 
-  CheckCircle, 
-  Clock, 
-  Truck,
-  FileCheck,
-  Plus,
-  Activity,
-  Search
+import {
+  Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+// Titanium palette
+const TI = {
+  bg: "#fafaf9",
+  surface: "#ffffff",
+  border: "#e7e5e4",
+  text: "#1c1917",
+  secondary: "#78716c",
+  muted: "#a8a29e",
+  accent: "#f97316",
+  graphite: "#44403c",
+};
 
 interface TimelineEvent {
   id: string;
-  type: 'event_created' | 'item_created' | 'item_approved' | 'production_started' | 'item_delivered';
+  type: "event_created" | "item_created" | "item_approved" | "production_started" | "item_delivered";
   timestamp: Date;
   eventName: string;
   eventId: string;
@@ -32,60 +33,81 @@ interface TimelineEvent {
   quantity?: number;
   quantityProduced?: number;
   receivedBy?: string;
-  userName?: string; // Nome de quem fez a ação
+  userName?: string;
+}
+
+const ACTION_CONFIG: Record<string, { label: string; dot: string; icon: any; entityType: "Evento" | "Item" }> = {
+  event_created:      { label: "Evento Criado",    dot: TI.accent,    icon: Calendar,  entityType: "Evento" },
+  item_created:       { label: "Item Adicionado",  dot: TI.graphite,  icon: Plus,      entityType: "Item" },
+  item_approved:      { label: "Item Liberado",    dot: "#16a34a",    icon: FileCheck, entityType: "Item" },
+  production_started: { label: "Em Produção",      dot: "#2563eb",    icon: Package,   entityType: "Item" },
+  item_delivered:     { label: "Item Entregue",    dot: "#7c3aed",    icon: Truck,     entityType: "Item" },
+};
+
+function getInitials(name: string): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(n => n[0].toUpperCase())
+    .join("");
+}
+
+function UserAvatar({ name }: { name?: string }) {
+  const initials = getInitials(name || "");
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+      <div style={{
+        width: 24, height: 24, borderRadius: "50%",
+        backgroundColor: "#f5f5f4",
+        border: `1px solid ${TI.border}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 9, fontWeight: 700, color: TI.text,
+        flexShrink: 0, letterSpacing: "0.02em",
+      }}>
+        {initials}
+      </div>
+      <span style={{ fontSize: 12, color: TI.secondary, whiteSpace: "nowrap" }}>{name || "—"}</span>
+    </div>
+  );
 }
 
 export default function Historico() {
   const [, setLocation] = useLocation();
-  const [eventFilter, setEventFilter] = useState<string>("all");
-  const [actionFilter, setActionFilter] = useState<string>("all");
-  const [recipientFilter, setRecipientFilter] = useState<string>("");
+  const [eventFilter, setEventFilter] = useState("all");
+  const [actionFilter, setActionFilter] = useState("all");
+  const [searchFilter, setSearchFilter] = useState("");
 
-  const { data: events = [] } = useQuery<any[]>({
-    queryKey: ["/api/events"],
-  });
+  const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
+  const { data: items = [] }  = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
 
-  const { data: items = [] } = useQuery<any[]>({
-    queryKey: ["/api/items"],
-  });
-
-  const { data: auditLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs"],
-  });
-
-  // Criar mapa de audit logs por entityId e action para lookup rápido
   const auditLogMap = new Map<string, any>();
-  auditLogs.forEach(log => {
-    const key = `${log.entityId}-${log.action}`;
-    auditLogMap.set(key, log);
-  });
+  auditLogs.forEach(log => auditLogMap.set(`${log.entityId}-${log.action}`, log));
 
-  // Construir timeline a partir de eventos e itens
   const timeline: TimelineEvent[] = [];
 
-  // Adicionar eventos criados
   events.forEach(event => {
-    const auditLog = auditLogMap.get(`${event.id}-created`);
+    const log = auditLogMap.get(`${event.id}-created`);
     timeline.push({
       id: `event-${event.id}`,
-      type: 'event_created',
+      type: "event_created",
       timestamp: new Date(event.createdAt),
       eventName: event.name,
       eventId: event.id,
-      userName: auditLog?.userName,
+      userName: log?.userName,
     });
   });
 
-  // Adicionar itens e suas mudanças de status
   items.forEach(item => {
     const event = events.find(e => e.id === item.eventId);
-    const eventName = event?.name || 'Evento desconhecido';
+    const eventName = event?.name || "Evento desconhecido";
 
-    // Item criado
-    const itemCreatedLog = auditLogMap.get(`${item.id}-created`);
+    const createdLog = auditLogMap.get(`${item.id}-created`);
     timeline.push({
       id: `item-created-${item.id}`,
-      type: 'item_created',
+      type: "item_created",
       timestamp: new Date(item.createdAt),
       eventName,
       eventId: item.eventId,
@@ -93,16 +115,14 @@ export default function Historico() {
       itemId: item.id,
       itemDisplayId: item.displayId,
       quantity: item.quantity,
-      userName: itemCreatedLog?.userName,
+      userName: createdLog?.userName,
     });
 
-    // Item aprovado (se status >= approved)
-    if (['approved', 'inProduction', 'produced', 'delivered'].includes(item.status)) {
-      const itemApprovedLog = auditLogMap.get(`${item.id}-approved`);
+    if (["approved", "inProduction", "produced", "delivered"].includes(item.status)) {
+      const approvedLog = auditLogMap.get(`${item.id}-approved`);
       timeline.push({
         id: `item-approved-${item.id}`,
-        type: 'item_approved',
-        // Usa approvedAt se existir, senão usa updatedAt como fallback
+        type: "item_approved",
         timestamp: new Date(item.approvedAt || item.updatedAt),
         eventName,
         eventId: item.eventId,
@@ -110,16 +130,14 @@ export default function Historico() {
         itemId: item.id,
         itemDisplayId: item.displayId,
         quantity: item.quantity,
-        userName: itemApprovedLog?.userName,
+        userName: approvedLog?.userName,
       });
     }
 
-    // Produção iniciada (se tem quantidade produzida)
     if (item.quantityProduced && item.quantityProduced > 0) {
       timeline.push({
         id: `production-${item.id}`,
-        type: 'production_started',
-        // Usa productionStartedAt se existir, senão usa updatedAt como fallback
+        type: "production_started",
         timestamp: new Date(item.productionStartedAt || item.updatedAt),
         eventName,
         eventId: item.eventId,
@@ -131,12 +149,11 @@ export default function Historico() {
       });
     }
 
-    // Item entregue
-    if (item.status === 'delivered' && item.deliveredAt) {
-      const itemDeliveredLog = auditLogMap.get(`${item.id}-delivered`);
+    if (item.status === "delivered" && item.deliveredAt) {
+      const deliveredLog = auditLogMap.get(`${item.id}-delivered`);
       timeline.push({
         id: `delivered-${item.id}`,
-        type: 'item_delivered',
+        type: "item_delivered",
         timestamp: new Date(item.deliveredAt),
         eventName,
         eventId: item.eventId,
@@ -144,282 +161,244 @@ export default function Historico() {
         itemId: item.id,
         itemDisplayId: item.displayId,
         receivedBy: item.receivedBy,
-        userName: itemDeliveredLog?.userName,
+        userName: deliveredLog?.userName,
       });
     }
   });
 
-  // Ordenar por data (mais recente primeiro)
-  const sortedTimeline = timeline.sort((a, b) => 
-    b.timestamp.getTime() - a.timestamp.getTime()
-  );
+  const sorted = timeline.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
-  // Filtrar por evento
-  let filteredTimeline = eventFilter === "all" 
-    ? sortedTimeline 
-    : sortedTimeline.filter(event => event.eventId === eventFilter);
-
-  // Filtrar por tipo de ação
-  if (actionFilter !== "all") {
-    filteredTimeline = filteredTimeline.filter(event => event.type === actionFilter);
-  }
-
-  // Filtrar por nome de quem recebeu (busca parcial, case-insensitive)
-  if (recipientFilter.trim()) {
-    filteredTimeline = filteredTimeline.filter(event => 
-      event.receivedBy?.toLowerCase().includes(recipientFilter.toLowerCase())
+  let filtered = eventFilter === "all" ? sorted : sorted.filter(e => e.eventId === eventFilter);
+  if (actionFilter !== "all") filtered = filtered.filter(e => e.type === actionFilter);
+  if (searchFilter.trim()) {
+    const q = searchFilter.toLowerCase();
+    filtered = filtered.filter(e =>
+      e.eventName.toLowerCase().includes(q) ||
+      e.userName?.toLowerCase().includes(q) ||
+      e.itemType?.toLowerCase().includes(q) ||
+      e.itemDisplayId?.toLowerCase().includes(q) ||
+      e.receivedBy?.toLowerCase().includes(q)
     );
   }
 
-  const getEventConfig = (type: TimelineEvent['type']) => {
-    switch (type) {
-      case 'event_created':
-        return {
-          icon: Calendar,
-          color: 'bg-primary/10 text-primary border-primary/20',
-          iconColor: 'text-primary',
-          label: 'Evento Criado',
-          bgClass: 'bg-primary/5',
-        };
-      case 'item_created':
-        return {
-          icon: Plus,
-          color: 'bg-status-pending/10 text-status-pending border-status-pending/20',
-          iconColor: 'text-status-pending',
-          label: 'Item Adicionado',
-          bgClass: 'bg-status-pending/5',
-        };
-      case 'item_approved':
-        return {
-          icon: FileCheck,
-          color: 'bg-status-inProgress/10 text-status-inProgress border-status-inProgress/20',
-          iconColor: 'text-status-inProgress',
-          label: 'Item Liberado',
-          bgClass: 'bg-status-inProgress/5',
-        };
-      case 'production_started':
-        return {
-          icon: Package,
-          color: 'bg-status-production/10 text-status-production border-status-production/20',
-          iconColor: 'text-status-production',
-          label: 'Em Produção',
-          bgClass: 'bg-status-production/5',
-        };
-      case 'item_delivered':
-        return {
-          icon: Truck,
-          color: 'bg-status-completed/10 text-status-completed border-status-completed/20',
-          iconColor: 'text-status-completed',
-          label: 'Item Entregue',
-          bgClass: 'bg-status-completed/5',
-        };
-      default:
-        return {
-          icon: Clock,
-          color: 'bg-muted text-muted-foreground border-border',
-          iconColor: 'text-muted-foreground',
-          label: 'Atividade',
-          bgClass: 'bg-muted/50',
-        };
-    }
-  };
-
-  const getEventDescription = (event: TimelineEvent) => {
-    switch (event.type) {
-      case 'event_created':
-        return `Evento "${event.eventName}" foi criado`;
-      case 'item_created':
+  const getDescription = (e: TimelineEvent) => {
+    switch (e.type) {
+      case "event_created":
+        return <>Evento <strong style={{ color: TI.text }}>{e.eventName}</strong> foi criado</>;
+      case "item_created":
         return (
           <>
-            <span className="font-mono text-primary font-medium">{event.itemDisplayId}</span>{" "}
-            <span className="font-medium">{event.itemType}</span> ({event.quantity} un.) adicionado ao evento{" "}
-            <span className="font-medium">{event.eventName}</span>
+            <span style={{ fontFamily: "monospace", fontWeight: 700, color: TI.accent }}>{e.itemDisplayId}</span>{" "}
+            <strong style={{ color: TI.text }}>{e.itemType}</strong> ({e.quantity} un.) adicionado ao evento{" "}
+            <strong style={{ color: TI.text }}>{e.eventName}</strong>
           </>
         );
-      case 'item_approved':
+      case "item_approved":
         return (
           <>
-            <span className="font-mono text-primary font-medium">{event.itemDisplayId}</span>{" "}
-            <span className="font-medium">{event.itemType}</span> do evento{" "}
-            <span className="font-medium">{event.eventName}</span> foi liberado para produção
+            <span style={{ fontFamily: "monospace", fontWeight: 700, color: TI.accent }}>{e.itemDisplayId}</span>{" "}
+            <strong style={{ color: TI.text }}>{e.itemType}</strong> de{" "}
+            <strong style={{ color: TI.text }}>{e.eventName}</strong> liberado para produção
           </>
         );
-      case 'production_started':
+      case "production_started":
         return (
           <>
-            Produção de <span className="font-mono text-primary font-medium">{event.itemDisplayId}</span>{" "}
-            <span className="font-medium">{event.itemType}</span> do evento{" "}
-            <span className="font-medium">{event.eventName}</span>: {event.quantityProduced}/{event.quantity} un. concluídas
+            Produção de{" "}
+            <span style={{ fontFamily: "monospace", fontWeight: 700, color: TI.accent }}>{e.itemDisplayId}</span>{" "}
+            <strong style={{ color: TI.text }}>{e.itemType}</strong> — {e.quantityProduced}/{e.quantity} un.
           </>
         );
-      case 'item_delivered':
+      case "item_delivered":
         return (
           <>
-            <span className="font-mono text-primary font-medium">{event.itemDisplayId}</span>{" "}
-            <span className="font-medium">{event.itemType}</span> do evento{" "}
-            <span className="font-medium">{event.eventName}</span> foi entregue
-            {event.receivedBy && ` para ${event.receivedBy}`}
+            <span style={{ fontFamily: "monospace", fontWeight: 700, color: TI.accent }}>{e.itemDisplayId}</span>{" "}
+            <strong style={{ color: TI.text }}>{e.itemType}</strong> de{" "}
+            <strong style={{ color: TI.text }}>{e.eventName}</strong> entregue
+            {e.receivedBy && <> para <strong style={{ color: TI.text }}>{e.receivedBy}</strong></>}
           </>
         );
       default:
-        return 'Atividade registrada';
+        return "Atividade registrada";
     }
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ backgroundColor: TI.bg, minHeight: "100%", padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ backgroundColor: TI.accent, borderRadius: 8, padding: "6px 8px", display: "flex" }}>
+          <Activity style={{ color: "#fff", width: 18, height: 18 }} />
+        </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Activity className="h-8 w-8 text-primary" />
+          <h1 style={{ color: TI.text, fontSize: 18, fontWeight: 700, margin: 0 }}>
             Histórico de Atividades
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Timeline completa de todas as ações do sistema
-          </p>
+          <p style={{ color: TI.muted, fontSize: 12, margin: 0 }}>Audit log completo de todas as ações do sistema</p>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Atividades Recentes
-              </CardTitle>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                <Select value={actionFilter} onValueChange={setActionFilter}>
-                  <SelectTrigger className="w-full sm:w-48" data-testid="select-action-filter">
-                    <SelectValue placeholder="Tipo de ação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as ações</SelectItem>
-                    <SelectItem value="event_created">Criações de eventos</SelectItem>
-                    <SelectItem value="item_created">Adições de itens</SelectItem>
-                    <SelectItem value="item_approved">Aprovações</SelectItem>
-                    <SelectItem value="production_started">Em produção</SelectItem>
-                    <SelectItem value="item_delivered">Entregas</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={eventFilter} onValueChange={setEventFilter}>
-                  <SelectTrigger className="w-full sm:w-48" data-testid="select-event-filter">
-                    <SelectValue placeholder="Filtrar por evento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os eventos</SelectItem>
-                    {events.map((event) => (
-                      <SelectItem key={event.id} value={event.id}>
-                        {event.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por quem recebeu..."
-                value={recipientFilter}
-                onChange={(e) => setRecipientFilter(e.target.value)}
-                className="pl-9"
-                data-testid="input-recipient-filter"
-              />
-            </div>
+      {/* Card principal */}
+      <div style={{
+        backgroundColor: TI.surface,
+        border: `1px solid ${TI.border}`,
+        borderRadius: 12,
+        overflow: "hidden",
+      }}>
+
+        {/* Filtros */}
+        <div style={{
+          padding: "14px 20px",
+          borderBottom: `1px solid ${TI.border}`,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          alignItems: "center",
+        }}>
+          {/* Search */}
+          <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
+            <Search style={{
+              position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+              width: 14, height: 14, color: TI.muted, pointerEvents: "none",
+            }} />
+            <input
+              placeholder="Buscar por evento, usuário, item..."
+              value={searchFilter}
+              onChange={e => setSearchFilter(e.target.value)}
+              data-testid="input-search-filter"
+              style={{
+                width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
+                backgroundColor: TI.bg, border: `1px solid ${TI.border}`, borderRadius: 8,
+                fontSize: 12, color: TI.text, outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          {filteredTimeline.length === 0 ? (
-            <div className="text-center py-12">
-              <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">
-                {eventFilter === "all" ? "Nenhuma atividade registrada" : "Nenhuma atividade para este evento"}
-              </h3>
-              <p className="text-muted-foreground">
-                {eventFilter === "all" 
-                  ? "As atividades aparecerão aqui conforme você usar o sistema"
-                  : "Selecione outro evento ou escolha 'Todos os eventos'"}
-              </p>
-            </div>
-          ) : (
-            <div className="relative">
-              {/* Linha vertical da timeline */}
-              <div className="absolute left-6 top-0 bottom-0 w-px bg-border" />
 
-              <div className="space-y-4">
-                {filteredTimeline.map((event, index) => {
-                  const config = getEventConfig(event.type);
-                  const Icon = config.icon;
-                  const timeAgo = formatDistanceToNow(event.timestamp, {
-                    addSuffix: true,
-                    locale: ptBR,
-                  });
+          <Select value={actionFilter} onValueChange={setActionFilter}>
+            <SelectTrigger className="w-44" data-testid="select-action-filter"
+              style={{ backgroundColor: TI.bg, borderColor: TI.border, fontSize: 12 }}>
+              <SelectValue placeholder="Tipo de ação" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as ações</SelectItem>
+              <SelectItem value="event_created">Eventos criados</SelectItem>
+              <SelectItem value="item_created">Itens adicionados</SelectItem>
+              <SelectItem value="item_approved">Itens liberados</SelectItem>
+              <SelectItem value="production_started">Em produção</SelectItem>
+              <SelectItem value="item_delivered">Entregas</SelectItem>
+            </SelectContent>
+          </Select>
 
-                  return (
-                    <div
-                      key={event.id}
-                      className="relative pl-16 pr-4 group"
-                      data-testid={`timeline-event-${index}`}
-                    >
-                      {/* Ícone da timeline */}
-                      <div className={cn(
-                        "absolute left-0 w-12 h-12 rounded-full flex items-center justify-center border-2 bg-card",
-                        config.color
-                      )}>
-                        <Icon className={cn("h-5 w-5", config.iconColor)} />
+          <Select value={eventFilter} onValueChange={setEventFilter}>
+            <SelectTrigger className="w-44" data-testid="select-event-filter"
+              style={{ backgroundColor: TI.bg, borderColor: TI.border, fontSize: 12 }}>
+              <SelectValue placeholder="Filtrar por evento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os eventos</SelectItem>
+              {events.map(ev => (
+                <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <span style={{ marginLeft: "auto", fontSize: 11, color: TI.muted, whiteSpace: "nowrap" }}>
+            {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {/* Table */}
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px 20px", color: TI.muted }}>
+            <Activity style={{ width: 36, height: 36, margin: "0 auto 12px", opacity: 0.4 }} />
+            <p style={{ fontSize: 14, fontWeight: 500, color: TI.secondary }}>Nenhuma atividade encontrada</p>
+            <p style={{ fontSize: 12, marginTop: 4 }}>Tente ajustar os filtros</p>
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ backgroundColor: TI.bg, borderBottom: `1px solid ${TI.border}` }}>
+                {["Tipo", "Ação", "Data / Hora", "Realizado por"].map(h => (
+                  <th key={h} style={{
+                    padding: "9px 16px",
+                    textAlign: "left",
+                    fontSize: 10, fontWeight: 600,
+                    color: "#71717a",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((entry, idx) => {
+                const cfg = ACTION_CONFIG[entry.type] ?? {
+                  label: "Atividade", dot: TI.muted, icon: Clock, entityType: "Item" as const,
+                };
+                const Icon = cfg.icon;
+                const isLast = idx === filtered.length - 1;
+
+                return (
+                  <tr
+                    key={entry.id}
+                    data-testid={`timeline-event-${idx}`}
+                    onClick={() => setLocation(`/eventos/${entry.eventId}`)}
+                    style={{
+                      borderBottom: isLast ? "none" : `1px solid ${TI.border}`,
+                      cursor: "pointer",
+                      transition: "background 0.1s",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = TI.bg)}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                  >
+                    {/* Tipo */}
+                    <td style={{ padding: "11px 16px", whiteSpace: "nowrap" }}>
+                      <div style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        backgroundColor: TI.surface,
+                        border: `1px solid ${TI.border}`,
+                        borderRadius: 6,
+                        padding: "3px 8px",
+                      }}>
+                        <div style={{
+                          width: 6, height: 6, borderRadius: "50%",
+                          backgroundColor: cfg.dot, flexShrink: 0,
+                        }} />
+                        <span style={{ fontSize: 11, fontWeight: 500, color: TI.text }}>{cfg.label}</span>
                       </div>
+                    </td>
 
-                      {/* Card do evento */}
-                      <div
-                        onClick={() => {
-                          if (event.itemId) {
-                            setLocation(`/eventos/${event.eventId}`);
-                          } else if (event.eventId) {
-                            setLocation(`/eventos/${event.eventId}`);
-                          }
-                        }}
-                        className={cn(
-                          "p-4 rounded-lg border cursor-pointer transition-all hover-elevate",
-                          config.bgClass
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <Badge variant="outline" className={cn("text-xs", config.color)}>
-                                {config.label}
-                              </Badge>
-                              {event.userName && (
-                                <span className="text-xs font-medium text-foreground">
-                                  por {event.userName}
-                                </span>
-                              )}
-                              <span className="text-xs text-muted-foreground">• {timeAgo}</span>
-                            </div>
-                            <p className="text-sm text-foreground leading-relaxed">
-                              {getEventDescription(event)}
-                            </p>
-                          </div>
-                          <div className="text-xs text-muted-foreground whitespace-nowrap">
-                            {event.timestamp.toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </div>
-                        </div>
+                    {/* Ação */}
+                    <td style={{ padding: "11px 16px", fontSize: 12, color: TI.secondary, maxWidth: 480 }}>
+                      {getDescription(entry)}
+                    </td>
+
+                    {/* Data / Hora */}
+                    <td style={{ padding: "11px 16px", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: TI.text }}>
+                        {format(entry.timestamp, "dd/MM/yyyy", { locale: ptBR })}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                      <div style={{ fontSize: 11, color: TI.muted, marginTop: 1 }}>
+                        {format(entry.timestamp, "HH:mm", { locale: ptBR })}
+                      </div>
+                    </td>
+
+                    {/* Realizado por */}
+                    <td style={{ padding: "11px 16px" }}>
+                      <UserAvatar name={entry.userName} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

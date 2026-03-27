@@ -1,0 +1,42 @@
+O Gemini disse
+Essa tela de Aprovação de Itens é crítica. O maior problema atual é que ela parece uma "lista de compras" simples, quando na verdade deveria ser uma mesa de conferência técnica. Para o padrão Titanium, precisamos de mais contraste e foco na imagem da arte, que é o que está sendo aprovado.
+
+Aqui está como elevar o nível dessa tela mantendo as cores dos patrocinadores intactas:
+
+O que melhorar?
+Hierarquia de Card: Em vez de uma tabela infinita, cada evento deve ser um bloco sólido. O cabeçalho do evento em preto (#1c1917) traz a autoridade que a revisão exige.
+
+Foco na Arte: A miniatura da imagem está muito pequena. No Titanium, a imagem deve ser o elemento central, com moldura técnica e clara.
+
+Botões de Decisão: O "Aprovar" em verde e "Ajustar" em azul estão muito genéricos. Vamos usar o Preto Titanium para aprovação e um Outline para ajustes.
+
+Agrupadores: As categorias (2x1, Rolo) precisam da nossa borda lateral laranja para guiar o olhar.
+
+Prompt para o Replit
+"Refatore a tela de 'Revisão de Itens' para o padrão Titanium, mantendo estritamente as cores originais dos dots de patrocinadores.
+
+1. Estrutura do Card de Evento:
+
+O fundo da página deve ser #fafaf9.
+
+Cada evento deve ser um card branco (#ffffff) com borda #e7e5e4 e cantos rounded-2xl.
+
+Cabeçalho Interno: O nome do evento deve ficar dentro de uma faixa superior preta (bg-[#1c1917]) com texto branco e um contador de itens pendentes.
+
+2. Grid de Itens (Conferência):
+
+Em vez de linhas de tabela simples, use uma estrutura de lista onde a Miniatura da Arte tenha destaque (ex: 80x80px ou maior), com borda cinza fina.
+
+Cores dos Patrocinadores: Mantenha os círculos coloridos (dots) e o nome do patrocinador exatamente como estão, mas use uma fonte mais limpa (text-sm font-medium).
+
+3. Botões de Ação (Aprovação):
+
+Botão 'Aprovar': Substitua o verde pelo Preto Titanium (#1c1917) com texto branco. Isso indica uma decisão final e firme.
+
+Botão 'Solicitar Ajuste': Use um estilo 'ghost' (sem fundo) com borda cinza e texto em #1c1917. Se o mouse passar por cima, o fundo fica levemente avermelhado.
+
+4. Detalhes Técnicos:
+
+Os subgrupos (ex: 2x1 Padrão) devem ter uma barra de título sutil com fundo #f5f5f4 e a borda lateral esquerda em Laranja (#f97316) de 4px de espessura.
+
+Adicione um efeito de zoom simples na imagem ao passar o mouse para facilitar a conferência sem cliques extras."

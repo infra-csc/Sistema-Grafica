@@ -769,9 +769,9 @@ export default function Arte() {
                                   />
                                 </td>
                               )}
-                              <td className="py-1 px-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-semibold text-primary" data-testid={`text-display-id-${item.id}`}>
+                              <td className="py-1 px-2 min-w-[120px]">
+                                <div className="flex flex-col items-start gap-0.5">
+                                  <span className="font-mono font-semibold text-primary whitespace-nowrap" data-testid={`text-display-id-${item.id}`}>
                                     {item.displayId}
                                   </span>
                                   {activeTab === "finalizados" && <StatusBadge status={item.status} />}

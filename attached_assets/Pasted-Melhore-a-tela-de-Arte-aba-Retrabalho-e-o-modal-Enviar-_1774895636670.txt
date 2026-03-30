@@ -1,0 +1,197 @@
+Melhore a tela de Arte (aba Retrabalho) e o modal "Enviar Nova Arte"
+mantendo a paleta Titanium.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CARDS DE STATUS (4 colunas)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Fundo: #ffffff | Borda: 1px solid #e7e5e4 | border-radius: 12px
+- Label: font-size 10px, uppercase, letter-spacing 0.6px, color #a8a29e
+- Valor: font-size 32px, font-weight 800, color #1c1917, line-height 1
+- Sublabel: font-size 12px, color #a8a29e, margin-top 4px
+- Ícone: canto superior direito, cor #e7e5e4, tamanho 16px
+- Hover: translateY(-2px) + box-shadow 0 4px 12px rgba(0,0,0,0.06)
+- Card "Pendentes" (42): borda-left 3px solid #f97316
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ABAS DE NAVEGAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Container: background #ffffff, border 1px solid #e7e5e4,
+border-radius 12px, padding 6px, display flex, gap 4px
+
+Cada aba (estado normal):
+  background transparent, border-radius 8px, height 40px,
+  padding 0 16px, font-size 13px, font-weight 500,
+  color #78716c, cursor pointer
+  Hover: background #fafaf9, color #1c1917
+
+Aba ATIVA — 4 estilos diferentes por aba:
+  - "Mandar para Aprovação 42":
+    background #fafaf9, color #1c1917, borda none
+    badge "42": background #1c1917, color white,
+    border-radius 100px, padding 1px 7px, font-size 11px
+
+  - "Retrabalho 1" (ativa atual):
+    background #fef2f2, color #dc2626, font-weight 700
+    badge "1": background #dc2626, color white,
+    border-radius 100px, padding 1px 7px, font-size 11px
+    (NÃO usar laranja — vermelho sinaliza problema/urgência)
+
+  - "Finalizar Arte 2":
+    background #f0fdf4, color #15803d
+    badge "2": background #15803d, color white
+
+  - "Finalizados 10":
+    background #fafaf9, color #78716c
+    badge "10": background #e7e5e4, color #78716c
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILTROS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Container: background #ffffff, border 1px solid #e7e5e4,
+border-radius 12px, padding 12px 16px
+display flex, gap 8px, align-items center
+
+Selects "Todos os eventos" e "Todos os meses":
+  height 36px, background #fafaf9, border 1px solid #e7e5e4,
+  border-radius 8px, font-size 13px, color #1c1917
+  Focus: border-color #f97316
+
+Botões "Próximos 10 dias" e "Filtros Avançados":
+  height 36px, background #fafaf9, border 1px solid #e7e5e4,
+  border-radius 8px, font-size 13px, color #78716c, padding 0 14px
+  Hover: border-color #1c1917, color #1c1917
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CARD DO ITEM REPROVADO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Container: background #ffffff, border 1px solid #e7e5e4,
+border-radius 14px, overflow hidden
+border-left: 4px solid #dc2626  ← sinaliza reprovação
+
+HEADER DO CARD (padding 16px 20px, border-bottom 1px solid #e7e5e4):
+  Linha 1 — grid 4 colunas:
+    - "#0062": chip background #1c1917, color white,
+      font-family monospace, padding 3px 8px, border-radius 6px
+    - "2×1 Padrão": badge background #fafaf9,
+      border 1px solid #e7e5e4, border-radius 6px, padding 3px 9px,
+      font-size 12px, font-weight 600
+    - "Qtde: 1": label #a8a29e + valor #1c1917 font-weight 600
+    - Badge "RETRABALHO": background #fef2f2, border 1px solid #fecaca,
+      color #dc2626, border-radius 6px, font-size 11px,
+      font-weight 700, letter-spacing 0.4px, padding 3px 10px
+      (alinhado à direita)
+
+  Linha 2 — metadados (margin-top 8px):
+    ícone 📅 + "Night Run - Etapa 3 - SP - 2025" | 
+    ícone 🚛 + "Saída: 27/11/2025"
+    font-size 12px, color #a8a29e, gap 16px
+
+SEÇÃO "REPROVADO POR" (padding 16px 20px):
+  Label "REPROVADO POR": font-size 10px, uppercase,
+  letter-spacing 0.6px, color #a8a29e, margin-bottom 10px
+
+  Card patrocinador:
+    background #fef2f2, border 1px solid #fecaca,
+    border-radius 10px, padding 14px 16px
+
+    Linha topo: dot verde 8px + "Spotify" font-weight 700 +
+    "por Administrador em 30/03/2026" font-size 11px color #a8a29e
+
+    Box motivo (margin-top 10px):
+      background #ffffff, border 1px solid #fecaca,
+      border-radius 8px, padding 10px 14px
+      "Motivo:" font-weight 700 color #dc2626 font-size 13px +
+      " logo menor" color #1c1917
+
+SEÇÃO "THUMB REPROVADO" (padding 0 20px 16px):
+  Label: font-size 10px, uppercase, letter-spacing 0.6px,
+  color #a8a29e, margin-bottom 8px
+
+  Botão "Ver arquivo reprovado":
+    width 100%, height 40px, background #fafaf9,
+    border 1px dashed #fecaca, border-radius 8px,
+    color #dc2626, font-size 13px, font-weight 500
+    Ícone 📄 à esquerda
+    Hover: background #fef2f2
+
+FOOTER DO CARD (padding 12px 20px,
+border-top 1px solid #e7e5e4, background #fafaf9):
+  Botão "↺ Enviar Nova Arte":
+    background #dc2626, color white, border-radius 8px,
+    height 38px, padding 0 18px, font-weight 600,
+    font-size 13px, border none
+    Hover: background #b91c1c, transição 0.2s
+    (NÃO usar laranja — vermelho reforça a ação de correção)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MODAL "ENVIAR NOVA ARTE"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+max-width 560px, border-radius 16px, background #ffffff
+
+HEADER (padding 20px 24px 16px, border-bottom 1px solid #e7e5e4):
+  - Ícone ↺ em #dc2626 + "Enviar Nova Arte" font-weight 700
+    font-size 17px, color #1c1917
+  - Subtítulo "#0062 — 2×1 Padrão · Night Run - Etapa 3 - SP - 2025"
+    font-size 12px, color #78716c, margin-top 2px
+  - Botão X: cor #a8a29e, hover #1c1917
+
+SEÇÃO REPROVAÇÕES (padding 16px 24px,
+background #fef2f2, border-bottom 1px solid #fecaca):
+  Label "REPROVAÇÕES": font-size 10px, uppercase,
+  letter-spacing 0.6px, color #dc2626, margin-bottom 10px
+
+  Item: dot verde + "Spotify" font-weight 600 +
+  motivo entre aspas em itálico, color #78716c
+  font-size 13px
+
+SEÇÃO UPLOAD (padding 16px 24px, border-bottom 1px solid #e7e5e4):
+  Label "Nova Arte (Upload)": font-size 12px, font-weight 600,
+  color #1c1917, uppercase, letter-spacing 0.4px, margin-bottom 10px
+
+  Zona de drop:
+    border 2px dashed #e7e5e4, border-radius 10px,
+    background #fafaf9, padding 24px,
+    display flex, flex-direction column,
+    align-items center, justify-content center, gap 8px
+    Hover: border-color #f97316, background #fff7ed
+
+    Ícone ↑ em #a8a29e, font-size 24px
+    Texto "Arraste o arquivo ou clique para selecionar"
+    font-size 13px, color #78716c
+    Subtext "PDF, JPG, PNG — máx. 50MB"
+    font-size 11px, color #a8a29e
+
+    Botão "Fazer Upload da Nova Arte" dentro da zona:
+      background #1c1917, color white, border-radius 8px,
+      height 38px, padding 0 18px, font-size 13px, font-weight 600
+      Hover: background #f97316
+
+SEÇÃO PATROCINADORES (padding 16px 24px,
+border-bottom 1px solid #e7e5e4):
+  Label: "Enviar para quais patrocinadores?"
+  font-size 12px, font-weight 600, color #1c1917,
+  margin-bottom 10px
+
+  Cada patrocinador — row com checkbox:
+    background #fafaf9, border 1px solid #e7e5e4,
+    border-radius 8px, padding 10px 14px,
+    display flex, align-items center, gap 10px
+    Quando selecionado: background #f0fdf4,
+    border-color #86efac
+    Checkbox: accent-color #1c1917
+    Dot + nome font-weight 600
+
+FOOTER DO MODAL (padding 16px 24px,
+border-top 1px solid #e7e5e4):
+  display flex, justify-content flex-end, gap 10px
+
+  "Cancelar": background #fafaf9, border 1px solid #e7e5e4,
+  color #78716c, border-radius 8px, height 40px, padding 0 20px
+  Hover: background #1c1917, color white
+
+  "↺ Enviar Nova Arte": background #dc2626, color white,
+  border-radius 8px, height 40px, padding 0 20px,
+  font-weight 700, font-size 14px
+  Hover: background #b91c1c
+
+FONTE: DM Sans + DM Mono para IDs e dimensões

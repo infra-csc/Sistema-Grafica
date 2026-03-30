@@ -1424,9 +1424,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const shouldSkipApproval = currentItem.skipApproval === true || !hasSponsors;
       const nextStatus = shouldSkipApproval ? "awaiting_creator_review" : "awaiting_sponsor_approval";
       
+      // If resubmitting after rejection (awaiting_submission) and going to sponsor approval,
+      // reset all sponsor approval records back to 'pending' so Atendimento can re-review
+      if (currentItem.status === "awaiting_submission" && nextStatus === "awaiting_sponsor_approval") {
+        const existingApprovals = await storage.getItemSponsorApprovals(req.params.id);
+        for (const approval of existingApprovals) {
+          await storage.updateItemSponsorApproval(approval.id, {
+            status: 'pending',
+            approvedBy: null,
+            approvedAt: null,
+            rejectedBy: null,
+            rejectedAt: null,
+            rejectionReason: null,
+          });
+        }
+      }
+
       const itemUpdates: any = { 
         status: nextStatus,
-        // Limpa apenas flag de reprovação pelo criador quando item é reenviado
+        // Limpa flag de reprovação pelo criador quando item é reenviado
         // rejectedBySponsor permanece até ser aprovado pelo patrocinador novamente
         rejectedByCreator: false,
       };

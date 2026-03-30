@@ -237,24 +237,23 @@ export default function Atendimento() {
       setRejectionReason("");
       setRejectingSponsorId(null);
       
+      // Always refresh approvals to show updated state (including rejection reason)
+      if (selectedItem) {
+        apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
+          .then(response => response.json())
+          .then((approvals: SponsorApproval[]) => {
+            setSponsorApprovals(approvals);
+          })
+          .catch(console.error);
+      }
+
       if (data.allDecided) {
-        // All sponsors have decided - close dialog
-        setDialogOpen(false);
-        setSelectedItem(null);
+        // All sponsors decided — keep dialog open so user can see rejection reasons
         toast({
-          title: "Item retornou para Arte",
-          description: "Todos patrocinadores decidiram. Item retornou para refazer o thumb.",
+          title: "Todos patrocinadores decidiram",
+          description: "Item retornou para Arte refazer o thumb. Confira os motivos no diálogo.",
         });
       } else {
-        // Still have pending approvals - keep dialog open and update approvals
-        if (selectedItem) {
-          apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
-            .then(response => response.json())
-            .then((approvals: SponsorApproval[]) => {
-              setSponsorApprovals(approvals);
-            })
-            .catch(console.error);
-        }
         toast({
           title: "Reprovação registrada",
           description: `Aguardando ${data.pendingCount} patrocinador(es). Arte foi notificada para preparar novo thumb.`,
@@ -790,6 +789,29 @@ export default function Atendimento() {
 
           {selectedItem && (
             <div className="space-y-4">
+              {/* Banner de reenvio após reprovação */}
+              {selectedItem.rejectedBySponsor && selectedItem.status === 'awaiting_sponsor_approval' && (
+                <div style={{
+                  backgroundColor: '#fff7ed',
+                  border: '1px solid #fed7aa',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                }}>
+                  <AlertCircle style={{ width: 16, height: 16, color: '#ea580c', flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#c2410c', margin: '0 0 2px' }}>
+                      Reenvio após reprovação
+                    </p>
+                    <p style={{ fontSize: 12, color: '#9a3412', margin: 0 }}>
+                      A Arte enviou um novo thumb após reprovação anterior. Revise o thumb abaixo e aprove/reprove cada patrocinador novamente.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {selectedItem.approvalThumbUrl && (
                 <Card className="border-2 border-primary/20">
                   <CardHeader className="pb-3">
@@ -972,13 +994,19 @@ export default function Atendimento() {
                                   
                                   {isRejectingThis && (
                                     <div className="mt-2 space-y-2 pt-2 border-t">
-                                      <Textarea
-                                        placeholder="Motivo da reprovação (opcional)"
-                                        value={rejectionReason}
-                                        onChange={(e) => setRejectionReason(e.target.value)}
-                                        className="text-sm h-16 resize-none"
-                                        data-testid={`textarea-rejection-reason-${sponsor.id}`}
-                                      />
+                                      <div>
+                                        <Textarea
+                                          placeholder="Motivo da reprovação (obrigatório)"
+                                          value={rejectionReason}
+                                          onChange={(e) => setRejectionReason(e.target.value)}
+                                          className="text-sm h-16 resize-none"
+                                          style={{ borderColor: rejectionReason.trim() === '' ? '#fca5a5' : undefined }}
+                                          data-testid={`textarea-rejection-reason-${sponsor.id}`}
+                                        />
+                                        {rejectionReason.trim() === '' && (
+                                          <p className="text-xs text-red-500 mt-1">Informe o motivo da reprovação antes de confirmar.</p>
+                                        )}
+                                      </div>
                                       <div className="flex gap-2 justify-end">
                                         <Button
                                           size="sm"
@@ -1000,7 +1028,7 @@ export default function Atendimento() {
                                             sponsorId: sponsor.id,
                                             reason: rejectionReason
                                           })}
-                                          disabled={individualRejectMutation.isPending}
+                                          disabled={individualRejectMutation.isPending || rejectionReason.trim() === ''}
                                           data-testid={`button-confirm-reject-${sponsor.id}`}
                                         >
                                           {individualRejectMutation.isPending ? (

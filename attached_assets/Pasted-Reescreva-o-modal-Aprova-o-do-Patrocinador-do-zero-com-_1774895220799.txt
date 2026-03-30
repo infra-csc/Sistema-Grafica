@@ -1,0 +1,140 @@
+Reescreva o modal "Aprovação do Patrocinador" do zero com layout melhorado.
+Paleta Titanium obrigatória.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ESTRUTURA GERAL DO MODAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- max-width: 680px | border-radius: 16px | background: #ffffff
+- Sem padding geral — cada seção tem seu próprio padding
+- Dividido em 4 blocos empilhados com separadores 1px solid #e7e5e4
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCO 1 — HEADER DO MODAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+padding: 20px 24px 16px
+- Título "Aprovação do Patrocinador":
+  font-size 18px, font-weight 700, color #1c1917
+- Subtítulo "Revise os detalhes e o thumb antes de aprovar":
+  font-size 13px, color #78716c, margin-top 2px
+- Botão X: position absolute top-right, cor #a8a29e, hover #1c1917
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCO 2 — DETALHES DO ITEM (tornar visível e destaque)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+padding: 16px 24px
+background: #fafaf9
+border-bottom: 1px solid #e7e5e4
+
+Grid 4 colunas com as infos do item:
+Cada célula:
+  - Label: font-size 10px, uppercase, letter-spacing 0.6px, color #a8a29e
+  - Valor: font-size 14px, font-weight 600, color #1c1917, margin-top 3px
+
+Células:
+  1. ID → valor "#0062" em chip: background #1c1917, color white,
+     font-family monospace, padding 3px 8px, border-radius 6px
+  2. Tipo → "2×1 Padrão" como badge: background #fafaf9,
+     border 1px solid #e7e5e4, border-radius 6px, padding 3px 9px
+  3. Qtde → "1"
+  4. Patrocinador → "Sanett Ilhós"
+
+Segunda linha (3 células):
+  5. Visual → "1.90×0.90m" em font monospace, color #78716c
+  6. Evento → "Night Run - Etapa 3 - SP - 2025"
+  7. Prazo → "27/11 12:29" com dot laranja #f97316 piscando (animation pulse)
+     indicando urgência | cor #f97316, font-weight 700
+
+Botão "📄 Abrir PDF para Revisão":
+  margin-top 12px, width 100%
+  background #1c1917, color white, border-radius 10px, height 42px
+  font-weight 600, font-size 14px
+  Hover: background #f97316, transição 0.2s
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCO 3 — ALERTA DE REENVIO (quando aplicável)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+padding: 12px 24px
+background: #fff7ed
+border-left: 3px solid #f97316
+border-bottom: 1px solid #e7e5e4
+
+- Ícone ⚠ em #f97316 + texto "Reenvio após reprovação" 
+  font-weight 600, color #c2410c, font-size 13px
+- Subtexto: "A Arte enviou um novo thumb. Revise e aprove/reprove abaixo."
+  color #78716c, font-size 12px, margin-top 2px
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCO 4 — FEEDBACK DOS PATROCINADORES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+padding: 16px 24px
+border-bottom: 1px solid #e7e5e4
+
+Label seção: "FEEDBACK DOS PATROCINADORES"
+  font-size 10px, uppercase, letter-spacing 0.6px, color #a8a29e
+
+Card do patrocinador (Spotify):
+  margin-top 10px
+  background #ffffff, border 1px solid #e7e5e4, border-radius 12px
+  padding 16px
+
+  Linha topo:
+    - Dot verde 8px + nome "Spotify" font-weight 700 font-size 15px
+    - Badge status "Aguardando Arte": background #fff7ed,
+      border 1px solid #fed7aa, color #c2410c,
+      border-radius 100px, font-size 11px, padding 3px 10px
+    - Texto "Botões bloqueados até Arte reenviar" alinhado à direita
+      font-size 11px, color #a8a29e
+
+  Linha reprovação:
+    "Reprovado por Administrador em 30/03/2026 15:07"
+    color #dc2626, font-size 12px, margin-top 8px
+
+  Box motivo:
+    margin-top 8px, background #fafaf9, border 1px solid #e7e5e4,
+    border-radius 8px, padding 10px 14px
+    "Motivo:" font-weight 600 color #1c1917 font-size 13px
+    + valor "logo menor" color #78716c
+
+  (Quando desbloqueado — botões Aprovar/Reprovar):
+    display flex, gap 10px, margin-top 12px
+    - "✓ Aprovar": background #f0fdf4, border 1px solid #86efac,
+      color #15803d, border-radius 8px, font-weight 600,
+      flex 1, height 38px
+      Hover: background #15803d, color white
+    - "✗ Reprovar": background #fef2f2, border 1px solid #fecaca,
+      color #dc2626, border-radius 8px, font-weight 600,
+      flex 1, height 38px
+      Hover: background #dc2626, color white
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLOCO 5 — HISTÓRICO DO ITEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+padding: 16px 24px
+background: #fafaf9
+
+Label: "HISTÓRICO DO ITEM" (mesmo estilo dos outros labels de seção)
+
+Timeline vertical:
+  linha vertical 1px solid #e7e5e4 ligando os dots
+  Cada entrada:
+    - Dot 8px colorido (laranja=#f97316 para ação recente, cinza=#d4d0ca para antigas)
+    - Data + " · " + "Administrador": font-size 11px, color #a8a29e
+    - Texto da ação: font-size 13px, color #1c1917, margin-top 2px
+  Gap entre entradas: 16px
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FOOTER DO MODAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+padding: 16px 24px
+background: #ffffff
+border-top: 1px solid #e7e5e4
+display flex, justify-content space-between, align-items center
+
+- Texto instrução: "Use os botões individuais acima para aprovar/reprovar"
+  font-size 12px, color #a8a29e
+- Botão "Fechar": background #fafaf9, border 1px solid #e7e5e4,
+  color #1c1917, border-radius 8px, padding 8px 20px,
+  font-weight 500, font-size 13px
+  Hover: background #1c1917, color white, transição 0.2s
+
+FONTE: DM Sans + DM Mono para valores numéricos

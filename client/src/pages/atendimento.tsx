@@ -815,569 +815,455 @@ export default function Atendimento() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Aprovação do Patrocinador</DialogTitle>
-            <DialogDescription>
-              Revise os detalhes e o thumb de aprovação antes de aprovar
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-[680px] max-h-[92vh] overflow-y-auto p-0 gap-0 rounded-2xl">
+          <DialogTitle className="sr-only">Aprovação do Patrocinador</DialogTitle>
+          <DialogDescription className="sr-only">Revise os detalhes e o thumb antes de aprovar</DialogDescription>
 
-          {selectedItem && (
-            <div className="space-y-4">
+          {selectedItem && (() => {
+            const ev = events.find((e: any) => e.id === selectedItem.eventId);
+            const thumbUrl = selectedItem.approvalThumbUrl;
+            const isPdf = thumbUrl && (thumbUrl.toLowerCase().includes('.pdf') || thumbUrl.toLowerCase().includes('/objects/')) && !/\.(png|jpg|jpeg|gif|webp)$/i.test(thumbUrl.toLowerCase());
+            const hasRejections = sponsorApprovals.some(a => a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending');
+            const itemLogs = (auditLogs as any[])
+              .filter(log => log.entityType === 'item' && log.entityId === selectedItem.id)
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            const sponsors = itemSponsorsMap[selectedItem.id] || [];
 
-              {/* ── Row 1: Compact item + event meta bar ── */}
-              {(() => {
-                const ev = events.find((e: any) => e.id === selectedItem.eventId);
-                return (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6,
-                    backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
-                    borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#78716c',
-                  }}>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#f97316' }}>{selectedItem.displayId}</span>
-                    <span style={{ color: '#e7e5e4' }}>·</span>
-                    <span style={{ fontWeight: 600, color: '#1c1917' }}>{selectedItem.type}</span>
-                    {selectedItem.quantity && <>
-                      <span style={{ color: '#e7e5e4' }}>·</span>
-                      <span>Qtde: <strong style={{ color: '#1c1917' }}>{selectedItem.quantity}</strong></span>
-                    </>}
-                    {selectedItem.material && <>
-                      <span style={{ color: '#e7e5e4' }}>·</span>
-                      <span>{selectedItem.material}</span>
-                    </>}
-                    {selectedItem.finish && <>
-                      <span style={{ color: '#e7e5e4' }}>·</span>
-                      <span>{selectedItem.finish}</span>
-                    </>}
-                    {(selectedItem.visualWidth && selectedItem.visualHeight) && <>
-                      <span style={{ color: '#e7e5e4' }}>·</span>
-                      <span>{selectedItem.visualWidth}×{selectedItem.visualHeight}m</span>
-                    </>}
-                    {ev && <>
-                      <span style={{ color: '#e7e5e4', margin: '0 2px' }}>│</span>
-                      <Calendar style={{ width: 12, height: 12 }} />
-                      <span style={{ fontWeight: 600, color: '#1c1917' }}>{ev.name}</span>
-                      {ev.startDate && <span>· {format(new Date(ev.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>}
-                      {ev.truckDepartureDate && <>
-                        <Truck style={{ width: 12, height: 12, color: '#ea580c' }} />
-                        <span style={{ color: '#ea580c', fontWeight: 600 }}>
-                          {format(new Date(ev.truckDepartureDate), "dd/MM HH:mm", { locale: ptBR })}
-                        </span>
-                      </>}
-                    </>}
-                    {/* Thumb / PDF link (compact, right side) */}
-                    {selectedItem.approvalThumbUrl && (() => {
-                      const url = selectedItem.approvalThumbUrl.toLowerCase();
-                      const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
-                      const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                      return (
-                        <a
-                          href={selectedItem.approvalThumbUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#78716c', textDecoration: 'none' }}
-                        >
-                          {isPdf ? <FileText style={{ width: 12, height: 12 }} /> : <Eye style={{ width: 12, height: 12 }} />}
-                          <span>{isPdf ? 'PDF' : 'Thumb'}</span>
-                        </a>
-                      );
-                    })()}
+            return (
+            <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+
+              {/* ── BLOCO 1: Header ── */}
+              <div style={{ padding: '20px 24px 16px', position: 'relative', borderBottom: '1px solid #e7e5e4' }}>
+                <div style={{ paddingRight: 32 }}>
+                  <p style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Aprovação do Patrocinador</p>
+                  <p style={{ fontSize: 13, color: '#78716c', margin: '2px 0 0' }}>Revise os detalhes e o thumb antes de aprovar</p>
+                </div>
+                <button
+                  onClick={() => setDialogOpen(false)}
+                  data-testid="button-close-dialog"
+                  style={{
+                    position: 'absolute', top: 18, right: 18,
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#a8a29e', padding: 4, borderRadius: 6,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'color 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
+                >
+                  <X style={{ width: 18, height: 18 }} />
+                </button>
+              </div>
+
+              {/* ── BLOCO 2: Detalhes do item ── */}
+              <div style={{ padding: '16px 24px', backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
+                {/* Row 1: 4 colunas */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 14 }}>
+                  {/* ID */}
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 4px' }}>ID</p>
+                    <span style={{
+                      fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 13,
+                      backgroundColor: '#1c1917', color: '#ffffff',
+                      padding: '3px 8px', borderRadius: 6, display: 'inline-block',
+                    }}>{selectedItem.displayId}</span>
                   </div>
-                );
-              })()}
+                  {/* Tipo */}
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 4px' }}>Tipo</p>
+                    <span style={{
+                      fontSize: 13, fontWeight: 600, color: '#1c1917',
+                      backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                      borderRadius: 6, padding: '3px 9px', display: 'inline-block',
+                    }}>{selectedItem.type}</span>
+                  </div>
+                  {/* Qtde */}
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 4px' }}>Qtde</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#1c1917', margin: 0 }}>{selectedItem.quantity ?? '—'}</p>
+                  </div>
+                  {/* Patrocinador(es) */}
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 4px' }}>Patrocinador</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', margin: 0, lineHeight: 1.4 }}>
+                      {sponsors.length > 0 ? sponsors.map((s: any) => s.name).join(', ') : '—'}
+                    </p>
+                  </div>
+                </div>
+                {/* Row 2: 3 colunas */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, paddingTop: 14, borderTop: '1px solid #e7e5e4' }}>
+                  {/* Visual */}
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 4px' }}>Visual</p>
+                    <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: '#78716c', fontWeight: 600, margin: 0 }}>
+                      {(selectedItem.visualWidth && selectedItem.visualHeight)
+                        ? `${selectedItem.visualWidth}×${selectedItem.visualHeight}m`
+                        : '—'}
+                    </p>
+                  </div>
+                  {/* Evento */}
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 4px' }}>Evento</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', margin: 0, lineHeight: 1.4 }}>{ev?.name ?? '—'}</p>
+                  </div>
+                  {/* Prazo */}
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 4px' }}>Prazo (Saída)</p>
+                    {ev?.truckDepartureDate ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="animate-pulse" style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          backgroundColor: '#f97316', flexShrink: 0,
+                          display: 'inline-block',
+                        }} />
+                        <p style={{ fontSize: 13, fontWeight: 700, color: '#f97316', margin: 0, fontFamily: "'DM Mono', monospace" }}>
+                          {format(new Date(ev.truckDepartureDate), "dd/MM HH:mm", { locale: ptBR })}
+                        </p>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, color: '#a8a29e', margin: 0 }}>—</p>
+                    )}
+                  </div>
+                </div>
 
-              {/* ── Row 2: Banner de reenvio após reprovação ── */}
+                {/* Primary CTA: View art */}
+                {thumbUrl && (
+                  <a
+                    href={thumbUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="button-view-art-primary"
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      marginTop: 12, width: '100%', height: 42,
+                      backgroundColor: '#1c1917', color: '#ffffff',
+                      borderRadius: 10, fontSize: 14, fontWeight: 600,
+                      textDecoration: 'none', transition: 'background-color 0.2s',
+                      boxSizing: 'border-box',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f97316')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#1c1917')}
+                  >
+                    {isPdf ? <FileText style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                    {isPdf ? 'Abrir PDF para Revisão' : 'Abrir Arte para Revisão'}
+                  </a>
+                )}
+              </div>
+
+              {/* ── BLOCO 3: Alerta de reenvio (condicional) ── */}
               {selectedItem.rejectedBySponsor && selectedItem.status === 'awaiting_sponsor_approval' && (
                 <div style={{
-                  backgroundColor: '#fff7ed', border: '1px solid #fed7aa',
-                  borderRadius: 8, padding: '10px 14px',
+                  padding: '12px 24px',
+                  backgroundColor: '#fff7ed',
+                  borderLeft: '3px solid #f97316',
+                  borderBottom: '1px solid #e7e5e4',
                   display: 'flex', alignItems: 'flex-start', gap: 10,
                 }}>
-                  <AlertCircle style={{ width: 16, height: 16, color: '#ea580c', flexShrink: 0, marginTop: 1 }} />
+                  <AlertCircle style={{ width: 16, height: 16, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
                   <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#c2410c', margin: '0 0 2px' }}>
-                      Reenvio após reprovação
-                    </p>
-                    <p style={{ fontSize: 12, color: '#9a3412', margin: 0 }}>
-                      A Arte enviou um novo thumb. Revise e aprove/reprove cada patrocinador abaixo.
-                    </p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#c2410c', margin: 0 }}>Reenvio após reprovação</p>
+                    <p style={{ fontSize: 12, color: '#78716c', margin: '2px 0 0' }}>A Arte enviou um novo thumb. Revise e aprove/reprove abaixo.</p>
                   </div>
                 </div>
               )}
 
-              {/* ── Row 3: Rejection reason highlight (vivid red) ── */}
-              {sponsorApprovals.some(a => a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && (
-                <div style={{
-                  backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-                  borderLeft: '4px solid #ef4444',
-                  borderRadius: 8, padding: '12px 14px',
-                }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {/* ── BLOCO 4: Feedback dos patrocinadores ── */}
+              {sponsors.length > 0 && (
+                <div style={{ padding: '16px 24px', borderBottom: '1px solid #e7e5e4' }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 10px' }}>
                     Feedback dos Patrocinadores
                   </p>
-                  {sponsorApprovals
-                    .filter(a => a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending')
-                    .map((a) => {
-                      const sponsorData = itemSponsorsMap[selectedItem.id]?.find((s: any) => s.id === a.sponsorId);
-                      return (
-                        <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                          {sponsorData?.color && (
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sponsorData.color, flexShrink: 0, marginTop: 4 }} />
-                          )}
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#7f1d1d' }}>
-                              {sponsorData?.name || 'Patrocinador'}:
-                            </span>{' '}
-                            {a.rejectionReason ? (
-                              <span style={{ fontSize: 13, color: '#44403c' }}>{a.rejectionReason}</span>
-                            ) : (
-                              <span style={{ fontSize: 12, color: '#a8a29e', fontStyle: 'italic' }}>sem motivo informado</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  {/* Primary CTA: View the art being reviewed */}
-                  {selectedItem.approvalThumbUrl && (() => {
-                    const url = selectedItem.approvalThumbUrl.toLowerCase();
-                    const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
-                    const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                    return (
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #fecaca' }}>
-                        {isImage && (
-                          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
-                            <img src={selectedItem.approvalThumbUrl} alt="Arte em revisão"
-                              style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 6, border: '1px solid #fecaca' }} />
-                          </div>
-                        )}
-                        <a
-                          href={selectedItem.approvalThumbUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          data-testid="button-view-art-primary"
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                            backgroundColor: '#1c1917', color: '#ffffff',
-                            borderRadius: 8, padding: '10px 16px',
-                            fontSize: 13, fontWeight: 600, textDecoration: 'none',
-                          }}
-                        >
-                          {isPdf ? <FileText style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
-                          {isPdf ? 'Abrir PDF para Revisão' : 'Ver Arte para Revisão'}
-                        </a>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
 
-              {/* ── Primary view art CTA when no rejections yet ── */}
-              {!sponsorApprovals.some(a => a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && selectedItem.approvalThumbUrl && (() => {
-                const url = selectedItem.approvalThumbUrl.toLowerCase();
-                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
-                const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                return (
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 14px' }}>
-                    {isImage && (
-                      <div style={{ width: 60, height: 44, borderRadius: 6, overflow: 'hidden', border: '1px solid #e7e5e4', flexShrink: 0 }}>
-                        <img src={selectedItem.approvalThumbUrl} alt="Arte" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      </div>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 12, color: '#78716c', margin: '0 0 4px' }}>Arte de aprovação enviada pela equipe</p>
-                    </div>
-                    <a
-                      href={selectedItem.approvalThumbUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      data-testid="button-view-art-clean"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                        backgroundColor: '#1c1917', color: '#ffffff',
-                        borderRadius: 7, padding: '8px 14px',
-                        fontSize: 12, fontWeight: 600, textDecoration: 'none',
-                      }}
-                    >
-                      {isPdf ? <FileText style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
-                      {isPdf ? 'Abrir PDF' : 'Ver Arte'}
-                    </a>
-                  </div>
-                );
-              })()}
-
-              {/* ── Sponsor approval section (promoted, no more Item/Event cards) ── */}
-              {itemSponsorsMap[selectedItem.id]?.length > 0 && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <Users style={{ width: 15, height: 15, color: '#78716c' }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>Aprovação por Patrocinador</span>
-                  </div>
                   {loadingSponsorApprovals ? (
-                    <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#a8a29e', fontSize: 13, padding: '8px 0' }}>
+                      <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
                       Carregando status...
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                            {itemSponsorsMap[selectedItem.id].map((sponsor) => {
-                              const approval = sponsorApprovals.find(a => a.sponsorId === sponsor.id);
-                              const status = approval?.status || 'pending';
-                              const isRejectingThis = rejectingSponsorId === sponsor.id;
-                              
-                              // Status-based border/bg (overrides brand color)
-                              const statusBorderColor = (() => {
-                                if (status === 'approved') return '#16a34a';
-                                if (status === 'rejected' || status === 'awaiting_arte') return '#ea580c';
-                                if (status === 'new_version_pending') return '#3b82f6';
-                                return '#e7e5e4';
-                              })();
-                              const statusBgColor = (() => {
-                                if (status === 'approved') return '#f0fdf4';
-                                if (status === 'rejected' || status === 'awaiting_arte') return '#fff7ed';
-                                if (status === 'new_version_pending') return '#eff6ff';
-                                return '#fafaf9';
-                              })();
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {sponsors.map((sponsor: any) => {
+                        const approval = sponsorApprovals.find(a => a.sponsorId === sponsor.id);
+                        const status = approval?.status || 'pending';
+                        const isRejectingThis = rejectingSponsorId === sponsor.id;
 
-                              return (
-                                <div 
-                                  key={sponsor.id} 
-                                  className="border rounded-lg p-3"
-                                  style={{
-                                    borderColor: statusBorderColor,
-                                    backgroundColor: statusBgColor,
-                                  }}
-                                  data-testid={`sponsor-approval-${sponsor.id}`}
-                                >
-                                  <div className="flex items-center gap-2 mb-2">
-                                    {/* Dot: status color — not brand color */}
-                                    <span 
-                                      className="w-3 h-3 rounded-full shrink-0"
-                                      style={{
-                                        backgroundColor:
-                                          status === 'approved' ? '#16a34a'
-                                          : (status === 'rejected' || status === 'awaiting_arte') ? '#ea580c'
-                                          : status === 'new_version_pending' ? '#3b82f6'
-                                          : '#a8a29e',
-                                      }}
-                                    />
-                                    {/* Name: brand color for identity */}
-                                    <span 
-                                      className="font-semibold text-sm"
-                                      style={{ color: sponsor.color || '#1c1917' }}
-                                    >
-                                      {sponsor.name}
-                                    </span>
-                                  </div>
-                                  
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      {status === 'approved' && (
-                                        <Badge variant="default" className="bg-green-500 text-xs">
-                                          <CheckCircle className="w-3 h-3 mr-1" />
-                                          Aprovado
-                                        </Badge>
-                                      )}
-                                      {(status === 'rejected') && (
-                                        <Badge variant="destructive" className="text-xs">
-                                          <XCircle className="w-3 h-3 mr-1" />
-                                          Reprovado
-                                        </Badge>
-                                      )}
-                                      {status === 'awaiting_arte' && (
-                                        <Badge className="text-xs" style={{ backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>
-                                          <AlertCircle className="w-3 h-3 mr-1" />
-                                          Aguardando Arte
-                                        </Badge>
-                                      )}
-                                      {status === 'new_version_pending' && (
-                                        <Badge className="text-xs" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
-                                          <Eye className="w-3 h-3 mr-1" />
-                                          Nova Arte Recebida
-                                        </Badge>
-                                      )}
-                                      {status === 'pending' && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          <Clock className="w-3 h-3 mr-1" />
-                                          Pendente
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    
-                                    {(status === 'pending' || status === 'new_version_pending') && !isRejectingThis && (
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                                          onClick={() => setRejectingSponsorId(sponsor.id)}
-                                          disabled={individualRejectMutation.isPending}
-                                          data-testid={`button-reject-sponsor-${sponsor.id}`}
-                                        >
-                                          <XCircle className="w-3 h-3 mr-1" />
-                                          Reprovar
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700"
-                                          onClick={() => individualApproveMutation.mutate({
-                                            itemId: selectedItem.id,
-                                            sponsorId: sponsor.id
-                                          })}
-                                          disabled={individualApproveMutation.isPending}
-                                          data-testid={`button-approve-sponsor-${sponsor.id}`}
-                                        >
-                                          {individualApproveMutation.isPending ? (
-                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                          ) : (
-                                            <CheckCircle className="w-3 h-3 mr-1" />
-                                          )}
-                                          Aprovar
-                                        </Button>
-                                      </div>
-                                    )}
-                                    {status === 'awaiting_arte' && (
-                                      <span style={{ fontSize: 11, color: '#a8a29e' }}>Botões bloqueados até Arte reenviar</span>
-                                    )}
-                                  </div>
-                                  
-                                  {isRejectingThis && (
-                                    <div style={{ marginTop: 12, borderTop: '1px solid #e7e5e4', paddingTop: 14 }}>
-                                      {/* Title */}
-                                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 10px' }}>
-                                        Reprovar Arte e Solicitar Ajuste
-                                      </p>
-                                      {/* Warning bar */}
-                                      <div style={{
-                                        backgroundColor: '#fafaf9',
-                                        borderLeft: '4px solid #ea580c',
-                                        borderRadius: 4,
-                                        padding: '8px 12px',
-                                        marginBottom: 10,
-                                      }}>
-                                        <p style={{ fontSize: 12, color: '#9a3412', margin: 0, lineHeight: 1.5 }}>
-                                          O item será devolvido para a equipe de Arte. Por favor, detalhe o que precisa ser corrigido.
-                                        </p>
-                                      </div>
-                                      {/* Thumbnail of what is being rejected */}
-                                      {selectedItem?.approvalThumbUrl && (() => {
-                                        const url = selectedItem.approvalThumbUrl.toLowerCase();
-                                        const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
-                                        const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                                        return (
-                                          <div style={{ marginBottom: 10 }}>
-                                            <p style={{ fontSize: 11, fontWeight: 600, color: '#78716c', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                              Arte sendo reprovada:
-                                            </p>
-                                            <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 6, padding: 8, display: 'flex', justifyContent: 'center' }}>
-                                              {isPdf ? (
-                                                <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer"
-                                                  style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#c2410c', fontSize: 12, fontWeight: 500 }}>
-                                                  <FileText style={{ width: 16, height: 16 }} />
-                                                  Abrir PDF
-                                                </a>
-                                              ) : (
-                                                <img src={selectedItem.approvalThumbUrl} alt="Thumb atual" style={{ maxHeight: 90, maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })()}
-                                      {/* Textarea */}
-                                      <Textarea
-                                        placeholder="Ex: O logo do patrocinador está esticado..."
-                                        value={rejectionReason}
-                                        onChange={(e) => setRejectionReason(e.target.value)}
-                                        className="text-sm h-16 resize-none"
-                                        style={{
-                                          backgroundColor: '#fafaf9',
-                                          borderColor: rejectionReason.trim() === '' ? '#fca5a5' : '#e7e5e4',
-                                        }}
-                                        data-testid={`textarea-rejection-reason-${sponsor.id}`}
-                                      />
-                                      {rejectionReason.trim() === '' && (
-                                        <p className="text-xs text-red-500 mt-1">Informe o motivo antes de confirmar.</p>
-                                      )}
-                                      <div className="flex gap-2 justify-end mt-3">
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => {
-                                            setRejectingSponsorId(null);
-                                            setRejectionReason("");
-                                          }}
-                                        >
-                                          Cancelar
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
-                                          onClick={() => individualRejectMutation.mutate({
-                                            itemId: selectedItem.id,
-                                            sponsorId: sponsor.id,
-                                            reason: rejectionReason
-                                          })}
-                                          disabled={individualRejectMutation.isPending || rejectionReason.trim() === ''}
-                                          data-testid={`button-confirm-reject-${sponsor.id}`}
-                                        >
-                                          {individualRejectMutation.isPending ? (
-                                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                          ) : (
-                                            <XCircle className="w-3 h-3 mr-1" />
-                                          )}
-                                          Confirmar Reprovação
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  )}
-                                  
-                                  {approval?.approvedBy && status === 'approved' && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      Aprovado por {approval.approvedBy}
-                                      {approval.approvedAt && (
-                                        <> em {format(new Date(approval.approvedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>
-                                      )}
-                                    </div>
-                                  )}
-                                  
-                                  {approval?.rejectedBy && (status === 'rejected' || status === 'awaiting_arte' || status === 'new_version_pending') && (
-                                    <div className="text-xs mt-1" style={{ color: '#c2410c' }}>
-                                      Reprovado por {approval.rejectedBy}
-                                      {approval.rejectedAt && (
-                                        <> em {format(new Date(approval.rejectedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>
-                                      )}
-                                      {approval.rejectionReason && (
-                                        <div className="mt-1 rounded px-2 py-1" style={{ backgroundColor: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' }}>
-                                          <strong>Motivo:</strong> {approval.rejectionReason}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
+                        const dotColor =
+                          status === 'approved' ? '#16a34a'
+                          : (status === 'rejected' || status === 'awaiting_arte') ? '#ea580c'
+                          : status === 'new_version_pending' ? '#3b82f6'
+                          : '#a8a29e';
+
+                        return (
+                          <div
+                            key={sponsor.id}
+                            data-testid={`sponsor-approval-${sponsor.id}`}
+                            style={{
+                              backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                              borderRadius: 12, padding: 16,
+                            }}
+                          >
+                            {/* Top row: dot + name + badge + blocked text */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: dotColor, flexShrink: 0, display: 'inline-block' }} />
+                              <span style={{ fontSize: 15, fontWeight: 700, color: sponsor.color || '#1c1917', flex: 1 }}>{sponsor.name}</span>
+                              {/* Status badge */}
+                              {status === 'approved' && (
+                                <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d', borderRadius: 100, padding: '3px 10px' }}>
+                                  Aprovado
+                                </span>
+                              )}
+                              {(status === 'rejected') && (
+                                <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 100, padding: '3px 10px' }}>
+                                  Reprovado
+                                </span>
+                              )}
+                              {status === 'awaiting_arte' && (
+                                <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 100, padding: '3px 10px' }}>
+                                  Aguardando Arte
+                                </span>
+                              )}
+                              {status === 'new_version_pending' && (
+                                <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', borderRadius: 100, padding: '3px 10px' }}>
+                                  Nova Arte Recebida
+                                </span>
+                              )}
+                              {status === 'pending' && (
+                                <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 100, padding: '3px 10px' }}>
+                                  Pendente
+                                </span>
+                              )}
+                              {status === 'awaiting_arte' && (
+                                <span style={{ fontSize: 11, color: '#a8a29e', marginLeft: 'auto' }}>Botões bloqueados até Arte reenviar</span>
+                              )}
+                            </div>
+
+                            {/* Rejection meta */}
+                            {approval?.rejectedBy && (status === 'rejected' || status === 'awaiting_arte' || status === 'new_version_pending') && (
+                              <p style={{ fontSize: 12, color: '#dc2626', margin: '8px 0 0' }}>
+                                Reprovado por {approval.rejectedBy}
+                                {approval.rejectedAt && <> em {format(new Date(approval.rejectedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>}
+                              </p>
+                            )}
+
+                            {/* Rejection reason box */}
+                            {approval?.rejectionReason && (status === 'rejected' || status === 'awaiting_arte' || status === 'new_version_pending') && !isRejectingThis && (
+                              <div style={{ marginTop: 8, backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 14px' }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>Motivo: </span>
+                                <span style={{ fontSize: 13, color: '#78716c' }}>{approval.rejectionReason}</span>
+                              </div>
+                            )}
+
+                            {/* Approval meta */}
+                            {approval?.approvedBy && status === 'approved' && (
+                              <p style={{ fontSize: 12, color: '#16a34a', margin: '8px 0 0' }}>
+                                Aprovado por {approval.approvedBy}
+                                {approval.approvedAt && <> em {format(new Date(approval.approvedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>}
+                              </p>
+                            )}
+
+                            {/* Rejection form */}
+                            {isRejectingThis && (
+                              <div style={{ marginTop: 14, borderTop: '1px solid #e7e5e4', paddingTop: 14 }}>
+                                <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>Reprovar Arte e Solicitar Ajuste</p>
+                                <div style={{ backgroundColor: '#fafaf9', borderLeft: '3px solid #ea580c', borderRadius: 4, padding: '8px 12px', marginBottom: 10 }}>
+                                  <p style={{ fontSize: 12, color: '#9a3412', margin: 0, lineHeight: 1.5 }}>
+                                    O item será devolvido para Arte. Detalhe o que precisa ser corrigido.
+                                  </p>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
+                                <Textarea
+                                  placeholder="Ex: O logo do patrocinador está esticado..."
+                                  value={rejectionReason}
+                                  onChange={(e) => setRejectionReason(e.target.value)}
+                                  className="text-sm h-16 resize-none"
+                                  style={{
+                                    backgroundColor: '#fafaf9',
+                                    borderColor: rejectionReason.trim() === '' ? '#fca5a5' : '#e7e5e4',
+                                  }}
+                                  data-testid={`textarea-rejection-reason-${sponsor.id}`}
+                                />
+                                {rejectionReason.trim() === '' && (
+                                  <p style={{ fontSize: 12, color: '#dc2626', margin: '4px 0 0' }}>Informe o motivo antes de confirmar.</p>
+                                )}
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                                  <button
+                                    onClick={() => { setRejectingSponsorId(null); setRejectionReason(""); }}
+                                    style={{
+                                      backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#78716c',
+                                      borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 500,
+                                      cursor: 'pointer', transition: 'all 0.15s',
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; }}
+                                  >Cancelar</button>
+                                  <button
+                                    onClick={() => individualRejectMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id, reason: rejectionReason })}
+                                    disabled={individualRejectMutation.isPending || rejectionReason.trim() === ''}
+                                    data-testid={`button-confirm-reject-${sponsor.id}`}
+                                    style={{
+                                      backgroundColor: '#1c1917', color: '#ffffff',
+                                      border: 'none', borderRadius: 8, padding: '7px 16px',
+                                      fontSize: 13, fontWeight: 600, cursor: rejectionReason.trim() === '' ? 'not-allowed' : 'pointer',
+                                      opacity: rejectionReason.trim() === '' ? 0.5 : 1, transition: 'all 0.15s',
+                                    }}
+                                  >
+                                    {individualRejectMutation.isPending ? 'Reprovando...' : 'Confirmar Reprovação'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
 
-              {selectedItem.notes && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-primary" />
-                      Observações
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedItem.notes}
-                    </p>
-                  </CardContent>
-                </Card>
+                            {/* Approve/Reject buttons */}
+                            {(status === 'pending' || status === 'new_version_pending') && !isRejectingThis && (
+                              <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                                <button
+                                  onClick={() => setRejectingSponsorId(sponsor.id)}
+                                  disabled={individualRejectMutation.isPending}
+                                  data-testid={`button-reject-sponsor-${sponsor.id}`}
+                                  style={{
+                                    flex: 1, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                    backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
+                                    borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#dc2626'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = '#dc2626'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fecaca'; }}
+                                >
+                                  <XCircle style={{ width: 15, height: 15 }} />
+                                  Reprovar
+                                </button>
+                                <button
+                                  onClick={() => individualApproveMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id })}
+                                  disabled={individualApproveMutation.isPending}
+                                  data-testid={`button-approve-sponsor-${sponsor.id}`}
+                                  style={{
+                                    flex: 1, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                    backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d',
+                                    borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#15803d'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.borderColor = '#15803d'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f0fdf4'; e.currentTarget.style.color = '#15803d'; e.currentTarget.style.borderColor = '#86efac'; }}
+                                >
+                                  {individualApproveMutation.isPending ? (
+                                    <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
+                                  ) : (
+                                    <CheckCircle style={{ width: 15, height: 15 }} />
+                                  )}
+                                  Aprovar
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
-              {/* ---- TIMELINE ---- */}
-              {(() => {
-                const itemLogs = (auditLogs as any[])
-                  .filter(log => log.entityType === 'item' && log.entityId === selectedItem.id)
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                if (itemLogs.length === 0) return null;
+              {/* ── BLOCO 5: Histórico do item ── */}
+              {itemLogs.length > 0 && (
+                <div style={{ padding: '16px 24px', backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#a8a29e', margin: '0 0 12px' }}>
+                    Histórico do Item
+                  </p>
+                  <div style={{ position: 'relative', paddingLeft: 22 }}>
+                    <div style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 1, backgroundColor: '#e7e5e4' }} />
+                    {itemLogs.map((log: any, idx: number) => {
+                      const isRecent = idx === 0;
+                      const dotColor = (() => {
+                        const a = (log.action || '').toLowerCase();
+                        if (a.includes('reject') || a.includes('reprova')) return '#ea580c';
+                        if (a.includes('approv') || a.includes('aprova') || a.includes('libera')) return '#16a34a';
+                        if (a.includes('resubmit') || a.includes('reenvio')) return '#3b82f6';
+                        return isRecent ? '#f97316' : '#d4d0ca';
+                      })();
+                      return (
+                        <div key={log.id} style={{ position: 'relative', marginBottom: 16 }}>
+                          <div style={{
+                            position: 'absolute', left: -19, top: 4,
+                            width: 8, height: 8, borderRadius: '50%',
+                            backgroundColor: dotColor,
+                            border: '2px solid #fafaf9',
+                          }} />
+                          <p style={{ fontSize: 11, color: '#a8a29e', margin: '0 0 2px' }}>
+                            {log.createdAt && format(new Date(log.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            {log.userName && <> · <span style={{ color: '#78716c', fontWeight: 600 }}>{log.userName}</span></>}
+                          </p>
+                          <p style={{ fontSize: 13, color: '#1c1917', fontWeight: 500, margin: 0 }}>
+                            {log.details || log.action || 'Ação registrada'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                const getDotColor = (action: string) => {
-                  if (!action) return '#a8a29e';
-                  const a = action.toLowerCase();
-                  if (a.includes('reject') || a.includes('reprova') || a.includes('devolu')) return '#ea580c';
-                  if (a.includes('approv') || a.includes('aprova') || a.includes('libera')) return '#16a34a';
-                  if (a.includes('resubmit') || a.includes('reenvio') || a.includes('nova')) return '#3b82f6';
-                  return '#a8a29e';
-                };
+              {/* ── FOOTER ── */}
+              <div style={{
+                padding: '16px 24px', backgroundColor: '#ffffff',
+                borderTop: '1px solid #e7e5e4',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              }}>
+                <p style={{ fontSize: 12, color: '#a8a29e', margin: 0 }}>
+                  {sponsors.length > 0
+                    ? 'Use os botões individuais acima para aprovar/reprovar'
+                    : 'Revise o conteúdo antes de aprovar ou reprovar'}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {/* General approve/reject for items without sponsors */}
+                  {sponsors.length === 0 && selectedItem && (
+                    <>
+                      <button
+                        onClick={handleReject}
+                        disabled={sponsorRejectMutation.isPending}
+                        data-testid="button-reject"
+                        style={{
+                          backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
+                          borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+                          cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#dc2626'; e.currentTarget.style.color = '#ffffff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; }}
+                      >
+                        <XCircle style={{ width: 14, height: 14, display: 'inline', marginRight: 6 }} />
+                        {sponsorRejectMutation.isPending ? 'Reprovando...' : 'Reprovar'}
+                      </button>
+                      <button
+                        onClick={handleApprove}
+                        disabled={sponsorApproveMutation.isPending}
+                        data-testid="button-approve"
+                        style={{
+                          backgroundColor: '#1c1917', color: '#ffffff',
+                          border: 'none', borderRadius: 8, padding: '8px 16px',
+                          fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f97316'; }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1c1917'; }}
+                      >
+                        <CheckCircle style={{ width: 14, height: 14, display: 'inline', marginRight: 6 }} />
+                        {sponsorApproveMutation.isPending ? 'Aprovando...' : 'Aprovar'}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => setDialogOpen(false)}
+                    data-testid="button-cancel"
+                    style={{
+                      backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#1c1917',
+                      borderRadius: 8, padding: '8px 20px', fontSize: 13, fontWeight: 500,
+                      cursor: 'pointer', transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#1c1917'; e.currentTarget.style.color = '#ffffff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; e.currentTarget.style.color = '#1c1917'; }}
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
 
-                return (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-primary" />
-                        Histórico do Item
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div style={{ position: 'relative', paddingLeft: 24 }}>
-                        {/* Vertical line */}
-                        <div style={{
-                          position: 'absolute', left: 7, top: 6, bottom: 6,
-                          width: 2, backgroundColor: '#e7e5e4'
-                        }} />
-                        {itemLogs.map((log: any) => {
-                          const dotColor = getDotColor(log.action || '');
-                          return (
-                            <div key={log.id} style={{ position: 'relative', marginBottom: 16, paddingBottom: 2 }}>
-                              {/* Dot */}
-                              <div style={{
-                                position: 'absolute', left: -21, top: 4,
-                                width: 10, height: 10, borderRadius: '50%',
-                                backgroundColor: dotColor,
-                                border: '2px solid #ffffff',
-                                boxShadow: '0 0 0 1px #e7e5e4',
-                              }} />
-                              {/* Time and actor */}
-                              <div style={{ fontSize: 11, color: '#a8a29e', marginBottom: 2 }}>
-                                {log.createdAt && format(new Date(log.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                                {log.userName && <> · <span style={{ color: '#78716c', fontWeight: 600 }}>{log.userName}</span></>}
-                              </div>
-                              {/* Description */}
-                              <div style={{ fontSize: 13, color: '#1c1917', fontWeight: 500 }}>
-                                {log.details || log.action || 'Ação registrada'}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })()}
             </div>
-          )}
+            );
+          })()}
 
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              data-testid="button-cancel"
-            >
-              Fechar
-            </Button>
-            {/* Mostrar botões gerais apenas se não tiver patrocinadores vinculados */}
-            {selectedItem && (!itemSponsorsMap[selectedItem.id] || itemSponsorsMap[selectedItem.id].length === 0) && (
-              <>
-                <Button
-                  variant="destructive"
-                  onClick={handleReject}
-                  disabled={sponsorRejectMutation.isPending}
-                  data-testid="button-reject"
-                >
-                  <XCircle className="w-4 h-4 mr-2" />
-                  {sponsorRejectMutation.isPending ? "Reprovando..." : "Reprovar"}
-                </Button>
-                <Button
-                  onClick={handleApprove}
-                  disabled={sponsorApproveMutation.isPending}
-                  data-testid="button-approve"
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  {sponsorApproveMutation.isPending ? "Aprovando..." : "Aprovar"}
-                </Button>
-              </>
-            )}
-            {/* Mostrar dica para itens com patrocinadores */}
-            {selectedItem && itemSponsorsMap[selectedItem.id]?.length > 0 && (
-              <p className="text-xs text-muted-foreground text-right">
-                Use os botões individuais acima para aprovar/reprovar cada patrocinador
-              </p>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

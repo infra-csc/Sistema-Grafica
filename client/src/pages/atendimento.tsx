@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle, Users, Clock, Loader2 } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle, Users, Clock, Loader2, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -408,6 +408,17 @@ export default function Atendimento() {
     return Array.from(types).sort();
   }, [pendingItems]);
 
+  // Contador real: só itens que precisam de ação IMEDIATA (sem awaiting_arte bloqueando)
+  const actionableCount = useMemo(() => {
+    if (loadingSponsors) return null; // ainda carregando
+    return pendingItems.filter(item => {
+      const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+      const hasArteBlock = approvals.some(a => a.status === 'awaiting_arte');
+      if (hasArteBlock) return false; // Arte precisa reenviar primeiro
+      return approvals.some(a => a.status === 'rejected' || a.status === 'pending' || a.status === 'new_version_pending');
+    }).length;
+  }, [pendingItems, itemApprovalsMap, loadingSponsors]);
+
   const getEventInfo = (eventId: string) => {
     return events.find(e => e.id === eventId);
   };
@@ -487,10 +498,29 @@ export default function Atendimento() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-lg px-4 py-2">
-                <AlertCircle className="h-4 w-4 mr-2" />
-                {pendingItems.length} Pendentes
-              </Badge>
+              {actionableCount !== null && (
+                <span
+                  data-testid="badge-pendentes-count"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    backgroundColor: actionableCount === 0 ? '#f0fdf4' : '#fef2f2',
+                    border: `1px solid ${actionableCount === 0 ? '#86efac' : '#fecaca'}`,
+                    color: actionableCount === 0 ? '#15803d' : '#dc2626',
+                    borderRadius: 100,
+                    fontSize: 12, fontWeight: 700,
+                    padding: '3px 12px',
+                  }}
+                >
+                  {actionableCount === 0 ? (
+                    <CheckCircle style={{ width: 13, height: 13 }} />
+                  ) : (
+                    <AlertCircle style={{ width: 13, height: 13 }} />
+                  )}
+                  {actionableCount === 1
+                    ? '1 Pendente'
+                    : `${actionableCount} Pendentes`}
+                </span>
+              )}
             </div>
           </div>
           
@@ -680,18 +710,17 @@ export default function Atendimento() {
                               <span
                                 data-testid={`badge-em-ajuste-${item.id}`}
                                 style={{
-                                  display: 'inline-block',
-                                  marginTop: 3,
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  letterSpacing: '0.3px',
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  marginTop: 4,
+                                  fontSize: 10, fontWeight: 600,
                                   color: '#c2410c',
                                   backgroundColor: '#fff7ed',
                                   border: '1px solid #fed7aa',
-                                  borderRadius: 4,
-                                  padding: '1px 5px',
+                                  borderRadius: 6,
+                                  padding: '2px 8px',
                                 }}
                               >
+                                <RotateCcw style={{ width: 9, height: 9 }} />
                                 Em Ajuste (Arte)
                               </span>
                             )}
@@ -713,66 +742,53 @@ export default function Atendimento() {
                             {loadingSponsors ? (
                               <div className="text-xs text-muted-foreground">Carregando...</div>
                             ) : itemSponsors.length > 0 ? (
-                              <div className="flex flex-wrap gap-1.5">
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                                 {itemSponsors.map((sponsor) => {
                                   const approvals = itemApprovalsMap[item.id] || [];
                                   const approval = approvals.find((a: SponsorApproval) => a.sponsorId === sponsor.id);
                                   const status = approval?.status || 'pending';
-                                  
-                                  const getStatusStyle = () => {
-                                    if (status === 'approved') {
-                                      return {
-                                        backgroundColor: '#dcfce7',
-                                        borderColor: '#16a34a',
-                                        color: '#15803d'
-                                      };
-                                    } else if (status === 'rejected') {
-                                      return {
-                                        backgroundColor: '#fee2e2',
-                                        borderColor: '#dc2626',
-                                        color: '#b91c1c'
-                                      };
-                                    } else if (status === 'awaiting_arte') {
-                                      return {
-                                        backgroundColor: '#fff7ed',
-                                        borderColor: '#ea580c',
-                                        color: '#c2410c'
-                                      };
-                                    } else if (status === 'new_version_pending') {
-                                      return {
-                                        backgroundColor: '#eff6ff',
-                                        borderColor: '#3b82f6',
-                                        color: '#1d4ed8'
-                                      };
-                                    } else {
-                                      return {
-                                        backgroundColor: '#fef9c3',
-                                        borderColor: '#ca8a04',
-                                        color: '#a16207'
-                                      };
-                                    }
+
+                                  // 3 semantic states
+                                  const isReprovado = status === 'rejected';
+                                  const isAprovado  = status === 'approved';
+
+                                  const badgeStyle = isAprovado ? {
+                                    backgroundColor: '#f0fdf4',
+                                    border: '1px solid #86efac',
+                                    color: '#15803d',
+                                  } : isReprovado ? {
+                                    backgroundColor: '#fef2f2',
+                                    border: '1px solid #fecaca',
+                                    color: '#dc2626',
+                                  } : {
+                                    backgroundColor: '#fff7ed',
+                                    border: '1px solid #fed7aa',
+                                    color: '#c2410c',
                                   };
-                                  
+
+                                  const dotColor = isAprovado ? '#15803d' : isReprovado ? '#dc2626' : '#f97316';
+
                                   return (
-                                    <Badge 
-                                      key={sponsor.id} 
-                                      variant="outline" 
-                                      className="text-xs py-1 px-2 font-medium"
-                                      style={getStatusStyle()}
+                                    <span
+                                      key={sponsor.id}
+                                      data-testid={`badge-sponsor-${sponsor.id}-item-${item.id}`}
+                                      style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                                        borderRadius: 100, padding: '3px 10px',
+                                        fontSize: 11, fontWeight: 600,
+                                        ...badgeStyle,
+                                      }}
                                     >
-                                      {status === 'approved' ? (
-                                        <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                                      ) : status === 'rejected' ? (
-                                        <XCircle className="w-3.5 h-3.5 mr-1" />
-                                      ) : status === 'awaiting_arte' ? (
-                                        <AlertCircle className="w-3.5 h-3.5 mr-1" />
-                                      ) : status === 'new_version_pending' ? (
-                                        <Eye className="w-3.5 h-3.5 mr-1" />
+                                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dotColor, flexShrink: 0 }} />
+                                      {isAprovado ? (
+                                        <CheckCircle style={{ width: 11, height: 11 }} />
+                                      ) : isReprovado ? (
+                                        <XCircle style={{ width: 11, height: 11 }} />
                                       ) : (
-                                        <Clock className="w-3.5 h-3.5 mr-1" />
+                                        <Clock style={{ width: 11, height: 11 }} />
                                       )}
                                       {sponsor.name}
-                                    </Badge>
+                                    </span>
                                   );
                                 })}
                               </div>

@@ -851,15 +851,6 @@ export default function Atendimento() {
                                 <Eye className="h-4 w-4 mr-2" />
                                 Revisar
                               </Button>
-                              {isMultiSponsor && (
-                                <span style={{
-                                  backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
-                                  color: '#78716c', fontSize: 10, fontWeight: 500,
-                                  padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap', flexShrink: 0,
-                                }}>
-                                  {itemSponsors.length} patrocin.
-                                </span>
-                              )}
                             </div>
                           </td>
                         </tr>

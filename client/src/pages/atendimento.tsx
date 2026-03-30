@@ -826,53 +826,66 @@ export default function Atendimento() {
           {selectedItem && (
             <div className="space-y-4">
 
-              {/* ── Row 1: Item header + discrete thumb button ── */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16, color: '#f97316' }}>
-                    {selectedItem.displayId}
-                  </span>
-                  <span style={{ fontWeight: 700, fontSize: 15, color: '#1c1917' }}>{selectedItem.type}</span>
-                  {selectedItem.quantity && (
-                    <span style={{ fontSize: 12, color: '#78716c', backgroundColor: '#f5f5f4', borderRadius: 4, padding: '2px 8px' }}>
-                      Qtde: {selectedItem.quantity}
-                    </span>
-                  )}
-                </div>
-                {selectedItem.approvalThumbUrl && (() => {
-                  const url = selectedItem.approvalThumbUrl.toLowerCase();
-                  const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
-                  const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {/* Inline image preview (compact) */}
-                      {isImage && (
-                        <div style={{
-                          width: 56, height: 40, borderRadius: 6, overflow: 'hidden',
-                          border: '1px solid #e7e5e4', backgroundColor: '#fafaf9', flexShrink: 0
-                        }}>
-                          <img src={selectedItem.approvalThumbUrl} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                      )}
-                      <a
-                        href={selectedItem.approvalThumbUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        data-testid="link-view-thumb"
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 6,
-                          fontSize: 12, fontWeight: 600, color: '#78716c',
-                          backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
-                          borderRadius: 6, padding: '5px 10px', textDecoration: 'none',
-                        }}
-                      >
-                        {isPdf ? <FileText style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
-                        {isPdf ? 'Abrir PDF' : 'Ver arte'}
-                      </a>
-                    </div>
-                  );
-                })()}
-              </div>
+              {/* ── Row 1: Compact item + event meta bar ── */}
+              {(() => {
+                const ev = events.find((e: any) => e.id === selectedItem.eventId);
+                return (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6,
+                    backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
+                    borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#78716c',
+                  }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: '#f97316' }}>{selectedItem.displayId}</span>
+                    <span style={{ color: '#e7e5e4' }}>·</span>
+                    <span style={{ fontWeight: 600, color: '#1c1917' }}>{selectedItem.type}</span>
+                    {selectedItem.quantity && <>
+                      <span style={{ color: '#e7e5e4' }}>·</span>
+                      <span>Qtde: <strong style={{ color: '#1c1917' }}>{selectedItem.quantity}</strong></span>
+                    </>}
+                    {selectedItem.material && <>
+                      <span style={{ color: '#e7e5e4' }}>·</span>
+                      <span>{selectedItem.material}</span>
+                    </>}
+                    {selectedItem.finish && <>
+                      <span style={{ color: '#e7e5e4' }}>·</span>
+                      <span>{selectedItem.finish}</span>
+                    </>}
+                    {(selectedItem.visualWidth && selectedItem.visualHeight) && <>
+                      <span style={{ color: '#e7e5e4' }}>·</span>
+                      <span>{selectedItem.visualWidth}×{selectedItem.visualHeight}m</span>
+                    </>}
+                    {ev && <>
+                      <span style={{ color: '#e7e5e4', margin: '0 2px' }}>│</span>
+                      <Calendar style={{ width: 12, height: 12 }} />
+                      <span style={{ fontWeight: 600, color: '#1c1917' }}>{ev.name}</span>
+                      {ev.startDate && <span>· {format(new Date(ev.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>}
+                      {ev.truckDepartureDate && <>
+                        <Truck style={{ width: 12, height: 12, color: '#ea580c' }} />
+                        <span style={{ color: '#ea580c', fontWeight: 600 }}>
+                          {format(new Date(ev.truckDepartureDate), "dd/MM HH:mm", { locale: ptBR })}
+                        </span>
+                      </>}
+                    </>}
+                    {/* Thumb / PDF link (compact, right side) */}
+                    {selectedItem.approvalThumbUrl && (() => {
+                      const url = selectedItem.approvalThumbUrl.toLowerCase();
+                      const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                      const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
+                      return (
+                        <a
+                          href={selectedItem.approvalThumbUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#78716c', textDecoration: 'none' }}
+                        >
+                          {isPdf ? <FileText style={{ width: 12, height: 12 }} /> : <Eye style={{ width: 12, height: 12 }} />}
+                          <span>{isPdf ? 'PDF' : 'Thumb'}</span>
+                        </a>
+                      );
+                    })()}
+                  </div>
+                );
+              })()}
 
               {/* ── Row 2: Banner de reenvio após reprovação ── */}
               {selectedItem.rejectedBySponsor && selectedItem.status === 'awaiting_sponsor_approval' && (
@@ -893,97 +906,120 @@ export default function Atendimento() {
                 </div>
               )}
 
-              {/* ── Row 3: Rejection reason highlight ── */}
+              {/* ── Row 3: Rejection reason highlight (vivid red) ── */}
               {sponsorApprovals.some(a => a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && (
                 <div style={{
-                  backgroundColor: '#fafaf9', border: '1px solid #fde68a',
-                  borderLeft: '4px solid #f59e0b',
+                  backgroundColor: '#fef2f2', border: '1px solid #fecaca',
+                  borderLeft: '4px solid #ef4444',
                   borderRadius: 8, padding: '12px 14px',
                 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Feedback dos Patrocinadores
                   </p>
                   {sponsorApprovals
-                    .filter(a => (a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && a.rejectionReason)
+                    .filter(a => a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending')
                     .map((a) => {
                       const sponsorData = itemSponsorsMap[selectedItem.id]?.find((s: any) => s.id === a.sponsorId);
                       return (
-                        <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                        <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                           {sponsorData?.color && (
                             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sponsorData.color, flexShrink: 0, marginTop: 4 }} />
                           )}
-                          <div>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>
-                              {sponsorData?.name || a.sponsorId}:
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#7f1d1d' }}>
+                              {sponsorData?.name || 'Patrocinador'}:
                             </span>{' '}
-                            <span style={{ fontSize: 13, color: '#44403c' }}>{a.rejectionReason}</span>
+                            {a.rejectionReason ? (
+                              <span style={{ fontSize: 13, color: '#44403c' }}>{a.rejectionReason}</span>
+                            ) : (
+                              <span style={{ fontSize: 12, color: '#a8a29e', fontStyle: 'italic' }}>sem motivo informado</span>
+                            )}
                           </div>
                         </div>
                       );
                     })}
-                  {sponsorApprovals.filter(a => (a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && !a.rejectionReason).length > 0 && (
-                    <p style={{ fontSize: 12, color: '#a8a29e', fontStyle: 'italic' }}>
-                      (Alguns patrocinadores reprovaram sem informar motivo)
-                    </p>
-                  )}
+                  {/* Primary CTA: View the art being reviewed */}
+                  {selectedItem.approvalThumbUrl && (() => {
+                    const url = selectedItem.approvalThumbUrl.toLowerCase();
+                    const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                    const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
+                    return (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #fecaca' }}>
+                        {isImage && (
+                          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+                            <img src={selectedItem.approvalThumbUrl} alt="Arte em revisão"
+                              style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 6, border: '1px solid #fecaca' }} />
+                          </div>
+                        )}
+                        <a
+                          href={selectedItem.approvalThumbUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-testid="button-view-art-primary"
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            backgroundColor: '#1c1917', color: '#ffffff',
+                            borderRadius: 8, padding: '10px 16px',
+                            fontSize: 13, fontWeight: 600, textDecoration: 'none',
+                          }}
+                        >
+                          {isPdf ? <FileText style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                          {isPdf ? 'Abrir PDF para Revisão' : 'Ver Arte para Revisão'}
+                        </a>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Package className="w-4 h-4 text-primary" />
-                      Informações do Item
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <div className="flex items-start gap-2">
-                      <Tag className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <div className="font-medium">{selectedItem.name}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{selectedItem.type}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center py-1.5 border-t">
-                      <span className="text-muted-foreground">Quantidade</span>
-                      <Badge variant="secondary">{selectedItem.quantity}</Badge>
-                    </div>
-                    
-                    {(selectedItem.material || selectedItem.finish) && (
-                      <div className="space-y-1.5 pt-1.5 border-t">
-                        {selectedItem.material && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Material</span>
-                            <span className="font-medium">{selectedItem.material}</span>
-                          </div>
-                        )}
-                        {selectedItem.finish && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Acabamento</span>
-                            <span className="font-medium">{selectedItem.finish}</span>
-                          </div>
-                        )}
+              {/* ── Primary view art CTA when no rejections yet ── */}
+              {!sponsorApprovals.some(a => a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && selectedItem.approvalThumbUrl && (() => {
+                const url = selectedItem.approvalThumbUrl.toLowerCase();
+                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
+                return (
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 14px' }}>
+                    {isImage && (
+                      <div style={{ width: 60, height: 44, borderRadius: 6, overflow: 'hidden', border: '1px solid #e7e5e4', flexShrink: 0 }}>
+                        <img src={selectedItem.approvalThumbUrl} alt="Arte" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                     )}
-                    
-                    {itemSponsorsMap[selectedItem.id]?.length > 0 && (
-                      <div className="pt-1.5 border-t">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Users className="w-4 h-4 text-primary" />
-                          <span className="text-sm font-medium">
-                            Aprovação por Patrocinador
-                          </span>
-                        </div>
-                        
-                        {loadingSponsorApprovals ? (
-                          <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Carregando status...
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 12, color: '#78716c', margin: '0 0 4px' }}>Arte de aprovação enviada pela equipe</p>
+                    </div>
+                    <a
+                      href={selectedItem.approvalThumbUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="button-view-art-clean"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                        backgroundColor: '#1c1917', color: '#ffffff',
+                        borderRadius: 7, padding: '8px 14px',
+                        fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                      }}
+                    >
+                      {isPdf ? <FileText style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                      {isPdf ? 'Abrir PDF' : 'Ver Arte'}
+                    </a>
+                  </div>
+                );
+              })()}
+
+              {/* ── Sponsor approval section (promoted, no more Item/Event cards) ── */}
+              {itemSponsorsMap[selectedItem.id]?.length > 0 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <Users style={{ width: 15, height: 15, color: '#78716c' }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>Aprovação por Patrocinador</span>
+                  </div>
+                  {loadingSponsorApprovals ? (
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Carregando status...
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
                             {itemSponsorsMap[selectedItem.id].map((sponsor) => {
                               const approval = sponsorApprovals.find(a => a.sponsorId === sponsor.id);
                               const status = approval?.status || 'pending';
@@ -1014,13 +1050,21 @@ export default function Atendimento() {
                                   data-testid={`sponsor-approval-${sponsor.id}`}
                                 >
                                   <div className="flex items-center gap-2 mb-2">
+                                    {/* Dot: status color — not brand color */}
                                     <span 
                                       className="w-3 h-3 rounded-full shrink-0"
-                                      style={{ backgroundColor: sponsor.color || '#3b82f6' }}
+                                      style={{
+                                        backgroundColor:
+                                          status === 'approved' ? '#16a34a'
+                                          : (status === 'rejected' || status === 'awaiting_arte') ? '#ea580c'
+                                          : status === 'new_version_pending' ? '#3b82f6'
+                                          : '#a8a29e',
+                                      }}
                                     />
+                                    {/* Name: brand color for identity */}
                                     <span 
                                       className="font-semibold text-sm"
-                                      style={{ color: sponsor.color || '#3b82f6' }}
+                                      style={{ color: sponsor.color || '#1c1917' }}
                                     >
                                       {sponsor.name}
                                     </span>
@@ -1217,90 +1261,6 @@ export default function Atendimento() {
                       </div>
                     )}
                     
-                    {((selectedItem.visualWidth && selectedItem.visualHeight) || 
-                      (selectedItem.fileWidth && selectedItem.fileHeight)) && (
-                      <div className="space-y-2 pt-1.5 border-t">
-                        <div className="flex items-center gap-1.5 text-muted-foreground">
-                          <Ruler className="w-3.5 h-3.5" />
-                          <span className="text-xs font-medium">Dimensões</span>
-                        </div>
-                        {selectedItem.visualWidth && selectedItem.visualHeight && (
-                          <div className="flex justify-between text-xs pl-5">
-                            <span className="text-muted-foreground">Área Visual</span>
-                            <span className="font-medium">
-                              {selectedItem.visualWidth}m × {selectedItem.visualHeight}m
-                            </span>
-                          </div>
-                        )}
-                        {selectedItem.fileWidth && selectedItem.fileHeight && (
-                          <div className="flex justify-between text-xs pl-5">
-                            <span className="text-muted-foreground">Arquivo</span>
-                            <span className="font-medium">
-                              {selectedItem.fileWidth}m × {selectedItem.fileHeight}m
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-primary" />
-                      Informações do Evento
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    {(() => {
-                      const event = getEventInfo(selectedItem.eventId);
-                      return event ? (
-                        <>
-                          <div>
-                            <div className="text-xs text-muted-foreground mb-1">Nome do Evento</div>
-                            <div className="font-medium">{event.name}</div>
-                          </div>
-                          
-                          <div className="flex items-start gap-2 pt-1.5 border-t">
-                            <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <div className="text-xs text-muted-foreground mb-0.5">Local</div>
-                              <div className="font-medium">{event.location}</div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-start gap-2 pt-1.5 border-t">
-                            <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <div className="text-xs text-muted-foreground mb-0.5">Data do Evento</div>
-                              <div className="font-medium">
-                                {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {event.truckDepartureDate && (
-                            <div className="flex items-start gap-2 pt-1.5 border-t">
-                              <Truck className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                              <div className="flex-1">
-                                <div className="text-xs text-muted-foreground mb-0.5">Saída do Caminhão</div>
-                                <div className="font-medium text-orange-500">
-                                  {format(new Date(event.truckDepartureDate), "dd/MM/yyyy HH:mm", {
-                                    locale: ptBR,
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="text-muted-foreground">Evento não encontrado</div>
-                      );
-                    })()}
-                  </CardContent>
-                </Card>
-              </div>
 
               {selectedItem.notes && (
                 <Card>

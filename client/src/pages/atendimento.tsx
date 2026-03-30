@@ -748,25 +748,21 @@ export default function Atendimento() {
                                   const approval = approvals.find((a: SponsorApproval) => a.sponsorId === sponsor.id);
                                   const status = approval?.status || 'pending';
 
-                                  // 3 semantic states
-                                  const isReprovado = status === 'rejected';
-                                  const isAprovado  = status === 'approved';
+                                  // 2 visual states: APROVADO (green) | AGUARDANDO (amber)
+                                  // rejected + awaiting_arte are both "waiting for Arte" — same amber badge
+                                  const isAprovado = status === 'approved';
 
                                   const badgeStyle = isAprovado ? {
                                     backgroundColor: '#f0fdf4',
                                     border: '1px solid #86efac',
                                     color: '#15803d',
-                                  } : isReprovado ? {
-                                    backgroundColor: '#fef2f2',
-                                    border: '1px solid #fecaca',
-                                    color: '#dc2626',
                                   } : {
                                     backgroundColor: '#fff7ed',
                                     border: '1px solid #fed7aa',
                                     color: '#c2410c',
                                   };
 
-                                  const dotColor = isAprovado ? '#15803d' : isReprovado ? '#dc2626' : '#f97316';
+                                  const dotColor = isAprovado ? '#15803d' : '#f97316';
 
                                   return (
                                     <span
@@ -782,8 +778,6 @@ export default function Atendimento() {
                                       <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dotColor, flexShrink: 0 }} />
                                       {isAprovado ? (
                                         <CheckCircle style={{ width: 11, height: 11 }} />
-                                      ) : isReprovado ? (
-                                        <XCircle style={{ width: 11, height: 11 }} />
                                       ) : (
                                         <Clock style={{ width: 11, height: 11 }} />
                                       )}
@@ -1004,9 +998,8 @@ export default function Atendimento() {
 
                         const dotColor =
                           status === 'approved' ? '#16a34a'
-                          : (status === 'rejected' || status === 'awaiting_arte') ? '#ea580c'
                           : status === 'new_version_pending' ? '#3b82f6'
-                          : '#a8a29e';
+                          : '#f97316'; // rejected, awaiting_arte, pending → all orange dot
 
                         return (
                           <div
@@ -1027,12 +1020,7 @@ export default function Atendimento() {
                                   Aprovado
                                 </span>
                               )}
-                              {(status === 'rejected') && (
-                                <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 100, padding: '3px 10px' }}>
-                                  Reprovado
-                                </span>
-                              )}
-                              {status === 'awaiting_arte' && (
+                              {(status === 'rejected' || status === 'awaiting_arte') && (
                                 <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 100, padding: '3px 10px' }}>
                                   Aguardando Arte
                                 </span>
@@ -1043,11 +1031,11 @@ export default function Atendimento() {
                                 </span>
                               )}
                               {status === 'pending' && (
-                                <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 100, padding: '3px 10px' }}>
-                                  Pendente
+                                <span style={{ fontSize: 11, fontWeight: 600, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 100, padding: '3px 10px' }}>
+                                  Aguardando
                                 </span>
                               )}
-                              {status === 'awaiting_arte' && (
+                              {(status === 'rejected' || status === 'awaiting_arte') && (
                                 <span style={{ fontSize: 11, color: '#a8a29e', marginLeft: 'auto' }}>Botões bloqueados até Arte reenviar</span>
                               )}
                             </div>

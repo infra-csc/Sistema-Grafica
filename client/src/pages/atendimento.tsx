@@ -825,16 +825,61 @@ export default function Atendimento() {
 
           {selectedItem && (
             <div className="space-y-4">
-              {/* Banner de reenvio após reprovação */}
+
+              {/* ── Row 1: Item header + discrete thumb button ── */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16, color: '#f97316' }}>
+                    {selectedItem.displayId}
+                  </span>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: '#1c1917' }}>{selectedItem.type}</span>
+                  {selectedItem.quantity && (
+                    <span style={{ fontSize: 12, color: '#78716c', backgroundColor: '#f5f5f4', borderRadius: 4, padding: '2px 8px' }}>
+                      Qtde: {selectedItem.quantity}
+                    </span>
+                  )}
+                </div>
+                {selectedItem.approvalThumbUrl && (() => {
+                  const url = selectedItem.approvalThumbUrl.toLowerCase();
+                  const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                  const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {/* Inline image preview (compact) */}
+                      {isImage && (
+                        <div style={{
+                          width: 56, height: 40, borderRadius: 6, overflow: 'hidden',
+                          border: '1px solid #e7e5e4', backgroundColor: '#fafaf9', flexShrink: 0
+                        }}>
+                          <img src={selectedItem.approvalThumbUrl} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      )}
+                      <a
+                        href={selectedItem.approvalThumbUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid="link-view-thumb"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          fontSize: 12, fontWeight: 600, color: '#78716c',
+                          backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
+                          borderRadius: 6, padding: '5px 10px', textDecoration: 'none',
+                        }}
+                      >
+                        {isPdf ? <FileText style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                        {isPdf ? 'Abrir PDF' : 'Ver arte'}
+                      </a>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* ── Row 2: Banner de reenvio após reprovação ── */}
               {selectedItem.rejectedBySponsor && selectedItem.status === 'awaiting_sponsor_approval' && (
                 <div style={{
-                  backgroundColor: '#fff7ed',
-                  border: '1px solid #fed7aa',
-                  borderRadius: 8,
-                  padding: '10px 14px',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 10,
+                  backgroundColor: '#fff7ed', border: '1px solid #fed7aa',
+                  borderRadius: 8, padding: '10px 14px',
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
                 }}>
                   <AlertCircle style={{ width: 16, height: 16, color: '#ea580c', flexShrink: 0, marginTop: 1 }} />
                   <div>
@@ -842,51 +887,46 @@ export default function Atendimento() {
                       Reenvio após reprovação
                     </p>
                     <p style={{ fontSize: 12, color: '#9a3412', margin: 0 }}>
-                      A Arte enviou um novo thumb após reprovação anterior. Revise o thumb abaixo e aprove/reprove cada patrocinador novamente.
+                      A Arte enviou um novo thumb. Revise e aprove/reprove cada patrocinador abaixo.
                     </p>
                   </div>
                 </div>
               )}
 
-              {selectedItem.approvalThumbUrl && (
-                <Card className="border-2 border-primary/20">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2 text-primary">
-                      <Eye className="w-5 h-5" />
-                      Thumb de Aprovação
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-center rounded-lg bg-muted/50 p-3 h-[200px]">
-                      {(() => {
-                        const url = selectedItem.approvalThumbUrl.toLowerCase();
-                        const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
-                        const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                        
-                        return isPdf ? (
-                          <a
-                            href={selectedItem.approvalThumbUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-800 rounded-lg hover-elevate text-blue-700 dark:text-blue-400 font-medium"
-                          >
-                            <FileText className="h-5 w-5" />
-                            <div className="flex flex-col items-start">
-                              <span>Abrir PDF de Aprovação</span>
-                              <span className="text-xs text-blue-600 dark:text-blue-500">Clique para visualizar</span>
-                            </div>
-                          </a>
-                        ) : (
-                          <img
-                            src={selectedItem.approvalThumbUrl}
-                            alt="Thumb de aprovação"
-                            className="max-h-full max-w-full object-contain shadow-lg"
-                          />
-                        );
-                      })()}
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* ── Row 3: Rejection reason highlight ── */}
+              {sponsorApprovals.some(a => a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && (
+                <div style={{
+                  backgroundColor: '#fafaf9', border: '1px solid #fde68a',
+                  borderLeft: '4px solid #f59e0b',
+                  borderRadius: 8, padding: '12px 14px',
+                }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Feedback dos Patrocinadores
+                  </p>
+                  {sponsorApprovals
+                    .filter(a => (a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && a.rejectionReason)
+                    .map((a) => {
+                      const sponsorData = itemSponsorsMap[selectedItem.id]?.find((s: any) => s.id === a.sponsorId);
+                      return (
+                        <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                          {sponsorData?.color && (
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sponsorData.color, flexShrink: 0, marginTop: 4 }} />
+                          )}
+                          <div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>
+                              {sponsorData?.name || a.sponsorId}:
+                            </span>{' '}
+                            <span style={{ fontSize: 13, color: '#44403c' }}>{a.rejectionReason}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {sponsorApprovals.filter(a => (a.status === 'awaiting_arte' || a.status === 'rejected' || a.status === 'new_version_pending') && !a.rejectionReason).length > 0 && (
+                    <p style={{ fontSize: 12, color: '#a8a29e', fontStyle: 'italic' }}>
+                      (Alguns patrocinadores reprovaram sem informar motivo)
+                    </p>
+                  )}
+                </div>
               )}
 
               <div className="grid grid-cols-2 gap-4">
@@ -949,13 +989,27 @@ export default function Atendimento() {
                               const status = approval?.status || 'pending';
                               const isRejectingThis = rejectingSponsorId === sponsor.id;
                               
+                              // Status-based border/bg (overrides brand color)
+                              const statusBorderColor = (() => {
+                                if (status === 'approved') return '#16a34a';
+                                if (status === 'rejected' || status === 'awaiting_arte') return '#ea580c';
+                                if (status === 'new_version_pending') return '#3b82f6';
+                                return '#e7e5e4';
+                              })();
+                              const statusBgColor = (() => {
+                                if (status === 'approved') return '#f0fdf4';
+                                if (status === 'rejected' || status === 'awaiting_arte') return '#fff7ed';
+                                if (status === 'new_version_pending') return '#eff6ff';
+                                return '#fafaf9';
+                              })();
+
                               return (
                                 <div 
                                   key={sponsor.id} 
                                   className="border rounded-lg p-3"
                                   style={{
-                                    borderColor: sponsor.color || '#3b82f6',
-                                    backgroundColor: `${sponsor.color || '#3b82f6'}08`
+                                    borderColor: statusBorderColor,
+                                    backgroundColor: statusBgColor,
                                   }}
                                   data-testid={`sponsor-approval-${sponsor.id}`}
                                 >
@@ -1268,7 +1322,7 @@ export default function Atendimento() {
               {(() => {
                 const itemLogs = (auditLogs as any[])
                   .filter(log => log.entityType === 'item' && log.entityId === selectedItem.id)
-                  .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
                 if (itemLogs.length === 0) return null;
 
                 const getDotColor = (action: string) => {

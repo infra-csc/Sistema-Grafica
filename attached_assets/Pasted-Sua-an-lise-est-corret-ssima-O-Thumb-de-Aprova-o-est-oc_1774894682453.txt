@@ -1,0 +1,47 @@
+Sua análise está corretíssima. O "Thumb de Aprovação" está ocupando um espaço nobre da tela (o chamado above the fold) sem entregar valor real, já que ele é apenas um botão para abrir o PDF. Isso força o usuário a fazer scroll para ver o que realmente importa: o motivo da reprovação e o histórico.
+
+Aqui estão as melhorias sugeridas para otimizar a hierarquia de informação e a experiência do usuário (UX):
+
+1. Compactação do "Thumb de Aprovação"
+Se o sistema não gera uma visualização real da imagem (thumbnail) e exige clicar em um botão, ele não deve ser um bloco gigante.
+
+Melhoria: Transforme o bloco de "Thumb de Aprovação" em uma linha simples ou um botão secundário ao lado do título "Informações do Item".
+
+Ganho: Você economiza cerca de 40% de espaço vertical, trazendo o motivo da reprovação e os dados do evento para a visão imediata.
+
+2. Destaque Crítico: Motivo da Reprovação
+Atualmente, o motivo ("logo menor") está "escondido" dentro de um card de patrocinador com borda verde (o que é confuso, pois verde indica aprovação).
+
+Melhoria: O motivo da reprovação deve ser a primeira coisa que o usuário lê após o banner de alerta laranja.
+
+Visual: Use um card com fundo levemente avermelhado ou amarelo, com texto em destaque: "Feedback do Patrocinador: [Motivo]".
+
+3. Melhorias no Card de "Aprovação por Patrocinador"
+Contradição de Cores: O patrocinador "Spotify" está com um círculo verde e borda verde, mas o status interno diz "Aguardando Arte" e "Reprovado".
+
+Correção: Se o item foi reprovado por aquele patrocinador, o indicador deve ser vermelho. O verde só deve aparecer quando a aprovação final for dada.
+
+Botões de Ação: O texto diz "Botões bloqueados até Arte reenviar". Isso é correto para o fluxo, mas o layout poderia ser mais limpo se esses avisos fossem menos ruidosos visualmente.
+
+4. Organização das "Informações do Item" e "Evento"
+Esses dois blocos podem ser colocados lado a lado (em colunas) de forma mais compacta.
+
+Datas e Horários: No bloco "Informações do Evento", a data e a saída do caminhão estão com cores diferentes (preto e laranja). É importante manter um padrão. Se o horário de saída é crítico (prazo curto), o destaque faz sentido, senão, causa poluição visual.
+
+5. Histórico do Item
+Ordem Cronológica: Verifique se o usuário prefere ver a ação mais recente no topo. Geralmente, em sistemas de aprovação, o topo do histórico deve ser a última atualização (30/03/2026) para evitar scroll.
+
+Destaque de Status: As bolinhas do histórico poderiam seguir a cor do status (ex: reprovado = vermelho, enviado = roxo).
+
+Resumo do Layout Sugerido (Hierarquia):
+Banner de Alerta (Laranja - Reenvio).
+
+Card de Motivo da Reprovação (Destaque total).
+
+Informações do Item & Evento (Lado a lado, compactos).
+
+Botão "Visualizar Arquivo" (Discreto, próximo aos dados do item).
+
+Status dos Patrocinadores.
+
+Histórico (No final ou em uma aba lateral).

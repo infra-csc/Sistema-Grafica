@@ -1131,7 +1131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get items that have at least one awaiting_arte sponsor approval (for Arte retrabalho) - MUST come BEFORE /:eventId
+  // Get items that have at least one awaiting_arte sponsor approval (for Arte correção) - MUST come BEFORE /:eventId
   app.get("/api/items/resubmission-needed", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "arte" && req.userRole !== "admin") {
@@ -1909,7 +1909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Arte submits new version for specific sponsors (retrabalho)
+  // Arte submits new version for specific sponsors (correção)
   app.post("/api/items/:id/sponsor-approvals/resubmit", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "arte" && req.userRole !== "admin") {

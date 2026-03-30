@@ -1,0 +1,106 @@
+Melhore o card de item reprovado (aba Correção). 
+Pode aparecer múltiplos cards empilhados — o layout precisa ser 
+denso, escaneável e compacto.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CARD DO ITEM — NOVO LAYOUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+background #ffffff
+border 1px solid #e7e5e4
+border-left 4px solid #dc2626
+border-radius 12px
+overflow hidden
+margin-bottom 12px
+
+LINHA 1 — HEADER COMPACTO (padding 14px 16px 10px):
+display flex, align-items center, gap 10px, flex-wrap wrap
+
+  Chip ID: background #1c1917, color white, font-family monospace,
+  font-size 12px, padding 3px 8px, border-radius 6px → "#0062"
+
+  Badge tipo: background #fafaf9, border 1px solid #e7e5e4,
+  border-radius 6px, font-size 12px, font-weight 600,
+  color #1c1917, padding 3px 9px → "2×1 Padrão"
+
+  Separador "·" color #e7e5e4
+
+  "Qtde: 1" font-size 12px, color #78716c
+
+  Separador "·"
+
+  Ícone 📅 + "Night Run - Etapa 3 - SP - 2025"
+  font-size 12px, color #78716c
+
+  Separador "·"
+
+  Ícone 🚛 + "Saída: 27/11/2025"
+  font-size 12px, color #78716c
+
+  Badge "CORREÇÃO" alinhado à direita (margin-left auto):
+  background #fef2f2, border 1px solid #fecaca,
+  color #dc2626, border-radius 6px,
+  font-size 10px, font-weight 700,
+  letter-spacing 0.5px, padding 3px 10px
+
+LINHA 2 — REPROVAÇÕES (padding 0 16px 12px):
+border-top 1px solid #fef2f2, padding-top 10px
+
+  Label "REPROVADO POR": font-size 10px, uppercase,
+  letter-spacing 0.6px, color #a8a29e, margin-bottom 8px
+
+  Para cada patrocinador reprovador — row compacto:
+    display flex, align-items flex-start, gap 12px,
+    background #fef2f2, border 1px solid #fecaca,
+    border-radius 8px, padding 10px 12px, margin-bottom 6px
+
+    Coluna esquerda (flex: 1):
+      Linha: dot verde 7px + nome patrocinador font-weight 700
+      font-size 13px, color #1c1917
+      + "por Administrador em 30/03/2026"
+      font-size 11px, color #a8a29e, margin-left 6px
+
+      Motivo (margin-top 6px):
+        background #ffffff, border 1px solid #fecaca,
+        border-radius 6px, padding 6px 10px,
+        font-size 12px
+        "Motivo:" font-weight 700, color #dc2626
+        + " logo menor" color #1c1917
+
+    Coluna direita (flex-shrink 0):
+      Botão "Ver arquivo":
+        background #ffffff, border 1px solid #fecaca,
+        color #dc2626, border-radius 6px,
+        font-size 11px, font-weight 500,
+        padding 5px 10px, white-space nowrap
+        Hover: background #fef2f2
+
+LINHA 3 — FOOTER (padding 10px 16px,
+background #fafaf9, border-top 1px solid #e7e5e4):
+  display flex, justify-content space-between, align-items center
+
+  Texto à esquerda (se tiver thumb reprovado):
+    "Thumb reprovado anexado" font-size 11px, color #a8a29e
+    com ícone 📄 à esquerda
+
+  Botão "↺ Enviar Nova Arte" à direita:
+    background #dc2626, color white, border-radius 8px,
+    height 36px, padding 0 16px, font-size 13px,
+    font-weight 600, border none
+    Hover: background #b91c1c, transição 0.2s
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUANDO MÚLTIPLOS CARDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Contador no topo da lista:
+  "3 itens aguardando correção"
+  font-size 12px, color #dc2626, font-weight 600,
+  margin-bottom 12px
+  com dot vermelho piscando (animation pulse) à esquerda
+
+- Cards com gap 12px entre eles
+- Sem altura fixa — cada card cresce conforme número
+  de patrocinadores reprovadores
+
+- Se um item tiver 2+ patrocinadores reprovadores,
+  mostrar todos em sequência dentro do mesmo card
+  (não criar cards separados por patrocinador)

@@ -46,16 +46,16 @@ export default function Arte() {
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [sharedPdfUrl, setSharedPdfUrl] = useState<string>("");
 
-  // Retrabalho states
-  const [retrabalhoItem, setRetrabalhoItem] = useState<any>(null);
-  const [retrabalhoThumbUrl, setRetrabalhoThumbUrl] = useState<string>("");
-  const [retrabalhoSelectedSponsorIds, setRetrabalhoSelectedSponsorIds] = useState<Set<string>>(new Set());
+  // Correção states
+  const [correcaoItem, setCorrecaoItem] = useState<any>(null);
+  const [correcaoThumbUrl, setCorrecaoThumbUrl] = useState<string>("");
+  const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
-  const { data: retrabalhoItems = [], isLoading: retrabalhoLoading } = useQuery<any[]>({
+  const { data: correcaoItems = [], isLoading: correcaoLoading } = useQuery<any[]>({
     queryKey: ["/api/items/resubmission-needed"],
   });
 
@@ -146,9 +146,9 @@ export default function Arte() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setRetrabalhoItem(null);
-      setRetrabalhoThumbUrl("");
-      setRetrabalhoSelectedSponsorIds(new Set());
+      setCorrecaoItem(null);
+      setCorrecaoThumbUrl("");
+      setCorrecaoSelectedSponsorIds(new Set());
       toast({
         title: "Nova arte enviada",
         description: "O Atendimento foi notificado para revisar",
@@ -211,7 +211,7 @@ export default function Arte() {
         if (tab === "criar-aprovacoes") {
           // 'awaiting_submission' = rejected by creator (Solicitação) → Arte needs to redo + resubmit
           // 'requested' = new item, Arte needs to send for approval
-          // Note: awaiting_arte sponsor rejections now appear in the Retrabalho tab, NOT here
+          // Note: awaiting_arte sponsor rejections now appear in the Correção tab, NOT here
           matchesView = item.status === 'requested' || 
             item.status === 'awaiting_submission';
         } else if (tab === "finalizar-layouts") {
@@ -272,7 +272,7 @@ export default function Arte() {
   const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
   const finalizadosCount = getFilteredItemsForTab("finalizados").length;
-  const retrabalhoCount = retrabalhoItems.length;
+  const correcaoCount = correcaoItems.length;
 
   const pendingItems = filteredItems.filter(item => item.status === 'requested' || item.status === 'awaiting_submission');
 
@@ -439,8 +439,8 @@ export default function Arte() {
             activeBg: '#fafaf9', activeColor: '#1c1917', badgeBg: '#1c1917', badgeColor: '#ffffff',
           },
           {
-            id: "retrabalho", label: "Retrabalho", count: retrabalhoCount,
-            icon: RotateCcw, testId: "tab-retrabalho",
+            id: "correcao", label: "Correção", count: correcaoCount,
+            icon: RotateCcw, testId: "tab-correcao",
             activeBg: '#fef2f2', activeColor: '#dc2626', badgeBg: '#dc2626', badgeColor: '#ffffff',
           },
           {
@@ -700,24 +700,24 @@ export default function Arte() {
             </div>
         </CardHeader>
         <CardContent>
-          {activeTab === "retrabalho" ? (
-            /* ---- RETRABALHO TAB ---- */
-            retrabalhoLoading ? (
+          {activeTab === "correcao" ? (
+            /* ---- CORREÇÃO TAB ---- */
+            correcaoLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
-            ) : retrabalhoItems.length === 0 ? (
+            ) : correcaoItems.length === 0 ? (
               <div className="text-center py-12">
                 <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 6 }}>Sem retrabalho pendente</h3>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 6 }}>Sem correção pendente</h3>
                 <p style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum item aguarda nova versão de arte</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {retrabalhoItems.map((item: any) => (
+                {correcaoItems.map((item: any) => (
                   <div
                     key={item.id}
-                    data-testid={`card-retrabalho-${item.id}`}
+                    data-testid={`card-correcao-${item.id}`}
                     style={{
                       backgroundColor: '#ffffff',
                       border: '1px solid #e7e5e4',
@@ -754,7 +754,7 @@ export default function Arte() {
                           fontSize: 11, fontWeight: 700, letterSpacing: '0.4px',
                           padding: '3px 10px', whiteSpace: 'nowrap',
                         }}>
-                          RETRABALHO
+                          CORREÇÃO
                         </span>
                       </div>
                       {/* Row 2 — metadados */}
@@ -857,11 +857,11 @@ export default function Arte() {
                     }}>
                       <button
                         onClick={() => {
-                          setRetrabalhoItem(item);
-                          setRetrabalhoThumbUrl("");
-                          setRetrabalhoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
+                          setCorrecaoItem(item);
+                          setCorrecaoThumbUrl("");
+                          setCorrecaoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
                         }}
-                        data-testid={`button-open-retrabalho-${item.id}`}
+                        data-testid={`button-open-correcao-${item.id}`}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6,
                           backgroundColor: '#dc2626', color: '#ffffff', border: 'none',
@@ -1081,12 +1081,12 @@ export default function Arte() {
         </CardContent>
       </Card>
 
-      {/* ---- RETRABALHO DIALOG ---- */}
-      <Dialog open={!!retrabalhoItem} onOpenChange={(open) => {
+      {/* ---- CORREÇÃO DIALOG ---- */}
+      <Dialog open={!!correcaoItem} onOpenChange={(open) => {
         if (!open) {
-          setRetrabalhoItem(null);
-          setRetrabalhoThumbUrl("");
-          setRetrabalhoSelectedSponsorIds(new Set());
+          setCorrecaoItem(null);
+          setCorrecaoThumbUrl("");
+          setCorrecaoSelectedSponsorIds(new Set());
         }
       }}>
         <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 560, borderRadius: 16, backgroundColor: '#ffffff' }}>
@@ -1099,14 +1099,14 @@ export default function Arte() {
               <RotateCcw style={{ width: 18, height: 18, color: '#dc2626', flexShrink: 0 }} />
               <span style={{ fontSize: 17, fontWeight: 700, color: '#1c1917' }}>Enviar Nova Arte</span>
             </div>
-            {retrabalhoItem && (
+            {correcaoItem && (
               <p style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>
-                {retrabalhoItem.displayId} — {retrabalhoItem.type}
-                {retrabalhoItem.event?.name ? ` · ${retrabalhoItem.event.name}` : ''}
+                {correcaoItem.displayId} — {correcaoItem.type}
+                {correcaoItem.event?.name ? ` · ${correcaoItem.event.name}` : ''}
               </p>
             )}
             <button
-              onClick={() => { setRetrabalhoItem(null); setRetrabalhoThumbUrl(""); setRetrabalhoSelectedSponsorIds(new Set()); }}
+              onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }}
               style={{
                 position: 'absolute', top: 16, right: 16,
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -1115,13 +1115,13 @@ export default function Arte() {
               }}
               onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
               onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
-              data-testid="button-close-retrabalho-dialog"
+              data-testid="button-close-correcao-dialog"
             >
               <X style={{ width: 16, height: 16 }} />
             </button>
           </div>
 
-          {retrabalhoItem && (
+          {correcaoItem && (
             <>
               {/* ── REPROVAÇÕES ────────────────────────── */}
               <div style={{ padding: '16px 24px', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
@@ -1129,7 +1129,7 @@ export default function Arte() {
                   Reprovações
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {retrabalhoItem.awaitingArteApprovals.map((approval: any) => (
+                  {correcaoItem.awaitingArteApprovals.map((approval: any) => (
                     <div key={approval.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
                       {approval.sponsor?.color && (
                         <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0, marginTop: 3 }} />
@@ -1150,14 +1150,14 @@ export default function Arte() {
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
                   Nova Arte (Upload)
                 </p>
-                {retrabalhoThumbUrl ? (
+                {correcaoThumbUrl ? (
                   <div style={{
                     border: '2px dashed #86efac', borderRadius: 10,
                     backgroundColor: '#f0fdf4', padding: 24,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
                   }}>
-                    {/\.(png|jpg|jpeg|gif|webp)/i.test(retrabalhoThumbUrl) ? (
-                      <img src={retrabalhoThumbUrl} alt="Nova arte" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
+                    {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl) ? (
+                      <img src={correcaoThumbUrl} alt="Nova arte" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#166534' }}>
                         <FileText style={{ width: 20, height: 20 }} />
@@ -1165,8 +1165,8 @@ export default function Arte() {
                       </div>
                     )}
                     <button
-                      onClick={() => setRetrabalhoThumbUrl("")}
-                      data-testid="button-remove-retrabalho-thumb"
+                      onClick={() => setCorrecaoThumbUrl("")}
+                      data-testid="button-remove-correcao-thumb"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 4,
                         background: 'none', border: '1px solid #86efac', borderRadius: 6,
@@ -1200,10 +1200,10 @@ export default function Arte() {
                       onGetUploadParameters={getUploadUrl}
                       onComplete={(result) => {
                         const localPath = convertGCSUrlToLocalPath(result.url);
-                        setRetrabalhoThumbUrl(localPath);
+                        setCorrecaoThumbUrl(localPath);
                       }}
                       accept="image/*,application/pdf"
-                      data-testid="uploader-retrabalho-thumb"
+                      data-testid="uploader-correcao-thumb"
                     >
                       <Upload style={{ width: 14, height: 14, marginRight: 6 }} />
                       Fazer Upload da Nova Arte
@@ -1218,26 +1218,26 @@ export default function Arte() {
                   Enviar para quais patrocinadores?
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {retrabalhoItem.awaitingArteApprovals.map((approval: any) => (
+                  {correcaoItem.awaitingArteApprovals.map((approval: any) => (
                     <label
                       key={approval.sponsorId}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
                         padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
                         userSelect: 'none', transition: 'background 0.15s, border-color 0.15s',
-                        backgroundColor: retrabalhoSelectedSponsorIds.has(approval.sponsorId) ? '#f0fdf4' : '#fafaf9',
-                        border: `1px solid ${retrabalhoSelectedSponsorIds.has(approval.sponsorId) ? '#86efac' : '#e7e5e4'}`,
+                        backgroundColor: correcaoSelectedSponsorIds.has(approval.sponsorId) ? '#f0fdf4' : '#fafaf9',
+                        border: `1px solid ${correcaoSelectedSponsorIds.has(approval.sponsorId) ? '#86efac' : '#e7e5e4'}`,
                       }}
                     >
                       <Checkbox
-                        checked={retrabalhoSelectedSponsorIds.has(approval.sponsorId)}
+                        checked={correcaoSelectedSponsorIds.has(approval.sponsorId)}
                         onCheckedChange={(checked) => {
-                          const next = new Set(retrabalhoSelectedSponsorIds);
+                          const next = new Set(correcaoSelectedSponsorIds);
                           if (checked) next.add(approval.sponsorId);
                           else next.delete(approval.sponsorId);
-                          setRetrabalhoSelectedSponsorIds(next);
+                          setCorrecaoSelectedSponsorIds(next);
                         }}
-                        data-testid={`checkbox-retrabalho-sponsor-${approval.sponsorId}`}
+                        data-testid={`checkbox-correcao-sponsor-${approval.sponsorId}`}
                         style={{ accentColor: '#1c1917' }}
                       />
                       {approval.sponsor?.color && (
@@ -1254,7 +1254,7 @@ export default function Arte() {
               {/* ── FOOTER ──────────────────────────────── */}
               <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button
-                  onClick={() => { setRetrabalhoItem(null); setRetrabalhoThumbUrl(""); setRetrabalhoSelectedSponsorIds(new Set()); }}
+                  onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }}
                   style={{
                     backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
                     color: '#78716c', borderRadius: 8, height: 40, padding: '0 20px',
@@ -1266,31 +1266,31 @@ export default function Arte() {
                   Cancelar
                 </button>
                 <button
-                  disabled={!retrabalhoThumbUrl || retrabalhoSelectedSponsorIds.size === 0 || resubmitMutation.isPending}
+                  disabled={!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending}
                   onClick={() => {
-                    if (retrabalhoItem) {
+                    if (correcaoItem) {
                       resubmitMutation.mutate({
-                        itemId: retrabalhoItem.id,
-                        newThumbUrl: retrabalhoThumbUrl,
-                        sponsorIds: Array.from(retrabalhoSelectedSponsorIds),
+                        itemId: correcaoItem.id,
+                        newThumbUrl: correcaoThumbUrl,
+                        sponsorIds: Array.from(correcaoSelectedSponsorIds),
                       });
                     }
                   }}
-                  data-testid="button-submit-retrabalho"
+                  data-testid="button-submit-correcao"
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
-                    backgroundColor: (!retrabalhoThumbUrl || retrabalhoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#fca5a5' : '#dc2626',
+                    backgroundColor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#fca5a5' : '#dc2626',
                     color: '#ffffff', border: 'none', borderRadius: 8,
                     height: 40, padding: '0 20px', fontWeight: 700, fontSize: 14,
-                    cursor: (!retrabalhoThumbUrl || retrabalhoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'not-allowed' : 'pointer',
+                    cursor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'not-allowed' : 'pointer',
                     transition: 'background 0.2s',
                   }}
                   onMouseEnter={e => {
-                    if (!retrabalhoThumbUrl || retrabalhoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return;
+                    if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return;
                     e.currentTarget.style.backgroundColor = '#b91c1c';
                   }}
                   onMouseLeave={e => {
-                    if (!retrabalhoThumbUrl || retrabalhoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return;
+                    if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return;
                     e.currentTarget.style.backgroundColor = '#dc2626';
                   }}
                 >

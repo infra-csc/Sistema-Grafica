@@ -784,20 +784,6 @@ export default function Atendimento() {
                             <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
                               {item.displayId}
                             </div>
-                            {hasArteBlock && (
-                              <span
-                                data-testid={`badge-em-ajuste-${item.id}`}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                                  marginTop: 4, fontSize: 10, fontWeight: 600,
-                                  color: '#c2410c', backgroundColor: '#fff7ed',
-                                  border: '1px solid #fed7aa', borderRadius: 6, padding: '2px 8px',
-                                }}
-                              >
-                                <RotateCcw style={{ width: 9, height: 9 }} />
-                                Em Ajuste (Arte)
-                              </span>
-                            )}
                           </td>
                           <td className="py-2 px-4">
                             <div className="text-sm font-medium">{item.type}</div>
@@ -819,11 +805,19 @@ export default function Atendimento() {
                                   const approvals = itemApprovalsMap[item.id] || [];
                                   const approval = approvals.find((a: SponsorApproval) => a.sponsorId === sponsor.id);
                                   const status = approval?.status || 'pending';
-                                  const isAprovado = status === 'approved';
+                                  // 3 estados: APROVADO / AGUARDANDO PATROCINADOR / REPROVADO
+                                  const isAprovado   = status === 'approved';
+                                  const isReprovado  = status === 'rejected' || status === 'awaiting_arte';
+                                  // pending + new_version_pending → AGUARDANDO PATROCINADOR (azul)
+
                                   const badgeStyle = isAprovado
-                                    ? { backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d' }
-                                    : { backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c' };
-                                  const dotColor = isAprovado ? '#15803d' : '#f97316';
+                                    ? { backgroundColor: '#f0fdf4', border: '1px solid #86efac',  color: '#15803d' }
+                                    : isReprovado
+                                    ? { backgroundColor: '#fef2f2', border: '1px solid #fecaca',  color: '#dc2626' }
+                                    : { backgroundColor: '#eff6ff', border: '1px solid #bfdbfe',  color: '#2563eb' };
+
+                                  const dotColor = isAprovado ? '#15803d' : isReprovado ? '#dc2626' : '#2563eb';
+
                                   return (
                                     <span
                                       key={sponsor.id}
@@ -831,7 +825,11 @@ export default function Atendimento() {
                                       style={{ display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 600, ...badgeStyle }}
                                     >
                                       <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dotColor, flexShrink: 0 }} />
-                                      {isAprovado ? <CheckCircle style={{ width: 11, height: 11 }} /> : <Clock style={{ width: 11, height: 11 }} />}
+                                      {isAprovado
+                                        ? <CheckCircle style={{ width: 11, height: 11 }} />
+                                        : isReprovado
+                                        ? <XCircle style={{ width: 11, height: 11 }} />
+                                        : <Clock style={{ width: 11, height: 11 }} />}
                                       {sponsor.name}
                                     </span>
                                   );

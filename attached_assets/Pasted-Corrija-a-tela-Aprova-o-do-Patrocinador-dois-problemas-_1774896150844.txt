@@ -1,0 +1,70 @@
+Corrija a tela "Aprovação do Patrocinador" — dois problemas:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEMA 1 — BADGES DE PATROCINADORES INCONSISTENTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Os badges de patrocinadores devem seguir um sistema de cores
+baseado no STATUS de cada patrocinador naquele item:
+
+REPROVADO (precisa de ação):
+  background #fef2f2, border 1px solid #fecaca,
+  color #dc2626, dot #dc2626
+  ícone ✕ antes do nome
+
+APROVADO:
+  background #f0fdf4, border 1px solid #86efac,
+  color #15803d, dot #15803d
+  ícone ✓ antes do nome
+
+AGUARDANDO (ainda não respondeu):
+  background #fff7ed, border 1px solid #fed7aa,
+  color #c2410c, dot #f97316
+  ícone ⏱ antes do nome
+
+Aplicar corretamente em TODOS os itens da tabela:
+- Item #0067 (Palco):
+  · Santander → REPROVADO (vermelho)
+  · BB → APROVADO (verde)
+  · Spotify → AGUARDANDO (âmbar)
+
+- Item #0062 (2×1 Padrão):
+  · Spotify → REPROVADO (vermelho)
+
+Todos os badges com: border-radius 100px, padding 3px 10px,
+font-size 11px, font-weight 600, gap 4px entre ícone e texto
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEMA 2 — CONTADOR "PENDENTES" INCORRETO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Pendentes" deve contar apenas itens que precisam de ação
+IMEDIATA do patrocinador — ou seja, que têm pelo menos
+1 patrocinador com status REPROVADO ou AGUARDANDO
+E que não estão bloqueados por ajuste da Arte.
+
+Lógica do contador:
+  pendentes = itens onde:
+    - tem patrocinador REPROVADO ou AGUARDANDO
+    - E o item NÃO está com status "Em Ajuste (Arte)"
+
+Resultado correto com os dados atuais:
+  - Item #0067: Santander reprovado + Spotify aguardando
+    → conta como 1 pendente (ação necessária)
+  - Item #0062: Spotify reprovado MAS está "Em Ajuste (Arte)"
+    → NÃO conta (bloqueado, Arte precisa reenviar primeiro)
+  Total correto: "1 Pendente" (não 3)
+
+Badge no header:
+  "1 Pendente" → singular quando for 1
+  "X Pendentes" → plural quando for 2+
+  Cor: background #fef2f2, border 1px solid #fecaca,
+  color #dc2626, border-radius 100px,
+  font-size 12px, font-weight 700, padding 3px 12px
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BADGE "EM AJUSTE (ARTE)" NO ID
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Manter abaixo do ID mas melhorar visual:
+  background #fff7ed, border 1px solid #fed7aa,
+  color #c2410c, border-radius 6px,
+  font-size 10px, font-weight 600, padding 2px 8px
+  ícone ↺ antes do texto

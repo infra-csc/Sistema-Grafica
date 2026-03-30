@@ -50,6 +50,7 @@ export default function Arte() {
   const [correcaoItem, setCorrecaoItem] = useState<any>(null);
   const [correcaoThumbUrl, setCorrecaoThumbUrl] = useState<string>("");
   const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
+  const [correcaoSponsorFilter, setCorrecaoSponsorFilter] = useState<string>("all");
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -712,174 +713,265 @@ export default function Arte() {
                 <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 6 }}>Sem correção pendente</h3>
                 <p style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum item aguarda nova versão de arte</p>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {correcaoItems.map((item: any) => (
-                  <div
-                    key={item.id}
-                    data-testid={`card-correcao-${item.id}`}
-                    style={{
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e7e5e4',
-                      borderLeft: '4px solid #dc2626',
-                      borderRadius: 14,
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {/* ── HEADER ─────────────────────────────── */}
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #e7e5e4' }}>
-                      {/* Row 1 — 4 colunas */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 10 }}>
-                        <span style={{
-                          fontFamily: '"DM Mono", monospace', fontWeight: 700, fontSize: 13,
-                          backgroundColor: '#1c1917', color: '#ffffff',
-                          padding: '3px 8px', borderRadius: 6,
-                        }}>
-                          {item.displayId}
-                        </span>
-                        <span style={{
-                          backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
-                          borderRadius: 6, padding: '3px 9px',
-                          fontSize: 12, fontWeight: 600, color: '#1c1917',
-                        }}>
-                          {item.type}
-                        </span>
-                        <span style={{ fontSize: 12, color: '#a8a29e' }}>
-                          <span style={{ color: '#a8a29e' }}>Qtde: </span>
-                          <span style={{ fontWeight: 600, color: '#1c1917' }}>{item.quantity ?? '—'}</span>
-                        </span>
-                        <span style={{
-                          backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-                          color: '#dc2626', borderRadius: 6,
-                          fontSize: 11, fontWeight: 700, letterSpacing: '0.4px',
-                          padding: '3px 10px', whiteSpace: 'nowrap',
-                        }}>
-                          CORREÇÃO
-                        </span>
-                      </div>
-                      {/* Row 2 — metadados */}
-                      {item.event && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8 }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#a8a29e' }}>
-                            <Calendar style={{ width: 12, height: 12 }} />
-                            {item.event.name}
-                          </span>
-                          {item.event.truckDepartureDate && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#a8a29e' }}>
-                              <Truck style={{ width: 12, height: 12 }} />
-                              Saída: {new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
+            ) : (() => {
+              // Compute unique sponsors across all correcao items
+              const correcaoSponsors: { id: string; name: string; color: string }[] = [];
+              const seenSponsorIds = new Set<string>();
+              correcaoItems.forEach((item: any) => {
+                (item.awaitingArteApprovals || []).forEach((a: any) => {
+                  if (a.sponsor && !seenSponsorIds.has(a.sponsorId)) {
+                    seenSponsorIds.add(a.sponsorId);
+                    correcaoSponsors.push({ id: a.sponsorId, name: a.sponsor.name, color: a.sponsor.color });
+                  }
+                });
+              });
 
-                    {/* ── REPROVADO POR ────────────────────────── */}
-                    <div style={{ padding: '16px 20px' }}>
-                      <p style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 10 }}>
-                        Reprovado por
-                      </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {item.awaitingArteApprovals.map((approval: any) => (
-                          <div
-                            key={approval.id}
-                            style={{
-                              backgroundColor: '#fef2f2',
-                              border: '1px solid #fecaca',
-                              borderRadius: 10,
-                              padding: '14px 16px',
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              {approval.sponsor?.color && (
-                                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
-                              )}
-                              <span style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>
-                                {approval.sponsor?.name || 'Patrocinador'}
-                              </span>
-                              <span style={{ fontSize: 11, color: '#a8a29e', marginLeft: 2 }}>
-                                por {approval.rejectedBy}
-                                {approval.rejectedAt && <> em {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')}</>}
-                              </span>
-                            </div>
-                            {approval.rejectionReason && (
-                              <div style={{
-                                backgroundColor: '#ffffff', border: '1px solid #fecaca',
-                                borderRadius: 8, padding: '10px 14px', marginTop: 10,
-                              }}>
-                                <span style={{ fontWeight: 700, color: '#dc2626', fontSize: 13 }}>Motivo:</span>
-                                <span style={{ color: '#1c1917', fontSize: 13 }}> {approval.rejectionReason}</span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+              // Apply sponsor filter
+              const filteredCorrecaoItems = correcaoSponsorFilter === "all"
+                ? correcaoItems
+                : correcaoItems.filter((item: any) =>
+                    (item.awaitingArteApprovals || []).some((a: any) => a.sponsorId === correcaoSponsorFilter)
+                  );
 
-                    {/* ── THUMB REPROVADO ─────────────────────── */}
-                    {item.approvalThumbUrl && (
-                      <div style={{ padding: '0 20px 16px' }}>
-                        <p style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
-                          Thumb Reprovado
-                        </p>
-                        {/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) ? (
-                          <div style={{ border: '1px solid #fecaca', borderRadius: 8, overflow: 'hidden', display: 'flex', justifyContent: 'center', backgroundColor: '#fafaf9' }}>
-                            <img src={item.approvalThumbUrl} alt="Thumb reprovado" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain' }} />
-                          </div>
-                        ) : (
-                          <a
-                            href={item.approvalThumbUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                              width: '100%', height: 40,
-                              backgroundColor: '#fafaf9', border: '1px dashed #fecaca', borderRadius: 8,
-                              color: '#dc2626', fontSize: 13, fontWeight: 500,
-                              textDecoration: 'none', transition: 'background 0.15s',
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fef2f2')}
-                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fafaf9')}
-                          >
-                            <FileText style={{ width: 15, height: 15 }} />
-                            Ver arquivo reprovado
-                          </a>
-                        )}
-                      </div>
-                    )}
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-                    {/* ── FOOTER ──────────────────────────────── */}
+                  {/* ── FILTRO POR PATROCINADOR ──────────────── */}
+                  {correcaoSponsors.length > 1 && (
                     <div style={{
-                      padding: '12px 20px',
-                      borderTop: '1px solid #e7e5e4',
-                      backgroundColor: '#fafaf9',
-                      display: 'flex', justifyContent: 'flex-end',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      marginBottom: 14, flexWrap: 'wrap',
                     }}>
-                      <button
-                        onClick={() => {
-                          setCorrecaoItem(item);
-                          setCorrecaoThumbUrl("");
-                          setCorrecaoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
-                        }}
-                        data-testid={`button-open-correcao-${item.id}`}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 6,
-                          backgroundColor: '#dc2626', color: '#ffffff', border: 'none',
-                          borderRadius: 8, height: 38, padding: '0 18px',
-                          fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                          transition: 'background 0.2s',
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#b91c1c')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#dc2626')}
-                      >
-                        <RotateCcw style={{ width: 14, height: 14 }} />
-                        Enviar Nova Arte
-                      </button>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+                        Filtrar:
+                      </span>
+                      {[{ id: "all", name: "Todos", color: "#a8a29e" }, ...correcaoSponsors].map(sp => {
+                        const isActive = correcaoSponsorFilter === sp.id;
+                        return (
+                          <button
+                            key={sp.id}
+                            onClick={() => setCorrecaoSponsorFilter(sp.id)}
+                            data-testid={`filter-correcao-sponsor-${sp.id}`}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 6,
+                              height: 30, padding: '0 12px', borderRadius: 100,
+                              border: isActive ? '1.5px solid #dc2626' : '1px solid #e7e5e4',
+                              backgroundColor: isActive ? '#fef2f2' : '#ffffff',
+                              color: isActive ? '#dc2626' : '#78716c',
+                              fontSize: 12, fontWeight: isActive ? 700 : 500,
+                              cursor: 'pointer', transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = '#1c1917'; e.currentTarget.style.color = '#1c1917'; } }}
+                            onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; } }}
+                          >
+                            {sp.id !== "all" && (
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: sp.color, flexShrink: 0 }} />
+                            )}
+                            {sp.name}
+                          </button>
+                        );
+                      })}
                     </div>
+                  )}
+
+                  {/* ── CONTADOR ─────────────────────────────── */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{
+                      width: 8, height: 8, borderRadius: '50%', backgroundColor: '#dc2626',
+                      flexShrink: 0, animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
+                    }} />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#dc2626' }}>
+                      {filteredCorrecaoItems.length} {filteredCorrecaoItems.length === 1 ? 'item aguardando' : 'itens aguardando'} correção
+                      {correcaoSponsorFilter !== "all" && ` · ${correcaoSponsors.find(s => s.id === correcaoSponsorFilter)?.name}`}
+                    </span>
                   </div>
-                ))}
-              </div>
-            )
+
+                  {/* ── CARDS ────────────────────────────────── */}
+                  {filteredCorrecaoItems.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                      <p style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum item para o patrocinador selecionado</p>
+                    </div>
+                  ) : filteredCorrecaoItems.map((item: any) => {
+                    const approvalsToShow = correcaoSponsorFilter === "all"
+                      ? item.awaitingArteApprovals
+                      : item.awaitingArteApprovals.filter((a: any) => a.sponsorId === correcaoSponsorFilter);
+                    return (
+                      <div
+                        key={item.id}
+                        data-testid={`card-correcao-${item.id}`}
+                        style={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e7e5e4',
+                          borderLeft: '4px solid #dc2626',
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          marginBottom: 12,
+                        }}
+                      >
+                        {/* ── LINHA 1 — HEADER COMPACTO ─────────── */}
+                        <div style={{
+                          padding: '14px 16px 10px',
+                          display: 'flex', alignItems: 'center',
+                          gap: 8, flexWrap: 'wrap',
+                        }}>
+                          <span style={{
+                            fontFamily: '"DM Mono", monospace', fontWeight: 700, fontSize: 12,
+                            backgroundColor: '#1c1917', color: '#ffffff',
+                            padding: '3px 8px', borderRadius: 6, flexShrink: 0,
+                          }}>
+                            {item.displayId}
+                          </span>
+                          <span style={{
+                            backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
+                            borderRadius: 6, padding: '3px 9px',
+                            fontSize: 12, fontWeight: 600, color: '#1c1917', flexShrink: 0,
+                          }}>
+                            {item.type}
+                          </span>
+                          <span style={{ color: '#e7e5e4', flexShrink: 0 }}>·</span>
+                          <span style={{ fontSize: 12, color: '#78716c', flexShrink: 0 }}>
+                            Qtde: <strong style={{ color: '#1c1917' }}>{item.quantity ?? '—'}</strong>
+                          </span>
+                          {item.event && (
+                            <>
+                              <span style={{ color: '#e7e5e4', flexShrink: 0 }}>·</span>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#78716c', flexShrink: 0 }}>
+                                <Calendar style={{ width: 11, height: 11 }} />
+                                {item.event.name}
+                              </span>
+                              {item.event.truckDepartureDate && (
+                                <>
+                                  <span style={{ color: '#e7e5e4', flexShrink: 0 }}>·</span>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#78716c', flexShrink: 0 }}>
+                                    <Truck style={{ width: 11, height: 11 }} />
+                                    Saída: {new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')}
+                                  </span>
+                                </>
+                              )}
+                            </>
+                          )}
+                          <span style={{
+                            marginLeft: 'auto', flexShrink: 0,
+                            backgroundColor: '#fef2f2', border: '1px solid #fecaca',
+                            color: '#dc2626', borderRadius: 6,
+                            fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
+                            padding: '3px 10px',
+                          }}>
+                            CORREÇÃO
+                          </span>
+                        </div>
+
+                        {/* ── LINHA 2 — REPROVAÇÕES ─────────────── */}
+                        <div style={{
+                          padding: '0 16px 12px',
+                          borderTop: '1px solid #fef2f2', paddingTop: 10,
+                        }}>
+                          <p style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
+                            Reprovado por
+                          </p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {approvalsToShow.map((approval: any) => (
+                              <div
+                                key={approval.id}
+                                style={{
+                                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                                  backgroundColor: '#fef2f2', border: '1px solid #fecaca',
+                                  borderRadius: 8, padding: '10px 12px',
+                                }}
+                              >
+                                {/* Coluna esquerda */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                                    {approval.sponsor?.color && (
+                                      <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
+                                    )}
+                                    <span style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>
+                                      {approval.sponsor?.name || 'Patrocinador'}
+                                    </span>
+                                    <span style={{ fontSize: 11, color: '#a8a29e' }}>
+                                      por {approval.rejectedBy}
+                                      {approval.rejectedAt && <> em {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')}</>}
+                                    </span>
+                                  </div>
+                                  {approval.rejectionReason && (
+                                    <div style={{
+                                      backgroundColor: '#ffffff', border: '1px solid #fecaca',
+                                      borderRadius: 6, padding: '6px 10px', marginTop: 6,
+                                      fontSize: 12,
+                                    }}>
+                                      <span style={{ fontWeight: 700, color: '#dc2626' }}>Motivo:</span>
+                                      <span style={{ color: '#1c1917' }}> {approval.rejectionReason}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Coluna direita — botão ver arquivo */}
+                                {item.approvalThumbUrl && (
+                                  <a
+                                    href={item.approvalThumbUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      flexShrink: 0,
+                                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                                      backgroundColor: '#ffffff', border: '1px solid #fecaca',
+                                      color: '#dc2626', borderRadius: 6,
+                                      fontSize: 11, fontWeight: 500,
+                                      padding: '5px 10px', whiteSpace: 'nowrap',
+                                      textDecoration: 'none', transition: 'background 0.15s',
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fef2f2')}
+                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
+                                  >
+                                    <FileText style={{ width: 11, height: 11 }} />
+                                    Ver arquivo
+                                  </a>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* ── LINHA 3 — FOOTER ──────────────────── */}
+                        <div style={{
+                          padding: '10px 16px',
+                          backgroundColor: '#fafaf9',
+                          borderTop: '1px solid #e7e5e4',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#a8a29e' }}>
+                            {item.approvalThumbUrl ? (
+                              <><FileText style={{ width: 12, height: 12 }} /> Thumb reprovado anexado</>
+                            ) : (
+                              <span style={{ color: '#fca5a5' }}>Sem thumb anterior</span>
+                            )}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setCorrecaoItem(item);
+                              setCorrecaoThumbUrl("");
+                              setCorrecaoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
+                            }}
+                            data-testid={`button-open-correcao-${item.id}`}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 6,
+                              backgroundColor: '#dc2626', color: '#ffffff', border: 'none',
+                              borderRadius: 8, height: 36, padding: '0 16px',
+                              fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                              transition: 'background 0.2s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#b91c1c')}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#dc2626')}
+                          >
+                            <RotateCcw style={{ width: 13, height: 13 }} />
+                            Enviar Nova Arte
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
           ) : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

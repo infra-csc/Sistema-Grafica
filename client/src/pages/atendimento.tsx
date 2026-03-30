@@ -31,7 +31,7 @@ interface SponsorApproval {
   id: string;
   itemId: string;
   sponsorId: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'awaiting_arte' | 'new_version_pending';
   approvedBy?: string | null;
   approvedAt?: Date | null;
   rejectedBy?: string | null;
@@ -937,17 +937,29 @@ export default function Atendimento() {
                                   </div>
                                   
                                   <div className="flex items-center justify-between gap-2">
-                                    <div>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
                                       {status === 'approved' && (
                                         <Badge variant="default" className="bg-green-500 text-xs">
                                           <CheckCircle className="w-3 h-3 mr-1" />
                                           Aprovado
                                         </Badge>
                                       )}
-                                      {status === 'rejected' && (
+                                      {(status === 'rejected') && (
                                         <Badge variant="destructive" className="text-xs">
                                           <XCircle className="w-3 h-3 mr-1" />
                                           Reprovado
+                                        </Badge>
+                                      )}
+                                      {status === 'awaiting_arte' && (
+                                        <Badge className="text-xs" style={{ backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>
+                                          <AlertCircle className="w-3 h-3 mr-1" />
+                                          Aguardando Arte
+                                        </Badge>
+                                      )}
+                                      {status === 'new_version_pending' && (
+                                        <Badge className="text-xs" style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                                          <Eye className="w-3 h-3 mr-1" />
+                                          Nova Arte Recebida
                                         </Badge>
                                       )}
                                       {status === 'pending' && (
@@ -958,7 +970,7 @@ export default function Atendimento() {
                                       )}
                                     </div>
                                     
-                                    {status === 'pending' && !isRejectingThis && (
+                                    {(status === 'pending' || status === 'new_version_pending') && !isRejectingThis && (
                                       <div className="flex items-center gap-1">
                                         <Button
                                           size="sm"
@@ -989,6 +1001,9 @@ export default function Atendimento() {
                                           Aprovar
                                         </Button>
                                       </div>
+                                    )}
+                                    {status === 'awaiting_arte' && (
+                                      <span style={{ fontSize: 11, color: '#a8a29e' }}>Botões bloqueados até Arte reenviar</span>
                                     )}
                                   </div>
                                   
@@ -1051,15 +1066,15 @@ export default function Atendimento() {
                                     </div>
                                   )}
                                   
-                                  {approval?.rejectedBy && status === 'rejected' && (
-                                    <div className="text-xs text-red-600 mt-1">
+                                  {approval?.rejectedBy && (status === 'rejected' || status === 'awaiting_arte' || status === 'new_version_pending') && (
+                                    <div className="text-xs mt-1" style={{ color: '#c2410c' }}>
                                       Reprovado por {approval.rejectedBy}
                                       {approval.rejectedAt && (
                                         <> em {format(new Date(approval.rejectedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</>
                                       )}
                                       {approval.rejectionReason && (
-                                        <div className="mt-1 text-muted-foreground">
-                                          Motivo: {approval.rejectionReason}
+                                        <div className="mt-1 rounded px-2 py-1" style={{ backgroundColor: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' }}>
+                                          <strong>Motivo:</strong> {approval.rejectionReason}
                                         </div>
                                       )}
                                     </div>

@@ -1,0 +1,51 @@
+"Implemente o fluxo completo de reprovação de itens e retrabalho de arte, adotando o design system Titanium e utilizando controle de status por patrocinador (e não apenas por item).
+
+1. Lógica de Status (O Motor do Fluxo):
+
+O status de aprovação não pertence mais apenas ao item, mas a cada patrocinador vinculado a ele.
+
+Status possíveis por patrocinador: Pendente, Aprovado, Reprovado_Aguardando_Arte, Nova_Versao_Pendente.
+
+2. Tela de Atendimento/Aprovação (A Origem da Reprovação):
+
+Ação de Reprovar: Ao clicar em 'Solicitar Ajuste/Reprovar', abrir um modal pequeno exigindo o 'Motivo' e anexando a thumb atual reprovada.
+
+Visual Pós-Reprovação: O item NÃO SOME da tela de Atendimento.
+
+Ao lado do patrocinador que reprovou, exiba uma badge amarela/laranja clara: 'Aguardando Arte'.
+
+Os botões de Aprovar/Reprovar para esse patrocinador ficam desabilitados (disabled) até que a arte volte.
+
+Se houver outros patrocinadores no mesmo item, o fluxo deles segue normal (podem aprovar ou reprovar independentemente).
+
+3. Tela de Arte (O Retrabalho do Designer):
+
+Gatilho: Qualquer item que tenha pelo menos um patrocinador com status Reprovado_Aguardando_Arte deve aparecer aqui.
+
+Estrutura do Card de Retrabalho (Titanium):
+
+Borda esquerda grossa em Laranja ou Vermelho Terracota (border-[#c2410c]).
+
+Sinalização do Erro: Exiba claramente 'Reprovado por: [Dots e Nomes dos Patrocinadores]'.
+
+Box de Motivo e Thumb: Mostre a miniatura (thumb) reprovada e o motivo escrito pelo atendimento em um box de destaque com fundo #fff7ed e texto #1c1917.
+
+Ação de Resolução (Upload Seletivo):
+
+Adicione um campo de upload de nova arte (Dropzone Titanium: borda tracejada #e7e5e4).
+
+Matrix de Seleção: Abaixo do upload, liste os patrocinadores que reprovaram com checkboxes. O designer sobe a nova arte e marca para quais patrocinadores aquela arte serve.
+
+4. O Retorno (Da Arte para o Atendimento):
+
+Ao clicar em 'Enviar Nova Arte', o sistema atualiza o status dos patrocinadores selecionados para Nova_Versao_Pendente.
+
+Reflexo na Tela de Atendimento: O status 'Aguardando Arte' some. No lugar, aparece uma tag de destaque 'Nova Arte Recebida'.
+
+A nova thumb substitui a antiga na tela de conferência, e os botões de Aprovar/Reprovar voltam a ficar habilitados para uma nova avaliação.
+
+5. Estética Visual Geral:
+
+Mantenha estritamente as cores de identificação originais dos patrocinadores (os dots).
+
+Use o fundo #fafaf9 para as páginas e #ffffff para os cards de itens."

@@ -1131,6 +1131,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get items that have at least one awaiting_arte sponsor approval (for Arte retrabalho) - MUST come BEFORE /:eventId
+  app.get("/api/items/resubmission-needed", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Acesso não autorizado" });
+      }
+
+      const allItems = await storage.getAllItems();
+      const awaitingItems = allItems.filter(i => i.status === "awaiting_sponsor_approval");
+
+      const result = [];
+      for (const item of awaitingItems) {
+        const approvals = await storage.getItemSponsorApprovals(item.id);
+        const awaitingArte = approvals.filter((a: any) => a.status === "awaiting_arte");
+        if (awaitingArte.length === 0) continue;
+
+        const itemSponsors = await storage.getItemSponsors(item.id);
+        const sponsorMap = new Map<string, any>();
+        for (const is of itemSponsors) {
+          const s = await storage.getSponsor(is.sponsorId);
+          if (s) sponsorMap.set(is.sponsorId, s);
+        }
+
+        const event = await storage.getEvent(item.eventId);
+
+        result.push({
+          ...item,
+          event,
+          awaitingArteApprovals: awaitingArte.map((a: any) => ({
+            ...a,
+            sponsor: sponsorMap.get(a.sponsorId) || null,
+          })),
+        });
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get approved items with event and sponsors (for Gráfica module) - MUST come BEFORE /:eventId route
   app.get("/api/items/approved", async (req, res) => {
     try {
@@ -1429,14 +1470,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (currentItem.status === "awaiting_submission" && nextStatus === "awaiting_sponsor_approval") {
         const existingApprovals = await storage.getItemSponsorApprovals(req.params.id);
         for (const approval of existingApprovals) {
-          await storage.updateItemSponsorApproval(approval.id, {
-            status: 'pending',
-            approvedBy: null,
-            approvedAt: null,
-            rejectedBy: null,
-            rejectedAt: null,
-            rejectionReason: null,
-          });
+          // Reset any non-approved status back to pending
+          if (['awaiting_arte', 'new_version_pending', 'rejected'].includes(approval.status)) {
+            await storage.updateItemSponsorApproval(approval.id, {
+              status: 'pending',
+              approvedBy: null,
+              approvedAt: null,
+              rejectedBy: null,
+              rejectedAt: null,
+              rejectionReason: null,
+            });
+          }
         }
       }
 
@@ -1686,6 +1730,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get or create approval record
       let approval = await storage.getItemSponsorApproval(itemId, sponsorId);
+
+      // Prevent approving a sponsor that is waiting for Arte to resubmit
+      if (approval && approval.status === 'awaiting_arte') {
+        return res.status(409).json({ error: "Aguardando nova versão da Arte para este patrocinador. Não é possível aprovar agora." });
+      }
       
       if (approval) {
         // Update existing approval
@@ -1803,7 +1852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (approval) {
         // Update existing approval
         approval = await storage.updateItemSponsorApproval(approval.id, {
-          status: 'rejected',
+          status: 'awaiting_arte',
           rejectedBy: req.userName,
           rejectedAt: new Date(),
           rejectionReason: rejectionReason || null,
@@ -1815,7 +1864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         approval = await storage.createItemSponsorApproval({
           itemId,
           sponsorId,
-          status: 'rejected',
+          status: 'awaiting_arte',
           rejectedBy: req.userName,
           rejectedAt: new Date(),
           rejectionReason: rejectionReason || null,
@@ -1826,84 +1875,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sponsor = await storage.getSponsor(sponsorId);
       const event = await storage.getEvent(currentItem.eventId);
       
-      // Check if there are still pending approvals
-      const allApprovals = await storage.getItemSponsorApprovals(itemId);
-      const pendingCount = allApprovals.filter(a => a.status === 'pending').length;
-      const hasRejections = allApprovals.some(a => a.status === 'rejected');
+      // Item stays in awaiting_sponsor_approval — only leaves when ALL sponsors approve
+      const item = (await storage.updateItem(itemId, {
+        rejectedBySponsor: true,
+      }))!;
       
-      let item = currentItem;
-      let shouldNotifyArte = true;
+      await createAuditLog(
+        req.userName!,
+        'rejected',
+        'item',
+        itemId,
+        `Patrocinador "${sponsor?.name || sponsorId}" reprovou o item. Item aguarda nova versão da Arte${rejectionReason ? `. Motivo: ${rejectionReason}` : ''}`
+      );
       
-      if (pendingCount > 0) {
-        // Still have pending approvals - keep item in Atendimento
-        // But notify Arte about the rejection so they can start working on a new thumb
-        item = (await storage.updateItem(itemId, {
-          rejectedBySponsor: true,
-        }))!;
-        
-        await createAuditLog(
-          req.userName!,
-          'rejected',
-          'item',
-          itemId,
-          `Patrocinador "${sponsor?.name || sponsorId}" reprovou o item. Aguardando ${pendingCount} patrocinador(es) pendente(s)${rejectionReason ? `. Motivo: ${rejectionReason}` : ''}`
-        );
-        
-        // Notify Arte about the rejection (they can prepare new thumb)
-        const notification = await storage.createNotification({
-          type: "itemRejected",
-          message: `Patrocinador "${sponsor?.name}" reprovou o item. Item ainda aguarda ${pendingCount} patrocinador(es). Prepare novo thumb: ${currentItem.type} - Evento: ${event?.name}`,
-          eventId: currentItem.eventId,
-          itemId: itemId,
-          targetRoles: ["arte"],
-        });
-        
-        broadcast({ type: "notification_created", notification });
-        
-        res.json({ 
-          approval, 
-          item, 
-          pendingCount,
-          allDecided: false,
-          message: `Reprovação registrada. Aguardando ${pendingCount} patrocinador(es) pendente(s).`
-        });
-      } else {
-        // All sponsors have decided - if any rejected, send back to Arte
-        item = (await storage.updateItem(itemId, {
-          status: "awaiting_submission",
-          sponsorApprovedBy: null,
-          sponsorApprovedAt: null,
-          rejectedBySponsor: true,
-        }))!;
-        
-        await createAuditLog(
-          req.userName!,
-          'rejected',
-          'item',
-          itemId,
-          `Patrocinador "${sponsor?.name || sponsorId}" reprovou. Todos patrocinadores decidiram - item retorna para Arte${rejectionReason ? `. Motivo: ${rejectionReason}` : ''}`
-        );
-        
-        // Notify Arte to redo the work
-        const notification = await storage.createNotification({
-          type: "itemRejected",
-          message: `Item reprovado por patrocinador(es). Refaça o thumb de aprovação: ${currentItem.type} - Evento: ${event?.name}`,
-          eventId: currentItem.eventId,
-          itemId: itemId,
-          targetRoles: ["arte"],
-        });
-        
-        broadcast({ type: "item_updated", item });
-        broadcast({ type: "notification_created", notification });
-        
-        res.json({ 
-          approval, 
-          item, 
-          pendingCount: 0,
-          allDecided: true,
-          message: "Todos patrocinadores decidiram. Item retornou para Arte."
-        });
+      // Notify Arte to prepare a new version for this sponsor
+      const notification = await storage.createNotification({
+        type: "itemRejected",
+        message: `Patrocinador "${sponsor?.name}" reprovou. Envie nova arte para: ${currentItem.type} - Evento: ${event?.name}`,
+        eventId: currentItem.eventId,
+        itemId: itemId,
+        targetRoles: ["arte"],
+      });
+      
+      broadcast({ type: "notification_created", notification });
+      
+      res.json({ 
+        approval, 
+        item, 
+        message: `Reprovação registrada. Item aguarda nova arte para o patrocinador.`
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Arte submits new version for specific sponsors (retrabalho)
+  app.post("/api/items/:id/sponsor-approvals/resubmit", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Arte podem enviar nova versão" });
       }
+
+      const { id: itemId } = req.params;
+      const { newThumbUrl, sponsorIds } = req.body as { newThumbUrl: string; sponsorIds: string[] };
+
+      if (!newThumbUrl) {
+        return res.status(400).json({ error: "newThumbUrl é obrigatório" });
+      }
+      if (!sponsorIds || sponsorIds.length === 0) {
+        return res.status(400).json({ error: "Selecione pelo menos um patrocinador" });
+      }
+
+      const currentItem = await storage.getItem(itemId);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item não encontrado" });
+      }
+      if (currentItem.status !== "awaiting_sponsor_approval") {
+        return res.status(409).json({ error: "Item não está aguardando aprovação do patrocinador" });
+      }
+
+      // Update each selected sponsor approval: awaiting_arte → new_version_pending
+      for (const sponsorId of sponsorIds) {
+        const approval = await storage.getItemSponsorApproval(itemId, sponsorId);
+        if (approval && approval.status === "awaiting_arte") {
+          await storage.updateItemSponsorApproval(approval.id, {
+            status: "new_version_pending",
+          });
+        }
+      }
+
+      // Update item thumb with the new version
+      const item = await storage.updateItem(itemId, {
+        approvalThumbUrl: newThumbUrl,
+        rejectedBySponsor: false,
+      });
+
+      const event = await storage.getEvent(currentItem.eventId);
+
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'item',
+        itemId,
+        `Arte enviou nova versão do thumb para ${sponsorIds.length} patrocinador(es). Aguarda revisão do Atendimento.`
+      );
+
+      // Notify Atendimento
+      const notification = await storage.createNotification({
+        type: "itemRejected",
+        message: `Nova versão de arte enviada. Revise o thumb: ${currentItem.type} - Evento: ${event?.name}`,
+        eventId: currentItem.eventId,
+        itemId: itemId,
+        targetRoles: ["atendimento"],
+      });
+
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+
+      res.json({ item, message: "Nova versão enviada. Atendimento notificado." });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

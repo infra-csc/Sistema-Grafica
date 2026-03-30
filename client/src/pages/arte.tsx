@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, ClipboardList, Send, FolderOpen, FileText } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, ClipboardList, Send, FolderOpen, FileText, RotateCcw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -46,8 +46,17 @@ export default function Arte() {
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [sharedPdfUrl, setSharedPdfUrl] = useState<string>("");
 
+  // Retrabalho states
+  const [retrabalhoItem, setRetrabalhoItem] = useState<any>(null);
+  const [retrabalhoThumbUrl, setRetrabalhoThumbUrl] = useState<string>("");
+  const [retrabalhoSelectedSponsorIds, setRetrabalhoSelectedSponsorIds] = useState<Set<string>>(new Set());
+
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
+  });
+
+  const { data: retrabalhoItems = [], isLoading: retrabalhoLoading } = useQuery<any[]>({
+    queryKey: ["/api/items/resubmission-needed"],
   });
 
   const { data: events = [] } = useQuery<any[]>({
@@ -130,6 +139,26 @@ export default function Arte() {
     },
   });
 
+  const resubmitMutation = useMutation({
+    mutationFn: async ({ itemId, newThumbUrl, sponsorIds }: { itemId: string; newThumbUrl: string; sponsorIds: string[] }) => {
+      return await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/resubmit`, { newThumbUrl, sponsorIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setRetrabalhoItem(null);
+      setRetrabalhoThumbUrl("");
+      setRetrabalhoSelectedSponsorIds(new Set());
+      toast({
+        title: "Nova arte enviada",
+        description: "O Atendimento foi notificado para revisar",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
+    },
+  });
+
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});
     const data = await response.json();
@@ -180,9 +209,11 @@ export default function Arte() {
         const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
         let matchesView = false;
         if (tab === "criar-aprovacoes") {
+          // 'awaiting_submission' = rejected by creator (Solicitação) → Arte needs to redo + resubmit
+          // 'requested' = new item, Arte needs to send for approval
+          // Note: awaiting_arte sponsor rejections now appear in the Retrabalho tab, NOT here
           matchesView = item.status === 'requested' || 
-            item.status === 'awaiting_submission' ||
-            (item.status === 'awaiting_sponsor_approval' && item.rejectedBySponsor === true);
+            item.status === 'awaiting_submission';
         } else if (tab === "finalizar-layouts") {
           matchesView = item.status === 'sponsor_approved';
         } else if (tab === "finalizados") {
@@ -241,6 +272,7 @@ export default function Arte() {
   const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
   const finalizadosCount = getFilteredItemsForTab("finalizados").length;
+  const retrabalhoCount = retrabalhoItems.length;
 
   const pendingItems = filteredItems.filter(item => item.status === 'requested' || item.status === 'awaiting_submission');
 
@@ -388,11 +420,13 @@ export default function Arte() {
       }}>
         {[
           { id: "criar-aprovacoes", label: "Mandar para Aprovação", count: pendingCount, icon: Send, testId: "tab-criar-aprovacoes" },
+          { id: "retrabalho", label: "Retrabalho", count: retrabalhoCount, icon: RotateCcw, testId: "tab-retrabalho", alert: retrabalhoCount > 0 },
           { id: "finalizar-layouts", label: "Finalizar Arte", count: needsFinalFileCount, icon: Upload, testId: "tab-finalizar-layouts" },
           { id: "finalizados", label: "Finalizados", count: finalizadosCount, icon: CheckCircle, testId: "tab-finalizados" },
         ].map(tab => {
           const isActive = activeTab === tab.id;
           const Icon = tab.icon;
+          const hasAlert = (tab as any).alert;
           return (
             <button
               key={tab.id}
@@ -406,14 +440,14 @@ export default function Arte() {
                 gap: 10,
                 padding: '10px 16px',
                 borderRadius: 8,
-                border: 'none',
+                border: hasAlert && !isActive ? '1px solid #fed7aa' : 'none',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
-                backgroundColor: isActive ? '#1c1917' : 'transparent',
-                color: isActive ? '#ffffff' : '#1c1917',
+                backgroundColor: isActive ? (hasAlert ? '#c2410c' : '#1c1917') : (hasAlert ? '#fff7ed' : 'transparent'),
+                color: isActive ? '#ffffff' : (hasAlert ? '#c2410c' : '#1c1917'),
               }}
             >
-              <Icon style={{ width: 15, height: 15, opacity: isActive ? 1 : 0.6 }} />
+              <Icon style={{ width: 15, height: 15, opacity: isActive ? 1 : 0.8 }} />
               <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{tab.label}</span>
               <span style={{
                 display: 'inline-flex',
@@ -424,8 +458,8 @@ export default function Arte() {
                 borderRadius: 6,
                 fontSize: 11,
                 fontWeight: 700,
-                backgroundColor: isActive ? '#f97316' : '#f5f5f4',
-                color: isActive ? '#ffffff' : '#71717a',
+                backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : (hasAlert ? '#fecaca' : '#f5f5f4'),
+                color: isActive ? '#ffffff' : (hasAlert ? '#b91c1c' : '#71717a'),
                 padding: '0 6px',
               }}>
                 {tab.count}
@@ -623,7 +657,153 @@ export default function Arte() {
             </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {activeTab === "retrabalho" ? (
+            /* ---- RETRABALHO TAB ---- */
+            retrabalhoLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : retrabalhoItems.length === 0 ? (
+              <div className="text-center py-12">
+                <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 6 }}>Sem retrabalho pendente</h3>
+                <p style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum item aguarda nova versão de arte</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {retrabalhoItems.map((item: any) => (
+                  <div
+                    key={item.id}
+                    data-testid={`card-retrabalho-${item.id}`}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e7e5e4',
+                      borderLeft: '4px solid #c2410c',
+                      borderRadius: 10,
+                      padding: 16,
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14, color: '#f97316' }}>{item.displayId}</span>
+                          <span style={{ fontWeight: 700, fontSize: 14, color: '#1c1917' }}>{item.type}</span>
+                          {item.quantity && (
+                            <span style={{ fontSize: 12, color: '#78716c', backgroundColor: '#f5f5f4', borderRadius: 4, padding: '1px 6px' }}>
+                              Qtde: {item.quantity}
+                            </span>
+                          )}
+                        </div>
+                        {item.event && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Calendar style={{ width: 12, height: 12, color: '#a8a29e' }} />
+                            <span style={{ fontSize: 12, color: '#78716c' }}>{item.event.name}</span>
+                            {item.event.truckDepartureDate && (
+                              <>
+                                <Truck style={{ width: 12, height: 12, color: '#a8a29e' }} />
+                                <span style={{ fontSize: 12, color: '#78716c' }}>
+                                  Saída: {new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, color: '#c2410c', backgroundColor: '#fff7ed',
+                          border: '1px solid #fed7aa', borderRadius: 4, padding: '2px 8px'
+                        }}>
+                          RETRABALHO
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Sponsors that rejected */}
+                    <div style={{ marginBottom: 14 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Reprovado por:
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {item.awaitingArteApprovals.map((approval: any) => (
+                          <div
+                            key={approval.id}
+                            style={{
+                              backgroundColor: '#fafaf9',
+                              border: '1px solid #e7e5e4',
+                              borderRadius: 8,
+                              padding: '10px 12px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                              {approval.sponsor?.color && (
+                                <span style={{
+                                  width: 10, height: 10, borderRadius: '50%',
+                                  backgroundColor: approval.sponsor.color, flexShrink: 0
+                                }} />
+                              )}
+                              <span style={{ fontWeight: 600, fontSize: 13, color: approval.sponsor?.color || '#1c1917' }}>
+                                {approval.sponsor?.name || 'Patrocinador'}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#a8a29e' }}>
+                                por {approval.rejectedBy}
+                                {approval.rejectedAt && <> em {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')}</>}
+                              </span>
+                            </div>
+                            {approval.rejectionReason && (
+                              <div style={{
+                                backgroundColor: '#fff7ed',
+                                border: '1px solid #fed7aa',
+                                borderRadius: 6,
+                                padding: '8px 10px',
+                                fontSize: 13,
+                                color: '#9a3412',
+                              }}>
+                                <strong>Motivo:</strong> {approval.rejectionReason}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Current thumb */}
+                    {item.approvalThumbUrl && (
+                      <div style={{ marginBottom: 14 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6 }}>Thumb reprovado:</p>
+                        <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: 8, display: 'flex', justifyContent: 'center' }}>
+                          {/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) ? (
+                            <img src={item.approvalThumbUrl} alt="Thumb reprovado" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />
+                          ) : (
+                            <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#c2410c', fontSize: 13, fontWeight: 500 }}>
+                              <FileText style={{ width: 18, height: 18 }} />
+                              Ver arquivo reprovado
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      size="sm"
+                      style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none' }}
+                      onClick={() => {
+                        setRetrabalhoItem(item);
+                        setRetrabalhoThumbUrl("");
+                        setRetrabalhoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
+                      }}
+                      data-testid={`button-open-retrabalho-${item.id}`}
+                    >
+                      <RotateCcw style={{ width: 14, height: 14, marginRight: 6 }} />
+                      Enviar Nova Arte
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
@@ -823,6 +1003,181 @@ export default function Arte() {
           )}
         </CardContent>
       </Card>
+
+      {/* ---- RETRABALHO DIALOG ---- */}
+      <Dialog open={!!retrabalhoItem} onOpenChange={(open) => {
+        if (!open) {
+          setRetrabalhoItem(null);
+          setRetrabalhoThumbUrl("");
+          setRetrabalhoSelectedSponsorIds(new Set());
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <RotateCcw style={{ width: 18, height: 18, color: '#c2410c' }} />
+              <span>Enviar Nova Arte</span>
+            </DialogTitle>
+            <DialogDescription>
+              {retrabalhoItem?.displayId} — {retrabalhoItem?.type} · {retrabalhoItem?.event?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {retrabalhoItem && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Rejection summary */}
+              <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#c2410c', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Reprovações
+                </p>
+                {retrabalhoItem.awaitingArteApprovals.map((approval: any) => (
+                  <div key={approval.id} style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      {approval.sponsor?.color && (
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
+                      )}
+                      <span style={{ fontWeight: 600, fontSize: 13, color: '#1c1917' }}>{approval.sponsor?.name}</span>
+                    </div>
+                    {approval.rejectionReason && (
+                      <p style={{ fontSize: 12, color: '#9a3412', marginLeft: 14 }}>"{approval.rejectionReason}"</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* New thumb upload — Titanium dropzone */}
+              <div>
+                <Label style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', display: 'block', marginBottom: 8 }}>
+                  Nova Arte (Upload)
+                </Label>
+                <div style={{
+                  border: '2px dashed #e7e5e4',
+                  borderRadius: 8,
+                  padding: 16,
+                  backgroundColor: retrabalhoThumbUrl ? '#f0fdf4' : '#fafaf9',
+                  borderColor: retrabalhoThumbUrl ? '#86efac' : '#e7e5e4',
+                }}>
+                  {retrabalhoThumbUrl ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                      {/\.(png|jpg|jpeg|gif|webp)/i.test(retrabalhoThumbUrl) ? (
+                        <img src={retrabalhoThumbUrl} alt="Nova arte" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#166534' }}>
+                          <FileText style={{ width: 20, height: 20 }} />
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>Arquivo enviado</span>
+                        </div>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setRetrabalhoThumbUrl("")}
+                        data-testid="button-remove-retrabalho-thumb"
+                        style={{ fontSize: 12 }}
+                      >
+                        <X style={{ width: 12, height: 12, marginRight: 4 }} />
+                        Remover
+                      </Button>
+                    </div>
+                  ) : (
+                    <FileUploader
+                      onGetUploadParameters={getUploadUrl}
+                      onComplete={(result) => {
+                        const localPath = convertGCSUrlToLocalPath(result.url);
+                        setRetrabalhoThumbUrl(localPath);
+                      }}
+                      accept="image/*,application/pdf"
+                      data-testid="uploader-retrabalho-thumb"
+                    >
+                      <Upload style={{ width: 16, height: 16, marginRight: 6 }} />
+                      Fazer Upload da Nova Arte
+                    </FileUploader>
+                  )}
+                </div>
+              </div>
+
+              {/* Sponsor matrix */}
+              <div>
+                <Label style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', display: 'block', marginBottom: 8 }}>
+                  Enviar para quais patrocinadores?
+                </Label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {retrabalhoItem.awaitingArteApprovals.map((approval: any) => (
+                    <label
+                      key={approval.sponsorId}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 12px',
+                        backgroundColor: retrabalhoSelectedSponsorIds.has(approval.sponsorId) ? '#fff7ed' : '#fafaf9',
+                        border: `1px solid ${retrabalhoSelectedSponsorIds.has(approval.sponsorId) ? '#fed7aa' : '#e7e5e4'}`,
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <Checkbox
+                        checked={retrabalhoSelectedSponsorIds.has(approval.sponsorId)}
+                        onCheckedChange={(checked) => {
+                          const next = new Set(retrabalhoSelectedSponsorIds);
+                          if (checked) next.add(approval.sponsorId);
+                          else next.delete(approval.sponsorId);
+                          setRetrabalhoSelectedSponsorIds(next);
+                        }}
+                        data-testid={`checkbox-retrabalho-sponsor-${approval.sponsorId}`}
+                      />
+                      {approval.sponsor?.color && (
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
+                      )}
+                      <span style={{ fontSize: 13, fontWeight: 600, color: approval.sponsor?.color || '#1c1917', flex: 1 }}>
+                        {approval.sponsor?.name || 'Patrocinador'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter style={{ marginTop: 8 }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRetrabalhoItem(null);
+                setRetrabalhoThumbUrl("");
+                setRetrabalhoSelectedSponsorIds(new Set());
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              style={{ backgroundColor: '#c2410c', color: '#ffffff' }}
+              disabled={
+                !retrabalhoThumbUrl ||
+                retrabalhoSelectedSponsorIds.size === 0 ||
+                resubmitMutation.isPending
+              }
+              onClick={() => {
+                if (retrabalhoItem) {
+                  resubmitMutation.mutate({
+                    itemId: retrabalhoItem.id,
+                    newThumbUrl: retrabalhoThumbUrl,
+                    sponsorIds: Array.from(retrabalhoSelectedSponsorIds),
+                  });
+                }
+              }}
+              data-testid="button-submit-retrabalho"
+            >
+              {resubmitMutation.isPending ? (
+                <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', marginRight: 6 }} />Enviando...</>
+              ) : (
+                <><RotateCcw style={{ width: 14, height: 14, marginRight: 6 }} />Enviar Nova Arte</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ItemDetailsDialog
         item={selectedItem}

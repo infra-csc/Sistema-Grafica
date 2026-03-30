@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle, Users, Clock, Loader2, RotateCcw } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle, Users, Clock, Loader2, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -68,6 +68,7 @@ export default function Atendimento() {
   
   // Seleção múltipla
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [approvedGroupExpanded, setApprovedGroupExpanded] = useState(false);
   
   // Map para rastrear patrocinadores de cada item
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
@@ -408,16 +409,48 @@ export default function Atendimento() {
     return Array.from(types).sort();
   }, [pendingItems]);
 
-  // Contador real: só itens que precisam de ação IMEDIATA (sem awaiting_arte bloqueando)
+  // ── HELPERS (antes dos memos que os usam) ────────────────────────
+
+  // Item elegível para seleção em lote: 1 patrocinador, sem Arte-bloqueio, aguardando resposta
+  const isItemEligibleForBatch = (item: any): boolean => {
+    const itemSponsors = itemSponsorsMap[item.id] || [];
+    if (itemSponsors.length !== 1) return false;
+    const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+    if (approvals.some(a => a.status === 'awaiting_arte')) return false;
+    const approval = approvals.find(a => a.sponsorId === itemSponsors[0].id);
+    const status = approval?.status || 'pending';
+    return status === 'pending' || status === 'new_version_pending';
+  };
+
+  // Item totalmente aprovado: todos os patrocinadores com status 'approved'
+  const isItemFullyApproved = (item: any): boolean => {
+    const itemSponsors = itemSponsorsMap[item.id] || [];
+    if (itemSponsors.length === 0) return false;
+    const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+    return itemSponsors.every(s => approvals.find(a => a.sponsorId === s.id)?.status === 'approved');
+  };
+
+  // Divisão de filteredItems em dois grupos visuais
+  const pendingGroup = useMemo(() => {
+    if (loadingSponsors) return filteredItems;
+    return filteredItems.filter(item => !isItemFullyApproved(item));
+  }, [filteredItems, itemApprovalsMap, itemSponsorsMap, loadingSponsors]);
+
+  const approvedGroup = useMemo(() => {
+    if (loadingSponsors) return [];
+    return filteredItems.filter(item => isItemFullyApproved(item));
+  }, [filteredItems, itemApprovalsMap, itemSponsorsMap, loadingSponsors]);
+
+  // Contador real: itens pendentes sem bloqueio Arte e com ao menos 1 aguardando
   const actionableCount = useMemo(() => {
-    if (loadingSponsors) return null; // ainda carregando
-    return pendingItems.filter(item => {
+    if (loadingSponsors) return null;
+    return pendingGroup.filter(item => {
       const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
       const hasArteBlock = approvals.some(a => a.status === 'awaiting_arte');
-      if (hasArteBlock) return false; // Arte precisa reenviar primeiro
+      if (hasArteBlock) return false;
       return approvals.some(a => a.status === 'rejected' || a.status === 'pending' || a.status === 'new_version_pending');
     }).length;
-  }, [pendingItems, itemApprovalsMap, loadingSponsors]);
+  }, [pendingGroup, itemApprovalsMap, loadingSponsors]);
 
   const getEventInfo = (eventId: string) => {
     return events.find(e => e.id === eventId);
@@ -457,10 +490,11 @@ export default function Atendimento() {
   };
 
   const toggleAllSelection = () => {
-    if (selectedItemIds.size === filteredItems.length && filteredItems.length > 0) {
+    const eligible = filteredItems.filter(isItemEligibleForBatch);
+    if (selectedItemIds.size === eligible.length && eligible.length > 0) {
       setSelectedItemIds(new Set());
     } else {
-      setSelectedItemIds(new Set(filteredItems.map(item => item.id)));
+      setSelectedItemIds(new Set(eligible.map(item => item.id)));
     }
   };
 
@@ -655,11 +689,23 @@ export default function Atendimento() {
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide">
                   <tr>
                     <th className="text-center py-3 px-4 font-medium w-10">
-                      <Checkbox
-                        checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
-                        onCheckedChange={toggleAllSelection}
-                        data-testid="checkbox-select-all"
-                      />
+                      {(() => {
+                        const eligible = filteredItems.filter(isItemEligibleForBatch);
+                        const allSelected = eligible.length > 0 && eligible.every(i => selectedItemIds.has(i.id));
+                        return (
+                          <div
+                            title={eligible.length === 0 ? "Nenhum item elegível para seleção em lote" : undefined}
+                            style={eligible.length === 0 ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
+                          >
+                            <Checkbox
+                              checked={allSelected}
+                              onCheckedChange={toggleAllSelection}
+                              disabled={eligible.length === 0}
+                              data-testid="checkbox-select-all"
+                            />
+                          </div>
+                        );
+                      })()}
                     </th>
                     <th className="text-left py-3 px-4 font-medium">ID</th>
                     <th className="text-left py-3 px-4 font-medium">Tipo</th>
@@ -670,12 +716,35 @@ export default function Atendimento() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredItems.map((item, index) => {
+                  {/* ── GRUPO 1: PENDENTES ─────────────────────── */}
+                  <tr>
+                    <td colSpan={7} style={{ padding: '8px 16px 4px' }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                        Pendentes
+                      </span>
+                    </td>
+                  </tr>
+                  {pendingGroup.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '16px', textAlign: 'center' }}>
+                        <span style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum item pendente</span>
+                      </td>
+                    </tr>
+                  )}
+                  {pendingGroup.map((item, index) => {
                     const event = getEventInfo(item.eventId);
                     const itemSponsors = itemSponsorsMap[item.id] || [];
-                    const prevItem = index > 0 ? filteredItems[index - 1] : null;
+                    const prevItem = index > 0 ? pendingGroup[index - 1] : null;
                     const showEventHeader = !prevItem || prevItem.eventId !== item.eventId;
-                    
+                    const eligible = isItemEligibleForBatch(item);
+                    const hasArteBlock = (itemApprovalsMap[item.id] || []).some((a: SponsorApproval) => a.status === 'awaiting_arte');
+                    const isMultiSponsor = itemSponsors.length > 1;
+                    const blockedTooltip = isMultiSponsor
+                      ? "Use o botão Revisar para itens com múltiplos patrocinadores"
+                      : hasArteBlock
+                      ? "Item aguardando reenvio da Arte"
+                      : eligible ? "" : "Item não disponível para seleção em lote";
+
                     return (
                       <Fragment key={item.id}>
                         {showEventHeader && (
@@ -695,29 +764,34 @@ export default function Atendimento() {
                           data-testid={`row-item-${item.id}`}
                         >
                           <td className="py-2 px-4 text-center">
-                            <Checkbox
-                              checked={selectedItemIds.has(item.id)}
-                              onCheckedChange={() => toggleItemSelection(item.id)}
-                              data-testid={`checkbox-item-${item.id}`}
-                            />
+                            {eligible ? (
+                              <Checkbox
+                                checked={selectedItemIds.has(item.id)}
+                                onCheckedChange={() => toggleItemSelection(item.id)}
+                                data-testid={`checkbox-item-${item.id}`}
+                              />
+                            ) : (
+                              <div
+                                title={blockedTooltip}
+                                style={{ opacity: 0.35, cursor: 'not-allowed', pointerEvents: 'none', display: 'inline-block' }}
+                                data-testid={`checkbox-item-${item.id}`}
+                              >
+                                <Checkbox checked={false} disabled />
+                              </div>
+                            )}
                           </td>
                           <td className="py-2 px-4">
                             <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
                               {item.displayId}
                             </div>
-                            {/* Priority override: "Em Ajuste (Arte)" */}
-                            {(itemApprovalsMap[item.id] || []).some((a: SponsorApproval) => a.status === 'awaiting_arte') && (
+                            {hasArteBlock && (
                               <span
                                 data-testid={`badge-em-ajuste-${item.id}`}
                                 style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                                  marginTop: 4,
-                                  fontSize: 10, fontWeight: 600,
-                                  color: '#c2410c',
-                                  backgroundColor: '#fff7ed',
-                                  border: '1px solid #fed7aa',
-                                  borderRadius: 6,
-                                  padding: '2px 8px',
+                                  marginTop: 4, fontSize: 10, fontWeight: 600,
+                                  color: '#c2410c', backgroundColor: '#fff7ed',
+                                  border: '1px solid #fed7aa', borderRadius: 6, padding: '2px 8px',
                                 }}
                               >
                                 <RotateCcw style={{ width: 9, height: 9 }} />
@@ -729,11 +803,9 @@ export default function Atendimento() {
                             <div className="text-sm font-medium">{item.type}</div>
                           </td>
                           <td className="py-2 px-4">
-                            {item.description ? (
-                              <div className="text-sm text-foreground">{item.description}</div>
-                            ) : (
-                              <div className="text-sm text-muted-foreground">—</div>
-                            )}
+                            {item.description
+                              ? <div className="text-sm text-foreground">{item.description}</div>
+                              : <div className="text-sm text-muted-foreground">—</div>}
                           </td>
                           <td className="py-2 px-4 text-center">
                             <Badge variant="outline">{item.quantity}</Badge>
@@ -747,40 +819,19 @@ export default function Atendimento() {
                                   const approvals = itemApprovalsMap[item.id] || [];
                                   const approval = approvals.find((a: SponsorApproval) => a.sponsorId === sponsor.id);
                                   const status = approval?.status || 'pending';
-
-                                  // 2 visual states: APROVADO (green) | AGUARDANDO (amber)
-                                  // rejected + awaiting_arte are both "waiting for Arte" — same amber badge
                                   const isAprovado = status === 'approved';
-
-                                  const badgeStyle = isAprovado ? {
-                                    backgroundColor: '#f0fdf4',
-                                    border: '1px solid #86efac',
-                                    color: '#15803d',
-                                  } : {
-                                    backgroundColor: '#fff7ed',
-                                    border: '1px solid #fed7aa',
-                                    color: '#c2410c',
-                                  };
-
+                                  const badgeStyle = isAprovado
+                                    ? { backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d' }
+                                    : { backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c' };
                                   const dotColor = isAprovado ? '#15803d' : '#f97316';
-
                                   return (
                                     <span
                                       key={sponsor.id}
                                       data-testid={`badge-sponsor-${sponsor.id}-item-${item.id}`}
-                                      style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                                        borderRadius: 100, padding: '3px 10px',
-                                        fontSize: 11, fontWeight: 600,
-                                        ...badgeStyle,
-                                      }}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 600, ...badgeStyle }}
                                     >
                                       <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dotColor, flexShrink: 0 }} />
-                                      {isAprovado ? (
-                                        <CheckCircle style={{ width: 11, height: 11 }} />
-                                      ) : (
-                                        <Clock style={{ width: 11, height: 11 }} />
-                                      )}
+                                      {isAprovado ? <CheckCircle style={{ width: 11, height: 11 }} /> : <Clock style={{ width: 11, height: 11 }} />}
                                       {sponsor.name}
                                     </span>
                                   );
@@ -791,23 +842,35 @@ export default function Atendimento() {
                             )}
                           </td>
                           <td className="py-2 px-4 text-right">
-                            <Button
-                              size="sm"
-                              variant="default"
-                              onClick={() => handleViewDetails(item)}
-                              data-testid={`button-view-${item.id}`}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              Revisar
-                            </Button>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => handleViewDetails(item)}
+                                data-testid={`button-view-${item.id}`}
+                                title={isMultiSponsor ? "Este item tem múltiplos patrocinadores — aprovação individual" : undefined}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Revisar
+                              </Button>
+                              {isMultiSponsor && (
+                                <span style={{
+                                  backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
+                                  color: '#78716c', fontSize: 10, fontWeight: 500,
+                                  padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap', flexShrink: 0,
+                                }}>
+                                  {itemSponsors.length} patrocin.
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                         {item.observations && (
-                          <tr className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-200/30 dark:border-amber-900/30">
+                          <tr className="bg-amber-50/50 border-b border-amber-200/30">
                             <td colSpan={7} className="py-2 px-4">
                               <div className="flex gap-2 items-start">
-                                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                                <div className="text-sm text-amber-800 dark:text-amber-200">
+                                <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm text-amber-800">
                                   <span className="font-semibold">Observações da Ação:</span> {item.observations}
                                 </div>
                               </div>
@@ -817,6 +880,87 @@ export default function Atendimento() {
                       </Fragment>
                     );
                   })}
+
+                  {/* ── GRUPO 2: APROVADOS (colapsável) ────────── */}
+                  {approvedGroup.length > 0 && (
+                    <>
+                      <tr
+                        style={{ cursor: 'pointer', backgroundColor: '#f0fdf4', borderTop: '2px solid #86efac' }}
+                        onClick={() => setApprovedGroupExpanded(v => !v)}
+                        data-testid="row-approved-group-header"
+                      >
+                        <td colSpan={7} style={{ padding: '8px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {approvedGroupExpanded
+                              ? <ChevronDown style={{ width: 14, height: 14, color: '#15803d' }} />
+                              : <ChevronRight style={{ width: 14, height: 14, color: '#15803d' }} />}
+                            <span style={{ fontSize: 10, fontWeight: 600, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                              Aprovados — {approvedGroup.length} {approvedGroup.length === 1 ? 'item' : 'itens'}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {approvedGroupExpanded && approvedGroup.map((item) => {
+                        const itemSponsors = itemSponsorsMap[item.id] || [];
+                        return (
+                          <Fragment key={item.id}>
+                            <tr
+                              style={{ backgroundColor: '#fafaf9', opacity: 0.75 }}
+                              className="border-b border-border"
+                              data-testid={`row-approved-item-${item.id}`}
+                            >
+                              <td className="py-2 px-4 text-center">
+                                {/* checkbox oculto para itens aprovados */}
+                              </td>
+                              <td className="py-2 px-4">
+                                <div className="text-sm font-mono font-medium text-primary">
+                                  {item.displayId}
+                                </div>
+                              </td>
+                              <td className="py-2 px-4">
+                                <div className="text-sm font-medium">{item.type}</div>
+                              </td>
+                              <td className="py-2 px-4">
+                                {item.description
+                                  ? <div className="text-sm text-foreground">{item.description}</div>
+                                  : <div className="text-sm text-muted-foreground">—</div>}
+                              </td>
+                              <td className="py-2 px-4 text-center">
+                                <Badge variant="outline">{item.quantity}</Badge>
+                              </td>
+                              <td className="py-2 px-4">
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                  {itemSponsors.map((sponsor) => (
+                                    <span
+                                      key={sponsor.id}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 600, backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d' }}
+                                    >
+                                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#15803d', flexShrink: 0 }} />
+                                      <CheckCircle style={{ width: 11, height: 11 }} />
+                                      {sponsor.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="py-2 px-4 text-right">
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  backgroundColor: '#f0fdf4', border: '1px solid #86efac',
+                                  color: '#15803d', borderRadius: 6,
+                                  fontSize: 12, fontWeight: 600, padding: '4px 12px',
+                                }}
+                                  data-testid={`badge-aprovado-${item.id}`}
+                                >
+                                  <CheckCircle style={{ width: 12, height: 12 }} />
+                                  Aprovado
+                                </span>
+                              </td>
+                            </tr>
+                          </Fragment>
+                        );
+                      })}
+                    </>
+                  )}
                 </tbody>
               </table>
             </div>

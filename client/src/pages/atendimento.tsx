@@ -675,6 +675,26 @@ export default function Atendimento() {
                             <div className="text-sm font-mono font-medium text-primary" data-testid={`text-display-id-${item.id}`}>
                               {item.displayId}
                             </div>
+                            {/* Priority override: "Em Ajuste (Arte)" */}
+                            {(itemApprovalsMap[item.id] || []).some((a: SponsorApproval) => a.status === 'awaiting_arte') && (
+                              <span
+                                data-testid={`badge-em-ajuste-${item.id}`}
+                                style={{
+                                  display: 'inline-block',
+                                  marginTop: 3,
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  letterSpacing: '0.3px',
+                                  color: '#c2410c',
+                                  backgroundColor: '#fff7ed',
+                                  border: '1px solid #fed7aa',
+                                  borderRadius: 4,
+                                  padding: '1px 5px',
+                                }}
+                              >
+                                Em Ajuste (Arte)
+                              </span>
+                            )}
                           </td>
                           <td className="py-2 px-4">
                             <div className="text-sm font-medium">{item.type}</div>
@@ -712,6 +732,18 @@ export default function Atendimento() {
                                         borderColor: '#dc2626',
                                         color: '#b91c1c'
                                       };
+                                    } else if (status === 'awaiting_arte') {
+                                      return {
+                                        backgroundColor: '#fff7ed',
+                                        borderColor: '#ea580c',
+                                        color: '#c2410c'
+                                      };
+                                    } else if (status === 'new_version_pending') {
+                                      return {
+                                        backgroundColor: '#eff6ff',
+                                        borderColor: '#3b82f6',
+                                        color: '#1d4ed8'
+                                      };
                                     } else {
                                       return {
                                         backgroundColor: '#fef9c3',
@@ -732,6 +764,10 @@ export default function Atendimento() {
                                         <CheckCircle className="w-3.5 h-3.5 mr-1" />
                                       ) : status === 'rejected' ? (
                                         <XCircle className="w-3.5 h-3.5 mr-1" />
+                                      ) : status === 'awaiting_arte' ? (
+                                        <AlertCircle className="w-3.5 h-3.5 mr-1" />
+                                      ) : status === 'new_version_pending' ? (
+                                        <Eye className="w-3.5 h-3.5 mr-1" />
                                       ) : (
                                         <Clock className="w-3.5 h-3.5 mr-1" />
                                       )}
@@ -1008,25 +1044,66 @@ export default function Atendimento() {
                                   </div>
                                   
                                   {isRejectingThis && (
-                                    <div className="mt-2 space-y-2 pt-2 border-t">
-                                      <div>
-                                        <Textarea
-                                          placeholder="Motivo da reprovação (obrigatório)"
-                                          value={rejectionReason}
-                                          onChange={(e) => setRejectionReason(e.target.value)}
-                                          className="text-sm h-16 resize-none"
-                                          style={{ borderColor: rejectionReason.trim() === '' ? '#fca5a5' : undefined }}
-                                          data-testid={`textarea-rejection-reason-${sponsor.id}`}
-                                        />
-                                        {rejectionReason.trim() === '' && (
-                                          <p className="text-xs text-red-500 mt-1">Informe o motivo da reprovação antes de confirmar.</p>
-                                        )}
+                                    <div style={{ marginTop: 12, borderTop: '1px solid #e7e5e4', paddingTop: 14 }}>
+                                      {/* Title */}
+                                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 10px' }}>
+                                        Reprovar Arte e Solicitar Ajuste
+                                      </p>
+                                      {/* Warning bar */}
+                                      <div style={{
+                                        backgroundColor: '#fafaf9',
+                                        borderLeft: '4px solid #ea580c',
+                                        borderRadius: 4,
+                                        padding: '8px 12px',
+                                        marginBottom: 10,
+                                      }}>
+                                        <p style={{ fontSize: 12, color: '#9a3412', margin: 0, lineHeight: 1.5 }}>
+                                          O item será devolvido para a equipe de Arte. Por favor, detalhe o que precisa ser corrigido.
+                                        </p>
                                       </div>
-                                      <div className="flex gap-2 justify-end">
+                                      {/* Thumbnail of what is being rejected */}
+                                      {selectedItem?.approvalThumbUrl && (() => {
+                                        const url = selectedItem.approvalThumbUrl.toLowerCase();
+                                        const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                                        const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
+                                        return (
+                                          <div style={{ marginBottom: 10 }}>
+                                            <p style={{ fontSize: 11, fontWeight: 600, color: '#78716c', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                              Arte sendo reprovada:
+                                            </p>
+                                            <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 6, padding: 8, display: 'flex', justifyContent: 'center' }}>
+                                              {isPdf ? (
+                                                <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer"
+                                                  style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#c2410c', fontSize: 12, fontWeight: 500 }}>
+                                                  <FileText style={{ width: 16, height: 16 }} />
+                                                  Abrir PDF
+                                                </a>
+                                              ) : (
+                                                <img src={selectedItem.approvalThumbUrl} alt="Thumb atual" style={{ maxHeight: 90, maxWidth: '100%', objectFit: 'contain', borderRadius: 4 }} />
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                      {/* Textarea */}
+                                      <Textarea
+                                        placeholder="Ex: O logo do patrocinador está esticado..."
+                                        value={rejectionReason}
+                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                        className="text-sm h-16 resize-none"
+                                        style={{
+                                          backgroundColor: '#fafaf9',
+                                          borderColor: rejectionReason.trim() === '' ? '#fca5a5' : '#e7e5e4',
+                                        }}
+                                        data-testid={`textarea-rejection-reason-${sponsor.id}`}
+                                      />
+                                      {rejectionReason.trim() === '' && (
+                                        <p className="text-xs text-red-500 mt-1">Informe o motivo antes de confirmar.</p>
+                                      )}
+                                      <div className="flex gap-2 justify-end mt-3">
                                         <Button
                                           size="sm"
-                                          variant="outline"
-                                          className="h-7 text-xs"
+                                          variant="ghost"
                                           onClick={() => {
                                             setRejectingSponsorId(null);
                                             setRejectionReason("");
@@ -1036,8 +1113,7 @@ export default function Atendimento() {
                                         </Button>
                                         <Button
                                           size="sm"
-                                          variant="destructive"
-                                          className="h-7 text-xs"
+                                          style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
                                           onClick={() => individualRejectMutation.mutate({
                                             itemId: selectedItem.id,
                                             sponsorId: sponsor.id,
@@ -1187,6 +1263,67 @@ export default function Atendimento() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* ---- TIMELINE ---- */}
+              {(() => {
+                const itemLogs = (auditLogs as any[])
+                  .filter(log => log.entityType === 'item' && log.entityId === selectedItem.id)
+                  .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                if (itemLogs.length === 0) return null;
+
+                const getDotColor = (action: string) => {
+                  if (!action) return '#a8a29e';
+                  const a = action.toLowerCase();
+                  if (a.includes('reject') || a.includes('reprova') || a.includes('devolu')) return '#ea580c';
+                  if (a.includes('approv') || a.includes('aprova') || a.includes('libera')) return '#16a34a';
+                  if (a.includes('resubmit') || a.includes('reenvio') || a.includes('nova')) return '#3b82f6';
+                  return '#a8a29e';
+                };
+
+                return (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-primary" />
+                        Histórico do Item
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div style={{ position: 'relative', paddingLeft: 24 }}>
+                        {/* Vertical line */}
+                        <div style={{
+                          position: 'absolute', left: 7, top: 6, bottom: 6,
+                          width: 2, backgroundColor: '#e7e5e4'
+                        }} />
+                        {itemLogs.map((log: any) => {
+                          const dotColor = getDotColor(log.action || '');
+                          return (
+                            <div key={log.id} style={{ position: 'relative', marginBottom: 16, paddingBottom: 2 }}>
+                              {/* Dot */}
+                              <div style={{
+                                position: 'absolute', left: -21, top: 4,
+                                width: 10, height: 10, borderRadius: '50%',
+                                backgroundColor: dotColor,
+                                border: '2px solid #ffffff',
+                                boxShadow: '0 0 0 1px #e7e5e4',
+                              }} />
+                              {/* Time and actor */}
+                              <div style={{ fontSize: 11, color: '#a8a29e', marginBottom: 2 }}>
+                                {log.createdAt && format(new Date(log.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                {log.userName && <> · <span style={{ color: '#78716c', fontWeight: 600 }}>{log.userName}</span></>}
+                              </div>
+                              {/* Description */}
+                              <div style={{ fontSize: 13, color: '#1c1917', fontWeight: 500 }}>
+                                {log.details || log.action || 'Ação registrada'}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </div>
           )}
 

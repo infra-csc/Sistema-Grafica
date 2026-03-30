@@ -1,0 +1,51 @@
+O Gemini disse
+Você tocou exatamente nos pontos onde o sistema precisa de mais inteligência e refinamento visual.
+
+Analisando os seus prints, consegui identificar os três problemas:
+
+Bug na Tela Inicial (O conflito de Status): No primeiro print, o item 00062 está com o badge principal verde escrito "Pronto", mas lá dentro o patrocinador está "Aguardando Arte". Isso é um erro de lógica. Se um patrocinador reprovou, o item inteiro não pode estar "Pronto". O status principal tem que mudar para alertar você.
+
+Modal Estranho: O modal de reprovação (segundo print) está com um visual de "erro de sistema antigo". Aquela caixa vermelha gigante e os botões desproporcionais fogem totalmente do padrão Titanium. Faltou também mostrar a imagem que está sendo reprovada!
+
+Falta de Histórico: O card expandido (terceiro print) só mostra "Atendimento" e "Arte" como passos fixos. Ele precisa de uma Timeline (Linha do Tempo) para você ler: "Enviado > Reprovado com motivo X > Reenviado".
+
+Aqui está o prompt exato para você mandar para o Replit consertar tudo isso de uma vez:
+
+Prompt para Replit: Correção de Lógica e UI do Fluxo de Reprovação (Titanium)
+"Precisamos corrigir a lógica de status, refatorar o modal de reprovação e adicionar uma timeline de histórico no card expandido, seguindo o padrão Titanium.
+
+1. Correção de Lógica (Tela Inicial):
+
+Problema Atual: O item mostra o status principal como 'Pronto' (verde) mesmo quando um dos patrocinadores reprovou ('Aguardando Arte').
+
+Solução: Adicione uma regra de prioridade de status. Se qualquer patrocinador de um item estiver com o status Reprovado ou Aguardando Arte, o status principal da linha do item obrigatoriamente deve mudar para uma badge de alerta: Fundo laranja claro (#fff7ed), texto laranja escuro (#c2410c) com o texto: 'Em Ajuste (Arte)'.
+
+2. Refatoração do Modal de Reprovação (Titanium UI):
+
+Remova a caixa vermelha gigante de alerta. O fundo do modal deve ser totalmente branco (#ffffff).
+
+Cabeçalho: Título 'Reprovar Arte e Solicitar Ajuste' em #1c1917 (Negrito).
+
+Aviso Contextual: Use uma barra lateral sutil. Fundo #fafaf9, borda esquerda de 4px laranja/vermelho (#ea580c), com um texto pequeno: 'O item será devolvido para a equipe de Arte. Por favor, detalhe o que precisa ser corrigido.'
+
+Thumbnail (Faltou isso!): Exiba uma miniatura da imagem que está sendo reprovada no topo do modal para o usuário ter certeza do que está fazendo.
+
+Textarea: Fundo #fafaf9, borda #e7e5e4, placeholder 'Ex: O logo do patrocinador está esticado...'.
+
+Botões: 'Cancelar' em estilo ghost (sem fundo, texto #71717a). 'Confirmar Reprovação' com fundo Preto (#1c1917) e texto branco.
+
+3. Histórico de Fases no Card Expandido (Timeline):
+
+No detalhe do item (card expandido), substitua ou complemente os passos estáticos por uma Lista de Eventos (Timeline) vertical.
+
+Visual da Timeline: Uma linha vertical fina cinza (border-l-2 border-[#e7e5e4]) com 'dots' (bolinhas) nos pontos de evento.
+
+Exemplo de Dados:
+
+[Dot Cinza] 10:00 - Item criado e enviado para Arte.
+
+[Dot Laranja] 11:30 - Arte Reprovada por Patrocinador X. Motivo: Logo antigo.
+
+[Dot Cinza] 14:00 - Nova arte anexada pelo Designer.
+
+Isso garante que qualquer pessoa que abra o card saiba exatamente todo o vai-e-vem que o item sofreu, sem perder informações."

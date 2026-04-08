@@ -1,9 +1,11 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { StatusBadge } from "@/components/status-badge";
-import { Calendar, ClipboardList, Package, Building2, FileText, History, Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check, FileImage, FolderOpen, ExternalLink } from "lucide-react";
+import {
+  Calendar, ClipboardList, Package, Building2, FileText, History,
+  Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
+  FileImage, FolderOpen, ExternalLink, Factory,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
@@ -18,838 +20,625 @@ interface ItemDetailsDialogProps {
   onEditSave?: (editedItem: any) => void;
 }
 
-export function ItemDetailsDialog({ item, auditLogs = [], open, onOpenChange, customActions, topActions, onEditSave }: ItemDetailsDialogProps) {
-  const [editMode, setEditMode] = useState(false);
+// ── Timeline step config ──────────────────────────────────
+const TIMELINE_STEPS = [
+  { label: "Vinculação", icon: Link2,       idx: 0 },
+  { label: "Arte",       icon: Palette,     idx: 1 },
+  { label: "Aprovação",  icon: CheckCircle, idx: 2 },
+  { label: "Finalização",icon: Zap,         idx: 3 },
+  { label: "Revisão",    icon: Eye,         idx: 4 },
+  { label: "Produção",   icon: Cog,         idx: 5 },
+];
+
+const STATUS_STEP: Record<string, number> = {
+  requested: -1, draft: -1,
+  awaiting_linking: 0,
+  awaiting_submission: 1,
+  awaiting_approval: 2, awaiting_sponsor_approval: 2,
+  awaiting_finalization: 3, sponsor_approved: 3,
+  awaiting_final_review: 4, awaiting_creator_review: 4,
+  ready_for_production: 5, approved: 5, inproduction: 5, inProduction: 5,
+  produced: 6, delivered: 6,
+};
+
+// ── Status badge pill (header) ────────────────────────────
+const STATUS_LABELS: Record<string, string> = {
+  requested: "Solicitado",
+  awaiting_linking: "Aguard. Vinculação",
+  awaiting_submission: "Aguard. Envio",
+  awaiting_approval: "Aguard. Aprovação",
+  awaiting_sponsor_approval: "Aguard. Aprovação",
+  awaiting_finalization: "Aguard. Finalização",
+  sponsor_approved: "Aguard. Finalização",
+  awaiting_final_review: "Aguard. Revisão Final",
+  awaiting_creator_review: "Aguard. Revisão Final",
+  ready_for_production: "Pronto p/ Produção",
+  approved: "Liberado",
+  inProduction: "Em Produção",
+  produced: "Produzido",
+  delivered: "Entregue",
+};
+
+export function ItemDetailsDialog({
+  item, auditLogs = [], open, onOpenChange,
+  customActions, topActions, onEditSave,
+}: ItemDetailsDialogProps) {
+  const [editMode, setEditMode]     = useState(false);
   const [editedItem, setEditedItem] = useState(item);
 
   if (!item) return null;
 
-  // Timeline: mapeamento de status (valores reais do banco) → etapa ativa
-  // -1 = nenhuma | 0 = Vinculação | 1 = Arte | 2 = Aprovação | 3 = Finalização | 4 = Revisão | 5 = Produção | 6 = tudo concluído
-  const STATUS_STEP: Record<string, number> = {
-    // Não iniciado
-    requested: -1,
-    draft: -1,
-    // Vinculação ativa
-    awaiting_linking: 0,
-    // Arte ativa (Vinculação concluída)
-    awaiting_submission: 1,
-    // Aprovação ativa (Arte concluída)
-    awaiting_approval: 2,
-    awaiting_sponsor_approval: 2,
-    // Finalização ativa (Aprovação concluída)
-    awaiting_finalization: 3,
-    sponsor_approved: 3,
-    // Revisão ativa (Finalização concluída)
-    awaiting_final_review: 4,
-    awaiting_creator_review: 4,
-    // Produção ativa (Revisão concluída)
-    ready_for_production: 5,
-    approved: 5,
-    inproduction: 5,
-    inProduction: 5,
-    // Tudo concluído
-    produced: 6,
-    delivered: 6,
-  };
-  const rawStatus = (item.status || '').trim();
-  const timelineCurrentStep = STATUS_STEP[rawStatus] ?? STATUS_STEP[rawStatus.toLowerCase()] ?? -1;
+  const rawStatus = (item.status || "").trim();
+  const step = STATUS_STEP[rawStatus] ?? STATUS_STEP[rawStatus.toLowerCase()] ?? -1;
 
-  const TIMELINE_STEPS = [
-    { label: 'Vinculação', color: '#f97316', icon: Link2,       idx: 0 },
-    { label: 'Arte',       color: '#a855f7', icon: Palette,     idx: 1 },
-    { label: 'Aprovação',  color: '#f97316', icon: CheckCircle, idx: 2 },
-    { label: 'Finalização',color: '#10b981', icon: Zap,         idx: 3 },
-    { label: 'Revisão',    color: '#3b82f6', icon: Eye,         idx: 4 },
-    { label: 'Produção',   color: '#10b981', icon: Cog,         idx: 5 },
+  const handleEditChange = (field: string, value: any) =>
+    setEditedItem((p: any) => ({ ...p, [field]: value }));
+
+  const handleSave = () => { onEditSave?.(editedItem); setEditMode(false); };
+
+  // ── Audit log helpers ─────────────────────────────────
+  const itemLogs = auditLogs
+    .filter((l: any) => (l.entityId ?? l.entity_id ?? "") === item.id)
+    .sort((a: any, b: any) =>
+      new Date(a.createdAt ?? a.created_at).getTime() -
+      new Date(b.createdAt ?? b.created_at).getTime());
+
+  const itemLogsInclusive = auditLogs
+    .filter((l: any) =>
+      String(l.entityId ?? l.entity_id ?? "")
+        .split(",").map((s: string) => s.trim()).includes(item.id))
+    .sort((a: any, b: any) =>
+      new Date(a.createdAt ?? a.created_at).getTime() -
+      new Date(b.createdAt ?? b.created_at).getTime());
+
+  const fmtShort = (d: string) => {
+    const dt = new Date(d);
+    return `${dt.getDate().toString().padStart(2,"0")}/${(dt.getMonth()+1).toString().padStart(2,"0")} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
+  };
+
+  const getLog = (keywords: string[], pool = itemLogs) => {
+    const l = pool.find((log: any) => {
+      const d = (log.details || log.action || "").toLowerCase();
+      return keywords.some(k => d.includes(k.toLowerCase()));
+    });
+    if (!l) return null;
+    const ts   = l.createdAt ?? l.created_at;
+    const name = l.userName  ?? l.user_name;
+    return `${fmtShort(ts)}${name ? ` · ${name}` : ""}`;
+  };
+
+  const historyStages = [
+    { label: "Vinculação iniciada",            keywords: ["patrocinadores atualizados"], pool: itemLogs },
+    { label: "Enviado para Arte",               keywords: ["enviado","para arte"],       pool: itemLogsInclusive },
+    { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogs },
+    { label: "Aprovado — Finalização",          keywords: ["todos os patrocinadores aprovaram","aguardando finaliz","aprovado pelo patrocinador"], pool: itemLogs },
+    { label: "Aguardando revisão final",        keywords: ["arquivo final adicionado","aguardando revisão final"], pool: itemLogs },
   ];
 
-  const handleEditChange = (field: string, value: any) => {
-    setEditedItem((prev: any) => ({ ...prev, [field]: value }));
-  };
+  const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
 
-  const handleSaveEdits = () => {
-    if (onEditSave) {
-      onEditSave(editedItem);
-    }
-    setEditMode(false);
-  };
+  const hasActions = !!(customActions || topActions);
 
-  // Mock histórico
-  const mockHistory = [
-    { action: 'Item criado', timestamp: '27/11/2025 08:00' },
-    { action: 'Enviado para aprovação', timestamp: '27/11/2025 09:15' },
-    { action: 'Aprovado', timestamp: '27/11/2025 10:30' },
-    { action: 'Revisado', timestamp: '27/11/2025 11:45' },
-    { action: 'Aguardando revisão final', timestamp: '27/11/2025 12:20' },
-  ];
+  // ── Approval thumb helpers ────────────────────────────
+  const thumbUrl = item.approvalThumbUrl;
+  const isThumbImage = thumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl.toLowerCase());
+  const isThumbPdf   = thumbUrl && !isThumbImage;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
-        className="max-w-5xl max-h-[90vh] overflow-y-auto" 
-        style={{ 
-          backgroundColor: '#ffffff',
-          borderRadius: '16px',
-          padding: '0',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)'
-        }}
+      <DialogContent
+        className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 gap-0"
+        style={{ backgroundColor: "#ffffff", borderRadius: 12, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.18)" }}
       >
-        {/* Header */}
-        <div style={{ 
-          padding: '24px',
-          borderBottom: '1px solid #e7e5e4'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h2 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', margin: '0' }}>
-                {item.displayId} • {item.event?.name}
-              </h2>
-            </div>
-            <Button size="icon" variant="ghost" onClick={() => onOpenChange(false)}>
-              <X className="h-5 w-5" />
-            </Button>
+        {/* ── Close button ── */}
+        <button
+          onClick={() => onOpenChange(false)}
+          style={{
+            position: "absolute", top: 24, right: 24, zIndex: 10,
+            background: "none", border: "none", cursor: "pointer",
+            color: "#78716c", padding: 4, borderRadius: 4,
+            display: "flex", alignItems: "center",
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#78716c")}
+        >
+          <X style={{ width: 28, height: 28 }} />
+        </button>
+
+        {/* ── Header ── */}
+        <header style={{ padding: "40px 32px 24px 32px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.12em" }}>
+              PROJETO ATIVO
+            </span>
+            <h1 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em",
+              color: "#1c1917", margin: 0, lineHeight: 1.1,
+            }}>
+              {item.displayId} • <span style={{ color: "#f97316" }}>{item.event?.name?.toUpperCase()}</span>
+            </h1>
           </div>
-        </div>
 
-        {/* Timeline Horizontal */}
-        <div style={{ padding: '16px 24px 12px 24px', borderBottom: '1px solid #e7e5e4' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            {TIMELINE_STEPS.map((step) => {
-              const Icon = step.icon;
-              const isDone    = step.idx < timelineCurrentStep;
-              const isCurrent = step.idx === timelineCurrentStep;
-              const isPending = step.idx > timelineCurrentStep;
-
-              const circleBg    = isDone || isCurrent ? step.color : '#e7e5e4';
-              const circleColor = isDone || isCurrent ? '#ffffff'  : '#a8a29e';
-              const labelColor  = isPending ? '#c9c5c1' : '#78716c';
-              const connectorBg = isDone ? step.color : '#e7e5e4';
-
-              return (
-                <div key={step.idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, position: 'relative' }}>
-                  {/* Linha conectora */}
-                  {step.idx < 5 && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '13px',
-                      left: 'calc(50% + 14px)',
-                      right: 'calc(-50% + 14px)',
-                      height: '2px',
-                      backgroundColor: connectorBg,
-                      zIndex: 1,
-                    }} />
-                  )}
-
-                  {/* Círculo */}
-                  <div style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '50%',
-                    backgroundColor: circleBg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: circleColor,
-                    marginBottom: '5px',
-                    zIndex: 2,
-                    position: 'relative',
-                    flexShrink: 0,
-                    boxShadow: isCurrent ? `0 0 0 3px ${step.color}33` : 'none',
-                  }}>
-                    {isDone
-                      ? <Check size={13} strokeWidth={3} />
-                      : <Icon size={13} strokeWidth={2} />
-                    }
-                  </div>
-
-                  {/* Rótulo */}
-                  <span style={{
-                    fontSize: '10px',
-                    fontWeight: isCurrent ? 700 : 400,
-                    color: labelColor,
-                    textAlign: 'center',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {step.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {/* Status */}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <StatusBadge status={item.status} />
+          {/* Status pills */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <span style={{
+              padding: "5px 14px", borderRadius: 999,
+              backgroundColor: "#f97316", color: "#ffffff",
+              fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+            }}>
+              {STATUS_LABELS[rawStatus] || rawStatus}
+            </span>
             {item.rejectedBySponsor && (
-              <Badge variant="outline" style={{ borderColor: '#ef4444', color: '#ef4444', fontSize: '11px' }}>
-                Reprovado Patrocinador
-              </Badge>
+              <span style={{
+                padding: "5px 14px", borderRadius: 999,
+                border: "2px solid #dc2626", color: "#dc2626",
+                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+              }}>Reprovado Patrocinador</span>
             )}
             {item.rejectedByCreator && (
-              <Badge variant="outline" style={{ borderColor: '#f97316', color: '#f97316', fontSize: '11px' }}>
-                Reprovado Criador
-              </Badge>
+              <span style={{
+                padding: "5px 14px", borderRadius: 999,
+                border: "2px solid #f97316", color: "#f97316",
+                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+              }}>Reprovado Criador</span>
             )}
           </div>
 
-          {/* Descrição Card - MOST IMPORTANT */}
-          {item.description && (
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '16px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <FileText className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                  Descrição
-                </h3>
-              </div>
-              <p style={{ color: '#1c1917', fontSize: '13px', whiteSpace: 'pre-wrap', margin: '0' }}>{item.description}</p>
+          {/* ── Timeline ── */}
+          <div style={{ marginTop: 40, overflowX: "auto", paddingBottom: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", minWidth: 640, position: "relative", padding: "0 8px" }}>
+              {/* Background line */}
+              <div style={{
+                position: "absolute", top: 16, left: 40, right: 40,
+                height: 2, backgroundColor: "#e7e5e4", zIndex: 0,
+              }} />
+
+              {TIMELINE_STEPS.map((s) => {
+                const done    = s.idx < step;
+                const current = s.idx === step;
+                const pending = s.idx > step;
+                return (
+                  <div key={s.idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, position: "relative", zIndex: 1 }}>
+                    {done ? (
+                      <div style={{
+                        width: 32, height: 32, borderRadius: "50%",
+                        backgroundColor: "#f97316", color: "#ffffff",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        boxShadow: "0 4px 12px rgba(249,115,22,0.35)",
+                      }}>
+                        <Check style={{ width: 16, height: 16, strokeWidth: 3 }} />
+                      </div>
+                    ) : current ? (
+                      <div style={{ position: "relative", width: 32, height: 32 }}>
+                        <div className="animate-ping" style={{
+                          position: "absolute", inset: 0, borderRadius: "50%",
+                          backgroundColor: "#f97316", opacity: 0.25,
+                        }} />
+                        <div style={{
+                          width: 32, height: 32, borderRadius: "50%",
+                          border: "4px solid #f97316", backgroundColor: "#ffffff",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          position: "relative", zIndex: 1,
+                        }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#f97316" }} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        width: 32, height: 32, borderRadius: "50%",
+                        backgroundColor: "#e7e5e4",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "rgba(28,25,23,0.2)" }} />
+                      </div>
+                    )}
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+                      color: current ? "#f97316" : pending ? "rgba(28,25,23,0.3)" : "#78716c",
+                      whiteSpace: "nowrap",
+                    }}>
+                      {s.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
+          </div>
+        </header>
+
+        {/* ── Main body ── */}
+        <main style={{ padding: "8px 32px 32px 32px", display: "flex", flexDirection: "column", gap: 40 }}>
+
+          {/* Description */}
+          {item.description && (
+            <section style={{
+              backgroundColor: "#f3f4f3",
+              padding: 24, borderRadius: 8,
+              borderLeft: "4px solid #f97316",
+            }}>
+              <h3 style={{ fontSize: 10, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.09em", margin: "0 0 6px 0" }}>
+                Descrição do Item
+              </h3>
+              <p style={{ fontSize: 18, fontWeight: 500, color: "#1c1917", margin: 0 }}>
+                {item.description}
+              </p>
+            </section>
           )}
 
-          {/* Grid: Evento + Especificações */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            {/* Evento Card */}
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '16px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <Calendar className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                  Evento
-                </h3>
+          {/* 2-col grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>
+
+            {/* LEFT — Event + Sponsors */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Calendar style={{ width: 20, height: 20, color: "#f97316" }} />
+                <h2 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 15, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
+                }}>Informações do Evento</h2>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
-                  <span style={{ color: '#a8a29e', fontSize: '12px' }}>Nome</span>
-                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px', textAlign: 'right' }}>{item.event?.name}</span>
+
+              <div style={{ backgroundColor: "#fafaf9", borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e7e5e4", paddingBottom: 12, marginBottom: 12 }}>
+                  <span style={{ fontSize: 13, color: "#78716c" }}>Nome</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }}>{item.event?.name || "—"}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
-                  <span style={{ color: '#a8a29e', fontSize: '12px' }}>Data</span>
-                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e7e5e4", paddingBottom: 12, marginBottom: 12 }}>
+                  <span style={{ fontSize: 13, color: "#78716c" }}>Início do Evento</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }}>
                     {item.event?.startDate ? format(new Date(item.event.startDate), "dd/MM/yyyy", { locale: ptBR }) : "—"}
                   </span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0' }}>
-                  <span style={{ color: '#a8a29e', fontSize: '12px' }}>Saída</span>
-                  <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
-                    {item.event?.truckDepartureDate ? format(new Date(item.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : "—"}
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 13, color: "#78716c" }}>Saída Caminhão</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: item.event?.truckDepartureDate ? "#f97316" : "#1c1917" }}>
+                    {item.event?.truckDepartureDate
+                      ? format(new Date(item.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                      : "—"}
                   </span>
                 </div>
               </div>
+
+              {/* Sponsors */}
+              {item.sponsors && item.sponsors.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: 10, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.09em", margin: "0 0 14px 0" }}>
+                    Patrocinadores Confirmados
+                  </h3>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    {item.sponsors.map((s: any) => (
+                      <div key={s.id} style={{
+                        backgroundColor: "#e8e8e7", padding: "8px 14px",
+                        borderRadius: 6, display: "flex", alignItems: "center", gap: 10,
+                      }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: 4,
+                          backgroundColor: s.color || "#1c1917",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0,
+                        }}>
+                          <span style={{ color: "#ffffff", fontSize: 11, fontWeight: 700 }}>
+                            {(s.name || "?")[0].toUpperCase()}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }}>{s.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Especificações Card */}
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '16px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ClipboardList className="h-5 w-5" style={{ color: '#f97316' }} />
-                  <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                    Especificações
-                  </h3>
+            {/* RIGHT — Specs + Art Preview */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <ClipboardList style={{ width: 20, height: 20, color: "#f97316" }} />
+                  <h2 style={{
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    fontSize: 15, fontWeight: 700, textTransform: "uppercase",
+                    letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
+                  }}>Especificações Técnicas</h2>
                 </div>
                 {!editMode && (
-                  <Button 
-                    size="icon" 
-                    variant="ghost" 
+                  <button
                     onClick={() => { setEditedItem(item); setEditMode(true); }}
-                    className="h-6 w-6"
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 4,
+                      fontSize: 11, fontWeight: 700, color: "#f97316", textTransform: "uppercase",
+                    }}
                   >
-                    <Edit className="h-4 w-4" style={{ color: '#1c1917' }} />
-                  </Button>
+                    <Edit style={{ width: 13, height: 13 }} /> EDITAR
+                  </button>
                 )}
               </div>
+
               {editMode ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div>
-                    <label style={{ color: '#a8a29e', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Tipo</label>
-                    <Input
-                      value={editedItem?.type || ""}
-                      onChange={(e) => handleEditChange("type", e.target.value)}
-                      style={{ borderRadius: '6px', fontSize: '13px' }}
-                      className="h-8"
-                    />
-                  </div>
-                  <div>
-                    <label style={{ color: '#a8a29e', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Material</label>
-                    <Input
-                      value={editedItem?.material || ""}
-                      onChange={(e) => handleEditChange("material", e.target.value)}
-                      style={{ borderRadius: '6px', fontSize: '13px' }}
-                      className="h-8"
-                    />
-                  </div>
-                  <div>
-                    <label style={{ color: '#a8a29e', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Acabamento</label>
-                    <Input
-                      value={editedItem?.finish || ""}
-                      onChange={(e) => handleEditChange("finish", e.target.value)}
-                      style={{ borderRadius: '6px', fontSize: '13px' }}
-                      className="h-8"
-                    />
-                  </div>
-                  <div className="flex gap-2 pt-2">
+                <div style={{ backgroundColor: "#fafaf9", borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+                  {[
+                    { label: "Tipo",       field: "type" },
+                    { label: "Material",   field: "material" },
+                    { label: "Acabamento", field: "finish" },
+                  ].map(({ label, field }) => (
+                    <div key={field}>
+                      <label style={{ fontSize: 11, color: "#a8a29e", display: "block", marginBottom: 4 }}>{label}</label>
+                      <Input
+                        value={editedItem?.[field] || ""}
+                        onChange={(e) => handleEditChange(field, e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <Button size="sm" variant="outline" onClick={() => setEditMode(false)}>Cancelar</Button>
-                    <Button size="sm" onClick={handleSaveEdits}><Save className="h-3 w-3 mr-1" /> Salvar</Button>
+                    <Button size="sm" onClick={handleSave}><Save className="h-3 w-3 mr-1" />Salvar</Button>
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
-                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Tipo</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.type || '—'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
-                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Material</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.material || '—'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0' }}>
-                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Acabamento</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{item.finish || '—'}</span>
+                <div style={{ backgroundColor: "#fafaf9", borderRadius: 8, padding: 24 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    {[
+                      { label: "Tipo",        value: item.type },
+                      { label: "Material",    value: item.material },
+                      { label: "Acabamento",  value: item.finish },
+                      { label: "Qtd",         value: item.quantity ? `${item.quantity} un.` : null },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <span style={{ fontSize: 11, color: "#a8a29e", display: "block", marginBottom: 3 }}>{label}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }}>{value || "—"}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Dados de Produção Card */}
-          <div style={{ 
-            backgroundColor: '#fafaf9',
-            border: '1px solid #e7e5e4',
-            borderRadius: '12px',
-            padding: '16px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <Package className="h-5 w-5" style={{ color: '#f97316' }} />
-              <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                Dados de Produção
-              </h3>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
-                {/* Quantidade - com borda esquerda laranja */}
-                <tr>
-                  <td style={{ 
-                    padding: '12px 16px',
-                    borderLeft: '4px solid #f97316',
-                    color: '#a8a29e',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    width: '30%'
+              {/* Art Preview */}
+              {thumbUrl && (
+                <div style={{
+                  position: "relative", borderRadius: 10, overflow: "hidden",
+                  backgroundColor: "#1c1917", aspectRatio: "16/9",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {isThumbImage ? (
+                    <img
+                      src={thumbUrl}
+                      alt="Thumb de aprovação"
+                      style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.75 }}
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : null}
+                  <div style={{
+                    position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.45)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
-                    QUANTIDADE
-                  </td>
-                  <td style={{ 
-                    padding: '12px 16px',
-                    borderLeft: '4px solid #f97316',
-                    color: '#1c1917',
-                    fontSize: '14px',
-                    fontWeight: '700'
-                  }}>
-                    {item.quantity || 0}
-                  </td>
-                </tr>
-                
-                {/* m² Total */}
-                <tr>
-                  <td style={{ 
-                    padding: '12px 16px',
-                    color: '#a8a29e',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    width: '30%',
-                    borderTop: '1px solid #e7e5e4',
-                    borderBottom: '1px solid #e7e5e4'
-                  }}>
-                    M² TOTAL
-                  </td>
-                  <td style={{ 
-                    padding: '12px 16px',
-                    color: '#1c1917',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    borderTop: '1px solid #e7e5e4',
-                    borderBottom: '1px solid #e7e5e4'
-                  }}>
-                    {item.calculatedM2 || 0}
-                  </td>
-                </tr>
-                
-                {/* Visual */}
-                <tr>
-                  <td style={{ 
-                    padding: '12px 16px',
-                    color: '#a8a29e',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    width: '30%',
-                    borderBottom: '1px solid #e7e5e4'
-                  }}>
-                    VISUAL
-                  </td>
-                  <td style={{ 
-                    padding: '12px 16px',
-                    color: '#1c1917',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    borderBottom: '1px solid #e7e5e4'
-                  }}>
-                    {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : '—'}
-                  </td>
-                </tr>
-
-                {/* Arquivo */}
-                {(item.fileWidth || item.fileHeight) && (
-                  <tr>
-                    <td style={{ 
-                      padding: '12px 16px',
-                      color: '#a8a29e',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      width: '30%',
-                      borderBottom: '1px solid #e7e5e4'
-                    }}>
-                      ARQUIVO
-                    </td>
-                    <td style={{ 
-                      padding: '12px 16px',
-                      color: '#1c1917',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      borderBottom: '1px solid #e7e5e4'
-                    }}>
-                      {item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : '—'}
-                    </td>
-                  </tr>
-                )}
-                
-                {/* Medida */}
-                <tr>
-                  <td style={{ 
-                    padding: '12px 16px',
-                    color: '#a8a29e',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    width: '30%',
-                    borderTop: '1px solid #e7e5e4'
-                  }}>
-                    MEDIDA
-                  </td>
-                  <td style={{ 
-                    padding: '12px 16px',
-                    color: '#1c1917',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    borderTop: '1px solid #e7e5e4'
-                  }}>
-                    {item.measurement || '—'}
-                  </td>
-                </tr>
-
-                {/* Produzido */}
-                {item.quantityProduced && (
-                  <tr>
-                    <td style={{ 
-                      padding: '12px 16px',
-                      color: '#a8a29e',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      width: '30%',
-                      borderTop: '1px solid #e7e5e4',
-                      borderBottom: '1px solid #e7e5e4'
-                    }}>
-                      PRODUZIDO
-                    </td>
-                    <td style={{ 
-                      padding: '12px 16px',
-                      color: '#1c1917',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      borderTop: '1px solid #e7e5e4',
-                      borderBottom: '1px solid #e7e5e4'
-                    }}>
-                      {item.quantityProduced}
-                    </td>
-                  </tr>
-                )}
-
-                {/* Recebido por */}
-                {item.receivedBy && (
-                  <tr>
-                    <td style={{ 
-                      padding: '12px 16px',
-                      color: '#a8a29e',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      width: '30%',
-                      borderTop: '1px solid #e7e5e4'
-                    }}>
-                      RECEBIDO POR
-                    </td>
-                    <td style={{ 
-                      padding: '12px 16px',
-                      color: '#1c1917',
-                      fontSize: '13px',
-                      fontWeight: '600',
-                      borderTop: '1px solid #e7e5e4'
-                    }}>
-                      {item.receivedBy}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Arquivos de Arte Card */}
-          {(item.approvalThumbUrl || item.finalFileUrl) && (
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '16px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <FileImage className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                  Arquivos de Arte
-                </h3>
-              </div>
-
-              {/* Thumb de Aprovação */}
-              {item.approvalThumbUrl && (() => {
-                const url = item.approvalThumbUrl.toLowerCase();
-                const isImage = /\.(png|jpg|jpeg|gif|webp)/i.test(url);
-                const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                return (
-                  <div style={{ marginBottom: item.finalFileUrl ? '12px' : '0' }}>
-                    <p style={{ color: '#a8a29e', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
-                      Thumb de Aprovação
-                    </p>
-                    {isImage ? (
-                      <div style={{ 
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #e7e5e4',
-                        borderRadius: '8px',
-                        padding: '8px',
-                        display: 'flex',
-                        justifyContent: 'center'
-                      }}>
-                        <img
-                          src={item.approvalThumbUrl}
-                          alt="Thumb de aprovação"
-                          style={{ maxHeight: '160px', maxWidth: '100%', objectFit: 'contain', borderRadius: '4px' }}
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      </div>
-                    ) : (
-                      <a
-                        href={item.approvalThumbUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ 
-                          display: 'inline-flex', alignItems: 'center', gap: '6px',
-                          backgroundColor: '#fff7ed', color: '#c2410c',
-                          border: '1px solid #fed7aa', borderRadius: '6px',
-                          padding: '6px 12px', fontSize: '13px', fontWeight: '500',
-                          textDecoration: 'none'
-                        }}
-                      >
-                        <FileText className="h-4 w-4" />
-                        {isPdf ? 'Abrir PDF de Aprovação' : 'Ver Arquivo'}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
+                    <a
+                      href={thumbUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        backgroundColor: "#ffffff", color: "#1c1917",
+                        padding: "10px 20px", borderRadius: 6,
+                        fontWeight: 700, fontSize: 12, textTransform: "uppercase",
+                        display: "flex", alignItems: "center", gap: 8,
+                        textDecoration: "none",
+                        transition: "background-color 0.15s",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#f97316"; (e.currentTarget as HTMLAnchorElement).style.color = "#ffffff"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#ffffff"; (e.currentTarget as HTMLAnchorElement).style.color = "#1c1917"; }}
+                    >
+                      <FileText style={{ width: 16, height: 16 }} />
+                      {isThumbPdf ? "Abrir PDF de Aprovação" : "Ver Arquivo"}
+                    </a>
                   </div>
-                );
-              })()}
-
-              {/* Separador */}
-              {item.approvalThumbUrl && item.finalFileUrl && (
-                <div style={{ borderTop: '1px solid #e7e5e4', margin: '12px 0' }} />
+                  <div style={{ position: "absolute", bottom: 12, left: 12 }}>
+                    <span style={{
+                      backgroundColor: "rgba(0,0,0,0.6)", color: "#ffffff",
+                      fontSize: 10, padding: "3px 8px", borderRadius: 2,
+                      fontFamily: "monospace",
+                    }}>
+                      {thumbUrl.split("/").pop()?.toUpperCase() || "ARQUIVO"}
+                    </span>
+                  </div>
+                </div>
               )}
 
-              {/* Caminho do Arquivo Final */}
+              {/* Final file path */}
               {item.finalFileUrl && (
                 <div>
-                  <p style={{ color: '#a8a29e', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <FolderOpen className="h-3.5 w-3.5" />
-                    Arquivo Final
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                    <FolderOpen style={{ width: 13, height: 13 }} /> Arquivo Final
                   </p>
-                  <div style={{ 
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e7e5e4',
-                    borderRadius: '6px',
-                    padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '8px'
+                  <div style={{
+                    backgroundColor: "#fafaf9", border: "1px solid #e7e5e4",
+                    borderRadius: 6, padding: "8px 12px",
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
                   }}>
-                    <span style={{ 
-                      fontFamily: 'monospace', fontSize: '12px', color: '#1c1917',
-                      wordBreak: 'break-all', flex: 1
-                    }}>
+                    <span style={{ fontFamily: "monospace", fontSize: 12, color: "#1c1917", wordBreak: "break-all", flex: 1 }}>
                       {item.finalFileUrl}
                     </span>
-                    {item.finalFileUrl.startsWith('http') && (
-                      <a
-                        href={item.finalFileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: '#f97316', flexShrink: 0 }}
-                      >
-                        <ExternalLink className="h-4 w-4" />
+                    {item.finalFileUrl.startsWith("http") && (
+                      <a href={item.finalFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#f97316", flexShrink: 0 }}>
+                        <ExternalLink style={{ width: 15, height: 15 }} />
                       </a>
                     )}
                   </div>
                 </div>
               )}
             </div>
-          )}
+          </div>
 
-          {/* Datas Importantes Card */}
-          {(item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt) && (
-            <div style={{ 
-              backgroundColor: '#fafaf9',
-              border: '1px solid #e7e5e4',
-              borderRadius: '12px',
-              padding: '16px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <Calendar className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                  Datas Importantes
-                </h3>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {item.approvedAt && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
-                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Aprovado</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
-                      {format(new Date(item.approvedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                    </span>
-                  </div>
-                )}
-                {item.productionStartedAt && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
-                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Produção Iniciada</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
-                      {format(new Date(item.productionStartedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                    </span>
-                  </div>
-                )}
-                {item.producedAt && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid #e7e5e4' }}>
-                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Produzido</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
-                      {format(new Date(item.producedAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                    </span>
-                  </div>
-                )}
-                {item.deliveredAt && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0' }}>
-                    <span style={{ color: '#a8a29e', fontSize: '12px' }}>Entregue</span>
-                    <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>
-                      {format(new Date(item.deliveredAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                    </span>
-                  </div>
-                )}
-              </div>
+          {/* ── Production data table ── */}
+          <section>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <Factory style={{ width: 20, height: 20, color: "#f97316" }} />
+              <h2 style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 15, fontWeight: 700, textTransform: "uppercase",
+                letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
+              }}>Dados de Produção</h2>
             </div>
-          )}
-
-          {/* Custom Actions */}
-          {customActions && (
-            <div>
-              {customActions}
-            </div>
-          )}
-
-          {/* Top Actions */}
-          {topActions && <div className="space-y-3">{topActions}</div>}
-
-          {/* Patrocinadores */}
-          {item.sponsors && item.sponsors.length > 0 && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <Building2 className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                  Patrocinadores
-                </h3>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {item.sponsors.map((sponsor: any) => (
-                  <Badge 
-                    key={sponsor.id} 
-                    style={{ 
-                      backgroundColor: sponsor.color || '#ffffff',
-                      border: `1px solid ${sponsor.color || '#e7e5e4'}`,
-                      color: '#ffffff',
-                      padding: '6px 12px',
-                      fontSize: '12px'
-                    }}
-                  >
-                    {sponsor.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Observações */}
-          {item.observations && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <FileText className="h-5 w-5" style={{ color: '#f97316' }} />
-                <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                  Observações
-                </h3>
-              </div>
-              <p style={{ color: '#1c1917', fontSize: '13px', whiteSpace: 'pre-wrap', margin: '0' }}>{item.observations}</p>
-            </div>
-          )}
-
-          {/* Histórico Card */}
-          {(() => {
-            // Logs com entityId exato (item.id)
-            const itemLogs = auditLogs
-              .filter((log: any) => {
-                const eid = log.entityId ?? log.entity_id ?? '';
-                return eid === item.id;
-              })
-              .sort((a: any, b: any) =>
-                new Date(a.createdAt ?? a.created_at).getTime() -
-                new Date(b.createdAt ?? b.created_at).getTime()
-              );
-
-            // Logs onde item.id está dentro de uma lista CSV (ex.: "Enviado para Arte" em lote)
-            const itemLogsInclusive = auditLogs
-              .filter((log: any) => {
-                const eid = String(log.entityId ?? log.entity_id ?? '');
-                return eid.split(',').map((s: string) => s.trim()).includes(item.id);
-              })
-              .sort((a: any, b: any) =>
-                new Date(a.createdAt ?? a.created_at).getTime() -
-                new Date(b.createdAt ?? b.created_at).getTime()
-              );
-
-            const formatDate = (d: string) => {
-              const dt = new Date(d);
-              return `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
-            };
-
-            const getLogDate = (keywords: string[], pool: any[] = itemLogs) => {
-              const log = pool.find((l: any) => {
-                const d = (l.details || l.action || '').toLowerCase();
-                return keywords.some(k => d.includes(k.toLowerCase()));
-              });
-              if (!log) return null;
-              const ts = log.createdAt ?? log.created_at;
-              const name = log.userName ?? log.user_name;
-              return `${formatDate(ts)}${name ? ` · ${name}` : ''}`;
-            };
-
-            const stages = [
-              {
-                label: 'Vinculação iniciada',
-                color: '#f97316',
-                // "Patrocinadores atualizados - X patrocinador(es) vinculado(s)"
-                keywords: ['patrocinadores atualizados'],
-                pool: itemLogs,
-              },
-              {
-                label: 'Enviado para Arte',
-                color: '#a855f7',
-                // "X item(s) enviado(s) para Arte"  — entityId é CSV de IDs
-                keywords: ['enviado', 'para arte'],
-                pool: itemLogsInclusive,
-              },
-              {
-                label: 'Em aprovação de patrocinador',
-                color: '#f97316',
-                // "Status alterado: ... → Aguardando Aprovação"
-                keywords: ['aguardando aprovação'],
-                pool: itemLogs,
-              },
-              {
-                label: 'Aprovado - Finalização',
-                color: '#10b981',
-                // "Todos os patrocinadores aprovaram. Status alterado: ... → Aguardando Finalização"
-                // ou aprovação única (antigo fluxo): "aprovado pelo patrocinador"
-                keywords: ['todos os patrocinadores aprovaram', 'aguardando finaliz', 'aprovado pelo patrocinador'],
-                pool: itemLogs,
-              },
-              {
-                label: 'Aguardando revisão final',
-                color: '#3b82f6',
-                // "Status alterado: ... → Aguardando Revisão Final (arquivo final adicionado)"
-                keywords: ['arquivo final adicionado', 'aguardando revisão final'],
-                pool: itemLogs,
-              },
-            ];
-
-            const deliveryLog = itemLogs.find((l: any) => l.action === 'delivered');
-
-            return (
-              <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <History className="h-5 w-5" style={{ color: '#f97316' }} />
-                  <h3 style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', margin: '0', letterSpacing: '0.5px' }}>
-                    Histórico
-                  </h3>
-                </div>
-
-                <div style={{ position: 'relative', paddingLeft: '28px' }}>
-                  <div style={{ position: 'absolute', left: '6px', top: '0', bottom: '0', width: '1px', backgroundColor: '#e7e5e4' }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {stages.map((stage, idx) => {
-                      const dateStr = getLogDate(stage.keywords, stage.pool);
-                      return (
-                        <div key={idx} style={{ position: 'relative' }}>
-                          <div style={{ position: 'absolute', left: '-22px', top: '3px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: stage.color }} />
-                          <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 1px 0' }}>{stage.label}</p>
-                          {dateStr && (
-                            <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>{dateStr}</p>
+            <div style={{ border: "1px solid #e8e8e7", borderRadius: 8, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#e8e8e7" }}>
+                    {["Quantidade", "Total M²", "Dimensões Visuais", "Dimensões Arquivo", "Medida"].map((col) => (
+                      <th key={col} style={{
+                        padding: "12px 16px", textAlign: "left",
+                        fontSize: 10, fontWeight: 900, color: "#57534e",
+                        textTransform: "uppercase", letterSpacing: "0.09em",
+                      }}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderTop: "1px solid #e8e8e7" }}>
+                    <td style={{ padding: "16px", fontSize: 18, fontWeight: 700, color: "#1c1917" }}>
+                      {item.quantity || 0} un.
+                    </td>
+                    <td style={{ padding: "16px", fontSize: 14, fontWeight: 500, color: "#57534e" }}>
+                      {item.calculatedM2 ?? "—"} m²
+                    </td>
+                    <td style={{ padding: "16px", fontSize: 14, fontWeight: 500, color: "#57534e", fontFamily: "monospace" }}>
+                      {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—"}
+                    </td>
+                    <td style={{ padding: "16px", fontSize: 14, fontWeight: 500, color: "#57534e", fontFamily: "monospace" }}>
+                      {item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : "—"}
+                    </td>
+                    <td style={{ padding: "16px", fontSize: 14, fontWeight: 500, color: "#57534e" }}>
+                      {item.measurement || "—"}
+                    </td>
+                  </tr>
+                  {(item.quantityProduced || item.receivedBy) && (
+                    <tr style={{ borderTop: "1px solid #e8e8e7", backgroundColor: "#fafaf9" }}>
+                      <td colSpan={5} style={{ padding: "12px 16px" }}>
+                        <div style={{ display: "flex", gap: 32 }}>
+                          {item.quantityProduced && (
+                            <div>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Produzido</span>
+                              <p style={{ fontSize: 14, fontWeight: 700, color: "#1c1917", margin: "2px 0 0 0" }}>{item.quantityProduced}</p>
+                            </div>
+                          )}
+                          {item.receivedBy && (
+                            <div>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
+                              <p style={{ fontSize: 14, fontWeight: 700, color: "#1c1917", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
+                            </div>
                           )}
                         </div>
-                      );
-                    })}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-                    {/* Entregue — dinâmico */}
-                    {deliveryLog && (
-                      <div style={{ position: 'relative' }}>
-                        <div style={{ position: 'absolute', left: '-22px', top: '3px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                        <p style={{ color: '#1c1917', fontSize: '13px', fontWeight: '600', margin: '0 0 1px 0' }}>
-                          {deliveryLog.details || 'Entregue'}
-                        </p>
-                        <p style={{ color: '#a8a29e', fontSize: '12px', margin: '0' }}>
-                          {formatDate(deliveryLog.createdAt ?? deliveryLog.created_at)}
-                          {(deliveryLog.userName ?? deliveryLog.user_name) ? ` · ${deliveryLog.userName ?? deliveryLog.user_name}` : ''}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+          {/* ── Observations ── */}
+          {item.observations && (
+            <section>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <FileText style={{ width: 20, height: 20, color: "#f97316" }} />
+                <h2 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 15, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
+                }}>Observações</h2>
               </div>
-            );
-          })()}
-        </div>
+              <p style={{ fontSize: 13, color: "#1c1917", whiteSpace: "pre-wrap", margin: 0 }}>{item.observations}</p>
+            </section>
+          )}
+
+          {/* ── Custom/Top action slots ── */}
+          {topActions && <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{topActions}</div>}
+          {customActions && <div>{customActions}</div>}
+
+          {/* ── History vertical timeline ── */}
+          <section style={{ paddingBottom: hasActions ? 0 : 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28 }}>
+              <History style={{ width: 20, height: 20, color: "#f97316" }} />
+              <h2 style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 15, fontWeight: 700, textTransform: "uppercase",
+                letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
+              }}>Histórico de Alterações</h2>
+            </div>
+
+            <div style={{ position: "relative", paddingLeft: 40 }}>
+              {/* Vertical line */}
+              <div style={{
+                position: "absolute", left: 11, top: 8, bottom: 8,
+                width: 2, backgroundColor: "#e7e5e4",
+              }} />
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                {historyStages.map((stage, idx) => {
+                  const dateStr = getLog(stage.keywords, stage.pool);
+                  return (
+                    <div key={idx} style={{ position: "relative" }}>
+                      {/* Dot */}
+                      <div style={{
+                        position: "absolute", left: -29, top: 4,
+                        width: 22, height: 22, borderRadius: "50%",
+                        backgroundColor: "#e8e8e7",
+                        border: "4px solid #ffffff",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {dateStr && (
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f97316" }} />
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", textTransform: "uppercase", margin: 0 }}>
+                          {stage.label}
+                        </p>
+                        {dateStr && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 500, color: "#78716c",
+                            backgroundColor: "#e8e8e7", padding: "2px 8px", borderRadius: 4,
+                            whiteSpace: "nowrap",
+                          }}>
+                            {dateStr}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {deliveryLog && (
+                  <div style={{ position: "relative" }}>
+                    <div style={{
+                      position: "absolute", left: -29, top: 4,
+                      width: 22, height: 22, borderRadius: "50%",
+                      backgroundColor: "#e8e8e7",
+                      border: "4px solid #ffffff",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#10b981" }} />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", textTransform: "uppercase", margin: 0 }}>
+                        {deliveryLog.details || "Entregue"}
+                      </p>
+                      <span style={{
+                        fontSize: 10, fontWeight: 500, color: "#78716c",
+                        backgroundColor: "#e8e8e7", padding: "2px 8px", borderRadius: 4,
+                        whiteSpace: "nowrap",
+                      }}>
+                        {fmtShort(deliveryLog.createdAt ?? deliveryLog.created_at)}
+                        {(deliveryLog.userName ?? deliveryLog.user_name) ? ` · ${deliveryLog.userName ?? deliveryLog.user_name}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </main>
       </DialogContent>
     </Dialog>
   );

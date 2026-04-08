@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE APEX | Painel de Status Geral</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .negative-kerning { letter-spacing: -0.05em; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        /* Custom scrollbar for premium feel */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f9f9f8; }
+        ::-webkit-scrollbar-thumb { background: #e2e2e2; border-radius: 10px; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#9d4300",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed": "#001d32",
+                        "on-secondary-fixed": "#341100",
+                        "outline": "#8c7164",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "surface-container": "#eeeeed",
+                        "on-primary-fixed": "#1e1b19",
+                        "outline-variant": "#e0c0b1",
+                        "secondary-fixed-dim": "#ffb690",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "surface-bright": "#f9f9f8",
+                        "error": "#ba1a1a",
+                        "surface-dim": "#dadad9",
+                        "on-background": "#1a1c1c",
+                        "primary-fixed": "#e9e1dd",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "on-tertiary-container": "#003554",
+                        "on-surface": "#1a1c1c",
+                        "surface-tint": "#625d5b",
+                        "on-surface-variant": "#584237",
+                        "on-tertiary": "#ffffff",
+                        "primary-container": "#9f9996",
+                        "tertiary-fixed": "#cde5ff",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "surface-variant": "#e2e2e2",
+                        "surface-container-high": "#e8e8e7",
+                        "on-primary-container": "#35322f",
+                        "surface-container-highest": "#e2e2e2",
+                        "tertiary": "#006398",
+                        "primary": "#625d5b",
+                        "secondary-fixed": "#ffdbca",
+                        "on-secondary-container": "#5c2400",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#00a2f4",
+                        "on-secondary-fixed-variant": "#783200",
+                        "secondary-container": "#fd761a",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#f1f1f0",
+                        "surface-container-low": "#f3f4f3",
+                        "surface": "#f9f9f8",
+                        "inverse-surface": "#2f3130",
+                        "inverse-primary": "#ccc5c2",
+                        "background": "#f9f9f8"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface font-body text-on-surface selection:bg-secondary-container selection:text-on-secondary-container">
+<!-- SIDE NAV BAR (Authority: JSON & Design System) -->
+<aside class="h-screen w-64 fixed left-0 top-0 z-40 bg-stone-100 dark:bg-stone-950 flex flex-col h-full p-4 border-r-0 font-['Plus_Jakarta_Sans'] text-sm font-semibold tracking-tight">
+<div class="flex items-center gap-3 mb-10 px-2">
+<div class="w-10 h-10 bg-on-background rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-surface text-xl" data-icon="rocket_launch">rocket_launch</span>
+</div>
+<div>
+<h2 class="font-['Space_Grotesk'] font-bold text-stone-900 dark:text-stone-50 tracking-[-0.02em] leading-tight">APEX SYSTEM</h2>
+<p class="text-[10px] uppercase tracking-widest text-stone-500">Elite Marketing</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 bg-stone-200 dark:bg-stone-800 text-orange-600 dark:text-orange-500 rounded-md transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="movie_filter">movie_filter</span>
+                Production
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="leaderboard">leaderboard</span>
+                Analytics
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="folder_special">folder_special</span>
+                Assets
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+                Roster
+            </a>
+</nav>
+<div class="mt-auto space-y-1 pt-6 border-t border-stone-200 dark:border-stone-800">
+<div class="px-3 py-4 mb-2 bg-gradient-to-br from-secondary to-secondary-container rounded-xl text-white">
+<p class="text-xs opacity-80 mb-2">Current Tier</p>
+<p class="font-headline font-bold text-lg leading-tight mb-3 uppercase">Elite Plan</p>
+<button class="w-full py-2 bg-white/20 backdrop-blur-md rounded-lg text-xs font-bold hover:bg-white/30 transition-all">Upgrade Plan</button>
+</div>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:text-stone-900 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                Settings
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:text-stone-900 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="contact_support">contact_support</span>
+                Support
+            </a>
+</div>
+</aside>
+<!-- MAIN CONTENT AREA -->
+<main class="ml-64 p-6 flex flex-col gap-6 min-h-screen">
+<!-- HEADER SECTION -->
+<header class="flex flex-col md:flex-row justify-between items-end gap-4">
+<div>
+<h1 class="font-headline text-3xl font-bold text-[#1c1917] negative-kerning uppercase">Painel de Status Geral</h1>
+<p class="text-sm text-[#78716c] font-medium">Acompanhamento em tempo real de todos os itens em produção</p>
+</div>
+<div class="flex gap-2">
+<button class="px-4 py-2 bg-surface-container-high text-on-surface text-sm font-bold flex items-center gap-2 hover:bg-surface-container-highest transition-all">
+<span class="material-symbols-outlined text-lg" data-icon="file_download">file_download</span>
+                    Exportar Relatório
+                </button>
+<button class="px-4 py-2 bg-secondary text-on-secondary text-sm font-bold flex items-center gap-2 hover:brightness-110 transition-all">
+<span class="material-symbols-outlined text-lg" data-icon="add">add</span>
+                    Novo Item
+                </button>
+</div>
+</header>
+<!-- STATUS CARDS GRID -->
+<section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12 gap-3">
+<!-- TOTAL CARD -->
+<div class="xl:col-span-1 bg-[#1c1917] p-4 flex flex-col justify-between min-h-[100px] border-b-4 border-secondary shadow-lg">
+<span class="material-symbols-outlined text-surface-container-high/40 text-xl" data-icon="package_2">package_2</span>
+<div>
+<p class="text-[21px] font-bold text-[#f97316] leading-none">1,284</p>
+<p class="text-[10px] uppercase font-bold text-white/60 tracking-wider mt-1">Total</p>
+</div>
+</div>
+<!-- STATUS 1: Solicitado -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4] hover:border-secondary/30 transition-colors">
+<div class="w-2 h-2 rounded-full bg-[#f97316]"></div>
+<div>
+<p class="text-xl font-bold text-[#f97316] leading-none">42</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Solicitado</p>
+</div>
+</div>
+<!-- STATUS 2: Aguard. Vinculação -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#78716c]"></div>
+<div>
+<p class="text-xl font-bold text-[#78716c] leading-none">18</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Aguard. Vinculação</p>
+</div>
+</div>
+<!-- STATUS 3: Aguard. Envio -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#0ea5e9]"></div>
+<div>
+<p class="text-xl font-bold text-[#0ea5e9] leading-none">156</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Aguard. Envio</p>
+</div>
+</div>
+<!-- STATUS 4: Aguard. Aprovação -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#f97316]"></div>
+<div>
+<p class="text-xl font-bold text-[#f97316] leading-none">29</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Aguard. Aprovação</p>
+</div>
+</div>
+<!-- STATUS 5: Aguard. Finalização -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#a855f7]"></div>
+<div>
+<p class="text-xl font-bold text-[#a855f7] leading-none">64</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Aguard. Finalização</p>
+</div>
+</div>
+<!-- STATUS 6: Aguard. Revisão -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#d946ef]"></div>
+<div>
+<p class="text-xl font-bold text-[#d946ef] leading-none">12</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Aguard. Revisão</p>
+</div>
+</div>
+<!-- STATUS 7: Pronto Produção -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#10b981]"></div>
+<div>
+<p class="text-xl font-bold text-[#10b981] leading-none">88</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Pronto Produção</p>
+</div>
+</div>
+<!-- STATUS 8: Liberado -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#15803d]"></div>
+<div>
+<p class="text-xl font-bold text-[#15803d] leading-none">210</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Liberado</p>
+</div>
+</div>
+<!-- STATUS 9: Em Produção -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#f59e0b]"></div>
+<div>
+<p class="text-xl font-bold text-[#f59e0b] leading-none">432</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Em Produção</p>
+</div>
+</div>
+<!-- STATUS 10: Produzido -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#ec4899]"></div>
+<div>
+<p class="text-xl font-bold text-[#ec4899] leading-none">95</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Produzido</p>
+</div>
+</div>
+<!-- STATUS 11: Entregue -->
+<div class="xl:col-span-1 bg-white p-4 flex flex-col justify-between min-h-[100px] border border-[#e7e5e4]">
+<div class="w-2 h-2 rounded-full bg-[#15803d]"></div>
+<div>
+<p class="text-xl font-bold text-[#15803d] leading-none">128</p>
+<p class="text-[10px] uppercase font-bold text-[#78716c] tracking-tighter mt-1 leading-none">Entregue</p>
+</div>
+</div>
+</section>
+<!-- FILTER PANEL -->
+<section class="bg-[#fafaf9] p-6 shadow-sm border border-stone-200">
+<div class="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 gap-4 items-end">
+<div class="md:col-span-1 lg:col-span-1">
+<label class="block text-[10px] uppercase font-black tracking-widest text-[#78716c] mb-2">Busca</label>
+<div class="relative">
+<input class="w-full bg-white border-0 text-sm focus:ring-2 focus:ring-secondary/20 py-2.5 pl-9 placeholder:text-stone-400" placeholder="ID ou Nome..." type="text"/>
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-stone-400 text-lg" data-icon="search">search</span>
+</div>
+</div>
+<div>
+<label class="block text-[10px] uppercase font-black tracking-widest text-[#78716c] mb-2">Evento</label>
+<select class="w-full bg-white border-0 text-sm focus:ring-2 focus:ring-secondary/20 py-2.5">
+<option>Todos Eventos</option>
+<option>Final Copa 2024</option>
+<option>Masters Open</option>
+</select>
+</div>
+<div>
+<label class="block text-[10px] uppercase font-black tracking-widest text-[#78716c] mb-2">Tipo</label>
+<select class="w-full bg-white border-0 text-sm focus:ring-2 focus:ring-secondary/20 py-2.5">
+<option>Todos Tipos</option>
+<option>Vestuário</option>
+<option>Brindes</option>
+</select>
+</div>
+<div class="md:col-span-2">
+<label class="block text-[10px] uppercase font-black tracking-widest text-[#78716c] mb-2">Patrocinador</label>
+<select class="w-full bg-white border-0 text-sm focus:ring-2 focus:ring-secondary/20 py-2.5">
+<option>Todos Patrocinadores</option>
+<option>Nike Global Performance</option>
+<option>Red Bull Racing Team</option>
+<option>Coca-Cola Brazil</option>
+</select>
+</div>
+<div>
+<label class="block text-[10px] uppercase font-black tracking-widest text-[#78716c] mb-2">Status</label>
+<select class="w-full bg-white border-0 text-sm focus:ring-2 focus:ring-secondary/20 py-2.5">
+<option>Qualquer Status</option>
+<option>Em Produção</option>
+<option>Aguard. Envio</option>
+</select>
+</div>
+<div>
+<label class="block text-[10px] uppercase font-black tracking-widest text-[#78716c] mb-2">Data</label>
+<div class="relative">
+<input class="w-full bg-white border-0 text-sm focus:ring-2 focus:ring-secondary/20 py-2.5" type="date"/>
+</div>
+</div>
+</div>
+</section>
+<!-- GROUPED TABLE SECTION -->
+<section class="flex flex-col gap-4">
+<!-- GROUP 1: Final da Copa 2024 -->
+<div class="border border-stone-200 overflow-hidden bg-white shadow-md">
+<!-- Group Header -->
+<div class="bg-[#f5f4f3] p-4 border-b border-stone-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-white border border-stone-200 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" data-icon="calendar_today">calendar_today</span>
+</div>
+<div>
+<h3 class="font-headline font-bold text-lg leading-tight uppercase tracking-tight">Final da Copa 2024</h3>
+<div class="flex items-center gap-4 mt-1">
+<span class="flex items-center gap-1 text-[11px] text-stone-500 font-bold uppercase">
+<span class="material-symbols-outlined text-sm" data-icon="event">event</span>
+                                    Início: 12 Out 2024
+                                </span>
+<span class="flex items-center gap-1 text-[11px] text-stone-500 font-bold uppercase">
+<span class="material-symbols-outlined text-sm" data-icon="local_shipping">local_shipping</span>
+                                    Entrega: 18 Out 2024
+                                </span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-3 py-1 bg-stone-200 text-stone-700 text-[10px] font-black uppercase rounded-full">124 Itens</span>
+<button class="material-symbols-outlined p-1 hover:bg-stone-200 transition-colors" data-icon="expand_more">expand_more</button>
+</div>
+</div>
+<!-- Table Content -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-[#1c1917] text-white text-[11px] font-black uppercase tracking-[0.1em]">
+<th class="px-6 py-4">ID</th>
+<th class="px-6 py-4">Item de Produção</th>
+<th class="px-6 py-4">Tipo</th>
+<th class="px-6 py-4">Patrocinador</th>
+<th class="px-6 py-4">Status</th>
+<th class="px-6 py-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="text-sm font-medium">
+<!-- Row 1 -->
+<tr class="border-b border-stone-100 hover:bg-surface-container-low hover:-translate-y-0.5 transition-all duration-200">
+<td class="px-6 py-4 font-mono font-bold text-[#f97316]">#2024-8821</td>
+<td class="px-6 py-4 font-bold">Camisa de Aquecimento - Atletas Pro</td>
+<td class="px-6 py-4">
+<span class="text-[10px] px-2 py-0.5 bg-stone-100 rounded text-stone-600 font-bold uppercase">Têxtil</span>
+</td>
+<td class="px-6 py-4 text-stone-600">Nike Performance</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-[#fff7ed] text-[#f59e0b] rounded-full text-[11px] font-bold border border-[#fef3c7]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#f59e0b]"></span>
+                                        Em Produção
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-stone-400 hover:text-secondary transition-colors" data-icon="more_vert">more_vert</button>
+</td>
+</tr>
+<!-- Row 2 (with observation) -->
+<tr class="bg-stone-50 border-b border-stone-100 hover:bg-surface-container-low hover:-translate-y-0.5 transition-all duration-200">
+<td class="px-6 py-4 font-mono font-bold text-[#f97316]">#2024-8825</td>
+<td class="px-6 py-4 font-bold">Banner Backstage 4x2m UV Gloss</td>
+<td class="px-6 py-4">
+<span class="text-[10px] px-2 py-0.5 bg-stone-100 rounded text-stone-600 font-bold uppercase">Impressão</span>
+</td>
+<td class="px-6 py-4 text-stone-600">Red Bull Racing</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-[#f0f9ff] text-[#0ea5e9] rounded-full text-[11px] font-bold border border-[#e0f2fe]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#0ea5e9]"></span>
+                                        Aguard. Envio
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-stone-400 hover:text-secondary transition-colors" data-icon="more_vert">more_vert</button>
+</td>
+</tr>
+<tr class="bg-amber-50/50 border-b border-stone-100">
+<td class="px-6 py-2" colspan="6">
+<div class="flex items-center gap-2 text-[11px] text-amber-700 font-bold uppercase">
+<span class="material-symbols-outlined text-sm" data-icon="error">error</span>
+                                        Observação: Arquivo de arte com baixa resolução detectado pelo sistema.
+                                    </div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="border-b border-stone-100 hover:bg-surface-container-low hover:-translate-y-0.5 transition-all duration-200">
+<td class="px-6 py-4 font-mono font-bold text-[#f97316]">#2024-8902</td>
+<td class="px-6 py-4 font-bold">Credenciais VIP - RFID Encrypted</td>
+<td class="px-6 py-4">
+<span class="text-[10px] px-2 py-0.5 bg-stone-100 rounded text-stone-600 font-bold uppercase">Acessórios</span>
+</td>
+<td class="px-6 py-4 text-stone-600">Norte Apex Internal</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 bg-[#f0fdf4] text-[#15803d] rounded-full text-[11px] font-bold border border-[#dcfce7]">
+<span class="w-1.5 h-1.5 rounded-full bg-[#15803d]"></span>
+                                        Liberado
+                                    </span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-stone-400 hover:text-secondary transition-colors" data-icon="more_vert">more_vert</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Footer Info -->
+<div class="p-3 bg-surface text-center">
+<button class="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-secondary transition-colors">Carregar mais 121 itens deste evento</button>
+</div>
+</div>
+<!-- GROUP 2: Masters Open (Simplified placeholder) -->
+<div class="border border-stone-200 overflow-hidden bg-white shadow-sm opacity-80">
+<div class="bg-[#f5f4f3] p-4 border-b border-stone-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-white border border-stone-200 flex items-center justify-center opacity-50">
+<span class="material-symbols-outlined text-stone-400" data-icon="calendar_today">calendar_today</span>
+</div>
+<div>
+<h3 class="font-headline font-bold text-lg leading-tight uppercase tracking-tight text-stone-500">Masters Open 2024</h3>
+<div class="flex items-center gap-4 mt-1">
+<span class="text-[11px] text-stone-400 font-bold uppercase">Início: 02 Nov 2024</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-3 py-1 bg-stone-200 text-stone-500 text-[10px] font-black uppercase rounded-full">48 Itens</span>
+<button class="material-symbols-outlined p-1" data-icon="chevron_right">chevron_right</button>
+</div>
+</div>
+</div>
+</section>
+<!-- FOOTER BRANDING (AS PER EDITORIAL STYLE) -->
+<footer class="mt-auto pt-12 pb-6 border-t border-stone-100 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-8">
+<h2 class="font-headline font-black italic tracking-tighter text-2xl text-stone-900 uppercase">NORTE APEX</h2>
+<div class="flex gap-4">
+<a class="text-[10px] font-black uppercase tracking-widest text-[#78716c] hover:text-secondary transition-colors" href="#">Política de Produção</a>
+<a class="text-[10px] font-black uppercase tracking-widest text-[#78716c] hover:text-secondary transition-colors" href="#">Suporte Direto</a>
+<a class="text-[10px] font-black uppercase tracking-widest text-[#78716c] hover:text-secondary transition-colors" href="#">Compliance</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="text-right">
+<p class="text-[10px] font-black uppercase text-stone-400">Tempo de Resposta do Sistema</p>
+<p class="text-sm font-bold text-[#10b981]">12ms <span class="text-[10px] text-stone-400 font-normal">Estável</span></p>
+</div>
+<div class="w-10 h-10 rounded-full border-2 border-stone-200 flex items-center justify-center">
+<span class="material-symbols-outlined text-stone-400 text-xl" data-icon="bolt">bolt</span>
+</div>
+</div>
+</footer>
+</main>
+<!-- FAB (Suppressed on Dashboard as per rules if not primary action, but added here if needed for high-end feel) -->
+<!-- Rule says: render FAB if purpose aligns. Dashboard "New item" is primary. -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-secondary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-2xl" data-icon="add" data-weight="fill">add</span>
+</button>
+</body></html>

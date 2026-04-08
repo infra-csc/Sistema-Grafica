@@ -1,509 +1,346 @@
 import { useQuery } from "@tanstack/react-query";
-import { StatusBadge } from "@/components/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Search, Calendar, User, Package2, History, MessageSquare, ExternalLink, Truck, AlertCircle } from "lucide-react";
 import { useState, Fragment } from "react";
-import { Button } from "@/components/ui/button";
+import { Search, Calendar, Truck, AlertCircle, Eye } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+// ─── Status config ────────────────────────────────────────
+const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; color: string; border: string }> = {
+  requested:             { label: "Solicitado",         dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
+  awaiting_linking:      { label: "Aguard. Vinculação", dot: "#78716c", bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
+  awaiting_submission:   { label: "Aguard. Envio",      dot: "#0ea5e9", bg: "#f0f9ff", color: "#0ea5e9", border: "#e0f2fe" },
+  awaiting_approval:     { label: "Aguard. Aprovação",  dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
+  awaiting_sponsor_approval: { label: "Aguard. Aprovação", dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
+  awaiting_finalization: { label: "Aguard. Finalização",dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
+  sponsor_approved:      { label: "Aguard. Finalização",dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
+  awaiting_final_review: { label: "Aguard. Revisão",    dot: "#d946ef", bg: "#fdf4ff", color: "#d946ef", border: "#fae8ff" },
+  awaiting_creator_review: { label: "Aguard. Revisão",  dot: "#d946ef", bg: "#fdf4ff", color: "#d946ef", border: "#fae8ff" },
+  ready_for_production:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
+  approved:              { label: "Liberado",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
+  inProduction:          { label: "Em Produção",        dot: "#f59e0b", bg: "#fff7ed", color: "#f59e0b", border: "#fef3c7" },
+  produced:              { label: "Produzido",          dot: "#ec4899", bg: "#fdf2f8", color: "#ec4899", border: "#fce7f3" },
+  delivered:             { label: "Entregue",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
+};
+
+function StatusPill({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] || { label: status, dot: "#a8a29e", bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" };
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+      padding: "3px 10px",
+      backgroundColor: cfg.bg,
+      color: cfg.color,
+      border: `1px solid ${cfg.border}`,
+      borderRadius: 999,
+      fontSize: 11, fontWeight: 700,
+      whiteSpace: "nowrap",
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── Label style ──────────────────────────────────────────
+const filterLabel: React.CSSProperties = {
+  display: "block", fontSize: 10, fontWeight: 900,
+  textTransform: "uppercase", letterSpacing: "0.09em",
+  color: "#78716c", marginBottom: 8,
+};
+
 export default function PainelGeral() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm]     = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [eventFilter, setEventFilter] = useState<string>("all");
+  const [eventFilter, setEventFilter]   = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter]     = useState<string>("all");
+  const [dateFilter, setDateFilter]     = useState<string>("all");
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
-  const { data: items = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/items"],
-    placeholderData: [],
-  });
+  const { data: items = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/items"], placeholderData: [] });
+  const { data: events = [] }           = useQuery<any[]>({ queryKey: ["/api/events"], placeholderData: [] });
+  const { data: sponsors = [] }         = useQuery<any[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
+  const { data: auditLogs = [] }        = useQuery<any[]>({ queryKey: ["/api/audit-logs"], placeholderData: [] });
 
-  const { data: events = [] } = useQuery<any[]>({
-    queryKey: ["/api/events"],
-    placeholderData: [],
-  });
+  const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort();
 
-  const { data: sponsors = [] } = useQuery<any[]>({
-    queryKey: ["/api/sponsors"],
-    placeholderData: [],
-  });
-
-  const { data: auditLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs"],
-    placeholderData: [],
-  });
-
-  // Pegar tipos únicos dos itens
-  const uniqueTypes = Array.from(new Set(items.map(item => item.type))).sort();
-
-  // Função auxiliar para aplicar filtros (exceto status)
   const applyBaseFilters = (item: any) => {
-    const matchesSearch = 
-      item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.event?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.displayId?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-    const matchesType = typeFilter === "all" || item.type === typeFilter;
-    
-    // Filtro por patrocinador (verifica se o item tem o patrocinador selecionado)
-    const matchesSponsor = sponsorFilter === "all" || 
+    const matchesSearch =
+      item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.event?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.displayId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.description || "").toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesEvent   = eventFilter === "all"   || item.eventId === eventFilter;
+    const matchesType    = typeFilter === "all"    || item.type === typeFilter;
+    const matchesSponsor = sponsorFilter === "all" ||
       (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => s.id === sponsorFilter));
-    
-    // Filtro por data (várias opções)
     const matchesDate = dateFilter === "all" || (() => {
       if (!item.event?.startDate) return false;
-      const eventDate = new Date(item.event.startDate);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const eventDateOnly = new Date(eventDate);
-      eventDateOnly.setHours(0, 0, 0, 0);
-      const diffTime = eventDateOnly.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      switch(dateFilter) {
-        case 'today': return diffDays === 0;
-        case 'next3days': return diffDays >= 0 && diffDays <= 3;
-        case 'next7days': return diffDays >= 0 && diffDays <= 7;
-        case 'next10days': return diffDays >= 0 && diffDays <= 10;
-        case 'next15days': return diffDays >= 0 && diffDays <= 15;
-        case 'next30days': return diffDays >= 0 && diffDays <= 30;
-        case 'overdue': return diffDays < 0;
-        default: return true;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const evDate = new Date(item.event.startDate); evDate.setHours(0, 0, 0, 0);
+      const diff = Math.ceil((evDate.getTime() - today.getTime()) / 86400000);
+      switch (dateFilter) {
+        case "today":       return diff === 0;
+        case "next3days":   return diff >= 0 && diff <= 3;
+        case "next7days":   return diff >= 0 && diff <= 7;
+        case "next10days":  return diff >= 0 && diff <= 10;
+        case "next15days":  return diff >= 0 && diff <= 15;
+        case "next30days":  return diff >= 0 && diff <= 30;
+        case "overdue":     return diff < 0;
+        default:            return true;
       }
     })();
-    
     return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
   };
 
-  // Items para calcular stats (SEM filtro de status - números fixos nos cards)
-  const statsItems = items.filter(applyBaseFilters);
-
-  // Função para verificar se o item corresponde ao status selecionado (incluindo status antigos)
-  const matchesStatusFilter = (item: any, filter: string) => {
-    if (filter === "all") return true;
-    
-    // Mapeamento de status antigos para novos
-    const statusMap: Record<string, string[]> = {
-      'awaiting_approval': ['awaiting_approval', 'awaiting_sponsor_approval'],
-      'awaiting_finalization': ['awaiting_finalization', 'sponsor_approved'],
-      'awaiting_final_review': ['awaiting_final_review', 'awaiting_creator_review'],
+  const matchesStatus = (item: any, f: string) => {
+    if (f === "all") return true;
+    const map: Record<string, string[]> = {
+      awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
+      awaiting_finalization: ["awaiting_finalization", "sponsor_approved"],
+      awaiting_final_review: ["awaiting_final_review", "awaiting_creator_review"],
     };
-    
-    // Se o filtro tem mapeamento, aceita qualquer um dos status
-    if (statusMap[filter]) {
-      return statusMap[filter].includes(item.status);
-    }
-    
-    // Senão, comparação exata
-    return item.status === filter;
+    return map[f] ? map[f].includes(item.status) : item.status === f;
   };
 
-  // Items para exibir na tabela (COM filtro de status)
+  const statsItems    = items.filter(applyBaseFilters);
   const filteredItems = statsItems
-    .filter((item) => matchesStatusFilter(item, statusFilter))
+    .filter((i) => matchesStatus(i, statusFilter))
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  // Agrupar itens por evento (usando eventId como chave única)
   const groupedItems = filteredItems.reduce((acc, item) => {
-    const eventKey = item.eventId || "no-event";
-    const eventName = item.event?.name || "Sem Evento";
-    if (!acc[eventKey]) {
-      acc[eventKey] = {
-        eventId: item.eventId,
-        eventName: eventName,
-        items: []
-      };
-    }
-    acc[eventKey].items.push(item);
+    const k = item.eventId || "no-event";
+    if (!acc[k]) acc[k] = { eventId: item.eventId, eventName: item.event?.name || "Sem Evento", items: [] };
+    acc[k].items.push(item);
     return acc;
-  }, {} as Record<string, { eventId: string | null, eventName: string, items: any[] }>);
+  }, {} as Record<string, { eventId: string | null; eventName: string; items: any[] }>);
 
-  // Stats baseados APENAS nos filtros dropdown (não muda ao clicar nos cards)
   const stats = {
-    total: statsItems.length,
-    requested: statsItems.filter(i => i.status === 'requested').length,
-    awaitingLinking: statsItems.filter(i => i.status === 'awaiting_linking').length,
-    awaitingSubmission: statsItems.filter(i => i.status === 'awaiting_submission').length,
-    awaitingApproval: statsItems.filter(i => i.status === 'awaiting_approval' || i.status === 'awaiting_sponsor_approval').length,
-    awaitingFinalization: statsItems.filter(i => i.status === 'awaiting_finalization' || i.status === 'sponsor_approved').length,
-    awaitingFinalReview: statsItems.filter(i => i.status === 'awaiting_final_review' || i.status === 'awaiting_creator_review').length,
-    readyForProduction: statsItems.filter(i => i.status === 'ready_for_production').length,
-    approved: statsItems.filter(i => i.status === 'approved').length,
-    inProduction: statsItems.filter(i => i.status === 'inProduction').length,
-    produced: statsItems.filter(i => i.status === 'produced').length,
-    delivered: statsItems.filter(i => i.status === 'delivered').length,
+    total:                 statsItems.length,
+    requested:             statsItems.filter(i => i.status === "requested").length,
+    awaitingLinking:       statsItems.filter(i => i.status === "awaiting_linking").length,
+    awaitingSubmission:    statsItems.filter(i => i.status === "awaiting_submission").length,
+    awaitingApproval:      statsItems.filter(i => i.status === "awaiting_approval" || i.status === "awaiting_sponsor_approval").length,
+    awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved").length,
+    awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review" || i.status === "awaiting_creator_review").length,
+    readyForProduction:    statsItems.filter(i => i.status === "ready_for_production").length,
+    approved:              statsItems.filter(i => i.status === "approved").length,
+    inProduction:          statsItems.filter(i => i.status === "inProduction").length,
+    produced:              statsItems.filter(i => i.status === "produced").length,
+    delivered:             statsItems.filter(i => i.status === "delivered").length,
   };
 
-  const getItemLogs = (itemId: string) => {
-    return auditLogs
-      .filter(log => log.entityId === itemId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  // ── Status card component ───────────────────────────────
+  const StatusCard = ({
+    label, value, dot, color, filterKey,
+  }: { label: string; value: number; dot: string; color: string; filterKey: string }) => {
+    const isActive = statusFilter === filterKey;
+    return (
+      <div
+        onClick={() => setStatusFilter(isActive ? "all" : filterKey)}
+        data-testid={`stat-card-${filterKey}`}
+        style={{
+          backgroundColor: "#ffffff",
+          border: `1px solid ${isActive ? "#f97316" : "#e7e5e4"}`,
+          padding: 16, minHeight: 100,
+          display: "flex", flexDirection: "column", justifyContent: "space-between",
+          cursor: "pointer",
+          boxShadow: isActive ? "inset 0 0 0 1px #f97316" : "none",
+          transition: "border-color 0.15s, box-shadow 0.15s",
+        }}
+      >
+        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot }} />
+        <div>
+          <p style={{ fontSize: 20, fontWeight: 700, color, lineHeight: 1, margin: 0 }}>{value}</p>
+          <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
+        </div>
+      </div>
+    );
   };
 
-  const formatDateTime = (dateString: string) => {
-    return format(new Date(dateString), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  const inputStyle: React.CSSProperties = {
+    width: "100%", height: 40,
+    backgroundColor: "#ffffff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 0,
+    padding: "0 12px",
+    fontSize: 13, color: "#1c1917",
+    fontFamily: "inherit",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const selectTriggerStyle: React.CSSProperties = {
+    backgroundColor: "#ffffff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 0,
+    height: 40,
+    fontSize: 13,
+    color: "#1c1917",
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight" style={{ color: '#1c1917' }} data-testid="title-painel-geral">
+    <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24 }}>
+
+      {/* ── Header ── */}
+      <header style={{ display: "flex", flexDirection: "column" }}>
+        <h1
+          data-testid="title-painel-geral"
+          style={{
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontSize: 28, fontWeight: 700, letterSpacing: "-0.04em",
+            textTransform: "uppercase", color: "#1c1917", margin: 0,
+          }}
+        >
           Painel de Status Geral
         </h1>
-        <p className="text-sm mt-1" style={{ color: '#78716c' }}>
+        <p style={{ fontSize: 13, color: "#78716c", fontWeight: 500, margin: "4px 0 0 0" }}>
           Acompanhamento em tempo real de todos os itens em produção
         </p>
-      </div>
+      </header>
 
-      {/* Dashboard - 12 Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        <div 
-          className={`bg-[#1c1917] rounded-lg p-3 cursor-pointer hover-elevate transition-all ${statusFilter === 'all' ? 'ring-2 ring-[#f97316]' : ''}`}
-          onClick={() => setStatusFilter('all')}
+      {/* ── Status cards ── */}
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }} className="grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+
+        {/* Total card — dark */}
+        <div
+          onClick={() => setStatusFilter("all")}
+          data-testid="stat-total"
+          style={{
+            backgroundColor: "#1c1917",
+            borderBottom: "3px solid #f97316",
+            padding: 16, minHeight: 100,
+            display: "flex", flexDirection: "column", justifyContent: "space-between",
+            cursor: "pointer",
+            outline: statusFilter === "all" ? "2px solid #f97316" : "none",
+            outlineOffset: -2,
+          }}
         >
-          <div className="flex flex-row items-center justify-between pb-1 mb-2">
-            <span className="text-xs font-medium text-[#a8a29e]">Total</span>
-            <Package2 className="h-3.5 w-3.5 text-[#a8a29e]" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
+          <div>
+            <p style={{ fontSize: 20, fontWeight: 700, color: "#f97316", lineHeight: 1, margin: 0 }}>{stats.total}</p>
+            <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "rgba(255,255,255,0.5)", marginTop: 4, lineHeight: 1.2 }}>Total</p>
           </div>
-          <div className="text-xl font-bold text-[#f97316]" data-testid="stat-total">{stats.total}</div>
         </div>
 
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'requested' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'requested' ? '#fff5eb' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'requested' ? 'all' : 'requested')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Solicitado</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#f97316]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#f97316]">{stats.requested}</div>
-          </CardContent>
-        </Card>
+        <StatusCard label="Solicitado"         value={stats.requested}            dot="#f97316" color="#f97316" filterKey="requested" />
+        <StatusCard label="Aguard. Vinculação" value={stats.awaitingLinking}      dot="#78716c" color="#78716c" filterKey="awaiting_linking" />
+        <StatusCard label="Aguard. Envio"      value={stats.awaitingSubmission}   dot="#0ea5e9" color="#0ea5e9" filterKey="awaiting_submission" />
+        <StatusCard label="Aguard. Aprovação"  value={stats.awaitingApproval}     dot="#f97316" color="#f97316" filterKey="awaiting_approval" />
+        <StatusCard label="Aguard. Finalização" value={stats.awaitingFinalization} dot="#a855f7" color="#a855f7" filterKey="awaiting_finalization" />
+        <StatusCard label="Aguard. Revisão"    value={stats.awaitingFinalReview}  dot="#d946ef" color="#d946ef" filterKey="awaiting_final_review" />
+        <StatusCard label="Pronto Produção"    value={stats.readyForProduction}   dot="#10b981" color="#10b981" filterKey="ready_for_production" />
+        <StatusCard label="Liberado"           value={stats.approved}             dot="#15803d" color="#15803d" filterKey="approved" />
+        <StatusCard label="Em Produção"        value={stats.inProduction}         dot="#f59e0b" color="#f59e0b" filterKey="inProduction" />
+        <StatusCard label="Produzido"          value={stats.produced}             dot="#ec4899" color="#ec4899" filterKey="produced" />
+        <StatusCard label="Entregue"           value={stats.delivered}            dot="#15803d" color="#15803d" filterKey="delivered" />
+      </section>
 
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_linking' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'awaiting_linking' ? '#f8f7f6' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_linking' ? 'all' : 'awaiting_linking')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Vinculação</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#a8a29e]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#78716c]">{stats.awaitingLinking}</div>
-          </CardContent>
-        </Card>
+      {/* ── Filter panel ── */}
+      <section style={{
+        backgroundColor: "#fafaf9",
+        border: "1px solid #e7e5e4",
+        padding: 24,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+      }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr 1fr 1fr", gap: 16, alignItems: "end" }}>
 
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_submission' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'awaiting_submission' ? '#eff6ff' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_submission' ? 'all' : 'awaiting_submission')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Envio</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#2563eb]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#0ea5e9]">{stats.awaitingSubmission}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? '#fff5eb' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_approval' || statusFilter === 'awaiting_sponsor_approval' ? 'all' : 'awaiting_approval')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Aprovação</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#f97316]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#f97316]">{stats.awaitingApproval}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? '#f5f3ff' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_finalization' || statusFilter === 'sponsor_approved' ? 'all' : 'awaiting_finalization')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Finalização</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#a855f7]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#a855f7]">{stats.awaitingFinalization}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? '#f3e8ff' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'awaiting_final_review' || statusFilter === 'awaiting_creator_review' ? 'all' : 'awaiting_final_review')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Aguard. Revisão</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#d946ef]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#d946ef]">{stats.awaitingFinalReview}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'ready_for_production' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'ready_for_production' ? '#ecfdf5' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'ready_for_production' ? 'all' : 'ready_for_production')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Pronto Produção</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#10b981]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#10b981]">{stats.readyForProduction}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'approved' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'approved' ? '#f0fdf4' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Liberado</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#15803d]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#15803d]">{stats.approved}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'inProduction' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'inProduction' ? '#fef3c7' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'inProduction' ? 'all' : 'inProduction')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Em Produção</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#f59e0b]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#f59e0b]">{stats.inProduction}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'produced' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'produced' ? '#fce7f3' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'produced' ? 'all' : 'produced')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Produzido</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#ec4899]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#ec4899]">{stats.produced}</div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className={`cursor-pointer transition-all ${statusFilter === 'delivered' ? 'ring-2 ring-[#f97316]' : ''}`}
-          style={{
-            backgroundColor: statusFilter === 'delivered' ? '#f0fdf4' : '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: '10px'
-          }}
-          onClick={() => setStatusFilter(statusFilter === 'delivered' ? 'all' : 'delivered')}
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 p-3">
-            <CardTitle className="text-xs font-medium text-[#1c1917]">Entregue</CardTitle>
-            <div className="h-2.5 w-2.5 rounded-full bg-[#15803d]"></div>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <div className="text-xl font-bold text-[#15803d]">{stats.delivered}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtros */}
-      <div style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: '10px', padding: '1.5rem' }}>
-        <h3 className="text-lg font-bold text-[#1c1917] mb-6">Filtros</h3>
-        <div className="flex flex-col gap-6">
-          {/* Linha 1: Busca */}
-          <div className="flex-1 relative">
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Buscar</label>
-            <Search className="absolute left-3 top-12 transform -translate-y-1/2 h-4 w-4 text-[#a8a29e]" />
-            <Input
-              placeholder="Evento, tipo ou ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                backgroundColor: '#ffffff',
-                border: '1px solid #e7e5e4',
-                color: '#1c1917',
-                paddingLeft: '2.5rem',
-                borderRadius: '10px'
-              }}
-              data-testid="input-search"
-            />
+          {/* Busca */}
+          <div>
+            <label style={filterLabel}>Busca</label>
+            <div style={{ position: "relative" }}>
+              <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, color: "#a8a29e" }} />
+              <input
+                type="text"
+                placeholder="ID, evento ou tipo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                data-testid="input-search"
+                style={{ ...inputStyle, paddingLeft: 32 }}
+              />
+            </div>
           </div>
-          
-          {/* Linha 2: Selects */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Evento</label>
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e7e5e4',
-                  color: '#1c1917',
-                  borderRadius: '10px'
-                }} data-testid="select-event-filter">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
+
+          {/* Evento */}
+          <div>
+            <label style={filterLabel}>Evento</label>
+            <Select value={eventFilter} onValueChange={setEventFilter}>
+              <SelectTrigger style={selectTriggerStyle} data-testid="select-event-filter">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os eventos</SelectItem>
-                {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((event) => (
-                  <SelectItem key={event.id} value={event.id}>
-                    {event.name}
-                  </SelectItem>
+                {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((e: any) => (
+                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            </div>
+          </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Tipo</label>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e7e5e4',
-                  color: '#1c1917',
-                  borderRadius: '10px'
-                }} data-testid="select-type-filter">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os tipos</SelectItem>
-                  {uniqueTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="lg:col-span-2">
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Patrocinador</label>
-              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-                <SelectTrigger style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e7e5e4',
-                  color: '#1c1917',
-                  borderRadius: '10px'
-                }} data-testid="select-sponsor-filter" className="text-left whitespace-normal leading-tight min-h-9">
-                  <SelectValue placeholder="Selecione..." className="whitespace-normal break-words" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os patrocinadores</SelectItem>
-                  {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map((sponsor: any) => (
-                    <SelectItem key={sponsor.id} value={sponsor.id}>
-                      {sponsor.name}
-                    </SelectItem>
-                  ))}
+          {/* Tipo */}
+          <div>
+            <label style={filterLabel}>Tipo</label>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger style={selectTriggerStyle} data-testid="select-type-filter">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                {uniqueTypes.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            </div>
+          </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e7e5e4',
-                  color: '#1c1917',
-                  borderRadius: '10px'
-                }} data-testid="select-status-filter">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
+          {/* Patrocinador */}
+          <div>
+            <label style={filterLabel}>Patrocinador</label>
+            <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+              <SelectTrigger style={selectTriggerStyle} data-testid="select-sponsor-filter">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="awaiting_approval">Aguardando Aprovação</SelectItem>
-                <SelectItem value="awaiting_finalization">Aguardando Finalização</SelectItem>
-                <SelectItem value="awaiting_final_review">Aguardando Revisão Final</SelectItem>
-                <SelectItem value="awaiting_linking">Aguardando Vinculação</SelectItem>
-                <SelectItem value="awaiting_submission">Aguardando Envio</SelectItem>
+                <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                {[...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label style={filterLabel}>Status</label>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger style={selectTriggerStyle} data-testid="select-status-filter">
+                <SelectValue placeholder="Qualquer" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Qualquer status</SelectItem>
+                <SelectItem value="requested">Solicitado</SelectItem>
+                <SelectItem value="awaiting_linking">Aguard. Vinculação</SelectItem>
+                <SelectItem value="awaiting_submission">Aguard. Envio</SelectItem>
+                <SelectItem value="awaiting_approval">Aguard. Aprovação</SelectItem>
+                <SelectItem value="awaiting_finalization">Aguard. Finalização</SelectItem>
+                <SelectItem value="awaiting_final_review">Aguard. Revisão</SelectItem>
+                <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
                 <SelectItem value="approved">Liberado</SelectItem>
-                <SelectItem value="delivered">Entregue</SelectItem>
                 <SelectItem value="inProduction">Em Produção</SelectItem>
                 <SelectItem value="produced">Produzido</SelectItem>
-                <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
-                <SelectItem value="requested">Solicitado</SelectItem>
+                <SelectItem value="delivered">Entregue</SelectItem>
               </SelectContent>
             </Select>
-            </div>
+          </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#78716c', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Data</label>
-              <Select value={dateFilter} onValueChange={setDateFilter}>
-                <SelectTrigger style={{
-                  backgroundColor: '#ffffff',
-                  border: '1px solid #e7e5e4',
-                  color: '#1c1917',
-                  borderRadius: '10px'
-                }} data-testid="select-date-filter">
-                  <SelectValue placeholder="Selecione..." />
+          {/* Data */}
+          <div>
+            <label style={filterLabel}>Data</label>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger style={selectTriggerStyle} data-testid="select-date-filter">
+                <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as datas</SelectItem>
@@ -514,145 +351,202 @@ export default function PainelGeral() {
                 <SelectItem value="next10days">Próximos 10 dias</SelectItem>
                 <SelectItem value="next15days">Próximos 15 dias</SelectItem>
                 <SelectItem value="next30days">Próximos 30 dias</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              </SelectContent>
+            </Select>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Items - Agrupados por Evento */}
-      <div className="space-y-6">
+      {/* ── Grouped table ── */}
+      <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
         ) : filteredItems.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <p className="text-muted-foreground">Nenhum item encontrado</p>
-            </CardContent>
-          </Card>
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", padding: 48, textAlign: "center" }}>
+            <p style={{ color: "#a8a29e", fontSize: 14 }}>Nenhum item encontrado</p>
+          </div>
         ) : (
           Object.entries(groupedItems).map(([eventKey, eventData]) => {
-            const groupData = eventData as { eventId: string | null, eventName: string, items: any[] };
+            const gd = eventData as { eventId: string | null; eventName: string; items: any[] };
+            const firstItem = gd.items[0];
             return (
-              <Card key={eventKey} style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px' }}>
-                <CardHeader style={{ backgroundColor: '#f5f4f3', borderBottom: '1px solid #e7e5e4', borderRadius: '10px 10px 0 0' }}>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" style={{ color: '#1c1917' }} />
-                    <span style={{ color: '#1c1917', fontWeight: '700' }}>{groupData.eventName}</span>
-                    <Badge style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#1c1917', fontSize: '12px' }} className="ml-2">
-                      {groupData.items.length} {groupData.items.length === 1 ? 'item' : 'itens'}
-                    </Badge>
-                  </CardTitle>
-                  {/* Datas do Evento */}
-                  {groupData.items[0]?.event && (
-                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-2">
-                      {groupData.items[0].event.startDate && (
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>Evento: {format(new Date(groupData.items[0].event.startDate), "dd/MM/yyyy", { locale: ptBR })}</span>
-                        </div>
-                      )}
-                      {groupData.items[0].event.truckDepartureDate && (
-                        <div className="flex items-center gap-1.5">
-                          <Truck className="h-3.5 w-3.5" />
-                          <span>Saída caminhão: {format(new Date(groupData.items[0].event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
-                        </div>
-                      )}
+              <div key={eventKey} style={{ border: "1px solid #e2e2e2", backgroundColor: "#ffffff", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+
+                {/* Group header */}
+                <div style={{
+                  backgroundColor: "#f5f4f3",
+                  borderBottom: "1px solid #e2e2e2",
+                  padding: "16px 20px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{
+                      width: 40, height: 40,
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e2e2",
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      <Calendar style={{ width: 18, height: 18, color: "#f97316" }} />
                     </div>
-                  )}
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr style={{ backgroundColor: '#1c1917', borderBottom: '2px solid #e7e5e4' }}>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>ID</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Tipo</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Descrição</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Arquivo</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Visual</th>
-                          <th style={{ textAlign: 'center', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Qtd</th>
-                          <th style={{ textAlign: 'center', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>m²</th>
-                          <th style={{ textAlign: 'left', padding: '12px 16px', fontWeight: '600', fontSize: '12px', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {groupData.items.map((item: any, index: number) => (
-                          <Fragment key={item.id}>
+                    <div>
+                      <h3 style={{
+                        fontFamily: "'Space Grotesk', sans-serif",
+                        fontWeight: 700, fontSize: 16,
+                        textTransform: "uppercase", letterSpacing: "-0.02em",
+                        color: "#1c1917", margin: 0, lineHeight: 1.2,
+                      }}>
+                        {gd.eventName}
+                      </h3>
+                      <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                        {firstItem?.event?.startDate && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#78716c" }}>
+                            <Calendar style={{ width: 12, height: 12 }} />
+                            Início: {format(new Date(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
+                          </span>
+                        )}
+                        {firstItem?.event?.truckDepartureDate && (
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#78716c" }}>
+                            <Truck style={{ width: 12, height: 12 }} />
+                            Saída: {format(new Date(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{
+                    padding: "3px 12px", borderRadius: 999,
+                    backgroundColor: "#e2e2e2", color: "#57534e",
+                    fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.07em",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {gd.items.length} {gd.items.length === 1 ? "item" : "itens"}
+                  </span>
+                </div>
+
+                {/* Table */}
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ backgroundColor: "#1c1917" }}>
+                        {["ID", "Item de Produção", "Tipo", "Patrocinador", "Status", ""].map((col, i) => (
+                          <th key={i} style={{
+                            padding: "12px 20px",
+                            fontSize: 11, fontWeight: 900, textTransform: "uppercase",
+                            letterSpacing: "0.1em", color: "#ffffff",
+                            textAlign: i === 5 ? "right" : "left",
+                            whiteSpace: "nowrap",
+                          }}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gd.items.map((item: any, idx: number) => (
+                        <Fragment key={item.id}>
                           <tr
-                            className={`border-b hover-elevate cursor-pointer transition-colors ${
-                              index % 2 === 0 ? 'bg-background' : 'bg-muted/20'
-                            }`}
-                            onClick={() => setSelectedItem(item)}
                             data-testid={`item-row-${item.id}`}
+                            onClick={() => setSelectedItem(item)}
+                            style={{
+                              borderBottom: "1px solid #f0f0ef",
+                              backgroundColor: idx % 2 === 1 ? "#fafaf9" : "#ffffff",
+                              cursor: "pointer",
+                              transition: "transform 0.15s, background-color 0.15s",
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLTableRowElement).style.transform = "translateY(-1px)";
+                              (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f3f4f3";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLTableRowElement).style.transform = "none";
+                              (e.currentTarget as HTMLTableRowElement).style.backgroundColor = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
+                            }}
                           >
-                            <td className="py-3 px-4">
-                              <span className="font-mono font-bold text-sm" style={{ color: '#f97316' }} data-testid={`text-display-id-${item.id}`}>
+                            {/* ID */}
+                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                              <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
                                 {item.displayId}
                               </span>
                             </td>
-                            <td className="py-3 px-4">
-                              <span className="font-semibold text-sm">{item.type}</span>
-                            </td>
-                            <td className="py-3 px-4 max-w-xs">
-                              {item.description ? (
-                                <span className="text-sm text-muted-foreground truncate block">{item.description}</span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs italic">—</span>
+
+                            {/* Item de Produção */}
+                            <td style={{ padding: "14px 20px", maxWidth: 280 }}>
+                              <p style={{ fontWeight: 700, fontSize: 13, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {item.description || item.type}
+                              </p>
+                              {item.description && (
+                                <p style={{ fontSize: 11, color: "#a8a29e", margin: "2px 0 0 0" }}>{item.type}</p>
                               )}
                             </td>
-                            <td className="py-3 px-4">
-                              {item.fileWidth && item.fileHeight ? (
-                                <span className="text-sm">{item.fileWidth} × {item.fileHeight}</span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
+
+                            {/* Tipo */}
+                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                              <span style={{
+                                fontSize: 10, padding: "2px 8px",
+                                backgroundColor: "#f0f0ef",
+                                color: "#57534e",
+                                fontWeight: 700, textTransform: "uppercase",
+                                borderRadius: 2,
+                              }}>
+                                {item.type}
+                              </span>
                             </td>
-                            <td className="py-3 px-4">
-                              {item.visualWidth && item.visualHeight ? (
-                                <span className="text-sm">{item.visualWidth} × {item.visualHeight}</span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              )}
+
+                            {/* Patrocinador */}
+                            <td style={{ padding: "14px 20px", color: "#78716c", fontSize: 13 }}>
+                              {item.sponsors?.length > 0
+                                ? item.sponsors.map((s: any) => s.name).join(", ")
+                                : <span style={{ color: "#a8a29e" }}>—</span>}
                             </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-bold text-sm">{item.quantity} un.</span>
+
+                            {/* Status */}
+                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                              <StatusPill status={item.status} />
                             </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="font-bold text-sm" style={{ color: '#f97316' }}>{item.calculatedM2}</span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <StatusBadge status={item.status} />
+
+                            {/* Ação */}
+                            <td style={{ padding: "14px 20px", textAlign: "right" }}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                data-testid={`button-view-${item.id}`}
+                                style={{
+                                  background: "none", border: "none", cursor: "pointer",
+                                  padding: 4, borderRadius: 4,
+                                  color: "#a8a29e",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  transition: "color 0.15s",
+                                }}
+                                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
+                                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
+                              >
+                                <Eye style={{ width: 16, height: 16 }} />
+                              </button>
                             </td>
                           </tr>
+
+                          {/* Observations row */}
                           {item.observations && (
-                            <tr className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-200/30 dark:border-amber-900/30">
-                              <td colSpan={8} className="py-2 px-4">
-                                <div className="flex gap-2 items-start">
-                                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                                  <div className="text-sm text-amber-800 dark:text-amber-200">
-                                    <span className="font-semibold">Observações da Ação:</span> {item.observations}
-                                  </div>
+                            <tr style={{ backgroundColor: "rgba(251,191,36,0.08)", borderBottom: "1px solid rgba(251,191,36,0.2)" }}>
+                              <td colSpan={6} style={{ padding: "8px 20px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#92400e" }}>
+                                  <AlertCircle style={{ width: 13, height: 13, flexShrink: 0 }} />
+                                  Observação: {item.observations}
                                 </div>
                               </td>
                             </tr>
                           )}
-                          </Fragment>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-              </CardContent>
-            </Card>
-          );
-        })
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })
         )}
-      </div>
+      </section>
 
-      {/* Modal de Detalhes do Item */}
+      {/* ── Item details modal ── */}
       <ItemDetailsDialog
         item={selectedItem}
         auditLogs={auditLogs}

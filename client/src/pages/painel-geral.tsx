@@ -430,12 +430,12 @@ export default function PainelGeral() {
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ backgroundColor: "#1c1917" }}>
-                        {["ID", "Item de Produção", "Tipo", "Patrocinador", "Status", ""].map((col, i) => (
+                        {["ID", "Item de Produção", "Descrição", "Medidas", "Tipo", "Patrocinador", "Status", ""].map((col, i) => (
                           <th key={i} style={{
                             padding: "12px 20px",
                             fontSize: 11, fontWeight: 900, textTransform: "uppercase",
                             letterSpacing: "0.1em", color: "#ffffff",
-                            textAlign: i === 5 ? "right" : "left",
+                            textAlign: i === 7 ? "right" : "left",
                             whiteSpace: "nowrap",
                           }}>{col}</th>
                         ))}
@@ -470,12 +470,33 @@ export default function PainelGeral() {
                             </td>
 
                             {/* Item de Produção */}
-                            <td style={{ padding: "14px 20px", maxWidth: 280 }}>
+                            <td style={{ padding: "14px 20px", maxWidth: 220 }}>
                               <p style={{ fontWeight: 700, fontSize: 13, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {item.description || item.type}
+                                {item.type}
                               </p>
-                              {item.description && (
-                                <p style={{ fontSize: 11, color: "#a8a29e", margin: "2px 0 0 0" }}>{item.type}</p>
+                            </td>
+
+                            {/* Descrição */}
+                            <td style={{ padding: "14px 20px", maxWidth: 260 }}>
+                              {item.description ? (
+                                <span style={{ fontSize: 12, color: "#78716c", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {item.description}
+                                </span>
+                              ) : (
+                                <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
+                              )}
+                            </td>
+
+                            {/* Medidas */}
+                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                              {(item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight) ? (
+                                <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#44403c" }}>
+                                  {item.visualWidth && item.visualHeight
+                                    ? `${item.visualWidth} × ${item.visualHeight}`
+                                    : `${item.fileWidth} × ${item.fileHeight}`}
+                                </span>
+                              ) : (
+                                <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
                               )}
                             </td>
 
@@ -527,7 +548,7 @@ export default function PainelGeral() {
                           {/* Observations row */}
                           {item.observations && (
                             <tr style={{ backgroundColor: "rgba(251,191,36,0.08)", borderBottom: "1px solid rgba(251,191,36,0.2)" }}>
-                              <td colSpan={6} style={{ padding: "8px 20px" }}>
+                              <td colSpan={8} style={{ padding: "8px 20px" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#92400e" }}>
                                   <AlertCircle style={{ width: 13, height: 13, flexShrink: 0 }} />
                                   Observação: {item.observations}

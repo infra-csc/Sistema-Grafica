@@ -109,7 +109,7 @@ export default function Login() {
             color: '#f9f9f8',
             margin: 0,
           }}>
-            NORTE Sport Graphics
+            NORTE Marketing Esportivo
           </h1>
         </div>
 
@@ -355,21 +355,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Support link */}
-          <div style={{ marginTop: 48, textAlign: 'center' }}>
-            <p style={{ color: '#a8a29e', fontSize: 12, margin: 0 }}>
-              Problemas com o acesso?{' '}
-              <a href="#" style={{
-                color: '#1c1917', fontWeight: 700,
-                textDecoration: 'underline',
-                textDecorationColor: '#f97316',
-                textDecorationThickness: 2,
-                textUnderlineOffset: 4,
-              }}>
-                Contate o Suporte
-              </a>
-            </p>
-          </div>
         </div>
 
         {/* Security seal — bottom right */}

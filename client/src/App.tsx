@@ -206,28 +206,16 @@ function AuthenticatedLayout() {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 20, fontWeight: 900,
-                letterSpacing: "-0.04em",
-                fontStyle: "italic",
-                color: "#1c1917",
-                textTransform: "uppercase",
-              }}>
-                NORTE
-              </span>
-              <div style={{ width: 1, height: 14, backgroundColor: "rgba(249,115,22,0.3)" }} />
-              <span style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 11, fontWeight: 700,
-                letterSpacing: "0.15em",
-                color: "#a8a29e",
-                textTransform: "uppercase",
-              }}>
-                APEX
-              </span>
-            </div>
+            <span style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 20, fontWeight: 900,
+              letterSpacing: "-0.04em",
+              fontStyle: "italic",
+              color: "#f97316",
+              textTransform: "uppercase",
+            }}>
+              NORTE
+            </span>
           </div>
 
           {/* Right: notifications + avatar */}

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { CheckCircle, ArrowRight, Lock, Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -17,13 +18,11 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [btnHover, setBtnHover] = useState(false);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const loginMutation = useMutation({
@@ -33,12 +32,10 @@ export default function Login() {
     },
     onSuccess: async (user) => {
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      
       toast({
         title: "Login realizado com sucesso",
         description: `Bem-vindo, ${user.name}!`,
       });
-
       setTimeout(() => {
         if (user.mustChangePassword) {
           setLocation("/change-password");
@@ -56,407 +53,350 @@ export default function Login() {
     },
   });
 
-  const onSubmit = (data: LoginForm) => {
-    loginMutation.mutate(data);
-  };
+  const onSubmit = (data: LoginForm) => loginMutation.mutate(data);
 
   return (
-    <div style={{
+    <main style={{
       display: 'flex',
-      width: '100vw',
       height: '100vh',
+      width: '100vw',
       overflow: 'hidden',
-      margin: 0,
-      padding: 0
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
     }}>
-      {/* LEFT COLUMN - Dark branding */}
-      <div style={{
-        width: '42%',
-        height: '100%',
-        backgroundColor: '#1c1917',
-        color: 'white',
+
+      {/* ── LEFT COLUMN: Branding (42%) ── */}
+      <section style={{
         position: 'relative',
-        overflow: 'hidden',
-        padding: '40px 48px',
+        width: '42%',
+        backgroundColor: '#1c1917',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        padding: '48px',
+        overflow: 'hidden',
       }}>
-        {/* Decorative orange spot */}
+
+        {/* Decorative orange glow — bottom right */}
         <div style={{
           position: 'absolute',
-          bottom: '-80px',
-          left: '-80px',
-          width: '400px',
-          height: '400px',
+          bottom: '-96px',
+          right: '-96px',
+          width: '384px',
+          height: '384px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(249,115,22,0.4) 0%, transparent 65%)',
+          background: 'radial-gradient(circle, rgba(249,115,22,0.20) 0%, transparent 65%)',
+          filter: 'blur(60px)',
           pointerEvents: 'none',
-          zIndex: 0
         }} />
 
-        {/* TOP - Logo and brand */}
-        <div style={{
-          position: 'relative',
-          zIndex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
+        {/* Brand identity */}
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{
-            width: '44px',
-            height: '44px',
+            width: 48, height: 48,
             backgroundColor: '#f97316',
-            borderRadius: '10px',
-            color: 'white',
-            fontSize: '20px',
-            fontWeight: '800',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
+            borderRadius: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            N
+            <span style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 700, fontSize: 24, color: 'white',
+            }}>N</span>
           </div>
-          <div>
-            <div style={{
-              color: 'white',
-              fontWeight: '700',
-              fontSize: '15px',
-              margin: 0
-            }}>NORTE</div>
-            <div style={{
-              color: 'rgba(255,255,255,0.5)',
-              fontSize: '12px',
-              margin: 0
-            }}>Marketing Esportivo</div>
-          </div>
+          <h1 style={{
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontWeight: 700, fontSize: 20,
+            letterSpacing: '-0.02em',
+            color: '#f9f9f8',
+            margin: 0,
+          }}>
+            NORTE Sport Graphics
+          </h1>
         </div>
 
-        {/* MIDDLE - Content */}
-        <div style={{
-          position: 'relative',
-          zIndex: 1,
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center'
-        }}>
-          {/* Decorative line */}
-          <div style={{
-            width: '36px',
-            height: '3px',
-            backgroundColor: '#f97316',
-            borderRadius: '2px',
-            marginBottom: '24px'
-          }} />
+        {/* Content center */}
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 420 }}>
+          {/* Accent line */}
+          <div style={{ width: 48, height: 4, backgroundColor: '#f97316', marginBottom: 8, borderRadius: 2 }} />
 
-          {/* Title */}
           <h2 style={{
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontSize: 46, fontWeight: 700,
             color: 'white',
-            fontSize: '30px',
-            fontWeight: '800',
-            letterSpacing: '-0.5px',
-            lineHeight: '1.15',
-            margin: '0 0 16px 0'
+            lineHeight: 1.1,
+            letterSpacing: '-0.04em',
+            margin: '0 0 32px 0',
           }}>
             Sistema de Gestão de Produção Gráfica
           </h2>
 
-          {/* Subtitle */}
-          <p style={{
-            color: 'rgba(255,255,255,0.55)',
-            fontSize: '14px',
-            lineHeight: '1.7',
-            margin: '0 0 32px 0'
-          }}>
-            Controle completo do fluxo de produção: Solicitação → Arte → Gráfica → Entrega
-          </p>
-
           {/* Feature cards */}
-          <div style={{
-            display: 'flex',
-            gap: '10px'
-          }}>
-            <div style={{
-              flex: 1,
-              backgroundColor: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: '8px',
-              padding: '12px 14px'
-            }}>
-              <div style={{
-                color: '#f97316',
-                fontSize: '14px',
-                fontWeight: '600'
-              }}>✓</div>
-              <div style={{
-                color: 'white',
-                fontSize: '13px',
-                marginTop: '6px'
-              }}>Notificações em tempo real</div>
-            </div>
-            <div style={{
-              flex: 1,
-              backgroundColor: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: '8px',
-              padding: '12px 14px'
-            }}>
-              <div style={{
-                color: '#f97316',
-                fontSize: '14px',
-                fontWeight: '600'
-              }}>✓</div>
-              <div style={{
-                color: 'white',
-                fontSize: '13px',
-                marginTop: '6px'
-              }}>Rastreamento completo</div>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[
+              { title: 'Notificações em tempo real', sub: 'Acompanhamento instantâneo de pedidos.' },
+              { title: 'Rastreamento completo', sub: 'Visibilidade total da cadeia de produção.' },
+            ].map((f) => (
+              <div key={f.title} style={{
+                backgroundColor: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                borderRadius: 12,
+                padding: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  backgroundColor: 'rgba(249,115,22,0.20)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <CheckCircle style={{ width: 16, height: 16, color: '#f97316' }} />
+                </div>
+                <div>
+                  <p style={{ color: 'white', fontWeight: 500, fontSize: 14, margin: 0 }}>{f.title}</p>
+                  <p style={{ color: 'rgba(255,255,255,0.40)', fontSize: 12, margin: '2px 0 0 0' }}>{f.sub}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* BOTTOM - Footer */}
-        <div style={{
-          position: 'relative',
-          zIndex: 1
-        }}>
-          <p style={{
-            color: 'rgba(255,255,255,0.3)',
-            fontSize: '11px',
-            margin: 0
-          }}>© 2024 NORTE Marketing Esportivo</p>
-        </div>
-      </div>
+        {/* Footer left */}
+        <footer style={{ position: 'relative', zIndex: 1 }}>
+          <p style={{ color: 'rgba(255,255,255,0.30)', fontSize: 11, margin: 0 }}>
+            © 2024 NORTE Marketing Esportivo. All rights reserved.
+          </p>
+        </footer>
+      </section>
 
-      {/* RIGHT COLUMN - Login form */}
-      <div style={{
+      {/* ── RIGHT COLUMN: Form (58%) ── */}
+      <section style={{
         width: '58%',
-        height: '100%',
         backgroundColor: '#fafaf9',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '48px'
+        position: 'relative',
+        padding: '0 32px',
       }}>
-        <div style={{
-          width: '100%',
-          maxWidth: '420px'
-        }}>
+        <div style={{ width: '100%', maxWidth: 448 }}>
+
           {/* Header */}
-          <h1 style={{
-            color: '#1c1917',
-            fontSize: '28px',
-            fontWeight: '800',
-            letterSpacing: '-0.5px',
-            margin: '0 0 6px 0',
-            lineHeight: '1.2'
-          }}>
-            Bem-vindo de volta
-          </h1>
-          
-          {/* Decorative line */}
-          <div style={{
-            width: '32px',
-            height: '2px',
-            backgroundColor: '#f97316',
-            marginBottom: '10px'
-          }} />
+          <header style={{ marginBottom: 48 }}>
+            <div style={{ width: 32, height: 4, backgroundColor: '#f97316', marginBottom: 16, borderRadius: 2 }} />
+            <h3 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 36, fontWeight: 700,
+              color: '#1c1917',
+              letterSpacing: '-0.04em',
+              margin: '0 0 8px 0',
+            }}>
+              Bem-vindo de volta
+            </h3>
+            <p style={{ color: '#78716c', fontWeight: 500, fontSize: 14, margin: 0 }}>
+              Acesse sua conta para gerenciar as operações.
+            </p>
+          </header>
 
-          {/* Subtitle */}
-          <p style={{
-            color: '#78716c',
-            fontSize: '14px',
-            margin: '0 0 32px 0',
-            lineHeight: '1.5'
-          }}>
-            Entre com suas credenciais para acessar o sistema
-          </p>
+          <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {/* Form */}
-          <form onSubmit={form.handleSubmit(onSubmit)} style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px'
-          }}>
-            {/* Email field */}
-            <div>
-              <label style={{
-                display: 'block',
-                color: '#1c1917',
-                fontSize: '12px',
-                fontWeight: '600',
-                textTransform: 'uppercase',
-                letterSpacing: '0.4px',
-                marginBottom: '6px'
+            {/* Email */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label htmlFor="email" style={{
+                fontSize: 10, fontWeight: 700,
+                textTransform: 'uppercase', letterSpacing: '0.1em',
+                color: 'rgba(88,66,55,0.70)',
               }}>
-                Email
+                Endereço de E-mail
               </label>
               <input
+                id="email"
                 type="email"
-                placeholder="seu@email.com"
+                placeholder="nome@norte.com.br"
                 {...form.register('email')}
+                data-testid="input-email"
                 style={{
-                  width: '100%',
-                  height: '44px',
-                  backgroundColor: 'white',
-                  border: '1.5px solid #e7e5e4',
-                  borderRadius: '10px',
-                  padding: '0 14px',
-                  fontSize: '14px',
+                  width: '100%', height: 52,
+                  backgroundColor: '#e8e8e7',
+                  border: '1.5px solid transparent',
+                  borderRadius: 8,
+                  padding: '0 16px',
+                  fontSize: 14, fontWeight: 500,
                   color: '#1c1917',
                   boxSizing: 'border-box',
                   fontFamily: 'inherit',
-                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                  outline: 'none',
+                  transition: 'border-color 0.2s, background-color 0.2s, box-shadow 0.2s',
                 }}
-                data-testid="input-email"
                 onFocus={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ffffff';
                   e.currentTarget.style.borderColor = '#f97316';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.15)';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#e7e5e4';
+                  e.currentTarget.style.backgroundColor = '#e8e8e7';
+                  e.currentTarget.style.borderColor = 'transparent';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               />
               {form.formState.errors.email && (
-                <p style={{
-                  color: '#dc2626',
-                  fontSize: '12px',
-                  marginTop: '4px',
-                  margin: '4px 0 0 0'
-                }}>
+                <p style={{ color: '#dc2626', fontSize: 12, margin: 0 }}>
                   {form.formState.errors.email.message}
                 </p>
               )}
             </div>
 
-            {/* Password field */}
-            <div>
-              <label style={{
-                display: 'block',
-                color: '#1c1917',
-                fontSize: '12px',
-                fontWeight: '600',
-                textTransform: 'uppercase',
-                letterSpacing: '0.4px',
-                marginBottom: '6px'
-              }}>
-                Senha
-              </label>
+            {/* Password */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label htmlFor="password" style={{
+                  fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.1em',
+                  color: 'rgba(88,66,55,0.70)',
+                }}>
+                  Senha de Acesso
+                </label>
+                <a href="#" style={{
+                  fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.1em',
+                  color: '#f97316',
+                  textDecoration: 'none',
+                }}>
+                  Esqueceu a senha?
+                </a>
+              </div>
               <input
+                id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="••••••••••••"
                 {...form.register('password')}
+                data-testid="input-password"
                 style={{
-                  width: '100%',
-                  height: '44px',
-                  backgroundColor: 'white',
-                  border: '1.5px solid #e7e5e4',
-                  borderRadius: '10px',
-                  padding: '0 14px',
-                  fontSize: '14px',
+                  width: '100%', height: 52,
+                  backgroundColor: '#e8e8e7',
+                  border: '1.5px solid transparent',
+                  borderRadius: 8,
+                  padding: '0 16px',
+                  fontSize: 14, fontWeight: 500,
                   color: '#1c1917',
                   boxSizing: 'border-box',
                   fontFamily: 'inherit',
-                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                  outline: 'none',
+                  transition: 'border-color 0.2s, background-color 0.2s, box-shadow 0.2s',
                 }}
-                data-testid="input-password"
                 onFocus={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ffffff';
                   e.currentTarget.style.borderColor = '#f97316';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.12)';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.15)';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = '#e7e5e4';
+                  e.currentTarget.style.backgroundColor = '#e8e8e7';
+                  e.currentTarget.style.borderColor = 'transparent';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               />
               {form.formState.errors.password && (
-                <p style={{
-                  color: '#dc2626',
-                  fontSize: '12px',
-                  marginTop: '4px',
-                  margin: '4px 0 0 0'
-                }}>
+                <p style={{ color: '#dc2626', fontSize: 12, margin: 0 }}>
                   {form.formState.errors.password.message}
                 </p>
               )}
             </div>
 
-            {/* Login button */}
+            {/* Remember me */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input
+                type="checkbox"
+                id="remember"
+                data-testid="checkbox-remember"
+                style={{ width: 16, height: 16, accentColor: '#f97316', cursor: 'pointer' }}
+              />
+              <label htmlFor="remember" style={{ fontSize: 12, fontWeight: 500, color: '#78716c', cursor: 'pointer' }}>
+                Manter conectado neste dispositivo
+              </label>
+            </div>
+
+            {/* Submit button */}
             <button
               type="submit"
               disabled={loginMutation.isPending}
+              data-testid="button-login"
               style={{
-                width: '100%',
-                height: '48px',
-                backgroundColor: '#1c1917',
+                width: '100%', height: 56,
+                backgroundColor: btnHover && !loginMutation.isPending ? '#f97316' : '#1c1917',
                 color: 'white',
                 border: 'none',
-                borderRadius: '10px',
-                fontSize: '15px',
-                fontWeight: '700',
+                borderRadius: 8,
+                fontSize: 15,
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontWeight: 700,
                 cursor: loginMutation.isPending ? 'not-allowed' : 'pointer',
-                marginTop: '8px',
-                transition: 'background-color 0.25s',
                 opacity: loginMutation.isPending ? 0.8 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'background-color 0.25s',
               }}
-              data-testid="button-login"
-              onMouseEnter={(e) => {
-                if (!loginMutation.isPending) {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!loginMutation.isPending) {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917';
-                }
-              }}
+              onMouseEnter={() => setBtnHover(true)}
+              onMouseLeave={() => setBtnHover(false)}
             >
               {loginMutation.isPending ? (
                 <>
-                  <div style={{
-                    width: '16px',
-                    height: '16px',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTopColor: 'white',
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite'
-                  }} />
+                  <Loader2 style={{ width: 18, height: 18, animation: 'spin 0.8s linear infinite' }} />
                   Entrando...
                 </>
               ) : (
-                'Entrar no Sistema'
+                <>
+                  <span>Entrar no Sistema</span>
+                  <ArrowRight style={{
+                    width: 18, height: 18,
+                    transform: btnHover ? 'translateX(3px)' : 'translateX(0)',
+                    transition: 'transform 0.2s',
+                  }} />
+                </>
               )}
             </button>
           </form>
 
-          {/* Footer */}
-          <p style={{
-            textAlign: 'center',
-            color: '#a8a29e',
-            fontSize: '12px',
-            marginTop: '20px',
-            margin: '20px 0 0 0'
-          }}>
-            🔒 Sistema seguro com criptografia de ponta a ponta
-          </p>
+          {/* Support link */}
+          <div style={{ marginTop: 48, textAlign: 'center' }}>
+            <p style={{ color: '#a8a29e', fontSize: 12, margin: 0 }}>
+              Problemas com o acesso?{' '}
+              <a href="#" style={{
+                color: '#1c1917', fontWeight: 700,
+                textDecoration: 'underline',
+                textDecorationColor: '#f97316',
+                textDecorationThickness: 2,
+                textUnderlineOffset: 4,
+              }}>
+                Contate o Suporte
+              </a>
+            </p>
+          </div>
         </div>
-      </div>
+
+        {/* Security seal — bottom right */}
+        <footer style={{
+          position: 'absolute',
+          bottom: 48,
+          right: 48,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          opacity: 0.40,
+        }}>
+          <Lock style={{ width: 13, height: 13, color: '#1c1917' }} />
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            textTransform: 'uppercase', letterSpacing: '0.1em',
+            color: '#1c1917',
+          }}>
+            Conexão Segura SSL 256-bit
+          </span>
+        </footer>
+      </section>
 
       <style>{`
-        * {
-          margin: 0;
-          padding: 0;
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
-    </div>
+    </main>
   );
 }

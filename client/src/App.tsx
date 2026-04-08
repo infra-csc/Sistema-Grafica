@@ -202,20 +202,9 @@ function AuthenticatedLayout() {
             padding: "0 24px",
           }}
         >
-          {/* Left: trigger + brand */}
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {/* Left: trigger */}
+          <div style={{ display: "flex", alignItems: "center" }}>
             <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4" }} />
-            <span style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 20, fontWeight: 900,
-              letterSpacing: "-0.04em",
-              fontStyle: "italic",
-              color: "#f97316",
-              textTransform: "uppercase",
-            }}>
-              NORTE
-            </span>
           </div>
 
           {/* Right: notifications + avatar */}

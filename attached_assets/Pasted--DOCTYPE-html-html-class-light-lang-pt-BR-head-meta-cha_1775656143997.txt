@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "on-secondary-fixed": "#341100",
+                "secondary-fixed-dim": "#ffb690",
+                "on-tertiary-fixed": "#001d32",
+                "surface-container-high": "#e8e8e7",
+                "background": "#f9f9f8",
+                "surface-tint": "#625d5b",
+                "on-tertiary": "#ffffff",
+                "on-error": "#ffffff",
+                "on-primary": "#ffffff",
+                "tertiary-fixed-dim": "#93ccff",
+                "secondary": "#9d4300",
+                "primary-fixed-dim": "#ccc5c2",
+                "on-surface": "#1a1c1c",
+                "on-secondary-fixed-variant": "#783200",
+                "on-secondary": "#ffffff",
+                "on-surface-variant": "#584237",
+                "tertiary-container": "#00a2f4",
+                "on-error-container": "#93000a",
+                "inverse-surface": "#2f3130",
+                "tertiary": "#006398",
+                "surface-variant": "#e2e2e2",
+                "error": "#ba1a1a",
+                "tertiary-fixed": "#cde5ff",
+                "inverse-primary": "#ccc5c2",
+                "on-background": "#1a1c1c",
+                "surface-container-lowest": "#ffffff",
+                "surface-container-low": "#f3f4f3",
+                "on-tertiary-fixed-variant": "#004b74",
+                "on-primary-fixed-variant": "#4a4643",
+                "primary-container": "#9f9996",
+                "on-primary-container": "#35322f",
+                "surface": "#f9f9f8",
+                "on-primary-fixed": "#1e1b19",
+                "surface-dim": "#dadad9",
+                "secondary-fixed": "#ffdbca",
+                "surface-container": "#eeeeed",
+                "on-tertiary-container": "#003554",
+                "primary-fixed": "#e9e1dd",
+                "outline-variant": "#e0c0b1",
+                "secondary-container": "#fd761a",
+                "error-container": "#ffdad6",
+                "surface-bright": "#f9f9f8",
+                "primary": "#625d5b",
+                "on-secondary-container": "#5c2400",
+                "outline": "#8c7164",
+                "inverse-on-surface": "#f1f1f0",
+                "surface-container-highest": "#e2e2e2"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+            },
+            "fontFamily": {
+                "headline": ["Space Grotesk", "sans-serif"],
+                "body": ["Plus Jakarta Sans", "sans-serif"],
+                "label": ["Plus Jakarta Sans", "sans-serif"]
+            },
+            "letterSpacing": {
+                "tightest": "-0.05em",
+                "tighter": "-0.02em",
+                "widest-editorial": "0.07em"
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .headline-font { font-family: 'Space Grotesk', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+            font-size: 1.25rem;
+        }
+        .active-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased flex h-screen overflow-hidden">
+<!-- SIDEBAR ANCHOR: Transcribed from Shared Components JSON & Manual Requirements -->
+<aside class="flex flex-col h-full py-8 px-4 w-64 bg-stone-50 dark:bg-stone-950 border-r-0 transition-all duration-200 ease-out z-50">
+<!-- Brand Header Section -->
+<div class="px-2 mb-10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-secondary-container flex items-center justify-center rounded-[10px] shadow-sm">
+<span class="headline-font text-white font-bold text-xl leading-none">N</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[13px] font-bold tracking-tighter text-stone-900 dark:text-stone-50 headline-font leading-tight uppercase">NORTE</span>
+<span class="text-[11px] text-stone-500 font-medium leading-tight">Elite Production</span>
+</div>
+</div>
+</div>
+<!-- Primary Navigation Cluster -->
+<nav class="flex-1 flex flex-col space-y-8">
+<!-- Production Section -->
+<div class="space-y-1">
+<h3 class="px-3 text-[11px] font-bold tracking-widest-editorial text-stone-400 dark:text-stone-500 uppercase mb-4">PRODUCTION</h3>
+<div class="space-y-1">
+<!-- Dashboard: ACTIVE STATE -->
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-orange-600 dark:text-orange-500 font-bold border-r-4 border-orange-500 bg-stone-100 dark:bg-stone-900/50 transition-all duration-200 ease-out scale-98 active:opacity-80" href="#">
+<span class="material-symbols-outlined active-icon" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="text-[13.5px]">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-all duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+<span class="text-[13.5px]">Production</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-all duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="text-[13.5px]">Inventory</span>
+</a>
+</div>
+</div>
+<!-- Administration Section -->
+<div class="space-y-1">
+<h3 class="px-3 text-[11px] font-bold tracking-widest-editorial text-stone-400 dark:text-stone-500 uppercase mb-4">ADMINISTRATION</h3>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-all duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="text-[13.5px]">Usuários</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-all duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-[13.5px]">Relatórios</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-all duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[13.5px]">Administration</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- Footer Actions -->
+<div class="mt-auto pt-6 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-all duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="text-[13.5px]">Help Center</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-all duration-200 ease-out" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[13.5px]">Account</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto p-8 lg:p-12">
+<header class="mb-12 flex justify-between items-end">
+<div class="max-w-2xl">
+<h1 class="headline-font text-5xl font-bold tracking-tightest text-on-background mb-4 uppercase">
+                    Performance <span class="text-secondary-container">Metrics</span>
+</h1>
+<p class="text-on-surface-variant text-lg leading-relaxed max-w-lg">
+                    Real-time monitoring of marketing production assets and editorial delivery schedules.
+                </p>
+</div>
+<div class="hidden lg:flex items-center gap-4">
+<button class="px-6 py-3 bg-secondary text-on-secondary font-bold rounded-lg transition-all duration-200 ease-out hover:brightness-105 active:opacity-80 headline-font tracking-tighter uppercase">
+                    New Project
+                </button>
+</div>
+</header>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- Hero Metric Card (Glassmorphism inspired) -->
+<div class="md:col-span-8 relative h-80 rounded-xl overflow-hidden bg-stone-900">
+<img class="absolute inset-0 w-full h-full object-cover opacity-50" data-alt="cinematic shot of high-tech stadium lighting at night with deep shadows and orange glow reflecting on sleek surfaces" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKo4KmPJiwyvMR3H2HDPO5fgYNhR14nBAfqrEDFILZzjxZxOZM4XZms-f7pFYpm3-xnxtMj3YyXjA_eSH-gcnh9q8dSg3NKjxu_A4Xm5FpXu4C02-aoEEy6KqATsPSFnGPAubk0qw5e5XpYu3WjOXepetQULJublqM_HmVzMpSm6WEB4TpXOE8hJnfFc6lFsuh-CuFgnapjJsD7t3QAW2-0sBK8M93wbAks8DhHc0C8rr2cfZ_UWQO2XgZZBrLBgFVfWICb7cGjJoi"/>
+<div class="absolute inset-0 bg-gradient-to-t from-stone-950 to-transparent"></div>
+<div class="relative h-full p-8 flex flex-col justify-end">
+<span class="inline-block px-3 py-1 bg-secondary-container text-white text-[10px] font-bold tracking-widest uppercase rounded-full mb-4 w-fit">Live Status</span>
+<h2 class="headline-font text-4xl font-bold text-white tracking-tighter uppercase mb-2">Campaign Momentum</h2>
+<p class="text-stone-300 max-w-sm">Active production tracking for the 2024 Championship Editorial Cycle.</p>
+</div>
+</div>
+<!-- Stats Card 1 -->
+<div class="md:col-span-4 bg-surface-container-low rounded-xl p-8 flex flex-col justify-between">
+<div>
+<span class="text-[11px] font-bold tracking-widest text-stone-400 uppercase">Active Inventory</span>
+<div class="mt-4 headline-font text-6xl font-bold tracking-tightest text-on-background">42</div>
+</div>
+<div class="pt-4 border-t-0 flex items-center gap-2 text-secondary-container">
+<span class="material-symbols-outlined">trending_up</span>
+<span class="text-sm font-bold">+12% this week</span>
+</div>
+</div>
+<!-- Production List (Tonal Layering) -->
+<div class="md:col-span-4 bg-surface-container-lowest rounded-xl p-8 flex flex-col gap-6">
+<div class="flex justify-between items-center">
+<h3 class="headline-font font-bold tracking-tighter uppercase text-lg">Top Projects</h3>
+<span class="material-symbols-outlined text-stone-400">more_horiz</span>
+</div>
+<ul class="space-y-4">
+<li class="flex items-center gap-4 p-4 rounded-lg bg-surface-container-low">
+<div class="w-10 h-10 bg-surface-container-highest rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">movie</span>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Summer Finals Edit</p>
+<p class="text-xs text-on-surface-variant">Production Stage 3</p>
+</div>
+</li>
+<li class="flex items-center gap-4 p-4 rounded-lg bg-surface-container-low">
+<div class="w-10 h-10 bg-surface-container-highest rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">image</span>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Brand Asset Refresh</p>
+<p class="text-xs text-on-surface-variant">Design Review</p>
+</div>
+</li>
+<li class="flex items-center gap-4 p-4 rounded-lg bg-surface-container-low">
+<div class="w-10 h-10 bg-surface-container-highest rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">campaign</span>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Press Release Pack</p>
+<p class="text-xs text-on-surface-variant">Final Approval</p>
+</div>
+</li>
+</ul>
+</div>
+<!-- Asymmetric Data Visualization Placeholder -->
+<div class="md:col-span-8 bg-surface-container-high rounded-xl p-8 overflow-hidden relative">
+<div class="flex justify-between items-start mb-12">
+<div>
+<h3 class="headline-font font-bold tracking-tighter uppercase text-xl mb-1">Efficiency Output</h3>
+<p class="text-on-surface-variant text-sm">Monthly performance metrics across all departments.</p>
+</div>
+<div class="flex gap-2">
+<div class="w-2.5 h-2.5 bg-secondary-container rounded-full"></div>
+<div class="w-2.5 h-2.5 bg-primary rounded-full"></div>
+<div class="w-2.5 h-2.5 bg-stone-300 rounded-full"></div>
+</div>
+</div>
+<!-- Visual Data Decoration (Abstract) -->
+<div class="flex items-end gap-3 h-32">
+<div class="w-full bg-stone-200 rounded-t-sm h-1/2"></div>
+<div class="w-full bg-secondary-container rounded-t-sm h-3/4"></div>
+<div class="w-full bg-stone-300 rounded-t-sm h-2/3"></div>
+<div class="w-full bg-stone-200 rounded-t-sm h-full"></div>
+<div class="w-full bg-secondary rounded-t-sm h-1/2"></div>
+<div class="w-full bg-stone-300 rounded-t-sm h-4/5"></div>
+<div class="w-full bg-stone-200 rounded-t-sm h-1/3"></div>
+<div class="w-full bg-secondary-container rounded-t-sm h-2/3"></div>
+</div>
+</div>
+</div>
+<!-- Floating Branding Card (Glassmorphism) -->
+<div class="mt-12 p-8 rounded-xl bg-secondary overflow-hidden relative">
+<div class="absolute inset-0 opacity-10 pointer-events-none headline-font text-[200px] font-bold tracking-tightest leading-none flex items-center justify-center select-none uppercase">
+                NORTE
+            </div>
+<div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8 backdrop-blur-md bg-white/10 p-10 rounded-xl outline outline-white/20">
+<div class="text-center md:text-left">
+<h2 class="headline-font text-3xl font-bold text-white tracking-tighter uppercase mb-2">Ready to Scale?</h2>
+<p class="text-white/80 max-w-sm">Expand your editorial reach with our managed production services.</p>
+</div>
+<button class="px-8 py-4 bg-white text-secondary font-bold rounded-lg shadow-xl shadow-orange-950/20 hover:scale-105 active:scale-95 transition-all headline-font uppercase tracking-tighter">
+                    Contact Strategy Team
+                </button>
+</div>
+</div>
+</main>
+</body></html>

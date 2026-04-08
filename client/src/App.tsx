@@ -28,9 +28,6 @@ import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
 import Historico from "@/pages/historico";
 import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
-import { LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType; path?: string }) {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -159,10 +156,6 @@ function Router() {
 }
 
 function AuthenticatedLayout() {
-  const { user } = useAuth();
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-
   // Initialize WebSocket for real-time updates
   useWebSocket();
 
@@ -180,21 +173,6 @@ function AuthenticatedLayout() {
     },
   });
 
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/auth/logout");
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.clear();
-      setLocation("/login");
-      toast({
-        title: "Logout realizado",
-        description: "Até logo!",
-      });
-    },
-  });
-
   return (
     <div className="flex h-screen w-full">
       <AppSidebar />
@@ -205,24 +183,10 @@ function AuthenticatedLayout() {
             <div className="border-l h-6 border-border ml-2" />
           </div>
           <div className="flex items-center gap-3">
-            {user && (
-              <div className="text-sm text-muted-foreground">
-                {user.name}
-              </div>
-            )}
             <NotificationBell
               notifications={notifications}
               onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => logoutMutation.mutate()}
-              data-testid="button-logout"
-              title="Sair"
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
           </div>
         </header>
         <main className="flex-1 overflow-auto bg-background">

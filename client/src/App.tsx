@@ -155,11 +155,19 @@ function Router() {
   );
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  admin:       "Administrador",
+  solicitacao: "Solicitação",
+  arte:        "Arte",
+  grafica:     "Gráfica",
+  atendimento: "Atendimento",
+};
+
 function AuthenticatedLayout() {
-  // Initialize WebSocket for real-time updates
   useWebSocket();
 
-  // Notificações já vêm filtradas pelo backend baseadas no perfil do usuário
+  const { user } = useAuth();
+
   const { data: notifications = [] } = useQuery<any[]>({
     queryKey: ["/api/notifications"],
   });
@@ -173,20 +181,83 @@ function AuthenticatedLayout() {
     },
   });
 
+  const userInitials = user?.name
+    ? user.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "?";
+
   return (
     <div className="flex h-screen w-full">
       <AppSidebar />
       <SidebarInset className="flex flex-col flex-1">
-        <header className="flex items-center justify-between h-16 px-6 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-          <div className="flex items-center gap-2">
+        <header
+          className="sticky top-0 z-50 w-full"
+          style={{
+            height: 64,
+            backgroundColor: "rgba(249,249,248,0.85)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            boxShadow: "0 16px 32px -12px rgba(28,25,23,0.06)",
+            display: "flex", alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 24px",
+          }}
+        >
+          {/* Left: trigger + brand */}
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <div className="border-l h-6 border-border ml-2" />
+            <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 20, fontWeight: 900,
+                letterSpacing: "-0.04em",
+                fontStyle: "italic",
+                color: "#1c1917",
+                textTransform: "uppercase",
+              }}>
+                NORTE
+              </span>
+              <div style={{ width: 1, height: 14, backgroundColor: "rgba(249,115,22,0.3)" }} />
+              <span style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 11, fontWeight: 700,
+                letterSpacing: "0.15em",
+                color: "#a8a29e",
+                textTransform: "uppercase",
+              }}>
+                APEX
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Right: notifications + avatar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <NotificationBell
               notifications={notifications}
               onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
             />
+            {/* User avatar chip */}
+            <div
+              title={user?.name}
+              style={{
+                width: 34, height: 34,
+                borderRadius: 6,
+                backgroundColor: "#1c1917",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                marginLeft: 4,
+                boxShadow: "0 0 0 2px #e7e5e4, 0 0 0 4px #ffffff",
+                cursor: "default",
+                flexShrink: 0,
+              }}
+            >
+              <span style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 12, fontWeight: 700,
+                color: "#f97316", letterSpacing: "-0.02em",
+              }}>
+                {userInitials}
+              </span>
+            </div>
           </div>
         </header>
         <main className="flex-1 overflow-auto bg-background">

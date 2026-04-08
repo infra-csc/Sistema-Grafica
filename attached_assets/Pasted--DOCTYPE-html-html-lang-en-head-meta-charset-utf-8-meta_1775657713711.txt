@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#93ccff",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#001d32",
+                        "on-surface-variant": "#584237",
+                        "on-secondary-fixed": "#341100",
+                        "outline-variant": "#e0c0b1",
+                        "surface-variant": "#e2e2e2",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#9d4300",
+                        "on-tertiary-container": "#003554",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#ffb690",
+                        "on-primary-container": "#35322f",
+                        "tertiary-container": "#00a2f4",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed": "#cde5ff",
+                        "surface-dim": "#dadad9",
+                        "surface-tint": "#625d5b",
+                        "surface-container-highest": "#e2e2e2",
+                        "secondary-container": "#fd761a",
+                        "on-surface": "#1a1c1c",
+                        "inverse-surface": "#2f3130",
+                        "secondary-fixed": "#ffdbca",
+                        "on-background": "#1a1c1c",
+                        "surface-container": "#eeeeed",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "surface": "#f9f9f8",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f9f9f8",
+                        "outline": "#8c7164",
+                        "on-secondary-container": "#5c2400",
+                        "primary": "#625d5b",
+                        "surface-container-high": "#e8e8e7",
+                        "surface-container-low": "#f3f4f3",
+                        "primary-container": "#9f9996",
+                        "background": "#f9f9f8",
+                        "tertiary": "#006398",
+                        "on-primary-fixed": "#1e1b19",
+                        "primary-fixed": "#e9e1dd",
+                        "on-secondary-fixed-variant": "#783200",
+                        "inverse-primary": "#ccc5c2",
+                        "inverse-on-surface": "#f1f1f0",
+                        "error-container": "#ffdad6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .headline-tight { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.03em; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+<!-- TopNavBar Implementation from JSON and Requirements -->
+<header class="sticky top-0 w-full z-50 bg-stone-50/80 backdrop-blur-xl h-16 shadow-[0_16px_32px_-12px_rgba(28,25,23,0.05)]">
+<div class="flex justify-between items-center px-6 h-full max-w-[1920px] mx-auto">
+<!-- Left Section: Trigger & Brand -->
+<div class="flex items-center gap-6">
+<button class="p-2 hover:bg-stone-200/50 transition-all duration-200 ease-out scale-95 active:scale-90 rounded-md">
+<span class="material-symbols-outlined text-on-surface">menu</span>
+</button>
+<div class="flex items-center gap-2">
+<span class="text-2xl font-black italic tracking-tighter text-stone-900 headline-tight uppercase">NORTE</span>
+<span class="h-4 w-[2px] bg-secondary/20"></span>
+<span class="font-['Space_Grotesk'] text-sm tracking-widest text-stone-500 font-bold">APEX</span>
+</div>
+</div>
+<!-- Center: Dashboard Navigation (Simulated) -->
+<nav class="hidden md:flex items-center gap-8 font-['Space_Grotesk'] tracking-[-0.03em] font-bold">
+<a class="text-orange-600 border-b-2 border-orange-600 py-5 transition-all" href="#">Dashboard</a>
+<a class="text-stone-500 hover:text-orange-500 transition-all" href="#">Analytics</a>
+<a class="text-stone-500 hover:text-orange-500 transition-all" href="#">Schedule</a>
+</nav>
+<!-- Right: Actions & Profile -->
+<div class="flex items-center gap-3">
+<div class="relative group">
+<button class="p-2 hover:bg-stone-200/50 transition-all duration-200 ease-out scale-95 active:scale-90 rounded-md relative">
+<span class="material-symbols-outlined text-stone-600" data-icon="notifications">notifications</span>
+<span class="absolute top-1 right-1 bg-error text-white text-[10px] font-bold h-4 min-w-4 px-1 flex items-center justify-center rounded-full border-2 border-white">9+</span>
+</button>
+<!-- Notification Popover (Open State Visualization) -->
+<div class="absolute right-0 mt-3 w-96 bg-white shadow-[0_32px_64px_-16px_rgba(28,25,23,0.15)] rounded-xl overflow-hidden border border-stone-100 z-50">
+<div class="px-5 py-4 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
+<h3 class="headline-tight font-bold text-stone-900 uppercase text-xs tracking-wider">Recent Alerts</h3>
+<span class="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded">6 UNREAD</span>
+</div>
+<!-- ScrollArea Simulation -->
+<div class="max-h-[480px] overflow-y-auto overflow-x-hidden">
+<!-- itemAdded -->
+<div class="group/item flex items-start gap-4 p-4 border-l-4 border-blue-500 bg-blue-50/30 hover:bg-stone-50 transition-colors relative cursor-pointer">
+<div class="bg-blue-100 text-blue-600 p-2 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-xl" data-icon="package">package</span>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-xs font-semibold text-stone-900 leading-tight">Equipment batch #882 added to logistics.</p>
+<p class="text-[10px] text-stone-400 font-medium">14:20 PM • Inventory</p>
+</div>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 h-2 w-2 bg-blue-500 rounded-full"></div>
+</div>
+<!-- arteApproved -->
+<div class="group/item flex items-start gap-4 p-4 border-l-4 border-green-500 bg-green-50/30 hover:bg-stone-50 transition-colors relative cursor-pointer">
+<div class="bg-green-100 text-green-600 p-2 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-xl" data-icon="check_circle">check_circle</span>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-xs font-semibold text-stone-900 leading-tight">Project "KINETIC" visual assets approved by creative lead.</p>
+<p class="text-[10px] text-stone-400 font-medium">12:05 PM • Design</p>
+</div>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 h-2 w-2 bg-blue-500 rounded-full"></div>
+</div>
+<!-- deadlineAlert -->
+<div class="group/item flex items-start gap-4 p-4 border-l-4 border-red-500 bg-red-50/30 hover:bg-stone-50 transition-colors relative cursor-pointer">
+<div class="bg-red-100 text-red-600 p-2 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-xl" data-icon="warning" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-xs font-bold text-red-700 leading-tight">CRITICAL: Sponsorship submission deadline in 2 hours.</p>
+<p class="text-[10px] text-red-400 font-medium">09:45 AM • Urgent</p>
+</div>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 h-2 w-2 bg-blue-500 rounded-full"></div>
+</div>
+<!-- itemDelivered -->
+<div class="group/item flex items-start gap-4 p-4 border-l-4 border-purple-500 hover:bg-stone-50 transition-colors cursor-pointer">
+<div class="bg-purple-100 text-purple-600 p-2 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-xl" data-icon="local_shipping">local_shipping</span>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-xs font-medium text-stone-600 leading-tight">Training gear delivery confirmed at Stadium North Wing.</p>
+<p class="text-[10px] text-stone-400 font-medium">Yesterday</p>
+</div>
+</div>
+<!-- eventCompleted -->
+<div class="group/item flex items-start gap-4 p-4 border-l-4 border-green-500 hover:bg-stone-50 transition-colors cursor-pointer">
+<div class="bg-green-100 text-green-600 p-2 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-xl" data-icon="task_alt">task_alt</span>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-xs font-medium text-stone-600 leading-tight">Media Day: Phase 1 coverage wrap-up complete.</p>
+<p class="text-[10px] text-stone-400 font-medium">Oct 24</p>
+</div>
+</div>
+<!-- eventCreated -->
+<div class="group/item flex items-start gap-4 p-4 border-l-4 border-cyan-500 hover:bg-stone-50 transition-colors cursor-pointer">
+<div class="bg-cyan-100 text-cyan-600 p-2 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-xl" data-icon="description">description</span>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-xs font-medium text-stone-600 leading-tight">New strategy brief created: "Tokyo Open Prep".</p>
+<p class="text-[10px] text-stone-400 font-medium">Oct 23</p>
+</div>
+</div>
+</div>
+<div class="px-5 py-3 bg-stone-900 text-center">
+<button class="text-[10px] headline-tight font-bold text-stone-100 uppercase tracking-widest hover:text-orange-500 transition-colors">View All Activities</button>
+</div>
+</div>
+</div>
+<button class="p-2 hover:bg-stone-200/50 transition-all duration-200 ease-out scale-95 active:scale-90 rounded-md">
+<span class="material-symbols-outlined text-stone-600" data-icon="settings">settings</span>
+</button>
+<div class="h-8 w-8 rounded-md overflow-hidden ml-2 shadow-sm ring-2 ring-stone-100 ring-offset-2">
+<img alt="User profile" class="h-full w-full object-cover" data-alt="portrait of a professional male executive with sharp features, modern haircut, clean studio lighting, high-end corporate aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBDPMN0zjnrONKxDHVJYyy69oZdqY7L8GG9UH427MeLxTsDYioRwYE3n5IuBd5eMO6tdNGWv5jsgEX9ONXHLniN-MFspBpCvtxZ4C4aUe1nVqHc6oBvftdWJSpLlek8ei1niIg5UnV0PNruSpgybE_4hB4ZiHIFaE2aEBZKXeAUUZutf64teS2kkWQTjTu-ddoWkhLdI2nw_Ftp5-Q_IExNxyJyKR-KWscsi_LYwrleYFWWZ7wmVNlwWGriNbOCRSYRvPscYI8GLaAY"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Page Content (Dashboard Overview) -->
+<main class="max-w-[1920px] mx-auto p-8 lg:p-12">
+<div class="grid grid-cols-12 gap-6">
+<!-- Hero Bento Section -->
+<div class="col-span-12 lg:col-span-8 flex flex-col gap-6">
+<div class="bg-[#1c1917] p-10 rounded-xl relative overflow-hidden group min-h-[400px] flex flex-col justify-end">
+<div class="absolute inset-0 opacity-40 group-hover:scale-105 transition-transform duration-[3s] ease-out">
+<img alt="Stadium background" class="w-full h-full object-cover" data-alt="cinematic low-angle shot of a massive professional sports stadium at dusk, stadium lights beaming through atmospheric haze, dramatic deep shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVT_g7RS5rmFkN8eni8k04LYRAGEIM4eWyNThWAoel7gQPZVcvK7pX2fym8oDM5ytsDmx5EtPKS_8JVuEjYsHZbqiSopJ3328xX4rL0b9DIwC-e6PJs0JetQR7RTga6o8aT28PORn-RVgVT_Elyxi9kjJ6KTgWvWdSqaijXa7rCotLHfeLxyatTGpkR2ldb4G9JP_FvNbtAjyAwEkCfwmGygN2vdUqPGHXLtouEQCmxee4a2Dy-rAPrf0b714-ZMasFEYH7cHIHWys"/>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-[#1c1917] via-transparent to-transparent"></div>
+<div class="relative z-10">
+<span class="inline-block px-3 py-1 bg-orange-600 text-white text-[10px] font-bold headline-tight uppercase tracking-widest mb-4">Live Momentum</span>
+<h1 class="text-5xl md:text-7xl font-black text-white headline-tight leading-[0.9] uppercase mb-6">Master the<br/><span class="text-orange-500">Peak State</span></h1>
+<p class="text-stone-400 max-w-md font-medium text-lg leading-relaxed">Precision-engineered performance tracking for the modern sports elite. Control every variable of the kinetic chain.</p>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-6">
+<div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100">
+<h4 class="headline-tight font-bold text-stone-400 uppercase text-xs tracking-widest mb-6">Next Deadline</h4>
+<div class="flex items-end justify-between">
+<div>
+<h2 class="text-4xl font-black headline-tight text-stone-900">02:44:12</h2>
+<p class="text-stone-500 font-medium mt-1">Sponsorship RFP Submission</p>
+</div>
+<span class="material-symbols-outlined text-orange-600 text-4xl" data-icon="alarm">alarm</span>
+</div>
+</div>
+<div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100">
+<h4 class="headline-tight font-bold text-stone-400 uppercase text-xs tracking-widest mb-6">Fleet Status</h4>
+<div class="flex items-end justify-between">
+<div>
+<h2 class="text-4xl font-black headline-tight text-stone-900">98%</h2>
+<p class="text-stone-500 font-medium mt-1">Global Logistics Sync</p>
+</div>
+<span class="material-symbols-outlined text-secondary text-4xl" data-icon="inventory_2">inventory_2</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Side Sidebar / Info Panel -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-6">
+<div class="bg-stone-900 p-8 rounded-xl flex flex-col gap-6 h-full border border-stone-800">
+<div class="flex items-center justify-between">
+<h3 class="headline-tight font-bold text-white uppercase tracking-widest text-sm">Team Alpha Sync</h3>
+<span class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+</div>
+<div class="space-y-4">
+<div class="flex items-center gap-4 p-4 bg-stone-800/50 rounded-lg hover:bg-stone-800 transition-colors cursor-pointer group">
+<div class="h-10 w-10 rounded-full bg-stone-700 flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-stone-600">
+<img alt="Team avatar" class="h-full w-full object-cover" data-alt="professional male sports director headshot, clean lighting, focused expression" src="https://lh3.googleusercontent.com/aida-public/AB6AXuATMyq4GVpNCLOKvchNSt42Tsd4jgoz41r5RxtMgoDEh2dDV_uFHjm8kNx_AvLdDs4R1JqQ0KdBC_RDAIP279MU1Y-HqI79j9IwcMWpO2-1i2TYEa264L2nKT7Nv6PCnxnbY9azQBSR4f30uVOStR6JRD6vCAREKe16Ibj5wv-zIym3OZ1Jt3gJfeduGNmhqoDSNoFQcnUEtFqGLPlxAWI0hFWHl3YRO7QMC8Vb4kqaySItMyTiyDFmGcfa4WjHyDHC_ZF6eUVdp4wB"/>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-bold text-stone-100">Marcus Thorne</h5>
+<p class="text-[10px] text-stone-400 uppercase tracking-tighter">Strategic Lead</p>
+</div>
+<span class="material-symbols-outlined text-stone-500 group-hover:text-orange-500 transition-colors" data-icon="chevron_right">chevron_right</span>
+</div>
+<div class="flex items-center gap-4 p-4 bg-stone-800/50 rounded-lg hover:bg-stone-800 transition-colors cursor-pointer group">
+<div class="h-10 w-10 rounded-full bg-stone-700 flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-stone-600">
+<img alt="Team avatar" class="h-full w-full object-cover" data-alt="professional female creative director headshot, minimalist style, bright lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6-7iLJJE1Fxd3B7f5VLzAxgy_HITINQPkiD9qjHdl6atXKU20WhiipaiJ7oAgZGTpqbWhhk2ysXHt2t0sDJddnKjUtjQb-a6yN46qp4-PAppwA_nuS5av2m4Daq15T-DS5owf8GIfK9kAoBl3DxAQfYpHNKZ0D5oVPV9ND9RHRnbfbsAOg3kUe5Jpvb1dwsCnTe72puSGEWu4gtPyylTh3hU4j9Ntz7XgZjwvfCBrKrq-gF878nDSekwIEBkb_7_aTQooTnmA0jz0"/>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-bold text-stone-100">Elena Vance</h5>
+<p class="text-[10px] text-stone-400 uppercase tracking-tighter">Creative Oversight</p>
+</div>
+<span class="material-symbols-outlined text-stone-500 group-hover:text-orange-500 transition-colors" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+<div class="mt-auto pt-6 border-t border-stone-800">
+<button class="w-full bg-orange-600 hover:bg-orange-500 text-white headline-tight font-bold uppercase tracking-[0.1em] text-xs py-4 rounded-md transition-all">
+                            Initialize New Protocol
+                        </button>
+</div>
+</div>
+<div class="bg-orange-50 p-8 rounded-xl border border-orange-100 group cursor-pointer overflow-hidden relative">
+<div class="absolute -right-4 -bottom-4 opacity-5 text-stone-900 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[120px]" data-icon="palette">palette</span>
+</div>
+<h3 class="headline-tight font-bold text-orange-950 uppercase tracking-widest text-sm mb-2">Art Approval Pipeline</h3>
+<p class="text-orange-900/60 text-sm font-medium leading-relaxed">4 pending creative reviews require your technical signature.</p>
+</div>
+</div>
+</div>
+</main>
+</body></html>

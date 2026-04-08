@@ -1,156 +1,287 @@
-import { Bell, Package, CheckCircle, AlertTriangle, Truck, Clock, FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
+import { useState, useRef, useEffect } from "react";
+import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck } from "lucide-react";
+
+interface Notification {
+  id: string;
+  type: string;
+  message: string;
+  isRead: boolean;
+  createdAt: Date | string;
+}
 
 interface NotificationBellProps {
-  notifications: Array<{
-    id: string;
-    type: string;
-    message: string;
-    isRead: boolean;
-    createdAt: Date | string;
-  }>;
+  notifications: Notification[];
   onMarkAsRead: (id: string) => void;
 }
 
-// Função para obter ícone e cor baseado no tipo de notificação
-function getNotificationStyle(type: string) {
-  switch (type) {
-    case "itemAdded":
-      return {
-        icon: Package,
-        bgColor: "bg-blue-50",
-        iconColor: "text-blue-600",
-        borderColor: "border-l-blue-600",
-      };
-    case "arteApproved":
-      return {
-        icon: CheckCircle,
-        bgColor: "bg-green-50",
-        iconColor: "text-green-600",
-        borderColor: "border-l-green-600",
-      };
-    case "deadlineAlert":
-      return {
-        icon: AlertTriangle,
-        bgColor: "bg-red-50",
-        iconColor: "text-red-600",
-        borderColor: "border-l-red-600",
-      };
-    case "itemDelivered":
-      return {
-        icon: Truck,
-        bgColor: "bg-purple-50",
-        iconColor: "text-purple-600",
-        borderColor: "border-l-purple-600",
-      };
-    case "eventCompleted":
-      return {
-        icon: CheckCircle,
-        bgColor: "bg-green-50",
-        iconColor: "text-green-600",
-        borderColor: "border-l-green-600",
-      };
-    case "eventCreated":
-      return {
-        icon: FileText,
-        bgColor: "bg-cyan-50",
-        iconColor: "text-cyan-600",
-        borderColor: "border-l-cyan-600",
-      };
-    default:
-      return {
-        icon: Bell,
-        bgColor: "bg-gray-50",
-        iconColor: "text-gray-600",
-        borderColor: "border-l-gray-600",
-      };
+// ── Type config ───────────────────────────────────────────────────────────────
+type TypeConfig = {
+  Icon: React.ComponentType<{ style?: React.CSSProperties }>;
+  border: string;
+  bgRow: string;
+  bgIcon: string;
+  iconColor: string;
+  label: string;
+};
+
+const TYPE_CONFIG: Record<string, TypeConfig> = {
+  itemAdded: {
+    Icon: Package,
+    border: "#3b82f6", bgRow: "rgba(59,130,246,0.06)",
+    bgIcon: "#dbeafe", iconColor: "#2563eb",
+    label: "Estoque",
+  },
+  arteApproved: {
+    Icon: CheckCircle,
+    border: "#22c55e", bgRow: "rgba(34,197,94,0.06)",
+    bgIcon: "#dcfce7", iconColor: "#16a34a",
+    label: "Design",
+  },
+  deadlineAlert: {
+    Icon: AlertTriangle,
+    border: "#ef4444", bgRow: "rgba(239,68,68,0.06)",
+    bgIcon: "#fee2e2", iconColor: "#dc2626",
+    label: "Urgente",
+  },
+  itemDelivered: {
+    Icon: Truck,
+    border: "#a855f7", bgRow: "transparent",
+    bgIcon: "#f3e8ff", iconColor: "#9333ea",
+    label: "Entrega",
+  },
+  eventCompleted: {
+    Icon: ClipboardCheck,
+    border: "#22c55e", bgRow: "transparent",
+    bgIcon: "#dcfce7", iconColor: "#16a34a",
+    label: "Evento",
+  },
+  eventCreated: {
+    Icon: FileText,
+    border: "#06b6d4", bgRow: "transparent",
+    bgIcon: "#cffafe", iconColor: "#0891b2",
+    label: "Evento",
+  },
+};
+
+const DEFAULT_CONFIG: TypeConfig = {
+  Icon: Bell,
+  border: "#a8a29e", bgRow: "transparent",
+  bgIcon: "#e7e5e4", iconColor: "#78716c",
+  label: "Sistema",
+};
+
+// ── Timestamp helper ──────────────────────────────────────────────────────────
+function fmtTime(raw: Date | string): string {
+  const d = new Date(raw);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffDays === 0) {
+    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   }
+  if (diffDays === 1) return "Ontem";
+  const day = d.getDate().toString().padStart(2, "0");
+  const month = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][d.getMonth()];
+  return `${day} ${month}`;
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
 export function NotificationBell({ notifications, onMarkAsRead }: NotificationBellProps) {
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const unread = notifications.filter((n) => !n.isRead);
+  const unreadCount = unread.length;
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleItem = (n: Notification) => {
+    if (!n.isRead) onMarkAsRead(n.id);
+  };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <span 
-              className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center rounded-full bg-status-urgent text-white text-[10px] font-semibold"
-              data-testid="badge-notification-count"
-            >
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-96">
-        <DropdownMenuLabel>Notificações</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <ScrollArea className="h-96">
-          {notifications.length === 0 ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              Nenhuma notificação
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {notifications.map((notification) => {
-                const style = getNotificationStyle(notification.type);
-                const Icon = style.icon;
-                
+    <div ref={containerRef} style={{ position: "relative" }}>
+      {/* Bell trigger */}
+      <button
+        data-testid="button-notifications"
+        onClick={() => setOpen((p) => !p)}
+        style={{
+          position: "relative",
+          padding: 8,
+          borderRadius: 6,
+          border: "none",
+          background: open ? "rgba(28,25,23,0.06)" : "transparent",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = "rgba(28,25,23,0.05)"; }}
+        onMouseLeave={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+      >
+        <Bell style={{ width: 20, height: 20, color: "#57534e" }} />
+        {unreadCount > 0 && (
+          <span
+            data-testid="badge-notification-count"
+            style={{
+              position: "absolute", top: 4, right: 4,
+              backgroundColor: "#dc2626", color: "#ffffff",
+              fontSize: 10, fontWeight: 700,
+              height: 16, minWidth: 16, padding: "0 3px",
+              borderRadius: 999, border: "2px solid #f9f9f8",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              lineHeight: 1,
+            }}
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {/* Popover */}
+      {open && (
+        <div
+          style={{
+            position: "absolute", top: "calc(100% + 12px)", right: 0,
+            width: 384, backgroundColor: "#ffffff",
+            borderRadius: 12,
+            boxShadow: "0 32px 64px -16px rgba(28,25,23,0.18)",
+            border: "1px solid #f3f4f3",
+            zIndex: 100, overflow: "hidden",
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            padding: "14px 20px",
+            backgroundColor: "#fafaf9",
+            borderBottom: "1px solid #e7e5e4",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <h3 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 11, fontWeight: 700,
+              color: "#1c1917", textTransform: "uppercase", letterSpacing: "0.1em",
+              margin: 0,
+            }}>
+              Alertas Recentes
+            </h3>
+            {unreadCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: "#f97316",
+                backgroundColor: "#fff7ed",
+                padding: "2px 8px", borderRadius: 4,
+                textTransform: "uppercase", letterSpacing: "0.05em",
+              }}>
+                {unreadCount} NÃO LIDA{unreadCount !== 1 ? "S" : ""}
+              </span>
+            )}
+          </div>
+
+          {/* List */}
+          <div style={{ maxHeight: 400, overflowY: "auto", overflowX: "hidden" }}>
+            {notifications.length === 0 ? (
+              <div style={{ padding: 24, textAlign: "center", color: "#a8a29e", fontSize: 13 }}>
+                Nenhuma notificação
+              </div>
+            ) : (
+              notifications.map((n) => {
+                const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
+                const Icon = cfg.Icon;
+                const isDeadline = n.type === "deadlineAlert";
                 return (
                   <div
-                    key={notification.id}
-                    className={`
-                      relative mx-2 my-1 rounded-md border-l-4 ${style.borderColor}
-                      ${!notification.isRead ? 'bg-accent/30' : 'bg-background'}
-                      hover:bg-accent/50 cursor-pointer transition-colors
-                    `}
-                    onClick={() => !notification.isRead && onMarkAsRead(notification.id)}
-                    data-testid={`notification-${notification.id}`}
+                    key={n.id}
+                    data-testid={`notification-${n.id}`}
+                    onClick={() => handleItem(n)}
+                    style={{
+                      position: "relative",
+                      display: "flex", alignItems: "flex-start", gap: 12,
+                      padding: "14px 16px",
+                      borderLeft: `4px solid ${cfg.border}`,
+                      backgroundColor: !n.isRead ? cfg.bgRow : "transparent",
+                      cursor: "pointer",
+                      transition: "background-color 0.15s",
+                      borderBottom: "1px solid #f3f4f3",
+                    }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = "#f9f9f8")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = !n.isRead ? cfg.bgRow : "transparent")}
                   >
-                    <div className="flex gap-3 p-3">
-                      <div className={`flex-shrink-0 mt-0.5 ${style.iconColor}`}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground leading-snug">
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(notification.createdAt).toLocaleString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </p>
-                      </div>
-                      {!notification.isRead && (
-                        <div className="flex-shrink-0">
-                          <div className="w-2 h-2 rounded-full bg-blue-600" />
-                        </div>
-                      )}
+                    {/* Icon box */}
+                    <div style={{
+                      flexShrink: 0,
+                      backgroundColor: cfg.bgIcon,
+                      borderRadius: 8, padding: 8,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <Icon style={{ width: 18, height: 18, color: cfg.iconColor } as React.CSSProperties} />
                     </div>
+
+                    {/* Text */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{
+                        fontSize: 12, fontWeight: !n.isRead ? 600 : 500,
+                        color: isDeadline && !n.isRead ? "#b91c1c" : !n.isRead ? "#1c1917" : "#57534e",
+                        margin: "0 0 3px 0", lineHeight: 1.4,
+                      }}>
+                        {n.message}
+                      </p>
+                      <p style={{
+                        fontSize: 10, fontWeight: 500,
+                        color: isDeadline && !n.isRead ? "#f87171" : "#a8a29e",
+                        margin: 0,
+                      }}>
+                        {fmtTime(n.createdAt)} · {cfg.label}
+                      </p>
+                    </div>
+
+                    {/* Unread dot */}
+                    {!n.isRead && (
+                      <div style={{
+                        position: "absolute", right: 14, top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 7, height: 7, borderRadius: "50%",
+                        backgroundColor: "#3b82f6", flexShrink: 0,
+                      }} />
+                    )}
                   </div>
                 );
-              })}
-            </div>
-          )}
-        </ScrollArea>
-      </DropdownMenuContent>
-    </DropdownMenu>
+              })
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            padding: "12px 20px",
+            backgroundColor: "#1c1917",
+            textAlign: "center",
+          }}>
+            <button
+              onClick={() => setOpen(false)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 10, fontWeight: 700,
+                color: "#d4d0ce", textTransform: "uppercase", letterSpacing: "0.12em",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#d4d0ce")}
+            >
+              Ver Todas as Atividades
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

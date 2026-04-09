@@ -1956,21 +1956,21 @@ export default function VincularPatrocinadores() {
 
       {/* Dialog — Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={setSponsorDialogOpen}>
-        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9' }}>
-          <div className="px-5 pt-5 pb-4" style={{ borderBottom: '1px solid #e7e5e4' }}>
-            <DialogTitle className="text-base font-semibold" style={{ color: '#1c1917' }}>
+        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9', borderRadius: 12 }}>
+          <div style={{ padding: '24px', borderBottom: '1px solid #eeeeed' }}>
+            <DialogTitle style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: '#1a1c1c', lineHeight: 1.2 }}>
               Patrocinadores do Evento
             </DialogTitle>
             {selectedEventForSponsors && (
-              <p className="text-xs mt-0.5" style={{ color: '#71717a' }}>
+              <p style={{ fontSize: 11, marginTop: 4, color: '#625d5b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                 {selectedEventForSponsors.name}
               </p>
             )}
           </div>
 
-          <div className="px-5 py-4 max-h-[360px] overflow-y-auto space-y-1.5">
+          <div style={{ padding: '24px', maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
             {sponsors.length === 0 ? (
-              <p className="text-sm text-center py-8" style={{ color: '#71717a' }}>
+              <p style={{ fontSize: 13, textAlign: 'center', padding: '32px 0', color: '#625d5b' }}>
                 Nenhum patrocinador cadastrado
               </p>
             ) : sponsors.map((sponsor) => {
@@ -1978,10 +1978,13 @@ export default function VincularPatrocinadores() {
               return (
                 <div
                   key={sponsor.id}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
                   style={{
-                    backgroundColor: isSelected ? '#ffffff' : '#ffffff',
-                    border: isSelected ? '1px solid #f97316' : '1px solid #e7e5e4',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 16px',
+                    backgroundColor: '#ffffff',
+                    border: isSelected ? '2px solid #f97316' : '1px solid #eeeeed',
+                    borderRadius: 8, cursor: 'pointer',
+                    transition: 'border-color 0.15s',
                   }}
                   onClick={() => {
                     if (isSelected) {
@@ -1991,30 +1994,45 @@ export default function VincularPatrocinadores() {
                     }
                   }}
                 >
-                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sponsor.color || '#3b82f6' }} />
-                  <span className="text-sm font-medium flex-1" style={{ color: '#1c1917' }}>
-                    {sponsor.name}
-                    {sponsor.company && (
-                      <span className="ml-1.5 font-normal" style={{ color: '#71717a' }}>({sponsor.company})</span>
-                    )}
-                  </span>
-                  {isSelected && <Check className="h-3.5 w-3.5 shrink-0" style={{ color: '#f97316' }} />}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1c1c' }}>
+                      {sponsor.name}
+                      {sponsor.company && (
+                        <span style={{ marginLeft: 6, fontWeight: 400, color: '#625d5b', fontSize: 13 }}> ({sponsor.company})</span>
+                      )}
+                    </span>
+                  </div>
+                  {isSelected ? (
+                    <CheckCircle2 style={{ width: 18, height: 18, color: '#f97316', flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
+                  )}
                 </div>
               );
             })}
           </div>
 
-          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderTop: '1px solid #e7e5e4' }}>
-            <span className="text-xs" style={{ color: '#71717a' }}>
-              {selectedSponsorIds.length} {selectedSponsorIds.length === 1 ? 'selecionado' : 'selecionados'}
+          <div style={{ padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '0 0 12px 12px' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {selectedSponsorIds.length.toString().padStart(2, '0')} / {sponsors.length.toString().padStart(2, '0')} SELECIONADOS
             </span>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setSponsorDialogOpen(false)} disabled={manageEventSponsorsMutation.isPending} style={{ color: '#1c1917' }}>
-                Cancelar
-              </Button>
-              <Button size="sm" onClick={handleSaveEventSponsors} disabled={manageEventSponsorsMutation.isPending} data-testid="button-save-event-sponsors" style={{ backgroundColor: '#1c1917', color: '#ffffff' }}>
-                {manageEventSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
-              </Button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setSponsorDialogOpen(false)}
+                disabled={manageEventSponsorsMutation.isPending}
+                style={{ padding: '8px 16px', background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={handleSaveEventSponsors}
+                disabled={manageEventSponsorsMutation.isPending}
+                data-testid="button-save-event-sponsors"
+                style={{ padding: '8px 16px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}
+              >
+                {manageEventSponsorsMutation.isPending ? "SALVANDO..." : "SALVAR"}
+              </button>
             </div>
           </div>
         </DialogContent>
@@ -2022,84 +2040,13 @@ export default function VincularPatrocinadores() {
 
       {/* Dialog — Aplicar Patrocinadores em Lote */}
       <Dialog open={bulkApplyDialogOpen} onOpenChange={setBulkApplyDialogOpen}>
-        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9' }}>
-          <div className="px-5 pt-5 pb-4" style={{ borderBottom: '1px solid #e7e5e4' }}>
-            <DialogTitle className="text-base font-semibold" style={{ color: '#1c1917' }}>
+        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9', borderRadius: 12 }}>
+          <div style={{ padding: '24px', borderBottom: '1px solid #eeeeed' }}>
+            <DialogTitle style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: '#1a1c1c', lineHeight: 1.2 }}>
               Aplicar Patrocinadores em Lote
             </DialogTitle>
-            <p className="text-xs mt-0.5" style={{ color: '#71717a' }}>
-              {selectedItemIds.size} item{selectedItemIds.size !== 1 ? 's' : ''} selecionado{selectedItemIds.size !== 1 ? 's' : ''}
-            </p>
-          </div>
 
-          <div className="px-5 py-4 space-y-4">
-            {/* Lista de Patrocinadores */}
-            <div className="max-h-[280px] overflow-y-auto space-y-1.5">
-              {sponsors.length === 0 ? (
-                <p className="text-sm text-center py-8" style={{ color: '#71717a' }}>
-                  Nenhum patrocinador cadastrado
-                </p>
-              ) : sponsors.map((sponsor) => {
-                const isSelected = bulkSelectedSponsors.includes(sponsor.id);
-                return (
-                  <div
-                    key={sponsor.id}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
-                    style={{
-                      backgroundColor: '#ffffff',
-                      border: isSelected ? '1px solid #f97316' : '1px solid #e7e5e4',
-                    }}
-                    data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
-                    onClick={() => {
-                      if (isSelected) {
-                        setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
-                      } else {
-                        // Selecionar patrocinador desmarca "Sem Patrocinador"
-                        setBulkSkipApproval(false);
-                        setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
-                      }
-                    }}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: sponsor.color || '#3b82f6' }} />
-                    <span className="text-sm font-medium flex-1" style={{ color: '#1c1917' }}>
-                      {sponsor.name}
-                      {sponsor.company && (
-                        <span className="ml-1.5 font-normal" style={{ color: '#71717a' }}>({sponsor.company})</span>
-                      )}
-                    </span>
-                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0" style={{ color: '#f97316' }} />}
-                  </div>
-                );
-              })}
-
-              {/* Sem Patrocinador — card selecionável */}
-              <div
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: bulkSkipApproval ? '1px solid #f97316' : '1px dashed #d6d3d1',
-                }}
-                data-testid="bulk-option-sem-patrocinador"
-                onClick={() => {
-                  if (bulkSkipApproval) {
-                    setBulkSkipApproval(false);
-                  } else {
-                    // Selecionar "Sem Patrocinador" desmarca todos os sponsors
-                    setBulkSelectedSponsors([]);
-                    setBulkSkipApproval(true);
-                  }
-                }}
-              >
-                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#a8a29e' }} />
-                <span className="text-sm font-medium flex-1" style={{ color: '#1c1917' }}>
-                  Sem Patrocinador
-                  <span className="ml-1.5 text-xs font-normal" style={{ color: '#a8a29e' }}>— sem aprovação de patrocinador</span>
-                </span>
-                {bulkSkipApproval && <Check className="h-3.5 w-3.5 shrink-0" style={{ color: '#f97316' }} />}
-              </div>
-            </div>
-
-            {/* Aviso de isentos */}
+            {/* Banner informativo sobre isentos */}
             {(() => {
               const exemptCount = Array.from(selectedItemIds).filter(id => {
                 const it = items.find(i => i.id === id);
@@ -2107,26 +2054,110 @@ export default function VincularPatrocinadores() {
               }).length;
               if (exemptCount === 0 || bulkSkipApproval) return null;
               return (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md text-xs" style={{ backgroundColor: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' }}>
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  <span>{exemptCount} item{exemptCount !== 1 ? 's' : ''} isento{exemptCount !== 1 ? 's' : ''} não será{exemptCount !== 1 ? 'ão' : ''} alterado{exemptCount !== 1 ? 's' : ''}</span>
+                <div style={{ marginTop: 12, padding: '10px 14px', backgroundColor: '#fff7ed', borderRadius: 8, display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid rgba(249,115,22,0.15)' }}>
+                  <Info style={{ width: 14, height: 14, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontSize: 11, lineHeight: 1.5, color: '#783200', fontWeight: 500 }}>
+                    {exemptCount} item{exemptCount !== 1 ? 's' : ''} isento{exemptCount !== 1 ? 's' : ''} de contrato não receberá{exemptCount !== 1 ? 'ão' : ''} as marcas selecionadas.
+                  </p>
                 </div>
               );
             })()}
           </div>
 
-          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderTop: '1px solid #e7e5e4' }}>
-            <span className="text-xs" style={{ color: '#71717a' }}>
-              {bulkSelectedSponsors.length} {bulkSelectedSponsors.length === 1 ? 'patrocinador selecionado' : 'patrocinadores selecionados'}
-            </span>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setBulkApplyDialogOpen(false)} style={{ color: '#1c1917' }}>
-                Cancelar
-              </Button>
-              <Button size="sm" onClick={handleApplyBulkSponsors} data-testid="button-confirm-bulk-apply" style={{ backgroundColor: '#1c1917', color: '#ffffff' }}>
-                Aplicar
-              </Button>
+          <div style={{ padding: '24px', maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* Opção: Sem Patrocinador — aparece primeiro */}
+            <div
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 16px',
+                backgroundColor: '#ffffff',
+                border: bulkSkipApproval ? '2px solid #f97316' : '2px dashed #dadad9',
+                borderRadius: 8, cursor: 'pointer',
+                opacity: bulkSkipApproval ? 1 : 0.7,
+                transition: 'all 0.15s',
+              }}
+              data-testid="bulk-option-sem-patrocinador"
+              onClick={() => {
+                if (bulkSkipApproval) {
+                  setBulkSkipApproval(false);
+                } else {
+                  setBulkSelectedSponsors([]);
+                  setBulkSkipApproval(true);
+                }
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <X style={{ width: 16, height: 16, color: '#625d5b', flexShrink: 0 }} />
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1c1c' }}>Sem Patrocinador</span>
+              </div>
+              {bulkSkipApproval ? (
+                <CheckCircle2 style={{ width: 18, height: 18, color: '#f97316', flexShrink: 0 }} />
+              ) : (
+                <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
+              )}
             </div>
+
+            {/* Lista de patrocinadores */}
+            {sponsors.length === 0 ? (
+              <p style={{ fontSize: 13, textAlign: 'center', padding: '24px 0', color: '#625d5b' }}>
+                Nenhum patrocinador cadastrado
+              </p>
+            ) : sponsors.map((sponsor) => {
+              const isSelected = bulkSelectedSponsors.includes(sponsor.id);
+              return (
+                <div
+                  key={sponsor.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 16px',
+                    backgroundColor: '#ffffff',
+                    border: isSelected ? '2px solid #f97316' : '1px solid #eeeeed',
+                    borderRadius: 8, cursor: 'pointer',
+                    transition: 'border-color 0.15s',
+                  }}
+                  data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
+                  onClick={() => {
+                    if (isSelected) {
+                      setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
+                    } else {
+                      setBulkSkipApproval(false);
+                      setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
+                    }
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1c1c' }}>
+                      {sponsor.name}
+                      {sponsor.company && (
+                        <span style={{ marginLeft: 6, fontWeight: 400, color: '#625d5b', fontSize: 13 }}> ({sponsor.company})</span>
+                      )}
+                    </span>
+                  </div>
+                  {isSelected ? (
+                    <CheckCircle2 style={{ width: 18, height: 18, color: '#f97316', flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>
+            <button
+              onClick={() => setBulkApplyDialogOpen(false)}
+              style={{ padding: '8px 20px', background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}
+            >
+              DESCARTAR
+            </button>
+            <button
+              onClick={handleApplyBulkSponsors}
+              data-testid="button-confirm-bulk-apply"
+              style={{ padding: '8px 16px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}
+            >
+              APLICAR EM LOTE
+            </button>
           </div>
         </DialogContent>
       </Dialog>
@@ -2141,26 +2172,25 @@ export default function VincularPatrocinadores() {
 
       {/* ===== Modal de Confirmação de Envio ===== */}
       <Dialog open={!!sendConfirmModal} onOpenChange={(open) => !open && setSendConfirmModal(null)}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 560, borderRadius: 12 }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 560, borderRadius: 12, overflow: 'hidden' }}>
           <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
-          {/* Header visual */}
-          <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #e7e5e4' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <ShieldCheck style={{ width: 18, height: 18, color: '#f97316' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#1c1917' }}>Confirmar Envio para Arte</div>
-                <div style={{ fontSize: 12, color: '#78716c', marginTop: 1 }}>
-                  Revise os patrocinadores antes de confirmar
-                </div>
-              </div>
+
+          {/* Header — centrado com ícone grande */}
+          <div style={{ padding: '32px 32px 28px', borderBottom: '1px solid #eeeeed', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <ShieldCheck style={{ width: 32, height: 32, color: '#f97316' }} />
             </div>
+            <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#1a1c1c', lineHeight: 1.2 }}>
+              Confirmar Envio para Arte
+            </div>
+            <p style={{ fontSize: 13, color: '#625d5b', marginTop: 8, maxWidth: 340, lineHeight: 1.6 }}>
+              Revise os itens e seus respectivos vínculos antes de enviar para aprovação do departamento criativo.
+            </p>
           </div>
 
           {/* Corpo — lista de itens */}
-          <ScrollArea style={{ maxHeight: 420 }}>
-            <div style={{ padding: '16px 28px' }}>
+          <ScrollArea style={{ maxHeight: 400 }}>
+            <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 28 }}>
               {sendConfirmModal?.items.map((item, idx) => {
                 const confirmed = (originalSponsorsMap[item.id] || []);
                 const pending = sendConfirmModal.pendingByItem[item.id] || new Set<string>();
@@ -2169,36 +2199,30 @@ export default function VincularPatrocinadores() {
 
                 return (
                   <div key={item.id}>
-                    {idx > 0 && <Separator style={{ margin: '16px 0' }} />}
+                    {idx > 0 && <div style={{ height: 1, backgroundColor: '#eeeeed', marginBottom: 28, marginTop: -14 }} />}
 
-                    {/* Item header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                      <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#f97316', fontWeight: 700 }}>
-                        {item.displayId}
-                      </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>{item.type}</span>
-                      {item.description && (
-                        <span style={{ fontSize: 11, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
-                          {item.description}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Patrocinadores já confirmados */}
+                    {/* Seção: Já vinculados */}
                     {confirmed.length > 0 && (
-                      <div style={{ marginBottom: 14 }}>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                          Já vinculados
+                      <div style={{ marginBottom: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#8c7164', whiteSpace: 'nowrap' }}>
+                            Já vinculados
+                          </span>
+                          <div style={{ height: 1, flex: 1, backgroundColor: '#eeeeed' }} />
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {confirmed.map((sid: string) => {
                             const sp = (sponsors as any[]).find((s: any) => s.id === sid);
                             if (!sp) return null;
                             return (
-                              <div key={sid} style={{ display: 'flex', alignItems: 'center', gap: 6, backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: 100, padding: '4px 12px' }}>
-                                <div style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: sp.color || '#3b82f6', flexShrink: 0 }} />
-                                <span style={{ fontSize: 12, color: '#15803d', fontWeight: 500 }}>{sp.name}</span>
-                                <Check style={{ width: 11, height: 11, color: '#15803d' }} />
+                              <div key={sid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: '#f3f4f3', borderRadius: 6 }}>
+                                <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#f97316' }}>{item.displayId}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1c1c' }}>{sp.name}</span>
+                                  <span style={{ padding: '2px 6px', backgroundColor: '#dcfce7', color: '#15803d', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', borderRadius: 4, border: '1px solid #bbf7d0', letterSpacing: '0.05em' }}>
+                                    Vinculado
+                                  </span>
+                                </div>
                               </div>
                             );
                           })}
@@ -2206,34 +2230,46 @@ export default function VincularPatrocinadores() {
                       </div>
                     )}
 
-                    {/* Outros patrocinadores (selecionar para adicionar) */}
+                    {/* Seção: Selecionar / Adicionar mais */}
                     {otherSponsorIds.length > 0 && (
                       <div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                          {confirmed.length > 0 ? 'Adicionar mais patrocinadores' : 'Selecionar patrocinadores'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#f97316', whiteSpace: 'nowrap' }}>
+                            {confirmed.length > 0 ? 'Adicionar mais patrocinadores' : 'Selecionar patrocinadores'}
+                          </span>
+                          <div style={{ height: 1, flex: 1, backgroundColor: 'rgba(249,115,22,0.15)' }} />
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {otherSponsorIds.map((sid: string) => {
                             const sp = (sponsors as any[]).find((s: any) => s.id === sid);
                             if (!sp) return null;
                             const isChecked = pending.has(sid);
                             return (
-                              <label
+                              <div
                                 key={sid}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', backgroundColor: isChecked ? '#fff7ed' : 'transparent', border: `1px solid ${isChecked ? '#fed7aa' : 'transparent'}`, transition: 'all 0.15s' }}
+                                style={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                  padding: '12px 14px',
+                                  border: `2px dashed ${isChecked ? 'rgba(249,115,22,0.4)' : 'rgba(249,115,22,0.2)'}`,
+                                  backgroundColor: isChecked ? 'rgba(249,115,22,0.05)' : 'rgba(249,115,22,0.02)',
+                                  borderRadius: 6, cursor: 'pointer',
+                                  transition: 'all 0.15s',
+                                }}
                                 onClick={() => toggleModalSponsor(item.id, sid)}
                               >
-                                <Checkbox
-                                  checked={isChecked}
-                                  onCheckedChange={() => toggleModalSponsor(item.id, sid)}
-                                  onClick={e => e.stopPropagation()}
-                                />
-                                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sp.color || '#3b82f6', flexShrink: 0 }} />
-                                <span style={{ fontSize: 13, color: isChecked ? '#c2410c' : '#1c1917', fontWeight: isChecked ? 600 : 400 }}>{sp.name}</span>
-                                {isChecked && (
-                                  <span style={{ marginLeft: 'auto', fontSize: 10, color: '#f97316', fontWeight: 600 }}>A vincular</span>
-                                )}
-                              </label>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#f97316' }}>{item.displayId}</span>
+                                  <span style={{ fontSize: 12, fontWeight: 500, color: '#625d5b', marginTop: 2 }}>{sp.name}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  {isChecked && (
+                                    <span style={{ padding: '2px 7px', backgroundColor: 'rgba(249,115,22,0.12)', color: '#f97316', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', borderRadius: 4, border: '1px solid rgba(249,115,22,0.25)', letterSpacing: '0.05em' }}>
+                                      A vincular
+                                    </span>
+                                  )}
+                                  <Plus style={{ width: 16, height: 16, color: '#f97316' }} />
+                                </div>
+                              </div>
                             );
                           })}
                         </div>
@@ -2251,23 +2287,29 @@ export default function VincularPatrocinadores() {
             </div>
           </ScrollArea>
 
-          {/* Footer */}
-          <div style={{ padding: '16px 28px', borderTop: '1px solid #e7e5e4', display: 'flex', justifyContent: 'flex-end', gap: 10, backgroundColor: '#fafaf9' }}>
-            <button
-              onClick={() => setSendConfirmModal(null)}
-              style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 8, height: 38, padding: '0 18px', fontWeight: 500, fontSize: 13, cursor: 'pointer' }}
-            >
-              Cancelar
-            </button>
+          {/* Footer — botões empilhados em coluna */}
+          <div style={{ padding: '24px 32px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               onClick={handleModalConfirmSend}
               disabled={sendToArteMutation.isPending}
-              style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 8, height: 38, padding: '0 20px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
+              style={{ width: '100%', padding: '16px 24px', backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 8, fontFamily: 'Space Grotesk, sans-serif', fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: sendToArteMutation.isPending ? 0.7 : 1, transition: 'background-color 0.2s' }}
               onMouseEnter={e => { if (!sendToArteMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917'; }}
             >
-              <Send style={{ width: 14, height: 14 }} />
-              Confirmar e Enviar{sendConfirmModal && sendConfirmModal.items.length > 1 ? ` ${sendConfirmModal.items.length} itens` : ''}
+              {sendToArteMutation.isPending ? 'Enviando...' : (
+                <>
+                  Confirmar e Enviar para Arte{sendConfirmModal && sendConfirmModal.items.length > 1 ? ` (${sendConfirmModal.items.length} peças)` : ''}
+                  <Send style={{ width: 16, height: 16 }} />
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => setSendConfirmModal(null)}
+              style={{ width: '100%', padding: '10px 24px', background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer', transition: 'color 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#1a1c1c'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#625d5b'; }}
+            >
+              Voltar para rascunhos
             </button>
           </div>
         </DialogContent>

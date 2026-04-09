@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE APEX | Technical Presentation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed-dim": "#ccc5c2",
+                      "on-secondary-fixed-variant": "#783200",
+                      "on-primary": "#ffffff",
+                      "surface-bright": "#f9f9f8",
+                      "tertiary-fixed": "#cde5ff",
+                      "outline-variant": "#e0c0b1",
+                      "surface-variant": "#e2e2e2",
+                      "on-tertiary-fixed-variant": "#004b74",
+                      "secondary-container": "#fd761a",
+                      "on-primary-fixed": "#1e1b19",
+                      "surface-container": "#eeeeed",
+                      "tertiary-container": "#00a2f4",
+                      "surface-dim": "#dadad9",
+                      "surface-container-high": "#e8e8e7",
+                      "on-surface-variant": "#584237",
+                      "inverse-primary": "#ccc5c2",
+                      "on-primary-container": "#35322f",
+                      "on-error": "#ffffff",
+                      "secondary-fixed-dim": "#ffb690",
+                      "secondary-fixed": "#ffdbca",
+                      "primary-container": "#9f9996",
+                      "surface-container-highest": "#e2e2e2",
+                      "tertiary": "#006398",
+                      "outline": "#8c7164",
+                      "on-tertiary-fixed": "#001d32",
+                      "on-secondary-fixed": "#341100",
+                      "primary-fixed": "#e9e1dd",
+                      "error": "#ba1a1a",
+                      "background": "#f9f9f8",
+                      "surface-tint": "#625d5b",
+                      "surface-container-low": "#f3f4f3",
+                      "on-primary-fixed-variant": "#4a4643",
+                      "inverse-on-surface": "#f1f1f0",
+                      "surface-container-lowest": "#ffffff",
+                      "inverse-surface": "#2f3130",
+                      "primary": "#625d5b",
+                      "on-error-container": "#93000a",
+                      "error-container": "#ffdad6",
+                      "on-surface": "#1a1c1c",
+                      "on-secondary": "#ffffff",
+                      "on-secondary-container": "#5c2400",
+                      "on-tertiary-container": "#003554",
+                      "secondary": "#9d4300",
+                      "on-background": "#1a1c1c",
+                      "surface": "#f9f9f8",
+                      "on-tertiary": "#ffffff",
+                      "tertiary-fixed-dim": "#93ccff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "fontFamily": {
+                      "headline": ["Space Grotesk"],
+                      "body": ["Plus Jakarta Sans"],
+                      "label": ["Plus Jakarta Sans"]
+              }
+            },
+          }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .tight-kerning { letter-spacing: -0.05em; }
+        .glass-norte {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- Top Navigation Anchor (from JSON) -->
+<nav class="bg-[#f9f9f8] dark:bg-[#1c1917] flex justify-between items-center w-full px-8 py-4 fixed top-0 z-50">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-bold tracking-tighter text-[#1c1917] dark:text-[#f9f9f8] font-headline">NORTE APEX</span>
+<div class="hidden md:flex gap-6">
+<a class="text-[#625d5b] dark:text-[#a8a29e] hover:text-[#f97316] transition-colors duration-200 font-label text-xs uppercase tracking-widest" href="#">Dashboard</a>
+<a class="text-[#f97316] font-bold border-b-2 border-[#f97316] pb-1 font-label text-xs uppercase tracking-widest" href="#">Events</a>
+<a class="text-[#625d5b] dark:text-[#a8a29e] hover:text-[#f97316] transition-colors duration-200 font-label text-xs uppercase tracking-widest" href="#">Sponsors</a>
+<a class="text-[#625d5b] dark:text-[#a8a29e] hover:text-[#f97316] transition-colors duration-200 font-label text-xs uppercase tracking-widest" href="#">Analytics</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer">notifications</span>
+<span class="material-symbols-outlined text-primary cursor-pointer">settings</span>
+<button class="bg-secondary text-on-secondary px-4 py-2 text-sm font-bold rounded-md hover:brightness-110 transition-all">Create Event</button>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="pt-32 pb-20 px-8 min-h-screen flex flex-col gap-16 max-w-7xl mx-auto">
+<header class="max-w-2xl">
+<h1 class="font-headline text-5xl font-extrabold tight-kerning text-on-surface leading-tight">
+                Design System <br/><span class="text-secondary">Modal Architectures</span>
+</h1>
+<p class="mt-4 text-primary font-body text-lg leading-relaxed">
+                Technical interface components for the Norte Apex elite sports management platform. Leveraging Kinetic Compass principles for high-performance precision.
+            </p>
+</header>
+<!-- Bento Grid Layout for Modals -->
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-12 items-start">
+<!-- Modal 1: Patrocinadores do Evento -->
+<section class="flex flex-col gap-4">
+<span class="text-[10px] uppercase tracking-[0.2em] font-bold text-outline">Component 01 / Selection Layer</span>
+<div class="w-[448px] bg-[#fafaf9] rounded-xl overflow-hidden flex flex-col surface-container-highest shadow-[0_16px_32px_rgba(26,28,28,0.05)] border border-outline-variant/15">
+<div class="px-6 py-6 border-b border-surface-container">
+<h2 class="font-headline text-xl font-bold tight-kerning text-on-surface">Patrocinadores do Evento</h2>
+<p class="text-primary text-xs font-medium font-body mt-1 uppercase tracking-wider">GP Brasil de Ciclismo 2024</p>
+</div>
+<div class="p-6 flex flex-col gap-3">
+<!-- Active Sponsor -->
+<div class="flex items-center justify-between p-4 bg-surface-container-lowest border-2 border-secondary rounded-lg cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-full bg-blue-600"></div>
+<span class="font-semibold text-sm">Nike Global Sports</span>
+</div>
+<span class="material-symbols-outlined text-secondary text-lg" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<!-- Inactive Sponsor -->
+<div class="flex items-center justify-between p-4 bg-surface-container-lowest border border-surface-container hover:border-secondary/30 rounded-lg cursor-pointer transition-all">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-full bg-red-500"></div>
+<span class="font-semibold text-sm">Red Bull Racing</span>
+</div>
+<div class="w-5 h-5 rounded-full border border-surface-container"></div>
+</div>
+<!-- Inactive Sponsor -->
+<div class="flex items-center justify-between p-4 bg-surface-container-lowest border border-surface-container hover:border-secondary/30 rounded-lg cursor-pointer transition-all">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+<span class="font-semibold text-sm">Shimano Components</span>
+</div>
+<div class="w-5 h-5 rounded-full border border-surface-container"></div>
+</div>
+</div>
+<div class="px-6 py-4 bg-surface-container-low flex items-center justify-between">
+<span class="text-xs font-bold text-primary">01 / 03 SELECIONADOS</span>
+<div class="flex gap-3">
+<button class="px-4 py-2 text-xs font-bold text-primary hover:text-on-surface transition-colors">CANCELAR</button>
+<button class="px-4 py-2 text-xs font-bold bg-secondary text-on-secondary rounded hover:brightness-110 transition-all">SALVAR</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Modal 2: Aplicar Patrocinadores em Lote -->
+<section class="flex flex-col gap-4">
+<span class="text-[10px] uppercase tracking-[0.2em] font-bold text-outline">Component 02 / Batch Processing</span>
+<div class="w-[448px] bg-[#fafaf9] rounded-xl overflow-hidden flex flex-col border border-outline-variant/15 shadow-[0_16px_32px_rgba(26,28,28,0.05)]">
+<div class="px-6 py-6 border-b border-surface-container">
+<h2 class="font-headline text-xl font-bold tight-kerning text-on-surface">Aplicar Patrocinadores em Lote</h2>
+<div class="mt-4 p-3 bg-[#fff7ed] rounded-lg flex gap-3 items-start border border-secondary/10">
+<span class="material-symbols-outlined text-secondary text-sm mt-0.5">info</span>
+<p class="text-[11px] leading-relaxed text-on-secondary-container/80 font-medium">
+                                Itens isentos de contrato não receberão as marcas selecionadas durante este processamento em lote.
+                            </p>
+</div>
+</div>
+<div class="p-6 flex flex-col gap-3">
+<div class="flex items-center justify-between p-4 bg-surface-container-lowest border-2 border-dashed border-surface-dim rounded-lg cursor-pointer opacity-70 hover:opacity-100 transition-all">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl">block</span>
+<span class="font-semibold text-sm">Sem Patrocinador</span>
+</div>
+<div class="w-5 h-5 rounded-full border border-surface-container"></div>
+</div>
+<div class="flex items-center justify-between p-4 bg-surface-container-lowest border-2 border-secondary rounded-lg cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 rounded-full bg-secondary"></div>
+<span class="font-semibold text-sm">Banco ITAÚ Master</span>
+</div>
+<span class="material-symbols-outlined text-secondary text-lg" style="font-variation-settings: 'FILL' 1;">radio_button_checked</span>
+</div>
+</div>
+<div class="px-6 py-4 bg-surface-container-low flex justify-end gap-3">
+<button class="px-6 py-2 text-xs font-bold text-primary">DESCARTAR</button>
+<button class="px-6 py-2 text-xs font-bold bg-secondary text-on-secondary rounded hover:brightness-110">APLICAR EM LOTE</button>
+</div>
+</div>
+</section>
+<!-- Modal 3: Confirmar Envio para Arte -->
+<section class="flex flex-col gap-4 xl:col-span-2 mx-auto">
+<span class="text-[10px] uppercase tracking-[0.2em] font-bold text-outline">Component 03 / High Authority Approval</span>
+<div class="w-[560px] bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant/15 shadow-[0_24px_48px_rgba(26,28,28,0.08)]">
+<div class="p-8 flex flex-col items-center text-center border-b border-surface-container">
+<div class="w-16 h-16 bg-[#fff7ed] rounded-full flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-secondary text-4xl" style="font-variation-settings: 'wght' 200;">shield_with_heart</span>
+</div>
+<h2 class="font-headline text-2xl font-bold tight-kerning text-on-surface">Confirmar Envio para Arte</h2>
+<p class="text-primary text-sm mt-2 max-w-sm">
+                            Revise os itens e seus respectivos vínculos antes de enviar para aprovação do departamento criativo.
+                        </p>
+</div>
+<div class="p-8 flex flex-col gap-8 max-h-[400px] overflow-y-auto">
+<!-- Section: Already Linked -->
+<div>
+<header class="flex justify-between items-center mb-4">
+<h3 class="text-[10px] font-black uppercase tracking-widest text-outline">Já vinculados</h3>
+<span class="h-[1px] flex-grow ml-4 bg-surface-container"></span>
+</header>
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-md">
+<span class="font-mono text-sm font-bold text-secondary">#NT-2024-001</span>
+<div class="flex items-center gap-3">
+<span class="text-xs font-semibold">Camiseta de Líder (Amarela)</span>
+<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded border border-emerald-200">Aprovado</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-md">
+<span class="font-mono text-sm font-bold text-secondary">#NT-2024-005</span>
+<div class="flex items-center gap-3">
+<span class="text-xs font-semibold">Banner de Pódio Principal</span>
+<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded border border-emerald-200">Aprovado</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Section: Drafts / To be Linked -->
+<div>
+<header class="flex justify-between items-center mb-4">
+<h3 class="text-[10px] font-black uppercase tracking-widest text-secondary">Selecionar / Adicionar mais</h3>
+<span class="h-[1px] flex-grow ml-4 bg-secondary/10"></span>
+</header>
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between p-4 border-2 border-dashed border-secondary/20 bg-secondary/5 rounded-md">
+<div class="flex flex-col">
+<span class="font-mono text-sm font-bold text-secondary">#NT-2024-012</span>
+<span class="text-xs font-medium text-primary mt-1">Backdrop de Entrevistas</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 bg-secondary/10 text-secondary text-[9px] font-black uppercase rounded border border-secondary/20">A vincular</span>
+<span class="material-symbols-outlined text-secondary text-sm">add_circle</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-8 bg-surface-container-low flex flex-col gap-4">
+<button class="w-full py-4 bg-[#1c1917] hover:bg-secondary text-on-secondary font-headline font-bold text-base tracking-tight rounded-lg transition-all duration-300 flex items-center justify-center gap-3 shadow-lg shadow-[#1c1917]/10">
+                            Confirmar e Enviar para Arte
+                            <span class="material-symbols-outlined text-xl">send</span>
+</button>
+<button class="w-full py-2 text-xs font-bold text-primary uppercase tracking-widest hover:text-on-surface transition-colors">
+                            Voltar para rascunhos
+                        </button>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Side Navigation Anchor (from JSON) -->
+<aside class="hidden lg:flex flex-col h-full py-6 bg-[#f9f9f8] dark:bg-[#1c1917] h-screen w-64 border-r border-[#1c1917]/10 dark:border-[#f9f9f8]/10 fixed left-0 top-0">
+<div class="px-6 mb-10">
+<h2 class="text-xl font-black tracking-tighter text-[#1c1917] dark:text-[#f9f9f8] font-headline">NORTE APEX</h2>
+<p class="text-[10px] uppercase tracking-[0.2em] text-[#625d5b] mt-1 font-label">Elite Management</p>
+</div>
+<nav class="flex-grow px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-[#625d5b] dark:text-[#a8a29e] hover:bg-[#1c1917]/5 dark:hover:bg-[#f9f9f8]/5 transition-all rounded-md" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-xs uppercase tracking-widest font-label font-bold">Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-[#f97316]/10 text-[#f97316] rounded-md font-bold transition-transform duration-200 translate-x-1" href="#">
+<span class="material-symbols-outlined">stars</span>
+<span class="text-xs uppercase tracking-widest font-label">Sponsorships</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#625d5b] dark:text-[#a8a29e] hover:bg-[#1c1917]/5 dark:hover:bg-[#f9f9f8]/5 transition-all rounded-md" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="text-xs uppercase tracking-widest font-label font-bold">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#625d5b] dark:text-[#a8a29e] hover:bg-[#1c1917]/5 dark:hover:bg-[#f9f9f8]/5 transition-all rounded-md" href="#">
+<span class="material-symbols-outlined">palette</span>
+<span class="text-xs uppercase tracking-widest font-label font-bold">Art Approval</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#625d5b] dark:text-[#a8a29e] hover:bg-[#1c1917]/5 dark:hover:bg-[#f9f9f8]/5 transition-all rounded-md" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-xs uppercase tracking-widest font-label font-bold">Settings</span>
+</a>
+</nav>
+<div class="px-6 mt-auto space-y-4">
+<button class="w-full py-3 bg-secondary text-on-secondary rounded-md font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all">New Campaign</button>
+<div class="border-t border-surface-container pt-4">
+<a class="flex items-center gap-3 px-4 py-2 text-[#625d5b] hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">help</span>
+<span class="text-[10px] uppercase tracking-widest font-label font-bold">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-[#625d5b] hover:text-error transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">logout</span>
+<span class="text-[10px] uppercase tracking-widest font-label font-bold">Logout</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Visual Identity Background Element -->
+<div class="fixed top-0 right-0 w-1/3 h-screen bg-gradient-to-l from-secondary/5 to-transparent pointer-events-none -z-10"></div>
+</body></html>

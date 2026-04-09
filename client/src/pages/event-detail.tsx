@@ -1298,7 +1298,7 @@ export default function EventDetail() {
 
       {/* Dialog separado para editar item */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent style={{ maxWidth: "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden" }}>
+        <DialogContent style={{ maxWidth: "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
 
           {/* Cabeçalho */}
           <DialogHeader style={{ padding: "24px 28px", borderBottom: "1px solid #eeeeed" }}>
@@ -1317,13 +1317,16 @@ export default function EventDetail() {
             </div>
           </DialogHeader>
 
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (editingItem) {
-              updateItemMutation.mutate({ id: editingItem.id, data: formData });
-            }
-          }}>
-            <div style={{ padding: "32px 28px", display: "flex", flexDirection: "column", gap: "24px" }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (editingItem) {
+                updateItemMutation.mutate({ id: editingItem.id, data: formData });
+              }
+            }}
+            style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+          >
+            <div style={{ flex: 1, overflowY: "auto", padding: "32px 28px", display: "flex", flexDirection: "column", gap: "24px" }}>
 
               {/* Linha 1: Tipo (3fr) | Qtd. (1fr) | M2 Total (1fr) */}
               <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: "16px" }}>

@@ -935,23 +935,32 @@ export default function VincularPatrocinadores() {
   }, [events, itemsByEvent, originalSponsorsMap, sponsors]);
 
   // Toggle seleção em lote por patrocinador (aba "Por Patrocinador")
-  const toggleSponsorBulkItem = (itemId: string) => {
+  // Chave composta "itemId::sponsorId" para isolar seleção por grupo
+  const sponsorKey = (itemId: string, sponsorId: string) => `${itemId}::${sponsorId}`;
+
+  const toggleSponsorBulkItem = (itemId: string, sponsorId: string) => {
+    const key = sponsorKey(itemId, sponsorId);
     setSponsorBulkSelected(prev => {
       const next = new Set(prev);
-      next.has(itemId) ? next.delete(itemId) : next.add(itemId);
+      next.has(key) ? next.delete(key) : next.add(key);
       return next;
     });
   };
 
-  const toggleSponsorGroup = (pendingItemIds: string[]) => {
+  const toggleSponsorGroup = (pendingItemIds: string[], sponsorId: string) => {
     setSponsorBulkSelected(prev => {
       const next = new Set(prev);
-      const allSelected = pendingItemIds.every(id => next.has(id));
-      if (allSelected) pendingItemIds.forEach(id => next.delete(id));
-      else pendingItemIds.forEach(id => next.add(id));
+      const keys = pendingItemIds.map(id => sponsorKey(id, sponsorId));
+      const allSelected = keys.every(k => next.has(k));
+      if (allSelected) keys.forEach(k => next.delete(k));
+      else keys.forEach(k => next.add(k));
       return next;
     });
   };
+
+  // Extrai item IDs únicos a partir das chaves compostas selecionadas
+  const selectedSponsorItemIds = () =>
+    Array.from(new Set(Array.from(sponsorBulkSelected).map(k => k.split('::')[0])));
 
   // Vincular patrocinador a item individual (aba Por Patrocinador)
   const linkSponsorToItem = (itemId: string, sponsorId: string) => {
@@ -1622,14 +1631,17 @@ export default function VincularPatrocinadores() {
           </div>
 
           {/* Bulk floating bar */}
-          {sponsorBulkSelected.size > 0 && (
+          {sponsorBulkSelected.size > 0 && (() => {
+            const uniqueItemIds = selectedSponsorItemIds();
+            const n = uniqueItemIds.length;
+            return (
             <div style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: '#1c1917', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.18)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#ffffff' }}>
-                  {sponsorBulkSelected.size}
+                  {n}
                 </div>
                 <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 500 }}>
-                  {sponsorBulkSelected.size} item{sponsorBulkSelected.size !== 1 ? 's' : ''} selecionado{sponsorBulkSelected.size !== 1 ? 's' : ''}
+                  {n} item{n !== 1 ? 's' : ''} selecionado{n !== 1 ? 's' : ''}
                 </span>
                 <button onClick={() => setSponsorBulkSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>
                   Limpar
@@ -1638,17 +1650,18 @@ export default function VincularPatrocinadores() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={() => {
-                    sendToArteMutation.mutate(Array.from(sponsorBulkSelected));
+                    sendToArteMutation.mutate(uniqueItemIds);
                     setSponsorBulkSelected(new Set());
                   }}
                   style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, height: 38, padding: '0 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                 >
                   <Send style={{ width: 14, height: 14 }} />
-                  Enviar {sponsorBulkSelected.size} item{sponsorBulkSelected.size !== 1 ? 's' : ''}
+                  Enviar {n} item{n !== 1 ? 's' : ''}
                 </button>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* Agrupamento Evento → Patrocinador → Itens */}
           {sponsorGroupedData.length === 0 ? (
@@ -1687,14 +1700,14 @@ export default function VincularPatrocinadores() {
                 ) : sponsorGroups.map(({ sponsor, items: linkedItems, pendingItems }) => {
                   const allItems = [...linkedItems, ...pendingItems];
                   const pendingIds = pendingItems.map(i => i.id);
-                  const allPendingSelected = pendingIds.length > 0 && pendingIds.every(id => sponsorBulkSelected.has(id));
+                  const allPendingSelected = pendingIds.length > 0 && pendingIds.every(id => sponsorBulkSelected.has(sponsorKey(id, sponsor.id)));
                   return (
                     <div key={sponsor.id}>
                       {/* Nível 2 — Subgrupo do Patrocinador */}
                       <div style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Checkbox
                           checked={allPendingSelected}
-                          onCheckedChange={() => toggleSponsorGroup(pendingIds)}
+                          onCheckedChange={() => toggleSponsorGroup(pendingIds, sponsor.id)}
                           disabled={pendingIds.length === 0}
                           data-testid={`checkbox-sponsor-group-${event.id}-${sponsor.id}`}
                         />
@@ -1736,8 +1749,8 @@ export default function VincularPatrocinadores() {
                                   >
                                     <td style={{ padding: '10px 12px', width: 40 }} onClick={e => e.stopPropagation()}>
                                       <Checkbox
-                                        checked={sponsorBulkSelected.has(item.id)}
-                                        onCheckedChange={() => toggleSponsorBulkItem(item.id)}
+                                        checked={sponsorBulkSelected.has(sponsorKey(item.id, sponsor.id))}
+                                        onCheckedChange={() => toggleSponsorBulkItem(item.id, sponsor.id)}
                                         disabled={isLinked || isSent}
                                         data-testid={`sp-checkbox-${item.id}`}
                                       />

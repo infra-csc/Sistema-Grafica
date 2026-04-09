@@ -1100,6 +1100,28 @@ export default function VincularPatrocinadores() {
     saveLinkingMutation.mutate([itemId]);
   };
 
+  // Desvincular patrocinador de item individual (aba Por Patrocinador)
+  const unlinkSponsorFromItem = (itemId: string, sponsorId: string) => {
+    const current = originalSponsorsMap[itemId] || [];
+    if (!current.includes(sponsorId)) return;
+    const newSponsors = current.filter(id => id !== sponsorId);
+    // Atualizar estado local imediatamente
+    setItemSponsorsMap(prev => ({ ...prev, [itemId]: newSponsors }));
+    setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: newSponsors }));
+    // Persistir no servidor
+    apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
+      sponsorIds: newSponsors,
+      skipApproval: false,
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    }).catch(() => {
+      // reverter em caso de erro
+      setItemSponsorsMap(prev => ({ ...prev, [itemId]: current }));
+      setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: current }));
+      toast({ title: "Erro ao desvincular", variant: "destructive" });
+    });
+  };
+
   if (itemsLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1954,16 +1976,28 @@ export default function VincularPatrocinadores() {
                                           <Check style={{ width: 14, height: 14 }} /> Enviado
                                         </span>
                                       ) : isLinked ? (
-                                        <button
-                                          onClick={() => openSendModalForItem(item)}
-                                          disabled={sendToArteMutation.isPending}
-                                          style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 7, height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background-color 0.2s' }}
-                                          onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
-                                          onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917')}
-                                          data-testid={`sp-btn-send-${item.id}`}
-                                        >
-                                          <ArrowRight style={{ width: 12, height: 12 }} /> Enviar
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <button
+                                            onClick={() => openSendModalForItem(item)}
+                                            disabled={sendToArteMutation.isPending}
+                                            style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 7, height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background-color 0.2s' }}
+                                            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
+                                            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917')}
+                                            data-testid={`sp-btn-send-${item.id}`}
+                                          >
+                                            <ArrowRight style={{ width: 12, height: 12 }} /> Enviar
+                                          </button>
+                                          <button
+                                            onClick={() => unlinkSponsorFromItem(item.id, sponsor.id)}
+                                            title="Desvincular este patrocinador"
+                                            style={{ backgroundColor: 'transparent', border: '1px solid #e7e5e4', color: '#a8a29e', borderRadius: 7, height: 32, padding: '0 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, transition: 'border-color 0.15s, color 0.15s' }}
+                                            onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#ba1a1a'; b.style.color = '#ba1a1a'; }}
+                                            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#a8a29e'; }}
+                                            data-testid={`sp-btn-unlink-${item.id}-${sponsor.id}`}
+                                          >
+                                            <X style={{ width: 12, height: 12 }} /> Desvincular
+                                          </button>
+                                        </div>
                                       ) : (
                                         <button
                                           onClick={() => linkSponsorToItem(item.id, sponsor.id)}

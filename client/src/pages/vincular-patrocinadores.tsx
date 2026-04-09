@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -26,6 +26,11 @@ type ItemChanges = {
   skipApproval: boolean;
   isDirty: boolean;
 };
+
+interface SendConfirmModal {
+  items: any[];
+  pendingByItem: Record<string, Set<string>>;
+}
 
 // Estados UI simplificados
 type UIStatus = 'RASCUNHO' | 'PRONTO' | 'ENVIADO' | 'PENDENTE';
@@ -162,11 +167,6 @@ export default function VincularPatrocinadores() {
   const [sponsorBulkSelected, setSponsorBulkSelected] = useState<Set<string>>(new Set());
   const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
 
-  // Modal de confirmação de envio
-  interface SendConfirmModal {
-    items: any[];
-    pendingByItem: Record<string, Set<string>>; // sponsorIds NOVOS a vincular
-  }
   const [sendConfirmModal, setSendConfirmModal] = useState<SendConfirmModal | null>(null);
 
   // Estado para controlar items expandidos
@@ -2153,11 +2153,12 @@ export default function VincularPatrocinadores() {
 
       {/* ===== Modal de Confirmação de Envio ===== */}
       <Dialog open={!!sendConfirmModal} onOpenChange={(open) => !open && setSendConfirmModal(null)}>
-        <DialogContent style={{ maxWidth: 560, padding: 0, borderRadius: 12, overflow: 'hidden' }}>
-          {/* Header */}
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 560, borderRadius: 12 }}>
+          <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
+          {/* Header visual */}
           <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #e7e5e4' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <ShieldCheck style={{ width: 18, height: 18, color: '#f97316' }} />
               </div>
               <div>

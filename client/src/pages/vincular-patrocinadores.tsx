@@ -1003,11 +1003,11 @@ export default function VincularPatrocinadores() {
         setItemSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
       }
 
-      // Marcar otimisticamente como enviados (antes da resposta do servidor)
-      setOptimisticSentIds(prev => new Set([...prev, ...itemIds]));
-
-      // Enviar todos para Arte
-      sendToArteMutation.mutate(itemIds);
+      // Abrir modal de confirmação em vez de enviar direto
+      const itemsToSend = items.filter((i: any) => itemIds.includes(i.id));
+      const pendingByItem: Record<string, Set<string>> = {};
+      itemIds.forEach((id: string) => { pendingByItem[id] = new Set(); });
+      setSendConfirmModal({ items: itemsToSend, pendingByItem });
     } catch (err: any) {
       toast({
         title: "Erro ao vincular patrocinadores",
@@ -1221,7 +1221,13 @@ export default function VincularPatrocinadores() {
             </div>
             {statusCounts.PRONTO > 0 && (
               <button
-                onClick={() => { const ids = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO').map(i => i.id); sendToArteMutation.mutate(ids); }}
+                onClick={() => {
+                  const prontoItems = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO');
+                  if (prontoItems.length === 0) return;
+                  const pendingByItem: Record<string, Set<string>> = {};
+                  prontoItems.forEach(i => { pendingByItem[i.id] = new Set(); });
+                  setSendConfirmModal({ items: prontoItems, pendingByItem });
+                }}
                 disabled={sendToArteMutation.isPending}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center' }}
               >
@@ -1715,7 +1721,7 @@ export default function VincularPatrocinadores() {
                                 )}
                                 {uiStatus === 'PRONTO' && isEditable && (
                                   <button
-                                    onClick={() => sendToArteMutation.mutate([item.id])}
+                                    onClick={() => openSendModalForItem(item)}
                                     disabled={sendToArteMutation.isPending}
                                     data-testid={`button-send-item-${item.id}`}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', display: 'flex', alignItems: 'center' }}

@@ -565,25 +565,34 @@ export default function Grafica() {
                             </button>
                           )}
 
-                          {/* Marcar Entrega — só quando tudo produzido e ainda não entregue */}
-                          {!isDelivered(item) && isProduced(item) && (
+                          {/* Marcar Entrega — ativo só quando produzido, cinza quando não */}
+                          {!isDelivered(item) && (
                             <button
-                              onClick={() => openDeliveryModal(item)}
-                              title="Marcar Entrega"
+                              onClick={() => isProduced(item) ? openDeliveryModal(item) : undefined}
+                              title={isProduced(item) ? "Marcar Entrega" : "Produza todos os itens antes de entregar"}
                               data-testid={`button-deliver-${item.id}`}
-                              style={{ backgroundColor: TI.accent, color: "#ffffff", border: "none", borderRadius: 6, height: 30, padding: "0 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "background-color 0.15s" }}
-                              onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accentDark)}
-                              onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent)}
+                              disabled={!isProduced(item)}
+                              style={{
+                                backgroundColor: isProduced(item) ? TI.accent : "#e7e5e4",
+                                color: isProduced(item) ? "#ffffff" : "#a8a29e",
+                                border: "none", borderRadius: 6, height: 30, padding: "0 12px",
+                                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                                cursor: isProduced(item) ? "pointer" : "not-allowed",
+                                display: "flex", alignItems: "center", gap: 4,
+                                transition: "background-color 0.15s",
+                              }}
+                              onMouseEnter={e => { if (isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accentDark; }}
+                              onMouseLeave={e => { if (isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent; }}
                             >
                               <Truck style={{ width: 11, height: 11 }} />
                               Entregar
                             </button>
                           )}
 
-                          {/* Entregue — badge cinza */}
+                          {/* Entregue */}
                           {isDelivered(item) && (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#f5f5f4", color: "#a8a29e", border: "1px solid #e7e5e4", borderRadius: 6, height: 30, padding: "0 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                              <Check style={{ width: 11, height: 11 }} /> Entregue
+                            <span style={{ fontSize: 12, color: "#15803d", display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
+                              <Check style={{ width: 13, height: 13 }} /> Entregue
                             </span>
                           )}
                         </div>

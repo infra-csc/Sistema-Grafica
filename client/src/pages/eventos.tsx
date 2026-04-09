@@ -919,19 +919,36 @@ export default function Eventos() {
       )}
 
       <AlertDialog open={!!deletingEventId} onOpenChange={() => setDeletingEventId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir este evento? Esta ação não pode ser desfeita e todos os itens associados também serão excluídos.
+        <AlertDialogContent style={{ maxWidth: "420px", backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+          <AlertDialogHeader style={{ padding: 0, marginBottom: "20px" }}>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "20px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
+              Confirmar Exclusão
+            </AlertDialogTitle>
+            <AlertDialogDescription style={{ fontSize: "14px", color: "#78716c", lineHeight: 1.6, marginTop: "6px" }}>
+              Tem certeza que deseja excluir este evento? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          {/* Aviso de impacto */}
+          <div style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "12px 14px", marginBottom: "24px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <p style={{ fontSize: "12px", fontWeight: 600, color: "#ea580c", margin: 0, lineHeight: 1.5 }}>
+              Todos os itens associados a este evento também serão removidos permanentemente.
+            </p>
+          </div>
+          <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+            <AlertDialogCancel
+              style={{ padding: "9px 20px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 600, color: "#78716c", cursor: "pointer" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f3")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+            >
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingEventId && deleteEventMutation.mutate(deletingEventId)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete-event"
+              style={{ padding: "9px 20px", backgroundColor: "#ef4444", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#ffffff", cursor: "pointer", transition: "background-color 0.15s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#dc2626")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ef4444")}
             >
               {deleteEventMutation.isPending ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>

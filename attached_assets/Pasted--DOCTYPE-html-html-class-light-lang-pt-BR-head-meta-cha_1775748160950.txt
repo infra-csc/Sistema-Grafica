@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE GESTÃO - Edição de Produção</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f9f9f8",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "surface-dim": "#dadad9",
+                        "surface-container-lowest": "#ffffff",
+                        "surface": "#f9f9f8",
+                        "on-background": "#1a1c1c",
+                        "outline-variant": "#e0c0b1",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "outline": "#8c7164",
+                        "inverse-surface": "#2f3130",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "surface-container-low": "#f3f4f3",
+                        "on-error": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#00a2f4",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#e9e1dd",
+                        "on-tertiary-fixed": "#001d32",
+                        "on-surface": "#1a1c1c",
+                        "on-secondary-fixed": "#341100",
+                        "on-secondary-container": "#5c2400",
+                        "inverse-on-surface": "#f1f1f0",
+                        "secondary-fixed": "#ffdbca",
+                        "surface-container-high": "#e8e8e7",
+                        "surface-tint": "#625d5b",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#1e1b19",
+                        "surface-container-highest": "#e2e2e2",
+                        "inverse-primary": "#ccc5c2",
+                        "surface-variant": "#e2e2e2",
+                        "primary": "#625d5b",
+                        "on-secondary-fixed-variant": "#783200",
+                        "surface-container": "#eeeeed",
+                        "background": "#f9f9f8",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "secondary-container": "#fd761a",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#ffb690",
+                        "primary-container": "#9f9996",
+                        "on-tertiary-container": "#003554",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#cde5ff",
+                        "tertiary": "#006398",
+                        "secondary": "#9d4300",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#584237",
+                        "on-primary-container": "#35322f"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .tight-kerning { letter-spacing: -0.03em; }
+        .glass-card { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body min-h-screen">
+<!-- TopNavBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-8 h-16 bg-stone-50/80 dark:bg-stone-950/80 backdrop-blur-xl">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black text-stone-900 dark:text-stone-50 tracking-[-0.05em] font-headline">NORTE GESTÃO</span>
+<nav class="hidden md:flex gap-6 font-headline tracking-tight font-bold">
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-all" href="#">Dashboard</a>
+<a class="text-orange-600 dark:text-orange-500 border-b-2 border-orange-600 pb-1" href="#">Produção</a>
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-all" href="#">Arquivos</a>
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-all" href="#">Equipe</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-bold hover:brightness-105 transition-all">Novo Job</button>
+<span class="material-symbols-outlined text-stone-500 cursor-pointer">notifications</span>
+<span class="material-symbols-outlined text-stone-500 cursor-pointer">settings</span>
+<div class="w-8 h-8 rounded-full bg-stone-200 overflow-hidden">
+<img alt="Avatar do usuário" data-alt="Professional male user profile avatar with soft studio lighting and neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrwOUip69GU2zcPrXOuhj6oomYBIYsZiiahL_gniBxj_C9eyQohf4zPvFvlXrtTHjxBOqC5NKvUrR8Q23a1F6-q5EvvmAZYR0Znuuiiw9F7Js12bXKiqtUvymwV6MqEBenPf4ivE5oKDL1VespPYY5Y_lc_SAWIWIiLJUbEwqJK6K5bU0EYm_5XbC0mMvdUjoFKSOB_uhkjOUOIVQP7eSuhBTfFod5-_1h6NgQdL_PqMINNNGtMeL7JieJ5kLQOF4YEjkgt3vf-Kdw"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar (Hidden on Mobile) -->
+<aside class="hidden lg:flex flex-col h-screen py-6 fixed left-0 top-0 w-64 bg-stone-100 dark:bg-stone-900 z-40 mt-16">
+<div class="px-6 mb-8">
+<h2 class="text-xl font-bold text-stone-900 dark:text-stone-50 tracking-tighter font-headline">Produção Norte</h2>
+<p class="text-xs text-stone-500 font-semibold uppercase tracking-widest">Unidade Central</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 mx-2 px-4 py-3 rounded-lg flex items-center gap-3 transition-transform hover:translate-x-1 font-semibold text-sm" href="#">
+<span class="material-symbols-outlined">dashboard</span> Visão Geral
+            </a>
+<a class="bg-stone-200 dark:bg-stone-800 text-orange-600 dark:text-orange-500 rounded-lg mx-2 px-4 py-3 flex items-center gap-3 font-semibold text-sm" href="#">
+<span class="material-symbols-outlined">print</span> Fila de Impressão
+            </a>
+<a class="text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 mx-2 px-4 py-3 rounded-lg flex items-center gap-3 transition-transform hover:translate-x-1 font-semibold text-sm" href="#">
+<span class="material-symbols-outlined">verified</span> Controle de Qualidade
+            </a>
+<a class="text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 mx-2 px-4 py-3 rounded-lg flex items-center gap-3 transition-transform hover:translate-x-1 font-semibold text-sm" href="#">
+<span class="material-symbols-outlined">inventory_2</span> Estoque
+            </a>
+<a class="text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 mx-2 px-4 py-3 rounded-lg flex items-center gap-3 transition-transform hover:translate-x-1 font-semibold text-sm" href="#">
+<span class="material-symbols-outlined">analytics</span> Relatórios
+            </a>
+</nav>
+<div class="px-4 mt-auto">
+<button class="w-full bg-stone-200 dark:bg-stone-800 text-stone-900 dark:text-stone-100 py-2 rounded-lg text-xs font-bold uppercase tracking-wider mb-4">Suporte Técnico</button>
+<div class="space-y-1">
+<a class="text-stone-500 text-xs px-4 py-2 flex items-center gap-2" href="#"><span class="material-symbols-outlined text-sm">archive</span> Arquivados</a>
+<a class="text-stone-500 text-xs px-4 py-2 flex items-center gap-2" href="#"><span class="material-symbols-outlined text-sm">delete</span> Lixeira</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area with Modals Overlay -->
+<main class="lg:ml-64 pt-24 px-8 pb-12 bg-surface min-h-screen relative">
+<!-- Subtle Background Canvas (Editorial Aesthetic) -->
+<div class="grid grid-cols-12 gap-6 opacity-40 pointer-events-none">
+<div class="col-span-8 space-y-6">
+<div class="h-64 bg-surface-container-low rounded-xl"></div>
+<div class="grid grid-cols-2 gap-6">
+<div class="h-40 bg-surface-container-low rounded-xl"></div>
+<div class="h-40 bg-surface-container-low rounded-xl"></div>
+</div>
+</div>
+<div class="col-span-4 h-full bg-surface-container-low rounded-xl"></div>
+</div>
+<!-- Modals Layout Container -->
+<div class="fixed inset-0 z-[60] bg-on-surface/10 backdrop-blur-md flex items-center justify-center p-8 gap-8 overflow-y-auto">
+<!-- Modal 1: Editar Item -->
+<section class="w-full max-w-[800px] bg-surface-container-lowest rounded-xl shadow-2xl overflow-hidden self-start mt-10">
+<header class="p-6 border-b border-surface-container flex items-start gap-4">
+<div class="bg-orange-50 p-3 rounded-lg">
+<span class="material-symbols-outlined text-orange-600">edit</span>
+</div>
+<div>
+<h2 class="text-2xl font-black font-headline tight-kerning text-stone-900">Editar Item</h2>
+<p class="text-stone-500 font-medium font-body text-sm">#0001 · Banner</p>
+</div>
+</header>
+<form class="p-8 space-y-6">
+<!-- Line 1: Type, Qty, M2 -->
+<div class="grid grid-cols-5 gap-4">
+<div class="col-span-3">
+<label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5">Tipo</label>
+<input class="w-full bg-surface-container-low border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 transition-all font-medium" type="text" value="Banner Lona Frontlight"/>
+</div>
+<div class="col-span-1">
+<label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5">Qtd.</label>
+<input class="w-full bg-surface-container-low border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 transition-all font-medium" type="number" value="5"/>
+</div>
+<div class="col-span-1">
+<label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5">M2 Total</label>
+<input class="w-full bg-surface-container-low border-none rounded-md px-4 py-3 text-secondary font-bold cursor-default" readonly="" type="text" value="12,50"/>
+</div>
+</div>
+<!-- Line 2: Description -->
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5">Descrição do Item</label>
+<input class="w-full bg-surface-container-low border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 transition-all font-medium" placeholder="Ex: Banner para fachada lateral com ilhós" type="text"/>
+</div>
+<!-- Line 3: Dimensions -->
+<div class="bg-surface-container-low/50 p-6 rounded-xl">
+<h3 class="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-orange-500"></span> Dimensões de Produção
+                        </h3>
+<div class="grid grid-cols-4 gap-4">
+<div>
+<label class="block text-[10px] font-bold text-stone-500 mb-1 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Visual Larg.
+                                </label>
+<input class="w-full bg-white border-none shadow-sm rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-secondary/20" type="text" value="1000mm"/>
+</div>
+<div>
+<label class="block text-[10px] font-bold text-stone-500 mb-1 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Visual Alt.
+                                </label>
+<input class="w-full bg-white border-none shadow-sm rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-secondary/20" type="text" value="2500mm"/>
+</div>
+<div>
+<label class="block text-[10px] font-bold text-stone-500 mb-1 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-stone-400"></span> Arquivo Larg.
+                                </label>
+<input class="w-full bg-white border-none shadow-sm rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-secondary/20" type="text" value="1050mm"/>
+</div>
+<div>
+<label class="block text-[10px] font-bold text-stone-500 mb-1 flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-stone-400"></span> Arquivo Alt.
+                                </label>
+<input class="w-full bg-white border-none shadow-sm rounded-md px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-secondary/20" type="text" value="2550mm"/>
+</div>
+</div>
+</div>
+<!-- Line 4: Material, Finish, Sponsor -->
+<div class="grid grid-cols-3 gap-4">
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5">Material</label>
+<select class="w-full bg-surface-container-low border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 transition-all font-medium appearance-none">
+<option>Lona 440g</option>
+<option>Adesivo Vinil</option>
+</select>
+</div>
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5">Acabamento</label>
+<select class="w-full bg-surface-container-low border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 transition-all font-medium appearance-none">
+<option>Bainha e Ilhós</option>
+<option>Corte Especial</option>
+</select>
+</div>
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5">Patrocinador</label>
+<select class="w-full bg-surface-container-low border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 transition-all font-medium appearance-none">
+<option>Norte Apex Pro</option>
+<option>Global Sports</option>
+</select>
+</div>
+</div>
+<!-- Line 5: Observations -->
+<div>
+<label class="block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5">Observações Internas</label>
+<textarea class="w-full bg-surface-container-low border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 transition-all font-medium resize-none" rows="3">Reforço triplo nos cantos superiores para suportar vento forte na fachada norte.</textarea>
+</div>
+<!-- Admin Banner -->
+<div class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-amber-600">warning</span>
+<p class="text-amber-800 text-sm font-medium">Pular aprovação técnica (Apenas Administrativo)</p>
+</div>
+<input class="rounded text-amber-600 focus:ring-amber-500 w-5 h-5" type="checkbox"/>
+</div>
+</form>
+<footer class="p-6 bg-surface-container-low flex justify-end gap-3">
+<button class="px-6 py-2.5 text-stone-600 font-bold hover:bg-stone-200 rounded-lg transition-all">Cancelar</button>
+<button class="px-8 py-2.5 bg-secondary text-on-secondary font-bold rounded-lg shadow-lg shadow-secondary/20 hover:brightness-110 active:scale-95 transition-all">Salvar Alterações</button>
+</footer>
+</section>
+<!-- Modal 2: Confirmar Exclusão -->
+<section class="w-full max-w-[400px] bg-white rounded-xl shadow-2xl p-8 space-y-6">
+<div class="space-y-2">
+<h2 class="text-xl font-black font-headline tight-kerning text-stone-900">Confirmar Exclusão</h2>
+<p class="text-stone-500 text-sm font-body leading-relaxed">
+                        Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.
+                    </p>
+</div>
+<div class="flex flex-col sm:flex-row justify-end gap-3">
+<button class="px-5 py-2 text-stone-500 font-semibold hover:bg-stone-100 rounded-lg transition-all order-2 sm:order-1">Cancelar</button>
+<button class="px-5 py-2 bg-error text-on-error font-bold rounded-lg hover:bg-red-700 transition-all order-1 sm:order-2">Excluir</button>
+</div>
+</section>
+</div>
+</main>
+<!-- FAB Suppression (Contextual Rule) -->
+<!-- Suppressed on this Task-Focused Modal view to prioritize the content canvas -->
+</body></html>

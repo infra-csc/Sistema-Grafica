@@ -887,35 +887,6 @@ export default function Eventos() {
             );
           })}
 
-          {/* ── Card de Branding NORTE ── */}
-          <div
-            className="relative rounded-xl overflow-hidden flex flex-col justify-center items-center text-center"
-            style={{ backgroundColor: '#1c1917', padding: '32px', minHeight: '200px' }}
-          >
-            {/* Gradiente de fundo */}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(249,115,22,0.15) 0%, rgba(249,115,22,0.05) 100%)', zIndex: 0 }} />
-            {/* Círculos decorativos */}
-            <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '160px', height: '160px', borderRadius: '50%', backgroundColor: '#f97316', opacity: 0.06, zIndex: 0 }} />
-            <div style={{ position: 'absolute', bottom: '-30px', left: '-20px', width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#f97316', opacity: 0.04, zIndex: 0 }} />
-
-            {/* Conteúdo glass */}
-            <div style={{ position: 'relative', zIndex: 1, backgroundColor: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', padding: '24px 28px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <h4 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', fontSize: '20px', letterSpacing: '-0.02em', color: '#ffffff', margin: '0 0 6px 0' }}>
-                NORTE Production
-              </h4>
-              <p style={{ fontSize: '11px', fontWeight: '500', color: '#a8a29e', margin: '0 0 20px 0' }}>
-                O padrão ouro em logística esportiva.
-              </p>
-              <button
-                style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', backgroundColor: '#f97316', color: '#ffffff', padding: '8px 20px', borderRadius: '99px', border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
-                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-              >
-                Ver Relatórios
-              </button>
-            </div>
-          </div>
-
         </div>
       )}
 

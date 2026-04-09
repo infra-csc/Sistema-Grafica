@@ -962,6 +962,59 @@ export default function VincularPatrocinadores() {
   const selectedSponsorItemIds = () =>
     Array.from(new Set(Array.from(sponsorBulkSelected).map(k => k.split('::')[0])));
 
+  // Agrupa as chaves compostas por itemId → lista de sponsorIds selecionados
+  const groupSelectedBySponsor = () => {
+    const map: Record<string, string[]> = {};
+    Array.from(sponsorBulkSelected).forEach(key => {
+      const [itemId, sponsorId] = key.split('::');
+      if (!map[itemId]) map[itemId] = [];
+      map[itemId].push(sponsorId);
+    });
+    return map;
+  };
+
+  // Handler bulk da aba Por Patrocinador:
+  // 1. Para cada item, mescla patrocinadores existentes + recém-selecionados
+  // 2. Sincroniza no banco
+  // 3. Envia para Arte
+  const handleSponsorBulkSendToArte = async () => {
+    const grouped = groupSelectedBySponsor();
+    const itemIds = Object.keys(grouped);
+    if (itemIds.length === 0) return;
+
+    try {
+      // Sincronizar sponsors de cada item que tem novos patrocinadores selecionados
+      const itemsToSync = itemIds.filter(itemId => {
+        const existing = originalSponsorsMap[itemId] || [];
+        const newOnes = grouped[itemId] || [];
+        return newOnes.some(id => !existing.includes(id));
+      });
+
+      for (const itemId of itemsToSync) {
+        const existing = originalSponsorsMap[itemId] || [];
+        const merged = Array.from(new Set([...existing, ...(grouped[itemId] || [])]));
+        await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
+          sponsorIds: merged,
+          skipApproval: false,
+        });
+        // Atualizar estado local imediatamente
+        setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
+        setItemSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
+      }
+
+      // Enviar todos para Arte
+      sendToArteMutation.mutate(itemIds);
+    } catch (err: any) {
+      toast({
+        title: "Erro ao vincular patrocinadores",
+        description: err?.message || "Tente novamente",
+        variant: "destructive",
+      });
+    }
+
+    setSponsorBulkSelected(new Set());
+  };
+
   // Vincular patrocinador a item individual (aba Por Patrocinador)
   const linkSponsorToItem = (itemId: string, sponsorId: string) => {
     const current = originalSponsorsMap[itemId] || [];
@@ -1649,14 +1702,12 @@ export default function VincularPatrocinadores() {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  onClick={() => {
-                    sendToArteMutation.mutate(uniqueItemIds);
-                    setSponsorBulkSelected(new Set());
-                  }}
-                  style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, height: 38, padding: '0 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  onClick={handleSponsorBulkSendToArte}
+                  disabled={sendToArteMutation.isPending}
+                  style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, height: 38, padding: '0 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
                 >
                   <Send style={{ width: 14, height: 14 }} />
-                  Enviar {n} item{n !== 1 ? 's' : ''}
+                  {sendToArteMutation.isPending ? 'Enviando...' : `Vincular e Enviar ${n} item${n !== 1 ? 's' : ''}`}
                 </button>
               </div>
             </div>

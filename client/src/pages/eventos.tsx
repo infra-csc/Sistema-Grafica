@@ -791,6 +791,30 @@ export default function Eventos() {
                       </h3>
                     </div>
 
+                    {/* Datas */}
+                    <div className="grid grid-cols-2 gap-4" style={{ margin: '4px 0', position: 'relative', zIndex: 1 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <p style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
+                          <Calendar style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
+                          <span style={{ fontSize: '12px', fontWeight: '700' }}>
+                            {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <p style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Truck style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
+                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#44403c' }}>
+                            {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                            {' · '}
+                            {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Progresso */}
                     <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee', position: 'relative', zIndex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>

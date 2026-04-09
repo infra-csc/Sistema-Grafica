@@ -152,7 +152,13 @@ export default function VincularPatrocinadores() {
   
   // Estado para controlar qual aba está ativa
   const [activeTab, setActiveTab] = useState<"vincular" | "enviar">("vincular");
-  
+
+  // Vista principal: por-item (existente) | por-patrocinador (nova)
+  const [viewMode, setViewMode] = useState<"por-item" | "por-patrocinador">("por-item");
+
+  // Seleção em lote na aba "Por Patrocinador"
+  const [sponsorBulkSelected, setSponsorBulkSelected] = useState<Set<string>>(new Set());
+
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
@@ -847,13 +853,118 @@ export default function VincularPatrocinadores() {
   }, [visibleItems, itemUIStates]);
 
   const itemsParaEnviar = useMemo(() => {
-    // Items que já têm sponsors salvos e estão prontos para enviar
-    // Status: PRONTO (saved, awaiting submission)
     return visibleItems.filter(item => {
       const uiStatus = itemUIStates[item.id];
       return uiStatus === 'PRONTO';
     });
   }, [visibleItems, itemUIStates]);
+
+  // ── Dados agrupados para aba "Por Patrocinador" ──────────────────────────
+  // Estrutura: [{ event, sponsors: [{ sponsor, items: any[] }] }]
+  const sponsorGroupedData = useMemo(() => {
+    if (sponsors.length === 0) return [];
+
+    // Aplicar filtros de evento/tipo/busca
+    const filterFn = (item: any, eventName: string) => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!item.type.toLowerCase().includes(q) &&
+            !item.description?.toLowerCase().includes(q) &&
+            !eventName.toLowerCase().includes(q)) return false;
+      }
+      if (itemFilter !== "all" && item.type !== itemFilter) return false;
+      return true;
+    };
+
+    return Object.entries(itemsByEvent)
+      .filter(([eventId]) => {
+        if (eventFilter !== "all" && eventId !== eventFilter) return false;
+        const event = events.find(e => e.id === eventId);
+        return !!event;
+      })
+      .map(([eventId, eventItems]) => {
+        const event = events.find(e => e.id === eventId)!;
+        const eventSponsorList = getEventSponsors(eventId);
+
+        // Filtrar por patrocinador selecionado no filtro
+        const sponsorsToShow = sponsorFilter !== "all"
+          ? eventSponsorList.filter(s => s.id === sponsorFilter)
+          : eventSponsorList;
+
+        const sponsorGroups = sponsorsToShow.map(sponsor => {
+          const sponsorItems = eventItems.filter(item => {
+            const linked = originalSponsorsMap[item.id] || [];
+            return linked.includes(sponsor.id) && filterFn(item, event.name);
+          });
+
+          // Items PENDENTES deste patrocinador (sem ele vinculado)
+          const pendingItems = eventItems.filter(item => {
+            const linked = originalSponsorsMap[item.id] || [];
+            return !linked.includes(sponsor.id) && filterFn(item, event.name);
+          });
+
+          return { sponsor, items: sponsorItems, pendingItems };
+        });
+
+        // Totais
+        const totalItems = eventItems.filter(i => filterFn(i, event.name)).length;
+        const linkedCount = eventItems.filter(i => {
+          const linked = originalSponsorsMap[i.id] || [];
+          return linked.length > 0 || i.skipApproval;
+        }).length;
+
+        return { event, sponsorGroups, totalItems, linkedCount };
+      })
+      .filter(g => g.sponsorGroups.some(sg => sg.items.length > 0 || sg.pendingItems.length > 0) || g.totalItems > 0);
+  }, [itemsByEvent, events, sponsors, originalSponsorsMap, searchQuery, itemFilter, eventFilter, sponsorFilter, sponsorBulkSelected]);
+
+  // Contagem de patrocinadores totalmente vinculados (todos os itens do evento têm esse patrocinador)
+  const sponsorLinkStats = useMemo(() => {
+    let total = 0, fullyLinked = 0;
+    events.forEach(event => {
+      const eventSponsorList = getEventSponsors(event.id);
+      eventSponsorList.forEach(sponsor => {
+        total++;
+        const eventItemIds = (itemsByEvent[event.id] || []).map(i => i.id);
+        if (eventItemIds.length > 0 && eventItemIds.every(id => (originalSponsorsMap[id] || []).includes(sponsor.id))) {
+          fullyLinked++;
+        }
+      });
+    });
+    return { total, fullyLinked };
+  }, [events, itemsByEvent, originalSponsorsMap, sponsors]);
+
+  // Toggle seleção em lote por patrocinador (aba "Por Patrocinador")
+  const toggleSponsorBulkItem = (itemId: string) => {
+    setSponsorBulkSelected(prev => {
+      const next = new Set(prev);
+      next.has(itemId) ? next.delete(itemId) : next.add(itemId);
+      return next;
+    });
+  };
+
+  const toggleSponsorGroup = (pendingItemIds: string[]) => {
+    setSponsorBulkSelected(prev => {
+      const next = new Set(prev);
+      const allSelected = pendingItemIds.every(id => next.has(id));
+      if (allSelected) pendingItemIds.forEach(id => next.delete(id));
+      else pendingItemIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  // Vincular patrocinador a item individual (aba Por Patrocinador)
+  const linkSponsorToItem = (itemId: string, sponsorId: string) => {
+    const current = originalSponsorsMap[itemId] || [];
+    if (current.includes(sponsorId)) return;
+    const newSponsors = [...current, sponsorId];
+    setPendingChanges(prev => ({
+      ...prev,
+      [itemId]: { sponsorIds: newSponsors, skipApproval: false, isDirty: true },
+    }));
+    setItemSponsorsMap(prev => ({ ...prev, [itemId]: newSponsors }));
+    saveLinkingMutation.mutate([itemId]);
+  };
 
   if (itemsLoading) {
     return (
@@ -1027,6 +1138,40 @@ export default function VincularPatrocinadores() {
         </div>
       </div>
 
+      {/* ── Tab Switcher ── */}
+      <div style={{
+        display: 'inline-flex', gap: 4, padding: 4,
+        backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+        borderRadius: 10, marginBottom: 16,
+      }}>
+        {[
+          { id: "por-item",        label: "Por Item",        icon: <ClipboardList style={{ width: 14, height: 14 }} /> },
+          { id: "por-patrocinador", label: "Por Patrocinador", icon: <Building2 style={{ width: 14, height: 14 }} /> },
+        ].map(tab => {
+          const active = viewMode === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setViewMode(tab.id as "por-item" | "por-patrocinador")}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                height: 36, padding: '0 16px', borderRadius: 7, border: 'none',
+                cursor: 'pointer', fontSize: 13,
+                fontWeight: active ? 600 : 500,
+                backgroundColor: active ? '#1c1917' : 'transparent',
+                color: active ? '#ffffff' : '#78716c',
+                transition: 'background-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#fafaf9'; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Dialogs e Modals */}
       <Card className="mb-6">
         <CardContent className="p-4">
@@ -1137,7 +1282,8 @@ export default function VincularPatrocinadores() {
         </div>
       )}
 
-      {/* Cards de Eventos - Matriz Visual */}
+      {/* ── VIEW: POR ITEM (existente) ── */}
+      {viewMode === 'por-item' && (
       <div className="space-y-6">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           const event = events.find(e => e.id === eventId);
@@ -1460,7 +1606,216 @@ export default function VincularPatrocinadores() {
           );
         })}
       </div>
-      
+      )} {/* fim viewMode === 'por-item' */}
+
+      {/* ── VIEW: POR PATROCINADOR (nova) ── */}
+      {viewMode === 'por-patrocinador' && (
+        <div className="space-y-6">
+          {/* Barra de progresso de patrocinadores */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8 }}>
+            <div style={{ flex: 1, height: 6, backgroundColor: '#e7e5e4', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', backgroundColor: '#f97316', borderRadius: 3, width: `${sponsorLinkStats.total > 0 ? (sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100 : 0}%`, transition: 'width 0.4s' }} />
+            </div>
+            <span style={{ fontSize: 12, color: '#78716c', whiteSpace: 'nowrap' }}>
+              <strong style={{ color: '#1c1917' }}>{sponsorLinkStats.fullyLinked}</strong> de <strong style={{ color: '#1c1917' }}>{sponsorLinkStats.total}</strong> patrocinadores totalmente vinculados
+            </span>
+          </div>
+
+          {/* Bulk floating bar */}
+          {sponsorBulkSelected.size > 0 && (
+            <div style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: '#1c1917', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.18)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#ffffff' }}>
+                  {sponsorBulkSelected.size}
+                </div>
+                <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 500 }}>
+                  {sponsorBulkSelected.size} item{sponsorBulkSelected.size !== 1 ? 's' : ''} selecionado{sponsorBulkSelected.size !== 1 ? 's' : ''}
+                </span>
+                <button onClick={() => setSponsorBulkSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>
+                  Limpar
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => {
+                    sendToArteMutation.mutate(Array.from(sponsorBulkSelected));
+                    setSponsorBulkSelected(new Set());
+                  }}
+                  style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, height: 38, padding: '0 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Send style={{ width: 14, height: 14 }} />
+                  Enviar {sponsorBulkSelected.size} item{sponsorBulkSelected.size !== 1 ? 's' : ''}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Agrupamento Evento → Patrocinador → Itens */}
+          {sponsorGroupedData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 48, color: '#a8a29e', fontSize: 14 }}>
+              Nenhum evento com patrocinadores encontrado
+            </div>
+          ) : sponsorGroupedData.map(({ event, sponsorGroups, totalItems: evTotal, linkedCount }) => {
+            const eventSponsorList = getEventSponsors(event.id);
+            return (
+              <div key={event.id} style={{ border: '1px solid #e7e5e4', borderRadius: 10, overflow: 'hidden' }}>
+                {/* Nível 1 — Header do Evento */}
+                <div style={{ backgroundColor: '#1c1917', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {event.name}
+                    </span>
+                    <span style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700 }}>
+                      {linkedCount}/{evTotal}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {eventSponsorList.map(s => (
+                      <span key={s.id} title={s.name} style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color || '#3b82f6', display: 'inline-block' }} />
+                    ))}
+                    <span style={{ fontSize: 11, color: '#a8a29e' }}>
+                      {eventSponsorList.length} Pat.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Nível 2+3 — Por Patrocinador */}
+                {sponsorGroups.length === 0 ? (
+                  <div style={{ padding: '20px 16px', textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
+                    Adicione patrocinadores ao evento para vincular
+                  </div>
+                ) : sponsorGroups.map(({ sponsor, items: linkedItems, pendingItems }) => {
+                  const allItems = [...linkedItems, ...pendingItems];
+                  const pendingIds = pendingItems.map(i => i.id);
+                  const allPendingSelected = pendingIds.length > 0 && pendingIds.every(id => sponsorBulkSelected.has(id));
+                  return (
+                    <div key={sponsor.id}>
+                      {/* Nível 2 — Subgrupo do Patrocinador */}
+                      <div style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Checkbox
+                          checked={allPendingSelected}
+                          onCheckedChange={() => toggleSponsorGroup(pendingIds)}
+                          disabled={pendingIds.length === 0}
+                          data-testid={`checkbox-sponsor-group-${event.id}-${sponsor.id}`}
+                        />
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>{sponsor.name}</span>
+                        <span style={{
+                          backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                          color: '#78716c', fontSize: 11, borderRadius: 100,
+                          padding: '2px 8px', flexShrink: 0,
+                        }}>
+                          {linkedItems.length}/{allItems.length} itens vinculados
+                        </span>
+                      </div>
+
+                      {/* Nível 3 — Tabela de itens */}
+                      {allItems.length > 0 && (
+                        <div style={{ backgroundColor: '#ffffff' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#f9f9f8' }}>
+                                {['', 'ID', 'Item', 'Detalhes', 'Vinculado', 'Ação'].map(col => (
+                                  <th key={col} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {allItems.map(item => {
+                                const isLinked = linkedItems.some(i => i.id === item.id);
+                                const uiStatus = itemUIStates[item.id] || 'PENDENTE';
+                                const isSent = uiStatus === 'ENVIADO';
+                                return (
+                                  <tr
+                                    key={item.id}
+                                    style={{ borderBottom: '1px solid #f4f3f0', cursor: 'pointer' }}
+                                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9')}
+                                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '')}
+                                    onClick={() => setSelectedItemForDetails(item)}
+                                    data-testid={`sp-item-row-${item.id}`}
+                                  >
+                                    <td style={{ padding: '10px 12px', width: 40 }} onClick={e => e.stopPropagation()}>
+                                      <Checkbox
+                                        checked={sponsorBulkSelected.has(item.id)}
+                                        onCheckedChange={() => toggleSponsorBulkItem(item.id)}
+                                        disabled={isLinked || isSent}
+                                        data-testid={`sp-checkbox-${item.id}`}
+                                      />
+                                    </td>
+                                    <td style={{ padding: '10px 12px' }}>
+                                      <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#f97316', fontWeight: 600 }}>
+                                        {item.displayId}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '10px 12px', minWidth: 180 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>{item.type}</div>
+                                      {item.description && (
+                                        <div style={{ fontSize: 11, color: '#78716c', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
+                                          {item.description}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: '10px 12px' }}>
+                                      <span style={{ fontSize: 12, color: '#78716c' }}>
+                                        {item.quantity} un · {parseFloat(item.calculatedM2 || 0).toFixed(2)} m²
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '10px 12px' }}>
+                                      {isLinked ? (
+                                        <span style={{ backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d', fontSize: 11, borderRadius: 100, padding: '2px 10px' }}>
+                                          Vinculado
+                                        </span>
+                                      ) : (
+                                        <span style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#a8a29e', fontSize: 11, borderRadius: 100, padding: '2px 10px' }}>
+                                          Pendente
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+                                      {isSent ? (
+                                        <span style={{ fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                          <Check style={{ width: 14, height: 14 }} /> Enviado
+                                        </span>
+                                      ) : isLinked ? (
+                                        <button
+                                          onClick={() => sendToArteMutation.mutate([item.id])}
+                                          disabled={sendToArteMutation.isPending}
+                                          style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 7, height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background-color 0.2s' }}
+                                          onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
+                                          onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917')}
+                                          data-testid={`sp-btn-send-${item.id}`}
+                                        >
+                                          <ArrowRight style={{ width: 12, height: 12 }} /> Enviar
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => linkSponsorToItem(item.id, sponsor.id)}
+                                          disabled={saveLinkingMutation.isPending}
+                                          style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 7, height: 32, padding: '0 14px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'border-color 0.15s, color 0.15s' }}
+                                          onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#1c1917'; b.style.color = '#1c1917'; }}
+                                          onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#78716c'; }}
+                                          data-testid={`sp-btn-link-${item.id}`}
+                                        >
+                                          <Plus style={{ width: 12, height: 12 }} /> Vincular
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )} {/* fim viewMode === 'por-patrocinador' */}
+
       {/* Dialog — Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={setSponsorDialogOpen}>
         <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9' }}>

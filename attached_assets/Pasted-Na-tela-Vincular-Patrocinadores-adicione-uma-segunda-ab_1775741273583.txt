@@ -1,0 +1,102 @@
+Na tela "Vincular Patrocinadores" adicione uma segunda aba que inverte
+a lógica: em vez de item → patrocinadores, é patrocinador → itens.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ABAS DE NAVEGAÇÃO (abaixo do título)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Adicionar 2 abas antes dos filtros:
+
+  Aba 1 — "Por Item" (atual, já existe): ícone 📋
+  Aba 2 — "Por Patrocinador" (nova): ícone 🏷
+
+Estilo das abas:
+  Container: background #ffffff, border 1px solid #e7e5e4,
+  border-radius 10px, padding 4px, display flex, gap 4px,
+  width fit-content, margin-bottom 16px
+
+  Aba inativa: background transparent, color #78716c,
+  border-radius 7px, height 36px, padding 0 16px,
+  font-size 13px, font-weight 500
+  Hover: background #fafaf9
+
+  Aba ativa: background #1c1917, color white,
+  border-radius 7px, height 36px, padding 0 16px,
+  font-size 13px, font-weight 600
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ABA 2 — "POR PATROCINADOR"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILTROS: manter os mesmos da aba atual
+  (Evento, Patrocinador, Tipo, Buscar)
+
+BARRA DE PROGRESSO:
+  Mesma da aba atual com texto:
+  "X de Y patrocinadores totalmente vinculados"
+
+ESTRUTURA DE AGRUPAMENTO — 3 níveis:
+  Nível 1 → EVENTO
+  Nível 2 → PATROCINADOR (subgrupo dentro do evento)
+  Nível 3 → ITENS do patrocinador naquele evento
+
+NÍVEL 1 — HEADER DO EVENTO (igual ao atual):
+  background #1c1917, color white, border-radius 10px 10px 0 0
+  Nome do evento + badge "X/Y" + dots de status + "X Pat."
+
+NÍVEL 2 — SUBGRUPO DO PATROCINADOR:
+  background #fafaf9, border-bottom 1px solid #e7e5e4
+  padding 10px 16px
+  display flex, align-items center, gap 10px
+
+  - Checkbox à esquerda para selecionar todos os itens
+    pendentes deste patrocinador neste evento
+  - Dot colorido 8px + Nome do patrocinador
+    font-size 12px, font-weight 700, color #1c1917
+  - Badge "X/Y itens vinculados":
+    background #ffffff, border 1px solid #e7e5e4,
+    color #78716c, font-size 11px, border-radius 100px,
+    padding 2px 8px
+
+NÍVEL 3 — TABELA DOS ITENS:
+  Colunas: ☐ | ID | ITEM | DETALHES | VINCULADO | AÇÃO
+  (sem coluna EVENTO — já está no contexto do grupo)
+  background #ffffff
+  Linhas com border-bottom 1px solid #f4f3f0
+
+  Coluna VINCULADO:
+    ✓ Vinculado: bg #f0fdf4, border #86efac, color #15803d,
+      font-size 11px, border-radius 100px, padding 2px 10px
+    Pendente: bg #fafaf9, border #e7e5e4, color #a8a29e,
+      font-size 11px, border-radius 100px, padding 2px 10px
+
+  Coluna AÇÃO:
+    Vinculado + não enviado:
+      botão "↗ Enviar" bg #1c1917, color white,
+      border-radius 7px, height 32px, padding 0 14px,
+      font-size 12px, font-weight 600
+      Hover: bg #f97316, transição 0.2s
+
+    Enviado:
+      "✓ Enviado" color #15803d, font-size 13px
+
+    Não vinculado:
+      botão "+ Vincular" bg #fafaf9, border 1px solid #e7e5e4,
+      color #78716c, border-radius 7px, height 32px, padding 0 14px
+      Hover: border-color #1c1917, color #1c1917
+
+SELEÇÃO EM LOTE:
+  Checkbox no subgrupo (nível 2) seleciona todos os itens
+  NÃO vinculados daquele patrocinador naquele evento.
+
+  Botões flutuantes ao selecionar itens:
+    "Vincular X itens" → bg #1c1917, color white,
+    border-radius 8px, height 38px, padding 0 18px,
+    font-weight 600
+    "Enviar X itens" → bg #f97316, color white,
+    mesmos estilos
+
+ESTADO COMPARTILHADO ENTRE ABAS:
+  As duas abas refletem o mesmo dado.
+  Vincular na aba 2 aparece marcado na aba 1 e vice-versa.
+  A barra de progresso atualiza em ambas as abas.
+
+FONTE: DM Sans + DM Mono para IDs e dimensões

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Revisão do Criador | NORTE Editorial</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .kerning-tight { letter-spacing: -0.04em; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary-fixed-variant": "#004b74",
+                      "tertiary-fixed": "#cde5ff",
+                      "surface-variant": "#e2e2e2",
+                      "tertiary": "#006398",
+                      "primary": "#625d5b",
+                      "surface-container-high": "#e8e8e7",
+                      "on-primary-container": "#35322f",
+                      "surface-container-highest": "#e2e2e2",
+                      "on-primary": "#ffffff",
+                      "secondary-fixed": "#ffdbca",
+                      "on-secondary-container": "#5c2400",
+                      "secondary-container": "#fd761a",
+                      "on-secondary": "#ffffff",
+                      "tertiary-container": "#00a2f4",
+                      "on-secondary-fixed-variant": "#783200",
+                      "inverse-on-surface": "#f1f1f0",
+                      "surface": "#f9f9f8",
+                      "surface-container-low": "#f3f4f3",
+                      "inverse-primary": "#ccc5c2",
+                      "background": "#f9f9f8",
+                      "inverse-surface": "#2f3130",
+                      "secondary": "#9d4300",
+                      "tertiary-fixed-dim": "#93ccff",
+                      "surface-container-lowest": "#ffffff",
+                      "on-tertiary-fixed": "#001d32",
+                      "on-secondary-fixed": "#341100",
+                      "outline": "#8c7164",
+                      "on-error-container": "#93000a",
+                      "on-error": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "on-primary-fixed": "#1e1b19",
+                      "surface-container": "#eeeeed",
+                      "secondary-fixed-dim": "#ffb690",
+                      "on-primary-fixed-variant": "#4a4643",
+                      "surface-bright": "#f9f9f8",
+                      "error": "#ba1a1a",
+                      "outline-variant": "#e0c0b1",
+                      "primary-fixed": "#e9e1dd",
+                      "surface-dim": "#dadad9",
+                      "on-background": "#1a1c1c",
+                      "on-tertiary-container": "#003554",
+                      "on-surface": "#1a1c1c",
+                      "surface-tint": "#625d5b",
+                      "primary-fixed-dim": "#ccc5c2",
+                      "on-surface-variant": "#584237",
+                      "primary-container": "#9f9996",
+                      "on-tertiary": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "fontFamily": {
+                      "headline": ["Space Grotesk"],
+                      "body": ["Plus Jakarta Sans"],
+                      "label": ["Plus Jakarta Sans"]
+              }
+            },
+          }
+        }
+      </script>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased">
+<!-- TopNavBar from Shared Components -->
+<nav class="bg-stone-950 dark:bg-stone-950 flex justify-between items-center w-full px-8 py-4 h-16 docked full-width top-0 z-50 fixed no-border-tonal-shift-bg-stone-900 flat no shadows">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black italic tracking-tighter text-white font-headline">NORTE Editorial</span>
+<div class="hidden md:flex gap-6 items-center">
+<a class="text-stone-400 font-medium hover:text-white font-['Space_Grotesk'] tracking-tight uppercase transition-all duration-200" href="#">Dashboard</a>
+<a class="text-orange-500 font-bold border-b-2 border-orange-500 pb-1 font-['Space_Grotesk'] tracking-tight uppercase transition-all duration-200" href="#">Production</a>
+<a class="text-stone-400 font-medium hover:text-white font-['Space_Grotesk'] tracking-tight uppercase transition-all duration-200" href="#">Analytics</a>
+<a class="text-stone-400 font-medium hover:text-white font-['Space_Grotesk'] tracking-tight uppercase transition-all duration-200" href="#">Archives</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="bg-stone-800/50 flex items-center px-3 py-1.5 rounded-md">
+<span class="material-symbols-outlined text-stone-400 text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm text-white placeholder-stone-500 w-48" placeholder="Search..." type="text"/>
+</div>
+<button class="text-stone-400 hover:bg-stone-800/50 p-2 rounded-full transition-all duration-200 active:scale-95">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-stone-800">
+<img alt="Editor Profile" data-alt="close-up of a professional creative director with glasses in a studio setting, high-end editorial photography style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjaJlE2LT5KmXi_X3ayULBh2X1W4t7_hHEaUAu1U1IPfaIvNjTRXXnXvYuzCXCNpsrluHRBKELkAo9-9cWaDJbaXWb5Msuqz_1sToaS_n7eLYeYmEEaTasKv0d41d2VYh363IafSrzwboXvymXmKp30Xpa3Gs2hbe2BshWMj3Q-IMc5A-tgnxDdAsscWNLWcp4OJwOaGhk7eGQmEWUo8GgqrAsdtO-DdRwijKBmrSpORRfUBtWT-G6BT4EKb9FQcetqHCXkejyVFfk"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar from Shared Components -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-4rem)] flex flex-col p-4 w-64 bg-stone-50 dark:bg-stone-900/50 border-r-0 font-['Plus_Jakarta_Sans'] text-sm flat bg-stone-100-separation z-40 hidden md:flex">
+<div class="mb-8 px-2">
+<h3 class="text-orange-500 font-bold uppercase tracking-wider text-xs">Titanium Core</h3>
+<p class="text-stone-500 text-[10px] uppercase">Active Production Phase</p>
+</div>
+<nav class="space-y-1 flex-1">
+<a class="flex items-center gap-3 px-3 py-2.5 bg-stone-200 dark:bg-stone-800 text-stone-900 dark:text-white font-semibold rounded-md ease-out-200ms hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined text-orange-600">assignment_late</span>
+<span>All Reviews</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 ease-out-200ms hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">rocket_launch</span>
+<span>Live Events</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 ease-out-200ms hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">priority_high</span>
+<span>Priority</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 ease-out-200ms hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">group</span>
+<span>Team Activity</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 ease-out-200ms hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>Status Reports</span>
+</a>
+</nav>
+<button class="mt-auto bg-stone-900 text-white py-3 rounded-md font-bold text-xs uppercase tracking-widest hover:bg-orange-600 transition-colors">
+            New Production Request
+        </button>
+</aside>
+<!-- Main Content Wrapper -->
+<main class="md:ml-64 pt-16 min-h-screen">
+<!-- 1. Hero Header -->
+<section class="bg-stone-950 text-white py-12 px-8 relative overflow-hidden">
+<!-- Background Decorative Eye Icon -->
+<div class="absolute -right-20 top-1/2 -translate-y-1/2 opacity-5 pointer-events-none">
+<span class="material-symbols-outlined text-[320px]">visibility</span>
+</div>
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-8 relative z-10">
+<div class="space-y-6">
+<span class="inline-block px-3 py-1 bg-stone-800 text-[10px] font-bold tracking-[0.2em] border-l-2 border-orange-500">REVISÃO FINAL · SOLICITAÇÃO</span>
+<h1 class="text-6xl font-headline font-black kerning-tight text-white leading-none">Revisão do Criador</h1>
+<div class="flex gap-4">
+<div class="flex items-center gap-2 bg-stone-900 px-4 py-2 rounded-lg border border-stone-800">
+<span class="w-2 h-2 rounded-full bg-orange-500"></span>
+<span class="text-xs font-bold text-stone-400">Aguardando:</span>
+<span class="text-lg font-headline font-bold">42</span>
+</div>
+<div class="flex items-center gap-2 bg-stone-900 px-4 py-2 rounded-lg border border-stone-800">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span class="text-xs font-bold text-stone-400">Selecionadas:</span>
+<span class="text-lg font-headline font-bold text-orange-500">12</span>
+</div>
+</div>
+</div>
+<div class="bg-stone-900/80 backdrop-blur-md p-6 rounded-xl border border-stone-800 w-full md:w-80 space-y-4">
+<p class="text-[10px] font-bold text-stone-500 tracking-widest uppercase">AÇÃO RÁPIDA</p>
+<button class="w-full bg-secondary hover:bg-secondary-container text-white py-3 font-bold uppercase text-xs tracking-widest transition-all">
+                        Liberar Selecionadas
+                    </button>
+<button class="w-full border border-stone-700 text-stone-300 hover:bg-stone-800 py-3 font-bold uppercase text-xs tracking-widest transition-all">
+                        Devolver Selecionadas
+                    </button>
+</div>
+</div>
+</section>
+<!-- 2. Filters -->
+<section class="bg-white px-8 py-4 sticky top-16 z-30 shadow-sm">
+<div class="max-w-7xl mx-auto flex flex-wrap gap-4 items-center">
+<div class="flex-1 min-w-[240px]">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-lg">search</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border-none rounded-lg text-sm focus:ring-2 focus:ring-orange-500/20" placeholder="Filtrar por ID ou descrição..." type="text"/>
+</div>
+</div>
+<select class="bg-surface-container-low border-none rounded-lg text-sm py-2.5 px-4 focus:ring-2 focus:ring-orange-500/20 min-w-[160px]">
+<option>Todos Eventos</option>
+<option>Final da Copa 2024</option>
+<option>Grand Slam Open</option>
+</select>
+<select class="bg-surface-container-low border-none rounded-lg text-sm py-2.5 px-4 focus:ring-2 focus:ring-orange-500/20 min-w-[160px]">
+<option>Tipo de Peça</option>
+<option>Banner Digital</option>
+<option>Outdoor Static</option>
+</select>
+<button class="text-xs font-bold text-stone-500 hover:text-orange-500 uppercase tracking-widest transition-colors px-4">
+                    Limpar filtros
+                </button>
+</div>
+</section>
+<!-- 3 & 4. Event Groups & Item Cards -->
+<section class="p-8 max-w-7xl mx-auto space-y-12 pb-24">
+<!-- Group 1 -->
+<div class="space-y-6">
+<div class="bg-stone-900 p-4 flex items-center justify-between rounded-lg">
+<div class="flex items-center gap-4">
+<h2 class="font-headline font-bold text-white tracking-tight text-lg uppercase">Final da Copa 2024 — Maracanã</h2>
+<span class="bg-orange-500 text-white text-[10px] px-2 py-0.5 font-black rounded-full">18 PENDENTES</span>
+</div>
+<div class="flex gap-6 text-[10px] text-stone-400 font-bold uppercase tracking-widest">
+<p>Início: <span class="text-white">12 Out 2024</span></p>
+<p>Saída: <span class="text-white">20 Out 2024</span></p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+<!-- Card 1 (Selected) -->
+<div class="bg-white border-1.5 border-orange-500 rounded-lg overflow-hidden group transition-all">
+<div class="p-4 flex items-center justify-between bg-surface-container-low">
+<div class="flex items-center gap-3">
+<input checked="" class="rounded-sm border-stone-300 text-orange-500 focus:ring-orange-500" type="checkbox"/>
+<span class="font-mono text-xs font-bold text-orange-600">#TIT-8821</span>
+</div>
+<span class="text-[9px] font-bold px-2 py-1 bg-white border border-stone-200 rounded uppercase tracking-wider">Aguard. Revisão</span>
+</div>
+<div class="p-4 flex gap-4">
+<div class="w-20 h-20 bg-stone-100 rounded overflow-hidden flex-shrink-0">
+<img alt="Item Preview" class="w-full h-full object-cover" data-alt="professional sports photography of a brightly lit soccer stadium at night, cinematic mood" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBvr3XtQHZ6CsOtyuTV0Eu3S8Q_MQZoEo5h8VUraWWV-dnwj_2_vv9JFE5IFaprGZDckXHVPwy67Iv5d_UjL-w6B8zFrN5oBXw2a6Z1hSED0R0JX8In4f7c5CTEB9ghxTaJa06TJ7GpbH9A4VOdm7yriTc6CRJoNam7HB4HhnQxqKUPdAG7QlFq3qIvyY5qulvI7XEpMc01VBg74xwOTXEt8H_CfCki4K_mamlCnfIrf8cj_MibVoUK8LbLuVhI8fLvdEPziUspYaHi"/>
+</div>
+<div class="flex-1 space-y-2 border-l-2 border-orange-500 pl-3">
+<p class="text-[10px] font-black uppercase text-stone-400">Banner Principal</p>
+<p class="text-sm font-bold text-on-surface line-clamp-1">Hero Campaign Vertical v02</p>
+<div class="grid grid-cols-3 gap-2">
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">Qtd</p>
+<p class="text-[10px] font-bold">12</p>
+</div>
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">Dim</p>
+<p class="text-[10px] font-bold">1920x1080</p>
+</div>
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">m2</p>
+<p class="text-[10px] font-bold">4.2</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-3 bg-stone-50 flex gap-2">
+<button class="flex-1 border border-error text-error text-[10px] font-bold uppercase py-2 hover:bg-error/5 transition-colors">Devolver</button>
+<button class="flex-1 bg-stone-900 text-white text-[10px] font-bold uppercase py-2 hover:bg-stone-800 transition-colors">Liberar</button>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white border border-stone-200 rounded-lg overflow-hidden hover:border-stone-400 transition-all">
+<div class="p-4 flex items-center justify-between bg-surface-container-low">
+<div class="flex items-center gap-3">
+<input class="rounded-sm border-stone-300 text-orange-500 focus:ring-orange-500" type="checkbox"/>
+<span class="font-mono text-xs font-bold text-orange-600">#TIT-8822</span>
+</div>
+<span class="text-[9px] font-bold px-2 py-1 bg-white border border-stone-200 rounded uppercase tracking-wider">Aguard. Revisão</span>
+</div>
+<div class="p-4 flex gap-4">
+<div class="w-20 h-20 bg-stone-100 rounded overflow-hidden flex-shrink-0">
+<img alt="Item Preview" class="w-full h-full object-cover" data-alt="vibrant abstract background with energetic orange and deep black shapes, sports aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvHcqbXST9yK6LkQbR5mjQfZCg3-ec4ojy4Lc8H4qdehZhgmMDImEKZE_hytYAP9JyzOPmYSB-7NCu15i4qOJnf3SNJ726sBjaxgtpb-XEo6odAfCydLCt07d--hl-q2MLK2yEYe0pebpYBwQZ-932c3etjgFOAF7UfABnl1aNS-LfDZIv02i-aAbg-TmROuSkF3NUsTMLjSv6pPOxU837ec_wIWChfTdj4Uu_uP88yapaZVulGq9unwkPyNzxGM4cijzToRe_Ijkr"/>
+</div>
+<div class="flex-1 space-y-2 border-l-2 border-stone-200 pl-3">
+<p class="text-[10px] font-black uppercase text-stone-400">LED Perimeter</p>
+<p class="text-sm font-bold text-on-surface line-clamp-1">Animation Loop B - Sponsors</p>
+<div class="grid grid-cols-3 gap-2">
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">Qtd</p>
+<p class="text-[10px] font-bold">01</p>
+</div>
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">Dim</p>
+<p class="text-[10px] font-bold">12800x900</p>
+</div>
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">m2</p>
+<p class="text-[10px] font-bold">11.5</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-3 bg-stone-50 flex gap-2">
+<button class="flex-1 border border-error text-error text-[10px] font-bold uppercase py-2 hover:bg-error/5 transition-colors">Devolver</button>
+<button class="flex-1 bg-stone-900 text-white text-[10px] font-bold uppercase py-2 hover:bg-stone-800 transition-colors">Liberar</button>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-white border border-stone-200 rounded-lg overflow-hidden hover:border-stone-400 transition-all">
+<div class="p-4 flex items-center justify-between bg-surface-container-low">
+<div class="flex items-center gap-3">
+<input class="rounded-sm border-stone-300 text-orange-500 focus:ring-orange-500" type="checkbox"/>
+<span class="font-mono text-xs font-bold text-orange-600">#TIT-8825</span>
+</div>
+<span class="text-[9px] font-bold px-2 py-1 bg-white border border-stone-200 rounded uppercase tracking-wider">Aguard. Revisão</span>
+</div>
+<div class="p-4 flex gap-4">
+<div class="w-20 h-20 bg-stone-100 rounded overflow-hidden flex-shrink-0">
+<img alt="Item Preview" class="w-full h-full object-cover" data-alt="close-up of professional football boots on green grass under bright stadium lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCidwSFcYpXzQ_w_Jo2rTF4yE0KJiV_iZrVyHNeWrzEyM86XIwlBApcTVzaMRJFhTRjSMtXqAjslOuyy5sbofDPB0C8v-S2jgXIAmNYDk4iwtef074Ref7ZXxHu3VjtyDjMXtnc8YdGsbWQkk-HwoXZDJsF5I-Sr3Cp75fo-JoP654PDj2ut3qzvvnOlZJOWiCiW21SQOm0fE3HeAuXTyioDRaXVUklxwYoh5qRCWn4jms826ALizy6enxwRkB8VJtPnWvzo60-nluO"/>
+</div>
+<div class="flex-1 space-y-2 border-l-2 border-stone-200 pl-3">
+<p class="text-[10px] font-black uppercase text-stone-400">Social Assets</p>
+<p class="text-sm font-bold text-on-surface line-clamp-1">Match Day Instagram Story</p>
+<div class="grid grid-cols-3 gap-2">
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">Qtd</p>
+<p class="text-[10px] font-bold">04</p>
+</div>
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">Dim</p>
+<p class="text-[10px] font-bold">1080x1920</p>
+</div>
+<div class="bg-surface-container-low p-1 rounded">
+<p class="text-[8px] text-stone-500 uppercase">m2</p>
+<p class="text-[10px] font-bold">--</p>
+</div>
+</div>
+</div>
+</div>
+<div class="p-3 bg-stone-50 flex gap-2">
+<button class="flex-1 border border-error text-error text-[10px] font-bold uppercase py-2 hover:bg-error/5 transition-colors">Devolver</button>
+<button class="flex-1 bg-stone-900 text-white text-[10px] font-bold uppercase py-2 hover:bg-stone-800 transition-colors">Liberar</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- 5. Review Modal (Overlay Simulation) -->
+<div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-sm">
+<div class="bg-surface w-full max-w-6xl h-[870px] rounded-xl overflow-hidden shadow-2xl flex flex-col md:flex-row">
+<!-- Left Column: Art Preview (40%) -->
+<div class="md:w-[40%] bg-stone-100 flex flex-col border-r border-stone-200">
+<div class="p-4 bg-[#673AB7] text-white flex justify-between items-center">
+<span class="text-xs font-bold tracking-widest uppercase">Visualizador de Arte</span>
+<span class="material-symbols-outlined text-lg">fullscreen</span>
+</div>
+<div class="flex-1 p-6 flex flex-col gap-6 overflow-y-auto no-scrollbar">
+<div class="aspect-square w-full bg-white rounded-lg shadow-inner overflow-hidden border border-stone-200">
+<img alt="Art Large Preview" class="w-full h-full object-contain" data-alt="high-resolution editorial design for a sports event featuring bold typography and athletic action shots in orange and black" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCC8t2lT_GYkgAp3iz6Ml9edeFlc9uYwcdgYqO24kyoZLpt89XPpLkUgxaM5dVVEXfYgxdo253szMZfCIT2GbD0agQFWJ7496_tOh61cwWVaAzJ4hpU-7y98FHYzdAujUv7YxI6Q5fHiz3ZPT7vv1sqk4bgWDZCdgYPOiqHMArN9iESb2w4Ret499az4rQw8A_NrCcYNRj56II87GY29_x4wPjbNqoUJdeBuTbRiuoImOtEjYEP-h9zHG_TlbkTBOgzt81RPTGeoaK0"/>
+</div>
+<div class="space-y-4">
+<div>
+<p class="text-[10px] font-black text-stone-400 uppercase mb-1">Caminho do Arquivo Final</p>
+<div class="bg-stone-200 p-2 rounded font-mono text-[10px] text-stone-600 break-all">
+                                //SERVER-01/PROD/FINAL_COPA/BANNER_H_V02_FINAL.PDF
+                            </div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-white p-3 rounded-lg border border-stone-200">
+<p class="text-[9px] text-stone-400 uppercase font-bold">Perfil de Cor</p>
+<p class="text-xs font-bold">CMYK - Coated FOGRA39</p>
+</div>
+<div class="bg-white p-3 rounded-lg border border-stone-200">
+<p class="text-[9px] text-stone-400 uppercase font-bold">Resolução</p>
+<p class="text-xs font-bold">300 DPI</p>
+</div>
+<div class="bg-white p-3 rounded-lg border border-stone-200">
+<p class="text-[9px] text-stone-400 uppercase font-bold">Sangria</p>
+<p class="text-xs font-bold">5mm Interno</p>
+</div>
+<div class="bg-white p-3 rounded-lg border border-stone-200">
+<p class="text-[9px] text-stone-400 uppercase font-bold">Camadas</p>
+<p class="text-xs font-bold">Vetor + Raster</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Decision & Timeline (60%) -->
+<div class="md:w-[60%] flex flex-col bg-white">
+<div class="p-6 border-b border-stone-100 flex justify-between items-start">
+<div>
+<h2 class="text-2xl font-headline font-black uppercase kerning-tight">Decisão de Revisão</h2>
+<p class="text-sm text-stone-500">ID: TIT-8821 | Criado por: Lucas M. (Arte 04)</p>
+</div>
+<button class="text-stone-400 hover:text-stone-900">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto p-8 space-y-8">
+<!-- Action Card -->
+<div class="bg-stone-950 p-8 rounded-xl space-y-6">
+<div class="flex gap-4">
+<button class="flex-1 bg-secondary hover:bg-secondary-container text-white py-4 rounded-md font-black uppercase text-sm tracking-widest transition-all">
+                                Liberar para Produção
+                            </button>
+<button class="flex-1 border border-stone-700 text-stone-300 hover:bg-stone-800 py-4 rounded-md font-black uppercase text-sm tracking-widest transition-all">
+                                Devolver para Arte
+                            </button>
+</div>
+<div class="relative">
+<textarea class="w-full bg-stone-900 border-stone-800 rounded-lg text-white text-sm p-4 focus:ring-orange-500 min-h-[100px]" placeholder="Adicionar observação técnica para a equipe..."></textarea>
+</div>
+</div>
+<!-- History Timeline -->
+<div class="space-y-6">
+<h3 class="text-xs font-black uppercase tracking-[0.2em] text-stone-400 border-b border-stone-100 pb-2">HISTÓRICO</h3>
+<div class="relative pl-6 space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-0 before:w-0.5 before:bg-stone-100">
+<!-- Timeline Item 1 -->
+<div class="relative">
+<span class="absolute left-[-22px] top-1 w-4 h-4 rounded-full bg-white border-4 border-emerald-500 z-10"></span>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-xs font-bold">Arte Finalizada</p>
+<p class="text-[10px] text-stone-400">Enviado por Lucas M. (Design)</p>
+</div>
+<span class="text-[10px] font-bold text-stone-400">HOJE, 09:42</span>
+</div>
+</div>
+<!-- Timeline Item 2 -->
+<div class="relative">
+<span class="absolute left-[-22px] top-1 w-4 h-4 rounded-full bg-white border-4 border-orange-400 z-10"></span>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-xs font-bold">Devolução: Ajuste de Sangria</p>
+<p class="text-[10px] text-stone-400">Solicitado por André V. (Coordenação)</p>
+<p class="mt-2 text-[11px] bg-surface-container-low p-2 rounded italic text-stone-600">"A arte está cortando o logo do patrocinador master na borda superior. Favor recuar 10mm."</p>
+</div>
+<span class="text-[10px] font-bold text-stone-400">ONTEM, 14:15</span>
+</div>
+</div>
+<!-- Timeline Item 3 -->
+<div class="relative">
+<span class="absolute left-[-22px] top-1 w-4 h-4 rounded-full bg-white border-4 border-stone-300 z-10"></span>
+<div class="flex justify-between items-start">
+<div>
+<p class="text-xs font-bold">Briefing Iniciado</p>
+<p class="text-[10px] text-stone-400">Tarefa automatizada</p>
+</div>
+<span class="text-[10px] font-bold text-stone-400">10 OUT, 08:00</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 bg-stone-50 border-t border-stone-100 flex justify-between items-center">
+<div class="flex gap-4">
+<span class="text-[10px] font-bold text-stone-400 uppercase">Atalhos:</span>
+<span class="text-[10px] font-black bg-stone-200 px-1.5 rounded">Enter</span> <span class="text-[10px] text-stone-400">Liberar</span>
+<span class="text-[10px] font-black bg-stone-200 px-1.5 rounded">Esc</span> <span class="text-[10px] text-stone-400">Fechar</span>
+</div>
+<p class="text-[10px] font-bold text-stone-400">TITANIUM v2.4.1</p>
+</div>
+</div>
+</div>
+</div>
+</body></html>

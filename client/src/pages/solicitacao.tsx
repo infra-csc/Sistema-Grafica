@@ -1,26 +1,11 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, FileText, Check, Search, X, XCircle, ArrowLeft, Trash2, FileEdit } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,32 +16,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState, useMemo, Fragment } from "react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { useState, useMemo, useEffect } from "react";
 
-// Titanium palette
 const TI = {
   bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
   text: "#1c1917", secondary: "#78716c", muted: "#a8a29e",
-  accent: "#f97316",
+  accent: "#f97316", dark: "#0c0a09",
 };
 
 export default function Solicitacao() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [returnObservationOpen, setReturnObservationOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [returnObservations, setReturnObservations] = useState("");
+  const [showReturnForm, setShowReturnForm] = useState(false);
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
-  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
-  const [cancelObservations, setCancelObservations] = useState("");
-
   const [bulkReleaseConfirmOpen, setBulkReleaseConfirmOpen] = useState(false);
   const [bulkReturnConfirmOpen, setBulkReturnConfirmOpen] = useState(false);
-  const [bulkCancelConfirmOpen, setBulkCancelConfirmOpen] = useState(false);
   const [bulkReturnObservations, setBulkReturnObservations] = useState("");
+  const [bulkCancelConfirmOpen, setBulkCancelConfirmOpen] = useState(false);
   const [bulkCancelObservations, setBulkCancelObservations] = useState("");
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancelObservations, setCancelObservations] = useState("");
+  const [returnConfirmOpen, setReturnConfirmOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [eventFilter, setEventFilter] = useState<string>("all");
@@ -73,32 +55,21 @@ export default function Solicitacao() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setDialogOpen(false); setSelectedItem(null);
-      toast({ title: "Peça liberada para produção", description: "A peça foi revisada e liberada para a gráfica!" });
+      setModalOpen(false); setSelectedItem(null); setReleaseConfirmOpen(false);
+      toast({ title: "Peça liberada para produção!", description: "A peça foi revisada e liberada para a gráfica." });
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peça", description: error.message, variant: "destructive" }),
   });
 
   const bulkReleaseMutation = useMutation({
-    mutationFn: async (itemIds: string[]) => Promise.all(itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/creator-review`, {}))),
-    onSuccess: (_, itemIds) => {
+    mutationFn: async (itemIds: string[]) => await apiRequest("PATCH", `/api/items/bulk-creator-review`, { itemIds }),
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setSelectedItemIds(new Set());
-      toast({ title: "Peças liberadas para produção", description: `${itemIds.length} ${itemIds.length === 1 ? "peça foi liberada" : "peças foram liberadas"} para produção!` });
+      setSelectedItemIds(new Set()); setBulkReleaseConfirmOpen(false);
+      toast({ title: "Peças liberadas", description: `${result.released ?? selectedItemIds.size} peças foram liberadas para produção.` });
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peças", description: error.message, variant: "destructive" }),
-  });
-
-  const editItemMutation = useMutation({
-    mutationFn: async (payload: { itemId: string; updates: any }) => await apiRequest("PATCH", `/api/items/${payload.itemId}/edit`, payload.updates),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setSelectedItem(null);
-      toast({ title: "Peça atualizada", description: "As especificações da peça foram atualizadas com sucesso." });
-    },
-    onError: (error: any) => toast({ title: "Erro ao atualizar peça", description: error.message, variant: "destructive" }),
   });
 
   const returnToArteMutation = useMutation({
@@ -107,9 +78,9 @@ export default function Solicitacao() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setDialogOpen(false); setSelectedItem(null);
-      setReturnObservationOpen(false); setReturnObservations("");
-      toast({ title: "Peça devolvida para Arte", description: "A peça foi devolvida para a Arte com observações." });
+      setModalOpen(false); setSelectedItem(null);
+      setReturnConfirmOpen(false); setReturnObservations(""); setShowReturnForm(false);
+      toast({ title: "Peça devolvida para Arte", description: "A peça foi devolvida com observações." });
     },
     onError: (error: any) => toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" }),
   });
@@ -121,125 +92,188 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set()); setSelectedItem(null);
-      setDialogOpen(false); setCancelConfirmOpen(false); setBulkCancelConfirmOpen(false);
-      toast({ title: "Peças canceladas", description: `${result.canceled} ${result.canceled === 1 ? "peça foi cancelada" : "peças foram canceladas"}.` });
+      setModalOpen(false); setCancelConfirmOpen(false); setBulkCancelConfirmOpen(false);
+      toast({ title: "Peças canceladas", description: `${result.canceled} peça(s) cancelada(s).` });
     },
-    onError: (error: any) => toast({ title: "Erro ao cancelar peças", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" }),
   });
 
-  const pendingItems = items.filter(item => item.status === "awaiting_final_review");
+  const pendingItems = useMemo(() => items.filter(item => item.status === "awaiting_final_review"), [items]);
 
   const filteredItems = useMemo(() => pendingItems.filter(item => {
     const matchesSearch = searchTerm === "" ||
       item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      item.displayId?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
     const matchesType = itemTypeFilter === "all" || item.type === itemTypeFilter;
     return matchesSearch && matchesEvent && matchesType;
   }), [pendingItems, searchTerm, eventFilter, itemTypeFilter]);
 
-  const uniqueItemTypes = useMemo(() => {
-    const types = new Set(pendingItems.map(item => item.type).filter(Boolean));
-    return Array.from(types).sort();
-  }, [pendingItems]);
+  const uniqueItemTypes = useMemo(() => Array.from(new Set(pendingItems.map(i => i.type).filter(Boolean))).sort(), [pendingItems]);
+  const eventsWithItems = useMemo(() => {
+    const ids = new Set(pendingItems.map(i => i.eventId));
+    return events.filter(e => ids.has(e.id));
+  }, [pendingItems, events]);
+
+  const itemsByEvent = useMemo(() => {
+    const map = new Map<string, any[]>();
+    const sorted = [...filteredItems].sort((a, b) => {
+      const ea = a.event?.name || "", eb = b.event?.name || "";
+      return ea.localeCompare(eb) || a.type.localeCompare(b.type);
+    });
+    sorted.forEach(item => {
+      const key = item.eventId || "__none__";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    });
+    return map;
+  }, [filteredItems]);
 
   const getEventInfo = (eventId: string) => events.find(e => e.id === eventId);
-  const getSponsorInfo = (sponsorId: string) => sponsors.find(s => s.id === sponsorId);
-  const handleViewDetails = (item: any) => { setSelectedItem(item); setDialogOpen(true); };
+  const itemAuditLogs = useMemo(() => selectedItem
+    ? auditLogs.filter((l: any) => l.entityId === selectedItem.id).slice(0, 8)
+    : [], [auditLogs, selectedItem]);
 
-  const toggleItemSelection = (itemId: string) => {
-    setSelectedItemIds(prev => {
-      const newSet = new Set(prev);
-      newSet.has(itemId) ? newSet.delete(itemId) : newSet.add(itemId);
-      return newSet;
-    });
-  };
-  const toggleAllSelection = () => {
+  const toggleItem = (id: string) => setSelectedItemIds(prev => {
+    const s = new Set(prev);
+    s.has(id) ? s.delete(id) : s.add(id);
+    return s;
+  });
+  const toggleAll = () => {
     selectedItemIds.size === filteredItems.length && filteredItems.length > 0
       ? setSelectedItemIds(new Set())
-      : setSelectedItemIds(new Set(filteredItems.map(item => item.id)));
+      : setSelectedItemIds(new Set(filteredItems.map(i => i.id)));
   };
 
-  const handleBulkRelease = () => setBulkReleaseConfirmOpen(true);
-  const confirmBulkRelease = () => {
-    const itemIds = Array.from(selectedItemIds);
-    if (itemIds.length > 0) { bulkReleaseMutation.mutate(itemIds); setBulkReleaseConfirmOpen(false); }
+  const openModal = (item: any) => {
+    setSelectedItem(item); setShowReturnForm(false); setReturnObservations(""); setModalOpen(true);
   };
-  const handleBulkReturnToArte = () => { setBulkReturnConfirmOpen(true); setBulkReturnObservations(""); };
-  const confirmBulkReturnToArte = () => {
-    const itemIds = Array.from(selectedItemIds);
-    if (itemIds.length > 0) {
-      Promise.all(itemIds.map(id => apiRequest("POST", `/api/items/${id}/return-to-arte`, { notes: bulkReturnObservations })))
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-          setSelectedItemIds(new Set()); setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
-          toast({ title: "Peças devolvidas para Arte", description: `${itemIds.length} ${itemIds.length === 1 ? "peça foi devolvida" : "peças foram devolvidas"} para a Arte.` });
-        })
-        .catch((error: any) => toast({ title: "Erro ao devolver peças", description: error.message, variant: "destructive" }));
-    }
-  };
-  const handleBulkCancelConfirm = () => { setBulkCancelConfirmOpen(true); setBulkCancelObservations(""); };
-  const confirmBulkCancel = () => {
-    const itemIds = Array.from(selectedItemIds);
-    if (itemIds.length > 0) { bulkCancelMutation.mutate({ itemIds, notes: bulkCancelObservations }); setBulkCancelConfirmOpen(false); }
-  };
-  const handleReleaseConfirm = () => setReleaseConfirmOpen(true);
-  const confirmRelease = () => {
-    if (selectedItem?.id) { creatorReviewMutation.mutate(selectedItem.id); setReleaseConfirmOpen(false); }
-  };
-  const handleCancelConfirm = () => { setCancelConfirmOpen(true); setCancelObservations(""); };
-  const confirmCancel = () => {
-    if (selectedItem?.id) { bulkCancelMutation.mutate({ itemIds: [selectedItem.id], notes: cancelObservations }); setCancelConfirmOpen(false); }
-  };
-  const handleReturnToArte = () => { setReturnObservationOpen(true); setReturnObservations(""); };
-  const confirmReturnToArte = () => {
-    if (selectedItem) returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations });
-  };
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && !showReturnForm && selectedItem) setReleaseConfirmOpen(true);
+      if (e.key === "Escape") setModalOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [modalOpen, showReturnForm, selectedItem]);
 
   if (itemsLoading || eventsLoading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: TI.accent }} />
       </div>
     );
   }
 
   return (
-    <div style={{ backgroundColor: TI.bg, minHeight: "100%", padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ backgroundColor: TI.bg, minHeight: "100%" }}>
 
-      {/* ── Page header ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ backgroundColor: TI.accent, borderRadius: 8, padding: "6px 8px", display: "flex" }}>
-            <FileText style={{ color: "#fff", width: 18, height: 18 }} />
+      {/* ── 1. HERO HEADER ─────────────────────────────────────────────── */}
+      <section style={{ backgroundColor: "#0c0a09", color: "#fff", padding: "48px 32px", position: "relative", overflow: "hidden" }}>
+        {/* Decorative icon */}
+        <div style={{ position: "absolute", right: -60, top: "50%", transform: "translateY(-50%)", opacity: 0.04, pointerEvents: "none", fontSize: 280, lineHeight: 1, userSelect: "none", color: "#fff" }}>
+          <Eye style={{ width: 280, height: 280 }} />
+        </div>
+
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 32, position: "relative", zIndex: 1 }}>
+          {/* Left */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
+            <span style={{
+              display: "inline-block", padding: "4px 12px",
+              backgroundColor: "#1c1917", fontSize: 10, fontWeight: 700,
+              letterSpacing: "0.18em", textTransform: "uppercase", color: "#a8a29e",
+              borderLeft: "2px solid #f97316",
+            }}>
+              REVISÃO FINAL · SOLICITAÇÃO
+            </span>
+            <h1 style={{
+              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900,
+              fontSize: 56, letterSpacing: "-0.04em", color: "#fff",
+              lineHeight: 1, margin: 0,
+            }}>
+              Revisão do Criador
+            </h1>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                backgroundColor: "#1c1917", padding: "8px 16px", borderRadius: 8,
+                border: "1px solid #292524",
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#78716c" }}>Aguardando:</span>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#fff" }}>{pendingItems.length}</span>
+              </div>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                backgroundColor: "#1c1917", padding: "8px 16px", borderRadius: 8,
+                border: "1px solid #292524",
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#10b981", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#78716c" }}>Selecionadas:</span>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#f97316" }}>{selectedItemIds.size}</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <h1 style={{ color: TI.text, fontSize: 18, fontWeight: 700, margin: 0 }}>Revisão do Criador</h1>
-            <p style={{ color: TI.muted, fontSize: 12, margin: 0 }}>Revise as aprovações dos patrocinadores e libere itens para produção</p>
+
+          {/* Right — quick action panel */}
+          <div style={{
+            backgroundColor: "rgba(28,25,23,0.8)", backdropFilter: "blur(12px)",
+            padding: 24, borderRadius: 12, border: "1px solid #292524",
+            width: 280, display: "flex", flexDirection: "column", gap: 16, flexShrink: 0,
+          }}>
+            <p style={{ fontSize: 9, fontWeight: 700, color: "#57534e", letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>AÇÃO RÁPIDA</p>
+            <button
+              onClick={() => selectedItemIds.size > 0 && setBulkReleaseConfirmOpen(true)}
+              disabled={selectedItemIds.size === 0}
+              data-testid="button-bulk-release-hero"
+              style={{
+                width: "100%", padding: "12px 0", borderRadius: 6, border: "none",
+                backgroundColor: selectedItemIds.size === 0 ? "#292524" : "#9d4300",
+                color: selectedItemIds.size === 0 ? "#57534e" : "#fff",
+                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em",
+                cursor: selectedItemIds.size === 0 ? "not-allowed" : "pointer",
+              }}>
+              Liberar Selecionadas {selectedItemIds.size > 0 && `(${selectedItemIds.size})`}
+            </button>
+            <button
+              onClick={() => selectedItemIds.size > 0 && setBulkReturnConfirmOpen(true)}
+              disabled={selectedItemIds.size === 0}
+              data-testid="button-bulk-return-hero"
+              style={{
+                width: "100%", padding: "12px 0", borderRadius: 6,
+                border: "1px solid #44403c",
+                backgroundColor: "transparent",
+                color: selectedItemIds.size === 0 ? "#44403c" : "#d6d3d1",
+                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em",
+                cursor: selectedItemIds.size === 0 ? "not-allowed" : "pointer",
+              }}>
+              Devolver Selecionadas {selectedItemIds.size > 0 && `(${selectedItemIds.size})`}
+            </button>
           </div>
         </div>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          backgroundColor: TI.surface, border: `1px solid ${TI.border}`,
-          borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600, color: TI.text,
-        }}>
-          <AlertCircle style={{ width: 14, height: 14, color: TI.accent }} />
-          {pendingItems.length} pendente{pendingItems.length !== 1 ? "s" : ""}
-        </div>
-      </div>
+      </section>
 
-      {/* ── Main card ── */}
-      <div style={{ backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12, overflow: "hidden" }}>
-
-        {/* Filters bar */}
-        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${TI.border}`, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+      {/* ── 2. FILTER BAR ──────────────────────────────────────────────── */}
+      <section style={{
+        backgroundColor: "#fff", padding: "12px 32px",
+        borderBottom: `1px solid ${TI.border}`,
+        position: "sticky", top: 0, zIndex: 30,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+      }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           {/* Search */}
-          <div style={{ position: "relative", flex: "1 1 200px", minWidth: 160 }}>
+          <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
             <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: TI.muted, pointerEvents: "none" }} />
-            <input placeholder="Buscar por descrição ou tipo..." value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)} data-testid="input-search"
-              style={{ width: "100%", paddingLeft: 32, paddingRight: searchTerm ? 32 : 12, paddingTop: 7, paddingBottom: 7, backgroundColor: TI.bg, border: `1px solid ${TI.border}`, borderRadius: 8, fontSize: 12, color: TI.text, outline: "none", boxSizing: "border-box" }} />
+            <input
+              placeholder="Filtrar por ID ou descrição..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              data-testid="input-search"
+              style={{ width: "100%", paddingLeft: 34, paddingRight: searchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9, backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, color: TI.text, outline: "none", boxSizing: "border-box" }}
+            />
             {searchTerm && (
               <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 0 }}>
                 <X style={{ width: 13, height: 13 }} />
@@ -247,428 +281,626 @@ export default function Solicitacao() {
             )}
           </div>
 
-          <Select value={eventFilter} onValueChange={setEventFilter}>
-            <SelectTrigger className="w-52" data-testid="select-event-filter" style={{ backgroundColor: TI.bg, borderColor: TI.border, fontSize: 12 }}>
-              <SelectValue placeholder="Todos os eventos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os eventos</SelectItem>
-              {[...events].sort((a, b) => a.name.localeCompare(b.name)).map(ev => (
-                <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Event select */}
+          <select
+            value={eventFilter}
+            onChange={e => setEventFilter(e.target.value)}
+            data-testid="select-event-filter"
+            style={{ backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, padding: "9px 14px", color: TI.text, minWidth: 180, cursor: "pointer", outline: "none" }}
+          >
+            <option value="all">Todos os Eventos</option>
+            {eventsWithItems.sort((a, b) => a.name.localeCompare(b.name)).map(ev => (
+              <option key={ev.id} value={ev.id}>{ev.name}</option>
+            ))}
+          </select>
 
-          <Select value={itemTypeFilter} onValueChange={setItemTypeFilter}>
-            <SelectTrigger className="w-44" data-testid="select-type-filter" style={{ backgroundColor: TI.bg, borderColor: TI.border, fontSize: 12 }}>
-              <SelectValue placeholder="Todos os tipos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os tipos</SelectItem>
-              {uniqueItemTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {/* Type select */}
+          <select
+            value={itemTypeFilter}
+            onChange={e => setItemTypeFilter(e.target.value)}
+            data-testid="select-type-filter"
+            style={{ backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, padding: "9px 14px", color: TI.text, minWidth: 150, cursor: "pointer", outline: "none" }}
+          >
+            <option value="all">Tipo de Peça</option>
+            {uniqueItemTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
 
           {(searchTerm || eventFilter !== "all" || itemTypeFilter !== "all") && (
-            <Button variant="outline" size="sm" onClick={() => { setSearchTerm(""); setEventFilter("all"); setItemTypeFilter("all"); }} data-testid="button-clear-filters">
-              Limpar
-            </Button>
+            <button
+              onClick={() => { setSearchTerm(""); setEventFilter("all"); setItemTypeFilter("all"); }}
+              data-testid="button-clear-filters"
+              style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", background: "none", border: "none", cursor: "pointer", padding: "0 8px" }}>
+              Limpar filtros
+            </button>
           )}
 
-          {/* Bulk actions */}
-          {selectedItemIds.size > 0 && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginLeft: "auto" }}>
-              <Button size="sm" data-testid="button-bulk-edit"
-                style={{ backgroundColor: TI.accent, color: "#fff", border: "none" }}
-                onClick={() => {
-                  const firstItem = Array.from(selectedItemIds).length === 1 ? filteredItems.find(i => i.id === Array.from(selectedItemIds)[0]) : null;
-                  if (firstItem) handleViewDetails(firstItem);
-                }}>
-                <FileEdit style={{ width: 14, height: 14, marginRight: 6 }} />
-                Editar ({selectedItemIds.size})
-              </Button>
-              <button onClick={handleBulkRelease} disabled={bulkReleaseMutation.isPending} data-testid="button-bulk-release"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 6, cursor: "pointer", backgroundColor: TI.text, color: "#fff", border: "none", fontSize: 12, fontWeight: 600 }}>
-                <Check style={{ width: 14, height: 14 }} />
-                Liberar {selectedItemIds.size}
-              </button>
-              <Button size="sm" variant="outline" onClick={handleBulkReturnToArte} disabled={bulkCancelMutation.isPending} data-testid="button-bulk-return" style={{ borderColor: "#b91c1c", color: "#b91c1c" }}>
-                <ArrowLeft style={{ width: 14, height: 14, marginRight: 6 }} />
-                Devolver {selectedItemIds.size}
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleBulkCancelConfirm} disabled={bulkCancelMutation.isPending} data-testid="button-bulk-cancel" style={{ borderColor: "#dc2626", color: "#dc2626" }}>
-                <Trash2 style={{ width: 14, height: 14, marginRight: 6 }} />
-                Cancelar {selectedItemIds.size}
-              </Button>
-            </div>
-          )}
-
-          <span style={{ fontSize: 11, color: TI.muted, marginLeft: selectedItemIds.size > 0 ? 0 : "auto", whiteSpace: "nowrap" }}>
-            {filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
-          </span>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            {filteredItems.length > 0 && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: TI.secondary, cursor: "pointer", userSelect: "none" }}>
+                <input
+                  type="checkbox"
+                  checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
+                  onChange={toggleAll}
+                  data-testid="checkbox-select-all"
+                  style={{ accentColor: TI.accent, width: 14, height: 14 }}
+                />
+                Selecionar todos
+              </label>
+            )}
+            <span style={{ fontSize: 11, color: TI.muted, whiteSpace: "nowrap" }}>
+              {filteredItems.length} de {pendingItems.length} peças
+            </span>
+          </div>
         </div>
+      </section>
 
-        {/* Table / empty state */}
+      {/* ── 3 & 4. EVENT GROUPS + CARDS ────────────────────────────────── */}
+      <section style={{ padding: "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: 80 }}>
         {filteredItems.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 20px", color: TI.muted }}>
-            <CheckCircle style={{ width: 36, height: 36, margin: "0 auto 12px", opacity: 0.4 }} />
-            <p style={{ fontSize: 14, fontWeight: 500, color: TI.secondary }}>
-              {pendingItems.length === 0 ? "Nenhum item para revisar" : "Nenhum resultado encontrado"}
+          <div style={{ textAlign: "center", padding: "80px 24px" }}>
+            <CheckCircle style={{ width: 48, height: 48, color: "#d1cfce", margin: "0 auto 16px" }} />
+            <p style={{ fontSize: 16, fontWeight: 700, color: TI.secondary, margin: "0 0 8px" }}>
+              {pendingItems.length === 0 ? "Tudo revisado!" : "Nenhum resultado encontrado"}
             </p>
-            <p style={{ fontSize: 12, marginTop: 4 }}>
-              {pendingItems.length === 0 ? "Não há itens aguardando revisão no momento." : "Tente ajustar os filtros."}
+            <p style={{ fontSize: 13, color: TI.muted, margin: 0 }}>
+              {pendingItems.length === 0 ? "Não há itens aguardando sua revisão no momento." : "Tente ajustar os filtros."}
             </p>
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ backgroundColor: TI.bg, borderBottom: `1px solid ${TI.border}` }}>
-                <th style={{ padding: "9px 14px", width: 40, textAlign: "center" }}>
-                  <Checkbox checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
-                    onCheckedChange={toggleAllSelection} data-testid="checkbox-select-all" />
-                </th>
-                {["ID / Status", "Tipo / Descrição", "Qtd", "Dimensões", "M²", "Material · Acab.", "Ações"].map(h => (
-                  <th key={h} style={{ padding: "9px 14px", textAlign: h === "Ações" ? "right" : "left", fontSize: 10, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredItems.map((item, index) => {
-                const event = getEventInfo(item.eventId);
-                const prevItem = index > 0 ? filteredItems[index - 1] : null;
-                const showEventHeader = !prevItem || prevItem.eventId !== item.eventId;
-                const isLast = index === filteredItems.length - 1;
+          <div style={{ display: "flex", flexDirection: "column", gap: 48 }}>
+            {Array.from(itemsByEvent.entries()).map(([eventId, eventItems]) => {
+              const event = getEventInfo(eventId);
+              return (
+                <div key={eventId}>
+                  {/* Event group header */}
+                  <div style={{
+                    backgroundColor: "#1c1917", padding: "14px 20px", borderRadius: 8,
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                    marginBottom: 20,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <h2 style={{
+                        fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
+                        fontSize: 15, letterSpacing: "-0.01em", color: "#fff",
+                        textTransform: "uppercase", margin: 0,
+                      }}>
+                        {event?.name || "Sem Evento"}
+                      </h2>
+                      <span style={{
+                        backgroundColor: "#f97316", color: "#fff",
+                        fontSize: 9, fontWeight: 900, padding: "2px 8px",
+                        borderRadius: 999, letterSpacing: "0.04em", textTransform: "uppercase",
+                      }}>
+                        {eventItems.length} PENDENTE{eventItems.length !== 1 ? "S" : ""}
+                      </span>
+                    </div>
+                    {event && (
+                      <div style={{ display: "flex", gap: 20, fontSize: 10, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        {event.startDate && (
+                          <span>Início: <span style={{ color: "#fff" }}>{new Date(event.startDate).toLocaleDateString("pt-BR")}</span></span>
+                        )}
+                        {event.truckDepartureDate && (
+                          <span>Saída: <span style={{ color: "#fff" }}>{new Date(event.truckDepartureDate).toLocaleDateString("pt-BR")} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></span>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-                return (
-                  <Fragment key={item.id}>
-                    {/* ── Dark event header ── */}
-                    {showEventHeader && (
-                      <tr>
-                        <td colSpan={8} style={{ backgroundColor: TI.text, padding: "8px 14px", borderTop: index > 0 ? `4px solid ${TI.border}` : undefined }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                            <span style={{ color: "#fff", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                              {event?.name || "Sem Evento"}
-                            </span>
-                            {event && (
-                              <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#a8a29e" }}>
-                                {event.startDate && (
-                                  <span style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                                    <Calendar style={{ width: 11, height: 11 }} />
-                                    {new Date(event.startDate).toLocaleDateString("pt-BR")}
-                                  </span>
-                                )}
-                                {event.truckDepartureDate && (
-                                  <span style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                                    <Truck style={{ width: 11, height: 11 }} />
-                                    Saída: {new Date(event.truckDepartureDate).toLocaleDateString("pt-BR")} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                                  </span>
+                  {/* Cards grid */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                    gap: 20,
+                  }}>
+                    {eventItems.map(item => {
+                      const isSelected = selectedItemIds.has(item.id);
+                      const hasThumb = !!item.approvalThumbUrl;
+                      const isThumbImage = hasThumb && /\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl);
+
+                      return (
+                        <div
+                          key={item.id}
+                          data-testid={`card-item-${item.id}`}
+                          style={{
+                            backgroundColor: "#fff",
+                            border: isSelected ? "1.5px solid #f97316" : "1px solid #e7e5e4",
+                            borderRadius: 8, overflow: "hidden",
+                            boxShadow: isSelected ? "0 0 0 3px rgba(249,115,22,0.12)" : "none",
+                            transition: "border-color 0.15s, box-shadow 0.15s",
+                          }}
+                          onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = "#a8a29e"; }}
+                          onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = "#e7e5e4"; }}
+                        >
+                          {/* Card header */}
+                          <div style={{
+                            padding: "12px 14px", display: "flex",
+                            alignItems: "center", justifyContent: "space-between",
+                            backgroundColor: "#f3f4f3", borderBottom: "1px solid #e7e5e4",
+                          }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleItem(item.id)}
+                                data-testid={`checkbox-item-${item.id}`}
+                                style={{ accentColor: "#f97316", width: 14, height: 14, cursor: "pointer" }}
+                                onClick={e => e.stopPropagation()}
+                              />
+                              <span
+                                data-testid={`text-display-id-${item.id}`}
+                                style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#c2410c" }}
+                              >
+                                {item.displayId}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{
+                                fontSize: 9, fontWeight: 700, padding: "3px 8px",
+                                backgroundColor: "#fff", border: "1px solid #e7e5e4",
+                                borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
+                                color: TI.secondary,
+                              }}>
+                                Aguard. Revisão
+                              </span>
+                              <button
+                                onClick={() => openModal(item)}
+                                data-testid={`button-open-modal-${item.id}`}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 2, display: "flex" }}
+                                onMouseEnter={e => (e.currentTarget.style.color = TI.text)}
+                                onMouseLeave={e => (e.currentTarget.style.color = TI.muted)}
+                              >
+                                <Eye style={{ width: 15, height: 15 }} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Card body */}
+                          <div style={{ padding: 14, display: "flex", gap: 14 }}>
+                            {/* Thumb */}
+                            <div style={{ width: 80, height: 80, borderRadius: 6, overflow: "hidden", flexShrink: 0, backgroundColor: "#f0efee", border: "1px solid #e7e5e4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {isThumbImage ? (
+                                <img src={item.approvalThumbUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ) : hasThumb ? (
+                                <FileText style={{ width: 24, height: 24, color: "#a8a29e" }} />
+                              ) : (
+                                <FileImage style={{ width: 24, height: 24, color: "#a8a29e" }} />
+                              )}
+                            </div>
+
+                            {/* Info */}
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" }}>
+                              <div style={{ borderLeft: `2px solid ${isSelected ? "#f97316" : "#e7e5e4"}`, paddingLeft: 10 }}>
+                                <p style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", color: TI.secondary, margin: 0, letterSpacing: "0.04em" }}>
+                                  {item.type}
+                                </p>
+                                {item.description && (
+                                  <p style={{ fontSize: 13, fontWeight: 700, color: TI.text, margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {item.description}
+                                  </p>
                                 )}
                               </div>
-                            )}
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                                {[
+                                  { label: "Qtd", value: `${item.quantity}x` },
+                                  { label: "Dim", value: item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}` : "—" },
+                                  { label: "m²", value: item.calculatedM2 || "—" },
+                                ].map(({ label, value }) => (
+                                  <div key={label} style={{ backgroundColor: "#f3f4f3", padding: "4px 6px", borderRadius: 4 }}>
+                                    <p style={{ fontSize: 8, color: "#78716c", textTransform: "uppercase", fontWeight: 700, margin: 0 }}>{label}</p>
+                                    <p style={{ fontSize: 10, fontWeight: 700, color: TI.text, margin: 0 }}>{value}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                        </td>
-                      </tr>
-                    )}
 
-                    {/* ── Item row ── */}
-                    <tr data-testid={`row-item-${item.id}`}
-                      style={{ borderBottom: isLast ? "none" : `1px solid ${TI.border}`, backgroundColor: TI.surface, transition: "background 0.1s" }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = TI.bg)}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = TI.surface)}>
-
-                      <td style={{ padding: "9px 14px", textAlign: "center" }}>
-                        <Checkbox checked={selectedItemIds.has(item.id)} onCheckedChange={() => toggleItemSelection(item.id)} data-testid={`checkbox-item-${item.id}`} />
-                      </td>
-
-                      {/* ID + badge */}
-                      <td style={{ padding: "9px 14px", whiteSpace: "nowrap" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                          <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: TI.accent }} data-testid={`text-display-id-${item.id}`}>
-                            {item.displayId}
-                          </span>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 4, padding: "1px 6px", fontSize: 9, fontWeight: 600, color: TI.accent, letterSpacing: "0.03em" }}>
-                            Aguardando Revisão
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Tipo / Descrição */}
-                      <td style={{ padding: "9px 14px" }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: TI.text, borderLeft: `3px solid ${TI.accent}`, paddingLeft: 7 }}>
-                          {item.type}
-                        </div>
-                        {item.description && (
-                          <div style={{ fontSize: 11, color: TI.secondary, paddingLeft: 10, marginTop: 2 }}>{item.description}</div>
-                        )}
-                      </td>
-
-                      {/* Qtd */}
-                      <td style={{ padding: "9px 14px", fontWeight: 700, fontSize: 13, color: TI.text }}>{item.quantity}x</td>
-
-                      {/* Dimensões */}
-                      <td style={{ padding: "9px 14px", fontFamily: "monospace", fontSize: 11, color: TI.text }}>
-                        {item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}` : "—"}
-                      </td>
-
-                      {/* m² */}
-                      <td style={{ padding: "9px 14px", fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: TI.text }}>
-                        {item.calculatedM2 || "—"}
-                      </td>
-
-                      {/* Material */}
-                      <td style={{ padding: "9px 14px", fontSize: 11, color: TI.secondary }}>
-                        {item.material && item.finish ? `${item.material} · ${item.finish}` : item.material || item.finish || "—"}
-                      </td>
-
-                      {/* Ações */}
-                      <td style={{ padding: "9px 14px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                          {/* Liberar — preto Titanium */}
-                          <button onClick={() => { setSelectedItem(item); handleReleaseConfirm(); }} disabled={creatorReviewMutation.isPending}
-                            data-testid={`button-release-individual-${item.id}`} title="Liberar para Produção"
-                            style={{ width: 30, height: 30, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backgroundColor: TI.text, color: "#fff", border: "none" }}>
-                            <CheckCircle style={{ width: 14, height: 14 }} />
-                          </button>
-                          {/* Devolver — terracota outline */}
-                          <button onClick={() => { setSelectedItem(item); setReturnObservationOpen(true); }} disabled={returnToArteMutation.isPending}
-                            data-testid={`button-return-individual-${item.id}`} title="Devolver para Arte"
-                            style={{ width: 30, height: 30, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backgroundColor: "transparent", color: "#b91c1c", border: "1.5px solid #b91c1c" }}>
-                            <ArrowLeft style={{ width: 14, height: 14 }} />
-                          </button>
-                          {/* Cancelar */}
-                          <button onClick={() => { setSelectedItem(item); handleCancelConfirm(); }} disabled={bulkCancelMutation.isPending}
-                            data-testid={`button-cancel-individual-${item.id}`} title="Cancelar Item"
-                            style={{ width: 30, height: 30, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backgroundColor: "transparent", color: "#dc2626", border: "1.5px solid #fca5a5" }}>
-                            <Trash2 style={{ width: 14, height: 14 }} />
-                          </button>
-                          {/* Revisar */}
-                          <button onClick={() => handleViewDetails(item)} data-testid={`button-view-${item.id}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 10px", height: 30, borderRadius: 6, cursor: "pointer", backgroundColor: "transparent", color: TI.secondary, border: `1px solid ${TI.border}`, fontSize: 11, fontWeight: 500 }}>
-                            <Eye style={{ width: 13, height: 13 }} />
-                            Revisar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* Observations */}
-                    {item.observations && (
-                      <tr style={{ backgroundColor: "#fffbeb", borderBottom: `1px solid #fde68a` }}>
-                        <td colSpan={8} style={{ padding: "6px 14px" }}>
-                          <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                            <AlertCircle style={{ width: 13, height: 13, color: "#d97706", flexShrink: 0, marginTop: 1 }} />
-                            <span style={{ fontSize: 11, color: "#92400e" }}>
-                              <strong>Observações:</strong> {item.observations}
-                            </span>
+                          {/* Card footer */}
+                          <div style={{ padding: "10px 12px", backgroundColor: "#fafaf9", borderTop: "1px solid #e7e5e4", display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() => { setSelectedItem(item); setReturnObservations(""); setReturnConfirmOpen(true); }}
+                              disabled={returnToArteMutation.isPending}
+                              data-testid={`button-return-${item.id}`}
+                              style={{ flex: 1, border: "1px solid #b91c1c", color: "#b91c1c", backgroundColor: "transparent", fontSize: 10, fontWeight: 700, textTransform: "uppercase", padding: "8px 0", cursor: "pointer", borderRadius: 4, letterSpacing: "0.06em" }}
+                            >
+                              Devolver
+                            </button>
+                            <button
+                              onClick={() => { setSelectedItem(item); setReleaseConfirmOpen(true); }}
+                              disabled={creatorReviewMutation.isPending}
+                              data-testid={`button-release-${item.id}`}
+                              style={{ flex: 1, backgroundColor: "#1c1917", color: "#fff", border: "none", fontSize: 10, fontWeight: 700, textTransform: "uppercase", padding: "8px 0", cursor: "pointer", borderRadius: 4, letterSpacing: "0.06em" }}
+                            >
+                              Liberar
+                            </button>
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* ── Item details dialog ── */}
-      <ItemDetailsDialog
-        item={selectedItem}
-        auditLogs={auditLogs}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onEditSave={(editedItem) => {
-          if (selectedItem?.id) {
-            editItemMutation.mutate({
-              itemId: selectedItem.id,
-              updates: { type: editedItem.type, material: editedItem.material, finish: editedItem.finish, description: editedItem.description },
-            });
-          }
-        }}
-        topActions={selectedItem ? (
-          <div className="space-y-3">
-            {/* Thumb aprovado */}
-            {selectedItem.approvalThumbUrl && (() => {
-              const url = selectedItem.approvalThumbUrl.toLowerCase();
-              const isImage = /\.(png|jpg|jpeg|gif|webp)/i.test(url);
-              const isPdf = url.includes(".pdf") || (!isImage && url.includes("/objects/"));
-              return (
-                <div style={{ border: `1px solid ${TI.border}`, borderRadius: 10, overflow: "hidden" }}>
-                  <div style={{ padding: "10px 14px", borderBottom: `1px solid ${TI.border}`, backgroundColor: TI.bg, display: "flex", alignItems: "center", gap: 7 }}>
-                    <Eye style={{ width: 14, height: 14, color: TI.accent }} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: TI.text }}>Thumb de Aprovação {isPdf ? "(PDF)" : ""}</span>
-                  </div>
-                  <div style={{ padding: 12, backgroundColor: TI.surface }}>
-                    {isPdf ? (
-                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" data-testid="button-open-approval-pdf"
-                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 8, backgroundColor: TI.bg, border: `1px solid ${TI.border}`, color: TI.text, textDecoration: "none", fontSize: 12, fontWeight: 600 }}>
-                        <FileText style={{ width: 16, height: 16, color: TI.accent }} />
-                        Abrir PDF de Aprovação
-                      </a>
-                    ) : (
-                      <img src={selectedItem.approvalThumbUrl} alt="Thumb Aprovado" data-testid="img-approval-thumb"
-                        style={{ width: "100%", borderRadius: 6, border: `1px solid ${TI.border}`, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }} />
-                    )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
-            })()}
+            })}
+          </div>
+        )}
+      </section>
 
-            {/* Arquivo final */}
-            <div style={{ border: `1px solid ${TI.border}`, borderRadius: 10, overflow: "hidden" }}>
-              <div style={{ padding: "10px 14px", borderBottom: `1px solid ${TI.border}`, backgroundColor: TI.bg, display: "flex", alignItems: "center", gap: 7 }}>
-                <FileText style={{ width: 14, height: 14, color: TI.text }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: TI.text }}>Arquivo Final para Revisão</span>
+      {/* ── 5. REVIEW MODAL ────────────────────────────────────────────── */}
+      <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) { setShowReturnForm(false); setReturnObservations(""); } }}>
+        <DialogContent className="max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col" style={{ height: "87vh", maxHeight: 900 }}>
+          <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
+
+            {/* Left column — art visualizer (40%) */}
+            <div style={{ width: "40%", backgroundColor: "#f3f4f3", display: "flex", flexDirection: "column", borderRight: "1px solid #e7e5e4", overflow: "hidden" }}>
+              {/* Left header */}
+              <div style={{ padding: "12px 16px", backgroundColor: "#673AB7", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff" }}>Visualizador de Arte</span>
+                <Maximize2 style={{ width: 16, height: 16, color: "rgba(255,255,255,0.7)" }} />
               </div>
-              <div style={{ padding: 12, backgroundColor: TI.surface }}>
-                {selectedItem.finalFileUrl ? (
-                  <p style={{ fontFamily: "monospace", fontSize: 11, backgroundColor: TI.bg, border: `1px solid ${TI.border}`, borderRadius: 6, padding: "8px 10px", color: TI.text, wordBreak: "break-all", margin: 0 }}>
-                    {selectedItem.finalFileUrl}
+
+              {/* Left content */}
+              <div style={{ flex: 1, padding: 20, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
+                {/* Art preview */}
+                <div style={{ aspectRatio: "1/1", width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {selectedItem?.approvalThumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(selectedItem.approvalThumbUrl) ? (
+                    <img src={selectedItem.approvalThumbUrl} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  ) : selectedItem?.approvalThumbUrl ? (
+                    <div style={{ textAlign: "center", padding: 24 }}>
+                      <FileText style={{ width: 40, height: 40, color: "#a8a29e", margin: "0 auto 8px" }} />
+                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 12, color: "#f97316", fontWeight: 600, textDecoration: "none" }}>
+                        Abrir PDF de Aprovação
+                      </a>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: "center", color: "#a8a29e" }}>
+                      <FileImage style={{ width: 40, height: 40, margin: "0 auto 8px" }} />
+                      <p style={{ fontSize: 12 }}>Sem thumb disponível</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* File path */}
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 900, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Caminho do Arquivo Final</p>
+                  {selectedItem?.finalFileUrl ? (
+                    <div style={{ backgroundColor: "#e2e2e2", padding: "8px 10px", borderRadius: 6, fontFamily: "monospace", fontSize: 10, color: "#57534e", wordBreak: "break-all" }}>
+                      {selectedItem.finalFileUrl}
+                    </div>
+                  ) : (
+                    <div style={{ backgroundColor: "#fff0ee", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#b91c1c", fontWeight: 600 }}>
+                      Nenhum arquivo final enviado
+                    </div>
+                  )}
+                </div>
+
+                {/* Technical metadata grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {[
+                    { label: "Tipo", value: selectedItem?.type || "—" },
+                    { label: "Material", value: selectedItem?.material || "—" },
+                    { label: "Acabamento", value: selectedItem?.finish || "—" },
+                    { label: "Quantidade", value: selectedItem?.quantity ? `${selectedItem.quantity}x` : "—" },
+                    { label: "Dimensões", value: selectedItem?.fileWidth && selectedItem?.fileHeight ? `${selectedItem.fileWidth}×${selectedItem.fileHeight}` : "—" },
+                    { label: "M²", value: selectedItem?.calculatedM2 || "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4" }}>
+                      <p style={{ fontSize: 9, color: "#a8a29e", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0 }}>{label}</p>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: TI.text, margin: "3px 0 0" }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right column — decision & timeline (60%) */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#fff", overflow: "hidden" }}>
+              {/* Right header */}
+              <div style={{ padding: "20px 24px", borderBottom: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
+                <div>
+                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", letterSpacing: "-0.03em", color: TI.text, margin: 0 }}>
+                    Decisão de Revisão
+                  </h2>
+                  <p style={{ fontSize: 13, color: TI.secondary, margin: "4px 0 0" }}>
+                    {selectedItem?.displayId && `ID: ${selectedItem.displayId}`}
+                    {selectedItem?.type && ` | ${selectedItem.type}`}
                   </p>
-                ) : (
-                  <p style={{ fontSize: 12, color: TI.muted, margin: 0 }}>Nenhum arquivo final enviado</p>
+                </div>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 4, display: "flex", borderRadius: 6 }}
+                  onMouseEnter={e => (e.currentTarget.style.color = TI.text)}
+                  onMouseLeave={e => (e.currentTarget.style.color = TI.muted)}
+                >
+                  <X style={{ width: 20, height: 20 }} />
+                </button>
+              </div>
+
+              {/* Right body */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", display: "flex", flexDirection: "column", gap: 28 }}>
+
+                {/* Action card (dark) */}
+                <div style={{ backgroundColor: "#0c0a09", padding: 28, borderRadius: 12, display: "flex", flexDirection: "column", gap: 20 }}>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button
+                      onClick={() => setReleaseConfirmOpen(true)}
+                      disabled={creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}
+                      data-testid="button-release-modal"
+                      title={!selectedItem?.finalFileUrl ? "Arquivo final não enviado" : ""}
+                      style={{
+                        flex: 1, padding: "14px 0", borderRadius: 6, border: "none",
+                        backgroundColor: !selectedItem?.finalFileUrl ? "#292524" : "#9d4300",
+                        color: !selectedItem?.finalFileUrl ? "#57534e" : "#fff",
+                        fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em",
+                        cursor: !selectedItem?.finalFileUrl || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
+                    </button>
+                    <button
+                      onClick={() => setShowReturnForm(f => !f)}
+                      data-testid="button-return-toggle"
+                      style={{
+                        flex: 1, padding: "14px 0", borderRadius: 6,
+                        border: "1px solid #44403c", backgroundColor: "transparent",
+                        color: "#d6d3d1", fontSize: 12, fontWeight: 900,
+                        textTransform: "uppercase", letterSpacing: "0.12em", cursor: "pointer",
+                      }}
+                    >
+                      Devolver para Arte
+                    </button>
+                  </div>
+
+                  {/* Return form */}
+                  {showReturnForm && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <textarea
+                        placeholder="Adicionar observação técnica para a equipe..."
+                        value={returnObservations}
+                        onChange={e => setReturnObservations(e.target.value)}
+                        data-testid="textarea-return-observations"
+                        style={{
+                          width: "100%", minHeight: 100, padding: 14, borderRadius: 8,
+                          backgroundColor: "#1c1917", border: "1px solid #44403c",
+                          color: "#fff", fontSize: 13, resize: "none", outline: "none",
+                          fontFamily: "inherit", boxSizing: "border-box",
+                        }}
+                      />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => setReturnConfirmOpen(true)}
+                          disabled={returnToArteMutation.isPending}
+                          data-testid="button-confirm-return"
+                          style={{ flex: 1, padding: "10px 0", borderRadius: 6, border: "none", backgroundColor: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}
+                        >
+                          {returnToArteMutation.isPending ? "Devolvendo..." : "Confirmar Devolução"}
+                        </button>
+                        <button
+                          onClick={() => { setShowReturnForm(false); setReturnObservations(""); }}
+                          style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #44403c", backgroundColor: "transparent", color: "#78716c", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Observations */}
+                {selectedItem?.observations && (
+                  <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 14px", display: "flex", gap: 8 }}>
+                    <AlertCircle style={{ width: 14, height: 14, color: "#d97706", flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: 0 }}>Observações do item</p>
+                      <p style={{ fontSize: 12, color: "#78350f", margin: "4px 0 0" }}>{selectedItem.observations}</p>
+                    </div>
+                  </div>
                 )}
+
+                {/* History timeline */}
+                <div>
+                  <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 10, borderBottom: "1px solid #f0efee", margin: "0 0 20px" }}>
+                    HISTÓRICO
+                  </h3>
+                  {itemAuditLogs.length === 0 ? (
+                    <p style={{ fontSize: 12, color: TI.muted }}>Sem histórico disponível.</p>
+                  ) : (
+                    <div style={{ position: "relative", paddingLeft: 24 }}>
+                      {/* Vertical line */}
+                      <div style={{ position: "absolute", left: 11, top: 8, bottom: 0, width: 2, backgroundColor: "#f0efee" }} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                        {itemAuditLogs.map((log: any, idx: number) => {
+                          const dotColors = ["#10b981", "#f97316", "#3b82f6", "#d946ef", "#a8a29e"];
+                          const dot = dotColors[idx % dotColors.length];
+                          return (
+                            <div key={log.id || idx} style={{ position: "relative" }}>
+                              <span style={{
+                                position: "absolute", left: -22, top: 2,
+                                width: 16, height: 16, borderRadius: "50%",
+                                backgroundColor: "#fff", border: `4px solid ${dot}`, zIndex: 1,
+                              }} />
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                                <div>
+                                  <p style={{ fontSize: 12, fontWeight: 700, color: TI.text, margin: 0 }}>{log.action || log.details}</p>
+                                  {log.userName && <p style={{ fontSize: 10, color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
+                                  {log.details && log.action && (
+                                    <p style={{ fontSize: 11, fontStyle: "italic", color: TI.secondary, backgroundColor: "#f3f4f3", padding: "6px 8px", borderRadius: 4, margin: "6px 0 0" }}>
+                                      "{log.details}"
+                                    </p>
+                                  )}
+                                </div>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: TI.muted, whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                                  {log.createdAt ? new Date(log.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right footer — keyboard shortcuts */}
+              <div style={{ padding: "14px 24px", backgroundColor: "#fafaf9", borderTop: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
+                  <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 4, color: TI.text }}>Enter</span>
+                  <span style={{ fontSize: 10, color: TI.secondary }}>Liberar</span>
+                  <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 4, color: TI.text }}>Esc</span>
+                  <span style={{ fontSize: 10, color: TI.secondary }}>Fechar</span>
+                </div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: TI.muted, margin: 0 }}>NORTE v2.0</p>
               </div>
             </div>
           </div>
-        ) : undefined}
-        customActions={selectedItem ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button onClick={handleReleaseConfirm} disabled={creatorReviewMutation.isPending} data-testid="button-release-final"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 0", borderRadius: 8, cursor: "pointer", backgroundColor: TI.text, color: "#fff", border: "none", fontSize: 13, fontWeight: 700 }}>
-              <CheckCircle style={{ width: 16, height: 16 }} />
-              {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
-            </button>
-            <button onClick={handleReturnToArte} disabled={returnToArteMutation.isPending} data-testid="button-return-final"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 0", borderRadius: 8, cursor: "pointer", backgroundColor: "transparent", color: "#b91c1c", border: "1.5px solid #b91c1c", fontSize: 13, fontWeight: 600 }}>
-              <ArrowLeft style={{ width: 16, height: 16 }} />
-              Devolver para Arte
-            </button>
-            <button onClick={handleCancelConfirm} disabled={bulkCancelMutation.isPending} data-testid="button-cancel-item"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 0", borderRadius: 8, cursor: "pointer", backgroundColor: "transparent", color: "#dc2626", border: "1px solid #fca5a5", fontSize: 12, fontWeight: 500 }}>
-              <Trash2 style={{ width: 15, height: 15 }} />
-              {bulkCancelMutation.isPending ? "Cancelando..." : "Cancelar Item"}
-            </button>
-          </div>
-        ) : undefined}
-      />
+        </DialogContent>
+      </Dialog>
 
-      {/* ── Confirm dialogs ── */}
+      {/* ── CONFIRM DIALOGS ─────────────────────────────────────────────── */}
 
+      {/* Release single */}
       <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar para Produção</AlertDialogTitle>
-            <AlertDialogDescription>Deseja liberar este item para produção?</AlertDialogDescription>
+            <AlertDialogDescription>
+              {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type} será liberado para produção.</span>}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-release-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRelease} style={{ backgroundColor: TI.text, color: "#fff" }} data-testid="button-release-confirm">
+            <AlertDialogAction
+              onClick={() => selectedItem && creatorReviewMutation.mutate(selectedItem.id)}
+              style={{ backgroundColor: TI.text, color: "#fff" }}
+              data-testid="button-release-confirm"
+            >
               {creatorReviewMutation.isPending ? "Liberando..." : "Liberar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Return to Arte from card (quick) */}
+      <AlertDialog open={returnConfirmOpen} onOpenChange={setReturnConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Devolver para Arte</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedItem && <span><strong>{selectedItem.displayId}</strong> será devolvido à equipe de Arte.</span>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div style={{ padding: "0 24px" }}>
+            <textarea
+              placeholder="Descreva as alterações necessárias (opcional)..."
+              value={returnObservations}
+              onChange={e => setReturnObservations(e.target.value)}
+              data-testid="textarea-return-quick"
+              className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-return-cancel" onClick={() => { setReturnObservations(""); }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations })}
+              style={{ backgroundColor: TI.text, color: "#fff" }}
+              data-testid="button-return-confirm"
+            >
+              {returnToArteMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk release */}
       <AlertDialog open={bulkReleaseConfirmOpen} onOpenChange={setBulkReleaseConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Liberar {selectedItemIds.size} itens para Produção</AlertDialogTitle>
-            <AlertDialogDescription>Deseja liberar {selectedItemIds.size} {selectedItemIds.size === 1 ? "item" : "itens"} para produção?</AlertDialogDescription>
+            <AlertDialogTitle>Liberar {selectedItemIds.size} iten{selectedItemIds.size !== 1 ? "s" : ""}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja liberar {selectedItemIds.size} {selectedItemIds.size === 1 ? "item" : "itens"} para produção?
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-bulk-release-cancel">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmBulkRelease} style={{ backgroundColor: TI.text, color: "#fff" }} data-testid="button-bulk-release-confirm">
+            <AlertDialogAction
+              onClick={() => bulkReleaseMutation.mutate(Array.from(selectedItemIds))}
+              style={{ backgroundColor: TI.text, color: "#fff" }}
+              data-testid="button-bulk-release-confirm"
+            >
               {bulkReleaseMutation.isPending ? "Liberando..." : "Liberar Todos"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={returnObservationOpen} onOpenChange={setReturnObservationOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Devolver para Arte</DialogTitle>
-            <DialogDescription>Descreva as alterações necessárias (opcional)</DialogDescription>
-          </DialogHeader>
-          <textarea placeholder="Descreva as alterações necessárias..." value={returnObservations}
-            onChange={(e) => setReturnObservations(e.target.value)}
-            className="w-full min-h-24 p-2 border rounded-md bg-background text-foreground resize-none"
-            data-testid="textarea-return-observations" />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReturnObservationOpen(false)} data-testid="button-return-cancel">Cancelar</Button>
-            <Button onClick={confirmReturnToArte} disabled={returnToArteMutation.isPending} data-testid="button-return-confirm"
-              style={{ backgroundColor: TI.text, color: "#fff" }}>
-              {returnToArteMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancelar Item</DialogTitle>
-            <DialogDescription>
-              Adicione uma observação opcional explicando o motivo.
-              {selectedItem && (
-                <div style={{ marginTop: 10, padding: "8px 12px", backgroundColor: TI.bg, border: `1px solid ${TI.border}`, borderRadius: 8, fontSize: 12 }}>
-                  <strong>{selectedItem.displayId}</strong> — {selectedItem.type}
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <textarea placeholder="Motivo do cancelamento (opcional)..." value={cancelObservations}
-            onChange={(e) => setCancelObservations(e.target.value)}
-            className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none"
-            data-testid="textarea-cancel-observations" />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelConfirmOpen(false)} data-testid="button-cancel-cancel">Manter Item</Button>
-            <Button variant="destructive" onClick={confirmCancel} disabled={bulkCancelMutation.isPending} data-testid="button-cancel-confirm">
-              {bulkCancelMutation.isPending ? "Cancelando..." : "Confirmar Cancelamento"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={bulkReturnConfirmOpen} onOpenChange={setBulkReturnConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Devolver {selectedItemIds.size} itens para Arte</DialogTitle>
-            <DialogDescription>Deseja devolver {selectedItemIds.size} {selectedItemIds.size === 1 ? "item" : "itens"} para a Arte?</DialogDescription>
-          </DialogHeader>
-          <textarea placeholder="Observações (opcional)..." value={bulkReturnObservations}
-            onChange={(e) => setBulkReturnObservations(e.target.value)}
-            className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none"
-            data-testid="textarea-bulk-return-observations" />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkReturnConfirmOpen(false)} data-testid="button-bulk-return-cancel">Manter Itens</Button>
-            <Button onClick={confirmBulkReturnToArte} data-testid="button-bulk-return-confirm" style={{ backgroundColor: TI.text, color: "#fff" }}>
+      {/* Bulk return */}
+      <AlertDialog open={bulkReturnConfirmOpen} onOpenChange={setBulkReturnConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Devolver {selectedItemIds.size} iten{selectedItemIds.size !== 1 ? "s" : ""} para Arte</AlertDialogTitle>
+            <AlertDialogDescription>
+              Deseja devolver {selectedItemIds.size} {selectedItemIds.size === 1 ? "item" : "itens"} para a Arte?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div style={{ padding: "0 24px" }}>
+            <textarea
+              placeholder="Observações (opcional)..."
+              value={bulkReturnObservations}
+              onChange={e => setBulkReturnObservations(e.target.value)}
+              data-testid="textarea-bulk-return"
+              className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-bulk-return-cancel">Manter Itens</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                const ids = Array.from(selectedItemIds);
+                await Promise.all(ids.map(id => apiRequest("POST", `/api/items/${id}/return-to-arte`, { notes: bulkReturnObservations })));
+                queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+                setSelectedItemIds(new Set()); setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
+                toast({ title: "Peças devolvidas", description: `${ids.length} peça(s) devolvida(s) para a Arte.` });
+              }}
+              style={{ backgroundColor: TI.text, color: "#fff" }}
+              data-testid="button-bulk-return-confirm"
+            >
               Devolver para Arte
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      <Dialog open={bulkCancelConfirmOpen} onOpenChange={setBulkCancelConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancelar {selectedItemIds.size} itens</DialogTitle>
-            <DialogDescription>Deseja cancelar {selectedItemIds.size} {selectedItemIds.size === 1 ? "item" : "itens"}?</DialogDescription>
-          </DialogHeader>
-          <textarea placeholder="Motivo do cancelamento (opcional)..." value={bulkCancelObservations}
-            onChange={(e) => setBulkCancelObservations(e.target.value)}
-            className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none"
-            data-testid="textarea-bulk-cancel-observations" />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkCancelConfirmOpen(false)} data-testid="button-bulk-cancel-cancel">Manter Itens</Button>
-            <Button variant="destructive" onClick={confirmBulkCancel} disabled={bulkCancelMutation.isPending} data-testid="button-bulk-cancel-confirm">
+      {/* Cancel single */}
+      <AlertDialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar Item</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type}</span>}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div style={{ padding: "0 24px" }}>
+            <textarea
+              placeholder="Motivo do cancelamento (opcional)..."
+              value={cancelObservations}
+              onChange={e => setCancelObservations(e.target.value)}
+              data-testid="textarea-cancel"
+              className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-cancel">Manter Item</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => selectedItem && bulkCancelMutation.mutate({ itemIds: [selectedItem.id], notes: cancelObservations })}
+              className="bg-destructive text-destructive-foreground"
+              data-testid="button-cancel-confirm"
+            >
               {bulkCancelMutation.isPending ? "Cancelando..." : "Confirmar Cancelamento"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

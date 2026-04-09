@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&amp;family=Plus_Jakarta_Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary": "#ffffff",
+                    "surface-container-high": "#e8e8e7",
+                    "background": "#f9f9f8",
+                    "surface-tint": "#625d5b",
+                    "on-tertiary": "#ffffff",
+                    "on-error": "#ffffff",
+                    "secondary-fixed-dim": "#ffb690",
+                    "on-tertiary-fixed": "#001d32",
+                    "on-secondary-fixed": "#341100",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-low": "#f3f4f3",
+                    "on-tertiary-fixed-variant": "#004b74",
+                    "on-primary-fixed-variant": "#4a4643",
+                    "tertiary": "#006398",
+                    "surface-variant": "#e2e2e2",
+                    "error": "#ba1a1a",
+                    "tertiary-fixed": "#cde5ff",
+                    "inverse-primary": "#ccc5c2",
+                    "on-background": "#1a1c1c",
+                    "on-surface-variant": "#584237",
+                    "tertiary-container": "#00a2f4",
+                    "on-error-container": "#93000a",
+                    "inverse-surface": "#2f3130",
+                    "tertiary-fixed-dim": "#93ccff",
+                    "secondary": "#9d4300",
+                    "primary-fixed-dim": "#ccc5c2",
+                    "on-surface": "#1a1c1c",
+                    "on-secondary-fixed-variant": "#783200",
+                    "on-secondary": "#ffffff",
+                    "surface-container": "#eeeeed",
+                    "surface": "#f9f9f8",
+                    "on-primary-fixed": "#1e1b19",
+                    "surface-dim": "#dadad9",
+                    "secondary-fixed": "#ffdbca",
+                    "primary-container": "#9f9996",
+                    "on-primary-container": "#35322f",
+                    "surface-container-highest": "#e2e2e2",
+                    "primary": "#625d5b",
+                    "on-secondary-container": "#5c2400",
+                    "outline": "#8c7164",
+                    "inverse-on-surface": "#f1f1f0",
+                    "secondary-container": "#fd761a",
+                    "error-container": "#ffdad6",
+                    "surface-bright": "#f9f9f8",
+                    "on-tertiary-container": "#003554",
+                    "primary-fixed": "#e9e1dd",
+                    "outline-variant": "#e0c0b1"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Space Grotesk"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        h1, h2, h3, .headline { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.03em; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen">
+<!-- Top Navigation Anchor -->
+<header class="sticky top-0 z-50 flex justify-between items-center w-full px-6 py-3 bg-stone-50/80 dark:bg-stone-950/80 backdrop-blur-xl shadow-[0_16px_32px_-12px_rgba(0,0,0,0.05)]">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black italic tracking-tighter text-stone-900 dark:text-stone-100 uppercase">NORTE Production</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 font-['Space_Grotesk'] tracking-[-0.03em] uppercase" href="#">Campaigns</a>
+<a class="text-orange-600 dark:text-orange-500 font-bold border-b-2 border-orange-600 font-['Space_Grotesk'] tracking-[-0.03em] uppercase" href="#">Sponsors</a>
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 font-['Space_Grotesk'] tracking-[-0.03em] uppercase" href="#">Graphics</a>
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 font-['Space_Grotesk'] tracking-[-0.03em] uppercase" href="#">Analytics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined p-2 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 transition-all rounded-full">notifications</button>
+<button class="material-symbols-outlined p-2 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 transition-all rounded-full">settings</button>
+<div class="w-8 h-8 rounded-full bg-stone-200 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="professional portrait of a creative production director in a high-end office environment with cinematic lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3TY3Ek2pU6XUHmj42ulVcCU-oiNn6IJ8tfA6CgUdwmguzZ6IhVG59fHxOrSY03W4Yzp6XQLrKZmTMxByt6jKYm0Y-YltwNtExgiEEkHLm6cm1w8HMIZvLJzhW9i2R89bsEeHqBSq9Kwc4WtimnqA0B_2ix1yj7w9Lu2xfipxaWrn8rTX_zIx-cbiWKfSOXk0nB4-XabcviFCOJG5EU_XzCVKJo8FUb7BkPMJb8saHeyVKM3Q_pe89l1PJMXDWdF7yRn-FFnW-_Jaz"/>
+</div>
+</div>
+</header>
+<main class="max-w-[1152px] mx-auto px-6 py-10 space-y-8">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="space-y-1">
+<h1 class="text-5xl font-black uppercase text-on-background">Vincular Patrocinadores</h1>
+<div class="flex flex-wrap gap-2 pt-2">
+<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-widest bg-stone-200 text-stone-600 uppercase">PENDENTE</span>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-widest bg-orange-100 text-orange-700 uppercase">RASCUNHO</span>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-widest bg-green-100 text-green-700 uppercase">PRONTO</span>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-widest bg-stone-900 text-white opacity-55 uppercase">ENVIADO</span>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="px-5 py-2.5 bg-stone-200 text-on-surface font-bold text-sm rounded-md hover:bg-stone-300 transition-all">Exportar PDF</button>
+<button class="px-5 py-2.5 bg-secondary text-on-secondary font-bold text-sm rounded-md hover:brightness-110 transition-all">Finalizar Lote</button>
+</div>
+</div>
+<!-- Progress Section -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="md:col-span-2 bg-surface-container-low p-6 rounded-xl flex flex-col justify-between">
+<div class="flex justify-between items-end mb-4">
+<span class="text-sm font-bold uppercase tracking-tight text-on-surface-variant">Progresso de Envio</span>
+<span class="text-2xl font-black headline">18 <span class="text-stone-400">de</span> 42 <span class="text-xs font-medium text-stone-500 uppercase tracking-widest ml-1">enviados</span></span>
+</div>
+<div class="w-full h-2 bg-stone-200 rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[42%] transition-all duration-500"></div>
+</div>
+</div>
+<div class="space-y-3">
+<div class="bg-surface-container-low border-l-4 border-orange-500 p-4 flex justify-between items-center rounded-r-xl">
+<div>
+<p class="text-[10px] font-bold text-orange-700 uppercase tracking-wider">Ação Pendente</p>
+<p class="text-sm font-bold">12 itens em RASCUNHO</p>
+</div>
+<button class="material-symbols-outlined text-orange-600">arrow_forward_ios</button>
+</div>
+<div class="bg-surface-container-low border-l-4 border-green-500 p-4 flex justify-between items-center rounded-r-xl">
+<div>
+<p class="text-[10px] font-bold text-green-700 uppercase tracking-wider">Pronto para Envio</p>
+<p class="text-sm font-bold">8 itens aguardando</p>
+</div>
+<button class="material-symbols-outlined text-green-600">send</button>
+</div>
+</div>
+</div>
+<!-- Filter and Navigation -->
+<div class="space-y-6">
+<div class="flex justify-start border-b border-stone-200">
+<button class="px-8 py-3 text-sm font-extrabold uppercase tracking-tighter border-b-2 border-on-background">Por Item</button>
+<button class="px-8 py-3 text-sm font-bold uppercase tracking-tighter text-stone-400 hover:text-on-background transition-colors">Por Patrocinador</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+<div class="relative">
+<select class="w-full bg-surface-container-high border-none rounded-md py-3 px-4 text-sm font-semibold appearance-none focus:ring-2 focus:ring-orange-500/20">
+<option>Evento: Todos</option>
+<option>Circuito Banco do Brasil</option>
+<option>Maratona de SP</option>
+</select>
+</div>
+<div class="relative">
+<select class="w-full bg-surface-container-high border-none rounded-md py-3 px-4 text-sm font-semibold appearance-none focus:ring-2 focus:ring-orange-500/20">
+<option>Patrocinador: Todos</option>
+<option>Nike</option>
+<option>Gatorade</option>
+</select>
+</div>
+<div class="relative">
+<select class="w-full bg-surface-container-high border-none rounded-md py-3 px-4 text-sm font-semibold appearance-none focus:ring-2 focus:ring-orange-500/20">
+<option>Peça: Todas</option>
+<option>Pórtico</option>
+<option>Backdrop</option>
+</select>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">search</span>
+<input class="w-full bg-surface-container-high border-none rounded-md py-3 pl-10 pr-4 text-sm font-semibold focus:ring-2 focus:ring-orange-500/20" placeholder="Buscar por ID ou Nome..." type="text"/>
+</div>
+</div>
+</div>
+<!-- Content Area: Grouped by Event -->
+<div class="space-y-12">
+<!-- Event Card Group -->
+<section class="space-y-4">
+<header class="bg-[#1c1917] text-white p-5 rounded-t-xl flex justify-between items-center">
+<div class="flex items-center gap-4">
+<h2 class="text-xl font-bold uppercase tracking-tight">Circuito Banco do Brasil - Etapa Rio</h2>
+<span class="px-2 py-0.5 bg-secondary text-[10px] font-black rounded-sm">5/12 CONCLUÍDO</span>
+</div>
+<div class="flex gap-6 text-xs font-medium text-stone-400">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">calendar_today</span>
+<span>24 OUT 2024</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">local_shipping</span>
+<span>18 OUT 2024</span>
+</div>
+</div>
+</header>
+<div class="bg-white rounded-b-xl overflow-hidden shadow-sm">
+<!-- Sub-grouping: Category -->
+<div class="border-l-4 border-orange-500 bg-orange-50/30 px-6 py-3 flex items-center justify-between">
+<span class="text-xs font-black uppercase tracking-widest text-orange-700">PÓRTICOS — 3 itens</span>
+<span class="material-symbols-outlined text-stone-400">expand_less</span>
+</div>
+<!-- Production Table -->
+<table class="w-full border-collapse">
+<thead class="bg-stone-50 border-b border-stone-100">
+<tr class="text-[10px] font-black text-stone-400 uppercase tracking-widest">
+<th class="w-12 py-4 pl-6 text-left"><input class="rounded-sm border-stone-300 text-secondary focus:ring-secondary" type="checkbox"/></th>
+<th class="py-4 text-left">ID</th>
+<th class="py-4 text-left">Peça / Especificação</th>
+<th class="py-4 text-left">Detalhes</th>
+<th class="py-4 text-left">Vínculos Ativos</th>
+<th class="py-4 text-right pr-6">Status / Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-100">
+<!-- Row: RASCUNHO -->
+<tr class="bg-orange-50/40 border-l-4 border-orange-500 group">
+<td class="py-4 pl-6"><input class="rounded-sm border-stone-300 text-secondary focus:ring-secondary" type="checkbox"/></td>
+<td class="py-4 font-mono text-xs font-bold text-stone-500">PT-001</td>
+<td class="py-4">
+<div class="flex flex-col">
+<span class="font-bold text-sm text-stone-900">Pórtico de Chegada Premium</span>
+<span class="text-xs text-stone-500">Lona Backlight 440g - Brilhante</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex flex-col">
+<span class="text-xs font-bold">Qty: 01</span>
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-tighter">8.00 x 4.50m (36m²)</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex flex-wrap gap-2">
+<label class="flex items-center gap-1.5 px-2 py-1 bg-white border border-stone-200 rounded-md cursor-pointer hover:border-secondary transition-colors">
+<input checked="" class="w-3 h-3 rounded-sm border-stone-300 text-secondary focus:ring-secondary" type="checkbox"/>
+<span class="text-[10px] font-bold uppercase">Nike</span>
+</label>
+<label class="flex items-center gap-1.5 px-2 py-1 bg-white border border-stone-200 rounded-md cursor-pointer hover:border-secondary transition-colors">
+<input class="w-3 h-3 rounded-sm border-stone-300 text-secondary focus:ring-secondary" type="checkbox"/>
+<span class="text-[10px] font-bold uppercase">BB</span>
+</label>
+</div>
+</td>
+<td class="py-4 text-right pr-6">
+<div class="flex items-center justify-end gap-3">
+<span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold tracking-widest bg-orange-100 text-orange-700 uppercase">RASCUNHO</span>
+<button class="material-symbols-outlined text-stone-400 hover:text-on-background">more_vert</button>
+</div>
+</td>
+</tr>
+<!-- Row: PRONTO -->
+<tr class="bg-green-50/40 group">
+<td class="py-4 pl-6"><input class="rounded-sm border-stone-300 text-secondary focus:ring-secondary" type="checkbox"/></td>
+<td class="py-4 font-mono text-xs font-bold text-stone-500">PT-002</td>
+<td class="py-4">
+<div class="flex flex-col">
+<span class="font-bold text-sm text-stone-900">Pórtico de Largada Interativo</span>
+<span class="text-xs text-stone-500">Estrutura BoxTruss Q30 + Lycra</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex flex-col">
+<span class="text-xs font-bold">Qty: 01</span>
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-tighter">12.00 x 6.00m (72m²)</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-1 bg-stone-900 text-white text-[9px] font-bold uppercase rounded-sm">Gatorade</span>
+<span class="px-2 py-1 bg-stone-900 text-white text-[9px] font-bold uppercase rounded-sm">Nike</span>
+</div>
+</td>
+<td class="py-4 text-right pr-6">
+<div class="flex items-center justify-end gap-3">
+<span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold tracking-widest bg-green-100 text-green-700 uppercase">PRONTO</span>
+<button class="material-symbols-outlined text-stone-400 hover:text-on-background">more_vert</button>
+</div>
+</td>
+</tr>
+<!-- Row: ENVIADO -->
+<tr class="opacity-55 group grayscale hover:grayscale-0 transition-all">
+<td class="py-4 pl-6"><input class="rounded-sm border-stone-300" disabled="" type="checkbox"/></td>
+<td class="py-4 font-mono text-xs font-bold text-stone-500">PT-003</td>
+<td class="py-4">
+<div class="flex flex-col">
+<span class="font-bold text-sm text-stone-900">Totem de Km (Lote A)</span>
+<span class="text-xs text-stone-500">PS 2mm + Adesivo Fosco</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex flex-col">
+<span class="text-xs font-bold">Qty: 21</span>
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-tighter">0.60 x 1.80m</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-1 bg-stone-200 text-stone-600 text-[9px] font-bold uppercase rounded-sm">Multi</span>
+</div>
+</td>
+<td class="py-4 text-right pr-6">
+<div class="flex items-center justify-end gap-3">
+<span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold tracking-widest bg-stone-900 text-white uppercase">ENVIADO</span>
+<span class="material-symbols-outlined text-stone-400 text-sm">lock</span>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Second Group: Maratona -->
+<section class="space-y-4">
+<header class="bg-[#1c1917] text-white p-5 rounded-t-xl flex justify-between items-center">
+<div class="flex items-center gap-4">
+<h2 class="text-xl font-bold uppercase tracking-tight">Maratona Internacional de São Paulo</h2>
+<span class="px-2 py-0.5 bg-stone-700 text-[10px] font-black rounded-sm">0/24 CONCLUÍDO</span>
+</div>
+<div class="flex gap-6 text-xs font-medium text-stone-400">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">calendar_today</span>
+<span>12 NOV 2024</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">local_shipping</span>
+<span>05 NOV 2024</span>
+</div>
+</div>
+</header>
+<div class="bg-surface-container-low p-12 text-center rounded-b-xl border border-dashed border-stone-300">
+<span class="material-symbols-outlined text-4xl text-stone-300 mb-2">dashboard_customize</span>
+<p class="text-stone-500 font-bold text-sm">Selecione uma categoria para expandir os itens de produção.</p>
+</div>
+</section>
+</div>
+</main>
+<!-- Sticky Bulk Toolbar -->
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-50">
+<div class="bg-stone-900 text-white p-4 rounded-xl flex items-center justify-between shadow-2xl border border-white/10 backdrop-blur-md">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-secondary flex items-center justify-center rounded-lg">
+<span class="text-lg font-black headline">04</span>
+</div>
+<div>
+<p class="text-sm font-bold uppercase tracking-tighter">Itens Selecionados</p>
+<p class="text-[10px] text-stone-400 font-medium uppercase tracking-widest">Lote de produção ativa</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-2 text-xs font-bold text-stone-400 hover:text-white transition-colors uppercase">Limpar</button>
+<button class="bg-secondary px-6 py-2 rounded-md text-sm font-black uppercase tracking-tight flex items-center gap-2 hover:brightness-110 transition-all">
+<span>Aplicar Patrocinadores</span>
+<span class="material-symbols-outlined text-sm">handshake</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Side Navigation Anchor -->
+<aside class="hidden lg:flex flex-col h-screen w-64 fixed left-0 top-0 bg-stone-50 dark:bg-stone-950 p-4 space-y-2 border-r border-stone-200">
+<div class="mb-8 px-2 py-4">
+<span class="text-orange-600 font-bold text-sm uppercase tracking-widest block mb-1">Project Alpha</span>
+<span class="text-stone-400 text-[10px] font-bold uppercase tracking-wider">Elite Sports Marketing</span>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-900 hover:translate-x-1 transition-transform duration-200 rounded-md font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-900 hover:translate-x-1 transition-transform duration-200 rounded-md font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg">precision_manufacturing</span>
+<span>Production Pipeline</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-900 hover:translate-x-1 transition-transform duration-200 rounded-md font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg">inventory_2</span>
+<span>Asset Library</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-stone-200 dark:bg-stone-800 text-orange-600 dark:text-orange-500 rounded-md font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg">handshake</span>
+<span>Sponsor Portal</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-900 hover:translate-x-1 transition-transform duration-200 rounded-md font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg">event</span>
+<span>Event Calendar</span>
+</a>
+</nav>
+<div class="pt-4 border-t border-stone-200 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-900 transition-colors rounded-md text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg">help</span>
+<span>Help Center</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-error hover:bg-red-50 transition-colors rounded-md text-sm font-semibold" href="#">
+<span class="material-symbols-outlined text-lg">logout</span>
+<span>Log Out</span>
+</a>
+</div>
+</aside>
+</body></html>

@@ -1138,137 +1138,93 @@ export default function VincularPatrocinadores() {
   };
 
   return (
-    <div className="container mx-auto p-4 max-w-6xl">
-      {/* Header com Progresso */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-2xl font-bold">Vincular Patrocinadores</h1>
-          
-          {/* Badges de Status */}
-          <div className="flex flex-wrap gap-2">
-            {statusCounts.PENDENTE > 0 && (
-              <Badge variant="secondary" className={UI_STATUS_CONFIG.PENDENTE.chipClass}>
-                {statusCounts.PENDENTE} Pendente
-              </Badge>
-            )}
-            {statusCounts.RASCUNHO > 0 && (
-              <Badge variant="secondary" className={UI_STATUS_CONFIG.RASCUNHO.chipClass}>
-                {statusCounts.RASCUNHO} Não Salvo
-              </Badge>
-            )}
-            {statusCounts.PRONTO > 0 && (
-              <Badge variant="secondary" className={UI_STATUS_CONFIG.PRONTO.chipClass}>
-                {statusCounts.PRONTO} Pronto
-              </Badge>
-            )}
-            {statusCounts.ENVIADO > 0 && (
-              <Badge variant="secondary" className={UI_STATUS_CONFIG.ENVIADO.chipClass}>
-                {statusCounts.ENVIADO} Enviado
-              </Badge>
-            )}
+    <div className="container mx-auto p-4 max-w-6xl pb-24">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+        <div>
+          <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 42, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.03em', lineHeight: 1, color: '#1a1c1c', marginBottom: 12 }}>
+            Vincular Patrocinadores
+          </h1>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', backgroundColor: '#e8e8e7', color: '#78716c', textTransform: 'uppercase' }}>PENDENTE</span>
+            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', backgroundColor: '#ffedd5', color: '#c2410c', textTransform: 'uppercase' }}>RASCUNHO</span>
+            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', backgroundColor: '#dcfce7', color: '#166534', textTransform: 'uppercase' }}>PRONTO</span>
+            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', backgroundColor: '#1c1917', color: '#ffffff', textTransform: 'uppercase', opacity: 0.55 }}>ENVIADO</span>
           </div>
         </div>
-        
-        {/* Barra de Progresso */}
-        <Card className="mb-3">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Progress value={progressPercent} className="h-2" />
-              </div>
-              <div className="text-xs text-muted-foreground whitespace-nowrap">
-                <span className="font-medium">{completedItems}</span> de <span className="font-medium">{totalItems}</span> enviados
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Alertas de Ação — Titanium */}
-        <div className="space-y-2">
-          {statusCounts.RASCUNHO > 0 && (
-            <div className="flex items-center justify-between gap-4 bg-white border border-[#e7e5e4] rounded-md px-4 py-3" style={{ borderLeft: '3px solid #f97316' }}>
-              <div className="flex items-center gap-3">
-                <Save className="h-4 w-4 shrink-0" style={{ color: '#f97316' }} />
-                <div>
-                  <div className="font-medium text-sm" style={{ color: '#1c1917' }}>Vinculações não salvas</div>
-                  <div className="text-xs" style={{ color: '#78716c' }}>
-                    {statusCounts.RASCUNHO} item{statusCounts.RASCUNHO !== 1 ? 's' : ''} com patrocinadores selecionados aguardando salvar
-                  </div>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
-                onClick={() => {
-                  const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id);
-                  saveLinkingMutation.mutate(ids);
-                }}
-                disabled={saveLinkingMutation.isPending}
-              >
-                <Save className="h-3.5 w-3.5 mr-1.5" />
-                Salvar Tudo ({statusCounts.RASCUNHO})
-              </Button>
-            </div>
-          )}
-
-          {statusCounts.PRONTO > 0 && (
-            <div className="flex items-center justify-between gap-4 bg-white border border-[#e7e5e4] rounded-md px-4 py-3" style={{ borderLeft: '3px solid #166534' }}>
-              <div className="flex items-center gap-3">
-                <Send className="h-4 w-4 shrink-0" style={{ color: '#166534' }} />
-                <div>
-                  <div className="font-medium text-sm" style={{ color: '#1c1917' }}>Prontos para enviar à Arte</div>
-                  <div className="text-xs" style={{ color: '#78716c' }}>
-                    {selectedForSending.size > 0
-                      ? `${selectedForSending.size} de ${statusCounts.PRONTO} selecionado${selectedForSending.size !== 1 ? 's' : ''}`
-                      : `${statusCounts.PRONTO} item${statusCounts.PRONTO !== 1 ? 's' : ''} com patrocinadores vinculados`
-                    }
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedForSending.size > 0 ? (
-                  <>
-                    <Button size="sm" variant="ghost" onClick={clearSendingSelection} style={{ color: '#78716c' }}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
-                      onClick={handleSendSelectedToArte}
-                      disabled={sendToArteMutation.isPending}
-                    >
-                      <Send className="h-3.5 w-3.5 mr-1.5" />
-                      Enviar ({selectedForSending.size})
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="sm"
-                    style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none' }}
-                    onClick={() => {
-                      const readyItemIds = visibleItems.filter(item => itemUIStates[item.id] === 'PRONTO').map(item => item.id);
-                      sendToArteMutation.mutate(readyItemIds);
-                    }}
-                    disabled={sendToArteMutation.isPending}
-                  >
-                    <Send className="h-3.5 w-3.5 mr-1.5" />
-                    Enviar Todos ({statusCounts.PRONTO})
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
+        <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+          <button
+            style={{ padding: '10px 20px', backgroundColor: '#e8e8e7', color: '#1c1917', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#d8d8d7')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#e8e8e7')}
+          >
+            Exportar PDF
+          </button>
+          <button
+            style={{ padding: '10px 20px', backgroundColor: '#f97316', color: '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+            onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
+          >
+            Finalizar Lote
+          </button>
         </div>
       </div>
 
-      {/* ── Tab Switcher ── */}
-      <div style={{
-        display: 'inline-flex', gap: 4, padding: 4,
-        backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-        borderRadius: 10, marginBottom: 16,
-      }}>
+      {/* ── Progress Grid 3-col ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        {/* Col 1-2: barra de progresso */}
+        <div className="md:col-span-2 flex flex-col justify-between" style={{ backgroundColor: '#f3f4f3', borderRadius: 10, padding: '20px 24px' }}>
+          <div className="flex justify-between items-end mb-4">
+            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#78716c' }}>Progresso de Envio</span>
+            <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 900, color: '#1a1c1c', letterSpacing: '-0.03em' }}>
+              {completedItems} <span style={{ color: '#a8a29e' }}>de</span> {totalItems}{' '}
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>enviados</span>
+            </span>
+          </div>
+          <div style={{ width: '100%', height: 8, backgroundColor: '#e7e5e4', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: '100%', backgroundColor: '#f97316', borderRadius: 4, width: `${progressPercent}%`, transition: 'width 0.5s ease' }} />
+          </div>
+        </div>
+
+        {/* Col 3: alertas de ação */}
+        <div className="space-y-3">
+          <div style={{ backgroundColor: '#f3f4f3', borderLeft: '4px solid #f97316', padding: '14px 16px', borderRadius: '0 8px 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Ação Pendente</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c' }}>{statusCounts.RASCUNHO} {statusCounts.RASCUNHO !== 1 ? 'itens' : 'item'} em RASCUNHO</p>
+            </div>
+            {statusCounts.RASCUNHO > 0 && (
+              <button
+                onClick={() => { const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id); saveLinkingMutation.mutate(ids); }}
+                disabled={saveLinkingMutation.isPending}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', display: 'flex', alignItems: 'center' }}
+              >
+                <Save style={{ width: 16, height: 16 }} />
+              </button>
+            )}
+          </div>
+          <div style={{ backgroundColor: '#f3f4f3', borderLeft: '4px solid #166534', padding: '14px 16px', borderRadius: '0 8px 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Pronto para Envio</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c' }}>{statusCounts.PRONTO} {statusCounts.PRONTO !== 1 ? 'itens' : 'item'} aguardando</p>
+            </div>
+            {statusCounts.PRONTO > 0 && (
+              <button
+                onClick={() => { const ids = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO').map(i => i.id); sendToArteMutation.mutate(ids); }}
+                disabled={sendToArteMutation.isPending}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center' }}
+              >
+                <Send style={{ width: 16, height: 16 }} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tab Switcher (underline) ── */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #e7e5e4', marginBottom: 20 }}>
         {[
-          { id: "por-item",        label: "Por Item",        icon: <ClipboardList style={{ width: 14, height: 14 }} /> },
+          { id: "por-item",         label: "Por Item",         icon: <ClipboardList style={{ width: 14, height: 14 }} /> },
           { id: "por-patrocinador", label: "Por Patrocinador", icon: <Building2 style={{ width: 14, height: 14 }} /> },
         ].map(tab => {
           const active = viewMode === tab.id;
@@ -1278,15 +1234,17 @@ export default function VincularPatrocinadores() {
               onClick={() => setViewMode(tab.id as "por-item" | "por-patrocinador")}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                height: 36, padding: '0 16px', borderRadius: 7, border: 'none',
+                padding: '10px 28px', border: 'none', background: 'none',
                 cursor: 'pointer', fontSize: 13,
-                fontWeight: active ? 600 : 500,
-                backgroundColor: active ? '#1c1917' : 'transparent',
-                color: active ? '#ffffff' : '#78716c',
-                transition: 'background-color 0.15s, color 0.15s',
+                fontWeight: active ? 800 : 700,
+                letterSpacing: '-0.02em', textTransform: 'uppercase',
+                color: active ? '#1c1917' : '#a8a29e',
+                borderBottom: active ? '2px solid #1c1917' : '2px solid transparent',
+                marginBottom: -1,
+                transition: 'color 0.15s',
               }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#fafaf9'; }}
-              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'; }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#1c1917'; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#a8a29e'; }}
             >
               {tab.icon}
               {tab.label}
@@ -1371,36 +1329,40 @@ export default function VincularPatrocinadores() {
         </CardContent>
       </Card>
 
-      {/* Toolbar de Seleção em Massa — Fundo escuro Titanium */}
+      {/* Toolbar de Seleção em Massa — Floating Bottom */}
       {selectedItemIds.size > 0 && (
-        <div className="sticky top-0 z-50 mb-4">
-          <div className="flex items-center justify-between gap-4 rounded-md px-4 py-3 shadow-md" style={{ backgroundColor: '#1c1917' }}>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-full flex items-center justify-center text-sm font-bold" style={{ backgroundColor: '#f97316', color: '#ffffff' }}>
-                  {selectedItemIds.size}
-                </div>
-                <span className="font-medium text-sm text-white">
-                  {selectedItemIds.size} item{selectedItemIds.size !== 1 ? 's' : ''} selecionado{selectedItemIds.size !== 1 ? 's' : ''}
-                </span>
+        <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 640, padding: '0 24px', zIndex: 50 }}>
+          <div style={{ backgroundColor: '#1c1917', color: '#ffffff', padding: '14px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, backgroundColor: '#f97316', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', flexShrink: 0 }}>
+                {selectedItemIds.size}
               </div>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '-0.01em', color: '#ffffff', marginBottom: 1 }}>Itens Selecionados</p>
+                <p style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)' }}>Lote de produção ativa</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button
                 onClick={() => setSelectedItemIds(new Set())}
                 data-testid="button-clear-selection"
-                className="text-xs text-white/60 hover:text-white transition-colors"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#ffffff')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.45)')}
               >
-                Limpar seleção
+                Limpar
+              </button>
+              <button
+                onClick={handleOpenBulkApplyDialog}
+                data-testid="button-apply-bulk-sponsors"
+                style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+                onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
+              >
+                <Users style={{ width: 14, height: 14 }} />
+                Aplicar Patrocinadores
               </button>
             </div>
-            <Button
-              onClick={handleOpenBulkApplyDialog}
-              size="sm"
-              data-testid="button-apply-bulk-sponsors"
-              style={{ backgroundColor: '#f97316', color: '#ffffff' }}
-            >
-              <Users className="h-4 w-4 mr-1.5" />
-              Aplicar Patrocinadores
-            </Button>
           </div>
         </div>
       )}
@@ -1420,56 +1382,41 @@ export default function VincularPatrocinadores() {
           if (!event) return null;
 
           return (
-            <div key={eventId} className="rounded-2xl overflow-hidden" style={{ border: '1px solid #e7e5e4' }}>
+            <section key={eventId} className="space-y-0">
 
               {/* ── Cabeçalho escuro Titanium ── */}
-              <div style={{ backgroundColor: '#1c1917', padding: '10px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {event.name}
-                      </span>
-                      <span style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {progress.completed}/{progress.total}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#a8a29e' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Calendar style={{ width: 11, height: 11 }} />
-                        {format(new Date(event.startDate), "dd/MM/yyyy", { locale: ptBR })}
-                      </span>
-                      <span style={{ opacity: 0.4 }}>•</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Truck style={{ width: 11, height: 11 }} />
-                        {format(new Date(event.truckDepartureDate), "dd/MM HH:mm", { locale: ptBR })}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    {/* Dots dos patrocinadores do evento */}
-                    {eventSponsors.length > 0 && (
-                      <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                        {eventSponsors.map(sponsor => (
-                          <span key={sponsor.id} title={sponsor.name}
-                            style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', display: 'inline-block', flexShrink: 0 }} />
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => handleOpenSponsorDialog(event)}
-                      data-testid={`button-manage-event-sponsors-${event.id}`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 500 }}>
-                      <Building2 style={{ width: 12, height: 12 }} />
-                      {eventSponsors.length === 0 ? 'Adicionar' : `${eventSponsors.length} Pat.`}
-                    </button>
-                  </div>
+              <header style={{ backgroundColor: '#1c1917', padding: '18px 20px', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                  <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', fontSize: 17, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '-0.01em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {event.name}
+                  </h2>
+                  <span style={{ backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#f97316' : '#3d3936', color: '#ffffff', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.03em' }}>
+                    {progress.completed}/{progress.total} CONCLUÍDO
+                  </span>
                 </div>
-              </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: 18, fontSize: 11, fontWeight: 500, color: '#a8a29e' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Calendar style={{ width: 13, height: 13 }} />
+                      <span>{format(new Date(event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Truck style={{ width: 13, height: 13 }} />
+                      <span>{format(new Date(event.truckDepartureDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleOpenSponsorDialog(event)}
+                    data-testid={`button-manage-event-sponsors-${event.id}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 600 }}>
+                    <Building2 style={{ width: 12, height: 12 }} />
+                    {eventSponsors.length === 0 ? 'Adicionar Pat.' : `${eventSponsors.length} Pat.`}
+                  </button>
+                </div>
+              </header>
 
-              {/* Tabela de Items - Compacta */}
-              <div className="p-0">
+              {/* Tabela de Items */}
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '0 0 10px 10px', overflow: 'hidden', border: '1px solid #e7e5e4', borderTop: 'none' }}>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -1482,20 +1429,17 @@ export default function VincularPatrocinadores() {
                             data-testid={`checkbox-select-all-${event.id}`}
                           />
                         </th>
-                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ID</th>
-                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Peça</th>
-                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Detalhes</th>
-                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>ID</th>
+                        <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Peça / Especificação</th>
+                        <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Detalhes</th>
+                        <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                           <div className="flex items-center gap-1">
                             <Link2 className="h-3 w-3" />
-                            Patrocinadores
+                            Vínculos Ativos
                           </div>
                         </th>
-                        <th className="px-3 py-2 text-center" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          <div className="flex items-center justify-center gap-1">
-                            <Send className="h-3 w-3" />
-                            Enviar
-                          </div>
+                        <th className="px-3 py-4 text-right pr-6" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                          Status / Ações
                         </th>
                       </tr>
                     </thead>
@@ -1517,27 +1461,38 @@ export default function VincularPatrocinadores() {
                           {showTypeGrouper && (
                             <tr key={`type-${item.type}-${itemIndex}`}>
                               <td colSpan={6} style={{ padding: 0 }}>
-                                <div style={{ backgroundColor: '#f5f5f4', borderLeft: '4px solid #f97316', padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                    {item.type}
+                                <div style={{ backgroundColor: 'rgba(249,115,22,0.06)', borderLeft: '4px solid #f97316', padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <span style={{ fontSize: 10, fontWeight: 900, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                    {item.type} — {displayedItems.filter(i => i.type === item.type).length} {displayedItems.filter(i => i.type === item.type).length !== 1 ? 'itens' : 'item'}
                                   </span>
-                                  <span style={{ fontSize: 10, color: '#a8a29e' }}>
-                                    — {displayedItems.filter(i => i.type === item.type).length} item{displayedItems.filter(i => i.type === item.type).length !== 1 ? 's' : ''}
-                                  </span>
+                                  <ChevronDown style={{ width: 14, height: 14, color: '#a8a29e' }} />
                                 </div>
                               </td>
                             </tr>
                           )}
                           <tr
                             key={item.id}
-                            className={`transition-colors cursor-pointer ${!isEditable ? 'opacity-55' : ''}`}
+                            className="cursor-pointer"
                             style={{
-                              borderBottom: '1px solid #e7e5e4',
-                              borderLeft: isRascunho ? '3px solid #f97316' : '3px solid transparent',
-                              backgroundColor: rowConfig.rowBg,
+                              borderBottom: '1px solid #f0efee',
+                              borderLeft: uiStatus === 'RASCUNHO' ? '4px solid #f97316' : uiStatus === 'PRONTO' ? '4px solid #22c55e' : '4px solid transparent',
+                              backgroundColor: uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff',
+                              opacity: uiStatus === 'ENVIADO' ? 0.55 : 1,
+                              filter: uiStatus === 'ENVIADO' ? 'grayscale(1)' : 'none',
+                              transition: 'background-color 0.12s, filter 0.2s, opacity 0.2s',
                             }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isRascunho ? '#fff7ed' : '#fafaf9'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowConfig.rowBg; }}
+                            onMouseEnter={e => {
+                              const el = e.currentTarget as HTMLElement;
+                              el.style.filter = 'none';
+                              el.style.opacity = '1';
+                              el.style.backgroundColor = uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.09)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.18)' : '#fafaf9';
+                            }}
+                            onMouseLeave={e => {
+                              const el = e.currentTarget as HTMLElement;
+                              el.style.filter = uiStatus === 'ENVIADO' ? 'grayscale(1)' : 'none';
+                              el.style.opacity = uiStatus === 'ENVIADO' ? '0.55' : '1';
+                              el.style.backgroundColor = uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff';
+                            }}
                             onClick={() => setSelectedItemForDetails(item)}
                             data-testid={`item-row-${item.id}`}
                           >
@@ -1550,171 +1505,170 @@ export default function VincularPatrocinadores() {
                                 data-testid={`checkbox-item-${item.id}`}
                               />
                             </td>
-                            <td className="px-3 py-2">
-                              <div className="text-xs font-mono font-medium text-primary whitespace-nowrap" data-testid={`text-display-id-${item.id}`}>
+                            <td className="px-3 py-3">
+                              <div className="font-mono whitespace-nowrap" style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e' }} data-testid={`text-display-id-${item.id}`}>
                                 {item.displayId}
                               </div>
                             </td>
-                            <td className="px-3 py-2 min-w-[200px]">
-                              <div>
-                                <span className="font-medium text-sm text-foreground">{item.type}</span>
+                            <td className="px-3 py-3" style={{ minWidth: 180 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 700, fontSize: 13, color: '#1a1c1c' }}>{item.type}</span>
                                 {item.description && (
-                                  <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                                  <span style={{ fontSize: 11, color: '#78716c', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
                                     {item.description}
-                                  </div>
+                                  </span>
                                 )}
                               </div>
                             </td>
-                            <td className="px-3 py-2">
-                              <div className="text-xs">
-                                <span className="font-medium">{item.quantity} un</span>
-                                <span className="text-muted-foreground mx-1.5">•</span>
-                                <span className="text-muted-foreground">{parseFloat(item.calculatedM2).toFixed(2)} m²</span>
+                            <td className="px-3 py-3">
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1c1c' }}>Qty: {String(item.quantity).padStart(2, '0')}</span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+                                  {parseFloat(item.calculatedM2).toFixed(2)} m²
+                                </span>
                               </div>
                             </td>
-                            <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                              {/* Estado: Sem Patrocinador */}
+                            {/* ── Coluna: Vínculos Ativos ── */}
+                            <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                               {currentSkipApproval ? (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span
-                                    className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
-                                    style={
-                                      pendingChanges[item.id]?.skipApproval && pendingChanges[item.id]?.isDirty
-                                        ? { backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }
-                                        : { backgroundColor: '#f5f5f4', color: '#78716c', border: '1px solid #e7e5e4' }
-                                    }
-                                  >
-                                    Sem Patrocinador
-                                  </span>
-                                  {isEditable && (
-                                    <button
-                                      className="text-xs underline"
-                                      style={{ color: '#a8a29e' }}
-                                      onClick={() => toggleItemSkipApproval(item)}
-                                      data-testid={`btn-undo-skip-${item.id}`}
-                                    >
-                                      desfazer
-                                    </button>
+                                /* "Sem Patrocinador" path */
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  {(uiStatus === 'PRONTO' || uiStatus === 'ENVIADO') ? (
+                                    <span style={{ padding: '3px 6px', backgroundColor: '#1c1917', color: '#ffffff', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', borderRadius: 3, letterSpacing: '0.04em' }}>
+                                      Sem Pat.
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span style={{ padding: '3px 8px', backgroundColor: uiStatus === 'RASCUNHO' ? '#fff7ed' : '#f5f5f4', color: uiStatus === 'RASCUNHO' ? '#c2410c' : '#78716c', fontSize: 10, fontWeight: 600, borderRadius: 4, border: `1px solid ${uiStatus === 'RASCUNHO' ? '#fed7aa' : '#e7e5e4'}` }}>
+                                        Sem Patrocinador
+                                      </span>
+                                      {isEditable && (
+                                        <button onClick={() => toggleItemSkipApproval(item)} data-testid={`btn-undo-skip-${item.id}`} style={{ background: 'none', border: 'none', fontSize: 10, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline' }}>
+                                          desfazer
+                                        </button>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               ) : (
                                 <div>
-                                  {/* Seleção múltipla com CHECKBOXES */}
-                                  {eventSponsors.length > 0 && (
-                                    <div className="space-y-0.5">
+                                  {eventSponsors.length === 0 ? (
+                                    <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>Adicione patrocinadores ao evento</span>
+                                  ) : (uiStatus === 'PRONTO' || uiStatus === 'ENVIADO') ? (
+                                    /* Saved: dark pills */
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                      {linkedSponsors.length > 0 ? (
+                                        linkedSponsors.map(sId => {
+                                          const sp = eventSponsors.find(s => s.id === sId);
+                                          return sp ? (
+                                            <span key={sId} style={{ padding: '3px 6px', backgroundColor: uiStatus === 'ENVIADO' ? '#e8e8e7' : '#1c1917', color: uiStatus === 'ENVIADO' ? '#78716c' : '#ffffff', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', borderRadius: 3, letterSpacing: '0.04em' }}>
+                                              {sp.name}
+                                            </span>
+                                          ) : null;
+                                        })
+                                      ) : (
+                                        <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>Nenhum</span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    /* Editable: pill-style checkboxes */
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                       {eventSponsors.map(sponsor => {
                                         const isLinked = linkedSponsors.includes(sponsor.id);
-                                        const colorStyle = getSponsorColorStyle(sponsor);
                                         return (
-                                          <div key={sponsor.id} className="flex items-center gap-1.5">
-                                            <Checkbox
+                                          <label
+                                            key={sponsor.id}
+                                            style={{
+                                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                                              padding: '4px 8px',
+                                              backgroundColor: isLinked ? '#fff7ed' : '#ffffff',
+                                              border: `1px solid ${isLinked ? '#f97316' : '#e7e5e4'}`,
+                                              borderRadius: 6, cursor: isEditable ? 'pointer' : 'not-allowed',
+                                              transition: 'border-color 0.12s, background-color 0.12s',
+                                            }}
+                                          >
+                                            <input
+                                              type="checkbox"
                                               checked={isLinked}
                                               disabled={!isEditable}
-                                              onCheckedChange={(checked) => {
+                                              style={{ width: 11, height: 11, accentColor: '#f97316', cursor: isEditable ? 'pointer' : 'not-allowed' }}
+                                              data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
+                                              onChange={(e) => {
                                                 if (!isEditable) return;
+                                                const checked = e.target.checked;
                                                 const newSponsors = checked
                                                   ? [...linkedSponsors, sponsor.id]
                                                   : linkedSponsors.filter(id => id !== sponsor.id);
                                                 const originalSponsors = originalSponsorsMap[item.id] || [];
-                                                const originalSkipApproval = item.skipApproval || false;
-                                                const currentSkipApprovalLocal = pendingChanges[item.id]?.skipApproval ?? originalSkipApproval;
-                                                const hasChanges =
-                                                  !areSponsorsEqual(newSponsors, originalSponsors) ||
-                                                  currentSkipApprovalLocal !== originalSkipApproval;
+                                                const origSkip = item.skipApproval || false;
+                                                const curSkip = pendingChanges[item.id]?.skipApproval ?? origSkip;
+                                                const hasChanges = !areSponsorsEqual(newSponsors, originalSponsors) || curSkip !== origSkip;
                                                 setPendingChanges(prev => {
-                                                  if (!hasChanges) {
-                                                    const newChanges = { ...prev };
-                                                    delete newChanges[item.id];
-                                                    return newChanges;
-                                                  }
-                                                  return {
-                                                    ...prev,
-                                                    [item.id]: {
-                                                      sponsorIds: newSponsors,
-                                                      skipApproval: currentSkipApprovalLocal,
-                                                      isDirty: true,
-                                                    },
-                                                  };
+                                                  if (!hasChanges) { const n = { ...prev }; delete n[item.id]; return n; }
+                                                  return { ...prev, [item.id]: { sponsorIds: newSponsors, skipApproval: curSkip, isDirty: true } };
                                                 });
                                                 setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
                                               }}
-                                              data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                             />
-                                            <label
-                                              className={`text-xs font-medium ${!isEditable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                                              style={{ color: colorStyle.color }}
-                                            >
+                                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: isLinked ? '#c2410c' : '#78716c', letterSpacing: '0.03em' }}>
                                               {sponsor.name}
-                                            </label>
-                                          </div>
+                                            </span>
+                                          </label>
                                         );
                                       })}
+                                      {isEditable && (
+                                        <button onClick={() => toggleItemSkipApproval(item)} data-testid={`btn-skip-sponsor-${item.id}`} style={{ background: 'none', border: 'none', fontSize: 10, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline', alignSelf: 'center' }}>
+                                          sem pat.
+                                        </button>
+                                      )}
                                     </div>
-                                  )}
-                                  {eventSponsors.length === 0 && (
-                                    <span className="text-xs text-muted-foreground italic">
-                                      Adicione patrocinadores ao evento
-                                    </span>
-                                  )}
-                                  {/* Botão Sem Patrocinador individual */}
-                                  {isEditable && (
-                                    <button
-                                      className="text-xs mt-1 underline block"
-                                      style={{ color: '#a8a29e' }}
-                                      onClick={() => toggleItemSkipApproval(item)}
-                                      data-testid={`btn-skip-sponsor-${item.id}`}
-                                    >
-                                      sem patrocinador
-                                    </button>
                                   )}
                                 </div>
                               )}
                             </td>
-                            <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-center gap-2">
-                                {/* Badge única baseada em itemUIStates */}
-                                {(() => {
-                                  const uiStatus = itemUIStates[item.id] || 'PENDENTE';
-                                  const config = UI_STATUS_CONFIG[uiStatus];
-                                  const Icon = config.icon;
-                                  
-                                  return (
-                                    <>
-                                      <Badge variant="secondary" className="text-xs gap-1" style={config.badgeStyle} data-testid={`badge-status-${item.id}`}>
-                                        <Icon className="h-3 w-3" />
-                                        {config.label}
-                                      </Badge>
-                                      
-                                      {/* Botão de ação baseado no estado */}
-                                      {uiStatus === 'RASCUNHO' && isEditable && (
-                                        <Button
-                                          size="sm"
-                                          className="gap-1 text-xs h-7 px-2"
-                                          style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
-                                          onClick={() => saveLinkingMutation.mutate([item.id])}
-                                          disabled={saveLinkingMutation.isPending}
-                                          data-testid={`button-save-item-${item.id}`}
-                                        >
-                                          <Save className="h-3 w-3" />
-                                          Salvar
-                                        </Button>
-                                      )}
-                                      {uiStatus === 'PRONTO' && isEditable && (
-                                        <Button
-                                          size="sm"
-                                          className="gap-1 text-xs h-7 px-2"
-                                          style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none' }}
-                                          onClick={() => sendToArteMutation.mutate([item.id])}
-                                          disabled={sendToArteMutation.isPending}
-                                          data-testid={`button-send-item-${item.id}`}
-                                        >
-                                          <Send className="h-3 w-3" />
-                                          Enviar
-                                        </Button>
-                                      )}
-                                    </>
-                                  );
-                                })()}
+
+                            {/* ── Coluna: Status / Ações ── */}
+                            <td className="px-3 py-3 text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                                {/* Badge de status */}
+                                <span
+                                  data-testid={`badge-status-${item.id}`}
+                                  style={{
+                                    padding: '2px 8px', borderRadius: 9999, fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
+                                    ...(uiStatus === 'RASCUNHO' ? { backgroundColor: '#ffedd5', color: '#c2410c' }
+                                      : uiStatus === 'PRONTO' ? { backgroundColor: '#dcfce7', color: '#166534' }
+                                      : uiStatus === 'ENVIADO' ? { backgroundColor: '#1c1917', color: '#ffffff' }
+                                      : { backgroundColor: '#e8e8e7', color: '#78716c' }),
+                                  }}
+                                >
+                                  {uiStatus === 'RASCUNHO' ? 'RASCUNHO' : uiStatus === 'PRONTO' ? 'PRONTO' : uiStatus === 'ENVIADO' ? 'ENVIADO' : 'PENDENTE'}
+                                </span>
+                                {/* Ação */}
+                                {uiStatus === 'ENVIADO' && (
+                                  <Lock style={{ width: 13, height: 13, color: '#a8a29e' }} />
+                                )}
+                                {uiStatus === 'RASCUNHO' && isEditable && (
+                                  <button
+                                    onClick={() => saveLinkingMutation.mutate([item.id])}
+                                    disabled={saveLinkingMutation.isPending}
+                                    data-testid={`button-save-item-${item.id}`}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', display: 'flex', alignItems: 'center' }}
+                                    title="Salvar vinculação"
+                                  >
+                                    <Save style={{ width: 14, height: 14 }} />
+                                  </button>
+                                )}
+                                {uiStatus === 'PRONTO' && isEditable && (
+                                  <button
+                                    onClick={() => sendToArteMutation.mutate([item.id])}
+                                    disabled={sendToArteMutation.isPending}
+                                    data-testid={`button-send-item-${item.id}`}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', display: 'flex', alignItems: 'center' }}
+                                    title="Enviar para Arte"
+                                  >
+                                    <Send style={{ width: 14, height: 14 }} />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1725,7 +1679,7 @@ export default function VincularPatrocinadores() {
                   </table>
                 </div>
               </div>
-            </div>
+            </section>
           );
         })}
       </div>

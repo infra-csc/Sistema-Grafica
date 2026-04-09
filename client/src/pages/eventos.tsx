@@ -468,15 +468,13 @@ export default function Eventos() {
             {/* ── MODAL CRIAR / EDITAR ── */}
             <DialogContent className="sm:max-w-lg p-0 gap-0" style={{ borderRadius: '16px', overflow: 'hidden' }}>
               {/* Cabeçalho do modal */}
-              <div style={{ padding: '24px 24px 20px', borderBottom: '1px solid #f0efee', backgroundColor: '#fafaf9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0 }}>
-                    {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
-                  </DialogTitle>
-                  <p style={{ color: '#a8a29e', fontSize: '12px', margin: '3px 0 0 0' }}>
-                    {editingEvent ? "Atualize as informações do evento" : "Preencha as informações do evento"}
-                  </p>
-                </div>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0efee', backgroundColor: '#fafaf9' }}>
+                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                  {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
+                </DialogTitle>
+                <p style={{ color: '#a8a29e', fontSize: '12px', margin: '4px 0 0 0', fontWeight: '500' }}>
+                  {editingEvent ? "Atualize as informações do evento." : "Preencha os detalhes do evento."}
+                </p>
               </div>
 
               <form onSubmit={handleSubmit}>
@@ -567,25 +565,31 @@ export default function Eventos() {
                 </div>
 
                 {/* Rodapé do modal */}
-                <div style={{ padding: '16px 24px', backgroundColor: '#fafaf9', borderTop: '1px solid #f0efee', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <div style={{ padding: '16px 24px', backgroundColor: '#fafaf9', borderTop: '1px solid #f0efee', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}>
                   <button
                     type="button"
                     onClick={handleCloseDialog}
-                    style={{ fontSize: '13px', fontWeight: '600', color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px' }}
+                    style={{ fontSize: '13px', fontWeight: '700', color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textTransform: 'uppercase', letterSpacing: '-0.01em', transition: 'color 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
+                    onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
                   >
                     Cancelar
                   </button>
-                  <Button
+                  <button
                     type="submit"
                     disabled={createEventMutation.isPending || updateEventMutation.isPending}
                     data-testid="button-submit-event"
-                    style={{ backgroundColor: '#1c1917', color: '#ffffff', borderRadius: '8px', fontWeight: '700', fontSize: '13px', padding: '0 20px' }}
+                    style={{ backgroundColor: '#1c1917', color: '#ffffff', borderRadius: '8px', fontWeight: '700', fontSize: '13px', padding: '10px 28px', textTransform: 'uppercase', letterSpacing: '-0.01em', border: 'none', cursor: 'pointer', transition: 'background-color 0.2s, transform 0.1s' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f97316')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#1c1917')}
+                    onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
+                    onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
                   >
                     {editingEvent
-                      ? (updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
-                      : (createEventMutation.isPending ? "Criando..." : "Salvar Evento")
+                      ? (createEventMutation.isPending || updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
+                      : (createEventMutation.isPending || updateEventMutation.isPending ? "Criando..." : "Salvar Evento")
                     }
-                  </Button>
+                  </button>
                 </div>
               </form>
             </DialogContent>
@@ -936,33 +940,78 @@ export default function Eventos() {
       </AlertDialog>
 
       <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Definir Prioridade</DialogTitle>
-            <DialogDescription>
-              {selectedEventForPriority && (
-                <span>Escolha a prioridade para <strong>{selectedEventForPriority.name}</strong></span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-4">
+        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ borderRadius: '14px', overflow: 'hidden' }}>
+          {/* Cabeçalho */}
+          <div style={{ backgroundColor: '#f3f4f3', borderBottom: '1px solid #e7e5e4', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '16px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+              Definir Prioridade
+            </DialogTitle>
+            {selectedEventForPriority && (
+              <span style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                {selectedEventForPriority.name.length > 20 ? selectedEventForPriority.name.slice(0, 20) + '…' : selectedEventForPriority.name}
+              </span>
+            )}
+          </div>
+
+          {/* Corpo — grid de opções horizontais */}
+          <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             {[
-              { key: 'baixa', label: 'Baixa', color: '#3b82f6' },
-              { key: 'media', label: 'Média', color: '#a855f7' },
-              { key: 'alta', label: 'Alta', color: '#f59e0b' },
-              { key: 'urgente', label: 'Urgente', color: '#ef4444' },
-            ].map(({ key, label, color }) => (
-              <Button
-                key={key}
-                variant="outline"
-                style={{ height: '72px', display: 'flex', flexDirection: 'column', gap: '6px', borderColor: '#e7e5e4' }}
-                onClick={() => handlePrioritySelect(key)}
-                disabled={updatePriorityMutation.isPending}
-              >
-                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: color }} />
-                <span style={{ color: '#1c1917', fontWeight: '600', fontSize: '13px' }}>{label}</span>
-              </Button>
-            ))}
+              { key: 'baixa',   label: 'Baixa',   color: '#3b82f6', hoverBorder: '#3b82f6', hoverText: '#1d4ed8', hoverBg: '#eff6ff' },
+              { key: 'media',   label: 'Média',   color: '#a855f7', hoverBorder: '#a855f7', hoverText: '#7e22ce', hoverBg: '#faf5ff' },
+              { key: 'alta',    label: 'Alta',    color: '#f59e0b', hoverBorder: '#f59e0b', hoverText: '#b45309', hoverBg: '#fffbeb' },
+              { key: 'urgente', label: 'Urgente', color: '#ef4444', hoverBorder: '#f97316', hoverText: '#9a3412', hoverBg: '#fff7ed' },
+            ].map(({ key, label, color, hoverBorder, hoverText, hoverBg }) => {
+              const isSelected = selectedEventForPriority?.priority === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => handlePrioritySelect(key)}
+                  disabled={updatePriorityMutation.isPending}
+                  style={{
+                    height: '72px',
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '0 16px',
+                    borderRadius: '10px',
+                    border: isSelected ? `2px solid ${hoverBorder}` : '2px solid #e7e5e4',
+                    backgroundColor: isSelected ? hoverBg : '#ffffff',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={e => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = hoverBorder;
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = hoverBg;
+                      (e.currentTarget.querySelector('.prio-label') as HTMLElement).style.color = hoverText;
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#e7e5e4';
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ffffff';
+                      (e.currentTarget.querySelector('.prio-label') as HTMLElement).style.color = '#44403c';
+                    }
+                  }}
+                  data-testid={`button-priority-${key}`}
+                >
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+                  <span className="prio-label" style={{ fontWeight: '700', fontSize: '13px', color: isSelected ? hoverText : '#44403c', transition: 'color 0.15s' }}>
+                    {label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Rodapé */}
+          <div style={{ backgroundColor: '#f3f4f3', borderTop: '1px solid #e7e5e4', padding: '12px 24px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setPriorityDialogOpen(false)}
+              style={{ fontSize: '11px', fontWeight: '700', color: '#a8a29e', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'color 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
+            >
+              Cancelar
+            </button>
           </div>
         </DialogContent>
       </Dialog>

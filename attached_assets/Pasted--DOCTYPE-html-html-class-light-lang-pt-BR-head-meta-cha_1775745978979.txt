@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE APEX | Event Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&amp;family=Plus_Jakarta_Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#cde5ff",
+                        "on-tertiary-fixed": "#001d32",
+                        "inverse-surface": "#2f3130",
+                        "tertiary-container": "#00a2f4",
+                        "on-tertiary-container": "#003554",
+                        "error-container": "#ffdad6",
+                        "outline": "#8c7164",
+                        "on-secondary-fixed-variant": "#783200",
+                        "on-error-container": "#93000a",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-surface": "#1a1c1c",
+                        "primary-fixed": "#e9e1dd",
+                        "secondary-fixed": "#ffdbca",
+                        "primary-container": "#9f9996",
+                        "on-background": "#1a1c1c",
+                        "inverse-on-surface": "#f1f1f0",
+                        "surface-variant": "#e2e2e2",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f9f9f8",
+                        "on-primary-fixed": "#1e1b19",
+                        "on-secondary-fixed": "#341100",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-container": "#5c2400",
+                        "tertiary": "#006398",
+                        "secondary": "#9d4300",
+                        "on-primary-container": "#35322f",
+                        "background": "#f9f9f8",
+                        "surface-container": "#eeeeed",
+                        "surface-container-low": "#f3f4f3",
+                        "inverse-primary": "#ccc5c2",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "outline-variant": "#e0c0b1",
+                        "surface-container-high": "#e8e8e7",
+                        "surface": "#f9f9f8",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "on-secondary": "#ffffff",
+                        "on-surface-variant": "#584237",
+                        "primary": "#625d5b",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "error": "#ba1a1a",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed-dim": "#ffb690",
+                        "secondary-container": "#fd761a",
+                        "surface-dim": "#dadad9",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "surface-tint": "#625d5b",
+                        "on-tertiary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .negative-kerning { letter-spacing: -0.05em; }
+        .glass-panel {
+            background: rgba(249, 249, 248, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        .modal-overlay {
+            background: rgba(26, 28, 28, 0.4);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- Top Navigation Shell -->
+<header class="fixed top-0 z-50 w-full bg-[#f9f9f8] px-6 py-4 flex justify-between items-center h-16">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black tracking-[-0.05em] text-stone-900 font-headline uppercase">NORTE APEX</span>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="text-stone-900 border-b-2 border-orange-500 pb-1 font-headline tracking-tighter uppercase font-bold text-sm" href="#">Dashboard</a>
+<a class="text-stone-500 hover:text-stone-900 transition-colors font-headline tracking-tighter uppercase font-bold text-sm" href="#">Events</a>
+<a class="text-stone-500 hover:text-stone-900 transition-colors font-headline tracking-tighter uppercase font-bold text-sm" href="#">Sponsors</a>
+<a class="text-stone-500 hover:text-stone-900 transition-colors font-headline tracking-tighter uppercase font-bold text-sm" href="#">Logistics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden md:flex items-center bg-surface-container-high rounded-full px-4 py-1.5 gap-2">
+<span class="material-symbols-outlined text-stone-400 text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-32" placeholder="Search..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-stone-500 hover:bg-stone-100 p-2 rounded-full transition-all">notifications</button>
+<button class="material-symbols-outlined text-stone-500 hover:bg-stone-100 p-2 rounded-full transition-all">settings</button>
+<div class="w-8 h-8 rounded-full bg-stone-200 overflow-hidden">
+<img alt="User profile avatar" data-alt="close-up portrait of a professional sports executive in a minimalist studio with soft daylight and high contrast" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_eMdw1tLivzTCRvWdD2waa-jtwCp_GVdAssdqv7qgYPKDz6PVP5naf86KlZshFs_FBwlBOvnl2GHw3ui1dObzvXWxrQox23_lNv-w1EQgF_x8PAniLHuBHjl0eITPfXk72eb3RZFDRufTl8dTcyUtX5qwdNRdwjJZ5QkyECUKBlaCGBqIkowzTrGsmCaPPniLPqicnoRf9z-QexkInkculbPfWAiNYMqLTDLxh-b89akh5v76s0DICFHu6hMkqvsoVY1kNCksrF_G"/>
+</div>
+</div>
+</header>
+<div class="flex min-h-screen pt-16">
+<!-- Sidebar Shell -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-[#f9f9f8] border-r border-stone-200 flex flex-col py-8 px-4">
+<div class="mb-8 px-4">
+<h2 class="font-headline font-black text-orange-600 uppercase tracking-tighter">Event Manager</h2>
+<p class="text-[10px] text-stone-400 uppercase tracking-widest font-bold">Elite Sports Marketing</p>
+</div>
+<div class="flex flex-col gap-1 flex-grow">
+<a class="flex items-center gap-3 bg-stone-200 text-stone-950 rounded-md px-4 py-2 font-semibold text-sm translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-weight="fill" style="font-variation-settings: 'FILL' 1;">dashboard</span> Overview
+                </a>
+<a class="flex items-center gap-3 text-stone-500 px-4 py-2 hover:bg-stone-100 font-semibold text-sm transition-all" href="#">
+<span class="material-symbols-outlined">calendar_month</span> Calendar
+                </a>
+<a class="flex items-center gap-3 text-stone-500 px-4 py-2 hover:bg-stone-100 font-semibold text-sm transition-all" href="#">
+<span class="material-symbols-outlined">inventory_2</span> Inventory
+                </a>
+<a class="flex items-center gap-3 text-stone-500 px-4 py-2 hover:bg-stone-100 font-semibold text-sm transition-all" href="#">
+<span class="material-symbols-outlined">groups</span> Teams
+                </a>
+<a class="flex items-center gap-3 text-stone-500 px-4 py-2 hover:bg-stone-100 font-semibold text-sm transition-all" href="#">
+<span class="material-symbols-outlined">analytics</span> Reports
+                </a>
+</div>
+<div class="pt-6 border-t border-stone-100 flex flex-col gap-1">
+<a class="flex items-center gap-3 text-stone-500 px-4 py-2 hover:bg-stone-100 font-semibold text-sm transition-all" href="#">
+<span class="material-symbols-outlined">help</span> Support
+                </a>
+<a class="flex items-center gap-3 text-stone-500 px-4 py-2 hover:bg-stone-100 font-semibold text-sm transition-all" href="#">
+<span class="material-symbols-outlined">archive</span> Archive
+                </a>
+</div>
+</aside>
+<!-- Main Content Canvas (Blurred background for modal focus) -->
+<main class="ml-64 flex-grow p-12 bg-surface-container-low overflow-hidden">
+<div class="max-w-5xl mx-auto">
+<div class="mb-12 flex justify-between items-end">
+<div>
+<h1 class="font-headline text-5xl font-black negative-kerning uppercase text-stone-900 leading-none">Campaigns</h1>
+<p class="mt-2 text-stone-500 font-medium">Performance Metrics &amp; Active Engagements</p>
+</div>
+<div class="flex gap-4">
+<div class="w-48 h-24 bg-surface rounded-lg p-4 flex flex-col justify-between">
+<span class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Total Reach</span>
+<span class="text-2xl font-headline font-bold text-stone-900">1.2M</span>
+</div>
+<div class="w-48 h-24 bg-orange-500 rounded-lg p-4 flex flex-col justify-between text-white">
+<span class="text-[10px] font-bold uppercase tracking-widest text-orange-100">Conversion</span>
+<span class="text-2xl font-headline font-bold">14.8%</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-6">
+<div class="col-span-8 h-96 bg-stone-900 rounded-xl overflow-hidden relative">
+<img class="absolute inset-0 w-full h-full object-cover opacity-60" data-alt="black and white cinematic shot of a track athlete at the starting blocks, dramatic low key lighting, intense grit and focus" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzozkK4JUqc1TivZFgzTUwwbCsKF-LPMS8NeCymulZuUBgphNCKRaC0ZOhmtaRLJU8QmzPjMKxJ1TeRe_pZVQ3vgKVmmhMJJIW2utWYcq_XokU_OBilZKJ1M4Gma_ytXgxcy89mrZok7b43p4a-88qb3X6079-b8zZ4BSEYkPx1FbmYAGRHdxKg3K1vmhv5yHq1htBUukfaYS5-3LkBlY5RgKPqKCBASVIBLYZhvKokrtMhjG6iFW7mXS5SXeA_mmx4jMhZmIVbvSb"/>
+<div class="absolute bottom-0 left-0 p-8 w-full bg-gradient-to-t from-stone-950 to-transparent">
+<span class="bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded font-bold tracking-widest uppercase">Live Now</span>
+<h3 class="text-white font-headline text-3xl font-black mt-2 uppercase tracking-tighter">Velocity Tour 2024</h3>
+</div>
+</div>
+<div class="col-span-4 h-96 bg-surface rounded-xl p-6 flex flex-col justify-between">
+<div>
+<h4 class="font-headline font-bold text-stone-900 uppercase">Upcoming Events</h4>
+<div class="mt-6 space-y-4">
+<div class="flex gap-3 items-center">
+<div class="w-10 h-10 bg-stone-100 rounded flex items-center justify-center text-xs font-black">22 OCT</div>
+<div>
+<p class="text-xs font-bold text-stone-900">Apex Open Qualifier</p>
+<p class="text-[10px] text-stone-400">Lisboa, Portugal</p>
+</div>
+</div>
+<div class="flex gap-3 items-center">
+<div class="w-10 h-10 bg-stone-100 rounded flex items-center justify-center text-xs font-black">04 NOV</div>
+<div>
+<p class="text-xs font-bold text-stone-900">Summit Pro Series</p>
+<p class="text-[10px] text-stone-400">Barcelona, Spain</p>
+</div>
+</div>
+</div>
+</div>
+<button class="w-full py-3 bg-stone-900 text-white text-xs font-bold uppercase tracking-widest rounded transition-all active:scale-95">View Calendar</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Modal Overlay System -->
+<div class="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-8 overflow-y-auto">
+<!-- Secondary Context Modal (Modal 3: Define Priority) - Positioned in background-left -->
+<div class="absolute left-12 top-1/2 -translate-y-1/2 w-full max-w-[448px] bg-white rounded-xl shadow-2xl opacity-40 blur-[1px] transform -rotate-2 pointer-events-none hidden lg:block">
+<div class="p-6 border-b border-stone-100">
+<h3 class="font-headline text-lg font-bold text-stone-900 uppercase tracking-tight">Definir Prioridade</h3>
+</div>
+<div class="p-6 grid grid-cols-2 gap-4">
+<div class="h-[72px] border-2 border-stone-100 rounded-lg flex items-center px-4 gap-3">
+<div class="w-3 h-3 rounded-full bg-blue-500"></div>
+<span class="font-bold text-sm text-stone-600">Baixa</span>
+</div>
+<div class="h-[72px] border-2 border-stone-100 rounded-lg flex items-center px-4 gap-3">
+<div class="w-3 h-3 rounded-full bg-purple-500"></div>
+<span class="font-bold text-sm text-stone-600">Média</span>
+</div>
+<div class="h-[72px] border-2 border-stone-100 rounded-lg flex items-center px-4 gap-3">
+<div class="w-3 h-3 rounded-full bg-amber-500"></div>
+<span class="font-bold text-sm text-stone-600">Alta</span>
+</div>
+<div class="h-[72px] border-2 border-orange-500 bg-orange-50 rounded-lg flex items-center px-4 gap-3">
+<div class="w-3 h-3 rounded-full bg-red-600"></div>
+<span class="font-bold text-sm text-orange-900">Urgente</span>
+</div>
+</div>
+</div>
+<!-- Primary Focus Modal (Modal 1: Create New Event) -->
+<div class="relative w-full max-w-[512px] bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+<!-- Header -->
+<div class="bg-[#fafaf9] border-b border-[#f0efee] px-6 py-5">
+<h2 class="font-headline text-[18px] font-bold text-stone-900 uppercase leading-none">Criar Novo Evento</h2>
+<p class="text-[12px] text-[#a8a29e] mt-1 font-medium">Preencha os detalhes fundamentais da campanha.</p>
+</div>
+<!-- Body -->
+<div class="p-6 space-y-5">
+<!-- Section: Name -->
+<div class="space-y-1.5">
+<label class="text-[10px] uppercase tracking-widest font-bold text-stone-400 px-1">Nome do Evento</label>
+<input class="w-full bg-[#f0efee] border-none rounded-[10px] p-[10px_14px] text-sm focus:ring-2 focus:ring-orange-500/20 text-stone-800 placeholder:text-stone-400" placeholder="Ex: Apex Championship 2024" type="text"/>
+</div>
+<!-- Section: Dates -->
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[10px] uppercase tracking-widest font-bold text-stone-400 px-1">Data de Início</label>
+<input class="w-full bg-[#f0efee] border-none rounded-[10px] p-[10px_14px] text-sm focus:ring-2 focus:ring-orange-500/20 text-stone-800" type="date"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] uppercase tracking-widest font-bold text-stone-400 px-1">Saída do Caminhão</label>
+<input class="w-full bg-[#f0efee] border-none rounded-[10px] p-[10px_14px] text-sm focus:ring-2 focus:ring-orange-500/20 text-stone-800" type="date"/>
+</div>
+</div>
+<!-- Section: Sponsors -->
+<div class="space-y-1.5">
+<label class="text-[10px] uppercase tracking-widest font-bold text-stone-400 px-1">Patrocinadores Confirmados</label>
+<div class="bg-[#f0efee] rounded-[10px] p-4 max-h-32 overflow-y-auto space-y-3">
+<label class="flex items-center gap-3 cursor-pointer">
+<input class="w-4 h-4 rounded border-none bg-stone-300 text-orange-600 focus:ring-orange-500/20" type="checkbox"/>
+<span class="text-xs font-semibold text-stone-600">Vertex Dynamics</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer">
+<input checked="" class="w-4 h-4 rounded border-none bg-stone-300 text-orange-600 focus:ring-orange-500/20" type="checkbox"/>
+<span class="text-xs font-semibold text-stone-600">AeroFuel Global</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer">
+<input class="w-4 h-4 rounded border-none bg-stone-300 text-orange-600 focus:ring-orange-500/20" type="checkbox"/>
+<span class="text-xs font-semibold text-stone-600">Titanium Sports</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer">
+<input class="w-4 h-4 rounded border-none bg-stone-300 text-orange-600 focus:ring-orange-500/20" type="checkbox"/>
+<span class="text-xs font-semibold text-stone-600">Core Performance</span>
+</label>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<div class="bg-[#fafaf9] border-t border-[#f0efee] p-[16px_24px] flex justify-end gap-4 items-center">
+<button class="text-[14px] font-bold text-[#78716c] hover:text-stone-950 transition-colors uppercase tracking-tight">Cancelar</button>
+<button class="bg-[#1c1917] hover:bg-orange-600 text-white font-bold px-8 py-3 rounded-lg text-[14px] transition-all uppercase tracking-tight active:scale-95">Salvar Evento</button>
+</div>
+</div>
+<!-- Modal 3 (Define Priority) - Floating as a side detail for visual context -->
+<div class="absolute right-12 top-1/2 -translate-y-1/2 w-full max-w-[448px] bg-white rounded-xl shadow-2xl overflow-hidden hidden xl:block opacity-90 scale-90 translate-x-8">
+<div class="p-6 border-b border-stone-100 flex justify-between items-center bg-surface-container-low">
+<h3 class="font-headline text-lg font-bold text-stone-900 uppercase tracking-tight">Definir Prioridade</h3>
+<span class="text-[10px] font-black text-orange-600 tracking-widest uppercase">Módulo 03</span>
+</div>
+<div class="p-6 grid grid-cols-2 gap-4">
+<button class="h-[72px] border-2 border-stone-100 hover:border-blue-500 rounded-lg flex items-center px-4 gap-3 transition-all group">
+<div class="w-3 h-3 rounded-full bg-blue-500"></div>
+<span class="font-bold text-sm text-stone-600 group-hover:text-blue-700">Baixa</span>
+</button>
+<button class="h-[72px] border-2 border-stone-100 hover:border-purple-500 rounded-lg flex items-center px-4 gap-3 transition-all group">
+<div class="w-3 h-3 rounded-full bg-purple-500"></div>
+<span class="font-bold text-sm text-stone-600 group-hover:text-purple-700">Média</span>
+</button>
+<button class="h-[72px] border-2 border-stone-100 hover:border-amber-500 rounded-lg flex items-center px-4 gap-3 transition-all group">
+<div class="w-3 h-3 rounded-full bg-amber-500"></div>
+<span class="font-bold text-sm text-stone-600 group-hover:text-amber-700">Alta</span>
+</button>
+<button class="h-[72px] border-2 border-orange-500 bg-orange-50 rounded-lg flex items-center px-4 gap-3 transition-all group">
+<div class="w-3 h-3 rounded-full bg-red-600"></div>
+<span class="font-bold text-sm text-orange-900">Urgente</span>
+</button>
+</div>
+<div class="bg-surface-container-high p-4 flex justify-end">
+<button class="text-xs font-black text-stone-400 uppercase tracking-widest">Fechar Contexto</button>
+</div>
+</div>
+</div>
+</div>
+</body></html>

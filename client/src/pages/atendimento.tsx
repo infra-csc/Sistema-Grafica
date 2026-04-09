@@ -75,6 +75,7 @@ export default function Atendimento() {
   const [batchEventId, setBatchEventId]               = useState<string>("");
   const [batchRejectReason, setBatchRejectReason]     = useState<string>("");
   const [batchShowRejectForm, setBatchShowRejectForm] = useState<boolean>(false);
+  const [batchSelectedItemIds, setBatchSelectedItemIds] = useState<Set<string>>(new Set());
   
   // Map para rastrear patrocinadores de cada item
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
@@ -381,7 +382,9 @@ export default function Atendimento() {
     mutationFn: async ({ sponsorId, eventId, action, reason }: {
       sponsorId: string; eventId: string; action: "approve" | "reject"; reason?: string;
     }) => {
-      const targetItems = awaitingItems.filter(item => item.eventId === eventId);
+      const targetItems = awaitingItems.filter(item =>
+        item.eventId === eventId && batchSelectedItemIds.has(item.id)
+      );
       const promises = targetItems.flatMap(item => {
         const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
         const approval = approvals.find(a => a.sponsorId === sponsorId);
@@ -534,9 +537,9 @@ export default function Atendimento() {
     return (events as any[]).filter((e: any) => eventSet.has(e.id));
   }, [batchSponsorId, awaitingItems, itemApprovalsMap, itemSponsorsMap, loadingSponsors, events]);
 
-  // Contagem de itens afetados pela combinação selecionada
-  const batchItemCount = useMemo(() => {
-    if (!batchSponsorId || !batchEventId) return 0;
+  // Lista de itens elegíveis para o lote (vinculados ao patrocinador + evento selecionados)
+  const batchEligibleItems = useMemo(() => {
+    if (!batchSponsorId || !batchEventId) return [];
     return awaitingItems.filter(item => {
       if (item.eventId !== batchEventId) return false;
       if (!itemSponsorsMap[item.id]?.some((s: any) => s.id === batchSponsorId)) return false;
@@ -544,8 +547,15 @@ export default function Atendimento() {
       const approval = approvals.find(a => a.sponsorId === batchSponsorId);
       const status = approval?.status || "pending";
       return status === "pending" || status === "new_version_pending";
-    }).length;
+    });
   }, [batchSponsorId, batchEventId, awaitingItems, itemApprovalsMap, itemSponsorsMap]);
+
+  const batchItemCount = batchEligibleItems.length;
+
+  // Auto-seleciona todos os itens elegíveis ao mudar a combinação
+  useEffect(() => {
+    setBatchSelectedItemIds(new Set(batchEligibleItems.map(i => i.id)));
+  }, [batchSponsorId, batchEventId]);
 
   const getEventInfo = (eventId: string) => {
     return events.find(e => e.id === eventId);
@@ -838,69 +848,202 @@ export default function Atendimento() {
                   </div>
                 )}
 
-                {/* Chip de contagem + Botões (após escolher ambos) */}
-                {batchSponsorId && batchEventId && batchItemCount > 0 && !batchShowRejectForm && (
-                  <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
-                    {/* Chip contagem */}
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                      backgroundColor: "#fff7ed", border: "1px solid #fed7aa",
-                      color: "#c2410c", borderRadius: 100,
-                      fontSize: 12, fontWeight: 700, padding: "4px 12px",
-                    }}>
-                      <Package style={{ width: 12, height: 12 }} />
-                      {batchItemCount} {batchItemCount === 1 ? "peça pendente" : "peças pendentes"}
-                    </span>
-
-                    {/* Reprovar tudo */}
-                    <button
-                      onClick={() => setBatchShowRejectForm(true)}
-                      disabled={batchSponsorMutation.isPending}
-                      data-testid="button-batch-reject"
-                      style={{
-                        height: 36, padding: "0 16px", borderRadius: 6,
-                        backgroundColor: "#fef2f2", border: "1px solid #fecaca",
-                        color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                        display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#dc2626"; e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.borderColor = "#dc2626"; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.borderColor = "#fecaca"; }}
-                    >
-                      <XCircle style={{ width: 14, height: 14 }} />
-                      Reprovar Todas
-                    </button>
-
-                    {/* Aprovar tudo */}
-                    <button
-                      onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "approve" })}
-                      disabled={batchSponsorMutation.isPending}
-                      data-testid="button-batch-approve"
-                      style={{
-                        height: 36, padding: "0 16px", borderRadius: 6,
-                        backgroundColor: "#f0fdf4", border: "1px solid #86efac",
-                        color: "#15803d", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                        display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s",
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#15803d"; e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.borderColor = "#15803d"; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#f0fdf4"; e.currentTarget.style.color = "#15803d"; e.currentTarget.style.borderColor = "#86efac"; }}
-                    >
-                      {batchSponsorMutation.isPending
-                        ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
-                        : <CheckCircle style={{ width: 14, height: 14 }} />}
-                      Aprovar Todas
-                    </button>
-                  </div>
-                )}
-
-                {/* Nenhuma peça elegível */}
-                {batchSponsorId && batchEventId && batchItemCount === 0 && !loadingSponsors && (
-                  <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 2, marginTop: 18 }}>
-                    <span style={{ fontSize: 13, color: "#a8a29e" }}>
-                      Nenhuma peça pendente para esta combinação.
-                    </span>
-                  </div>
-                )}
               </div>
+
+              {/* Lista de peças vinculadas com checkboxes */}
+              {batchSponsorId && batchEventId && (
+                <div style={{ borderTop: "1px solid #e7e5e4" }}>
+
+                  {batchItemCount === 0 && !loadingSponsors ? (
+                    <div style={{ padding: "14px 18px" }}>
+                      <span style={{ fontSize: 13, color: "#a8a29e" }}>
+                        Nenhuma peça pendente para esta combinação.
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Cabeçalho da lista */}
+                      <div style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "10px 18px",
+                        backgroundColor: "#f3f4f3",
+                        borderBottom: "1px solid #e7e5e4",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          {/* Checkbox master */}
+                          <Checkbox
+                            checked={batchSelectedItemIds.size === batchItemCount && batchItemCount > 0}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setBatchSelectedItemIds(new Set(batchEligibleItems.map(i => i.id)));
+                              } else {
+                                setBatchSelectedItemIds(new Set());
+                              }
+                            }}
+                            data-testid="checkbox-batch-select-all"
+                          />
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            {batchSelectedItemIds.size} de {batchItemCount} {batchItemCount === 1 ? "peça selecionada" : "peças selecionadas"}
+                          </span>
+                        </div>
+                        {/* Chip seleção parcial */}
+                        {batchSelectedItemIds.size > 0 && batchSelectedItemIds.size < batchItemCount && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 600, color: "#92400e",
+                            backgroundColor: "#fef3c7", border: "1px solid #fde68a",
+                            borderRadius: 100, padding: "2px 10px",
+                          }}>
+                            Seleção parcial
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Rows de itens */}
+                      <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                        {batchEligibleItems.map((item: any, idx: number) => {
+                          const isChecked = batchSelectedItemIds.has(item.id);
+                          return (
+                            <div
+                              key={item.id}
+                              data-testid={`batch-item-row-${item.id}`}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 12,
+                                padding: "9px 18px",
+                                borderBottom: idx < batchEligibleItems.length - 1 ? "1px solid #f3f4f3" : "none",
+                                backgroundColor: isChecked ? "#ffffff" : "#fafaf9",
+                                cursor: "pointer", transition: "background-color 0.1s",
+                              }}
+                              onClick={() => {
+                                setBatchSelectedItemIds(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(item.id)) next.delete(item.id);
+                                  else next.add(item.id);
+                                  return next;
+                                });
+                              }}
+                            >
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={() => {
+                                  setBatchSelectedItemIds(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(item.id)) next.delete(item.id);
+                                    else next.add(item.id);
+                                    return next;
+                                  });
+                                }}
+                                data-testid={`checkbox-batch-item-${item.id}`}
+                                onClick={e => e.stopPropagation()}
+                              />
+                              {/* Display ID */}
+                              <span style={{
+                                fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 12,
+                                backgroundColor: "#1c1917", color: "#ffffff",
+                                padding: "2px 7px", borderRadius: 4, flexShrink: 0,
+                              }}>
+                                {item.displayId}
+                              </span>
+                              {/* Tipo */}
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "#1c1917", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {item.type}
+                              </span>
+                              {/* Descrição */}
+                              {item.description && (
+                                <span style={{ fontSize: 12, color: "#78716c", flex: 2, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {item.description}
+                                </span>
+                              )}
+                              {/* Qtd */}
+                              <span style={{
+                                fontSize: 11, fontWeight: 600,
+                                backgroundColor: "#f3f4f3", border: "1px solid #e7e5e4",
+                                color: "#78716c", borderRadius: 4, padding: "2px 8px", flexShrink: 0,
+                              }}>
+                                {item.quantity}x
+                              </span>
+                              {/* Status badge */}
+                              {(() => {
+                                const approval = (itemApprovalsMap[item.id] || []).find((a: SponsorApproval) => a.sponsorId === batchSponsorId);
+                                const st = approval?.status || "pending";
+                                const isNew = st === "new_version_pending";
+                                return (
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 600, borderRadius: 100, padding: "2px 8px", flexShrink: 0,
+                                    ...(isNew
+                                      ? { backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8" }
+                                      : { backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c" }),
+                                  }}>
+                                    {isNew ? "Nova Arte" : "Aguardando"}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Footer com ações */}
+                      {!batchShowRejectForm && (
+                        <div style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "12px 18px",
+                          backgroundColor: "#fafaf9",
+                          borderTop: "1px solid #e7e5e4",
+                          gap: 10, flexWrap: "wrap",
+                        }}>
+                          <span style={{ fontSize: 12, color: "#a8a29e" }}>
+                            {batchSelectedItemIds.size === 0
+                              ? "Selecione ao menos uma peça para prosseguir"
+                              : `${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? "peça" : "peças"} serão processadas`}
+                          </span>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() => setBatchShowRejectForm(true)}
+                              disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
+                              data-testid="button-batch-reject"
+                              style={{
+                                height: 34, padding: "0 14px", borderRadius: 6,
+                                backgroundColor: batchSelectedItemIds.size === 0 ? "#f5f5f4" : "#fef2f2",
+                                border: `1px solid ${batchSelectedItemIds.size === 0 ? "#e7e5e4" : "#fecaca"}`,
+                                color: batchSelectedItemIds.size === 0 ? "#a8a29e" : "#dc2626",
+                                fontSize: 12, fontWeight: 600,
+                                cursor: batchSelectedItemIds.size === 0 ? "not-allowed" : "pointer",
+                                display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s",
+                              }}
+                              onMouseEnter={e => { if (batchSelectedItemIds.size > 0) { e.currentTarget.style.backgroundColor = "#dc2626"; e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.borderColor = "#dc2626"; } }}
+                              onMouseLeave={e => { if (batchSelectedItemIds.size > 0) { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.borderColor = "#fecaca"; } }}
+                            >
+                              <XCircle style={{ width: 13, height: 13 }} />
+                              Reprovar Selecionadas
+                            </button>
+                            <button
+                              onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "approve" })}
+                              disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
+                              data-testid="button-batch-approve"
+                              style={{
+                                height: 34, padding: "0 14px", borderRadius: 6,
+                                backgroundColor: batchSelectedItemIds.size === 0 ? "#f5f5f4" : "#f0fdf4",
+                                border: `1px solid ${batchSelectedItemIds.size === 0 ? "#e7e5e4" : "#86efac"}`,
+                                color: batchSelectedItemIds.size === 0 ? "#a8a29e" : "#15803d",
+                                fontSize: 12, fontWeight: 600,
+                                cursor: batchSelectedItemIds.size === 0 ? "not-allowed" : "pointer",
+                                display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s",
+                              }}
+                              onMouseEnter={e => { if (batchSelectedItemIds.size > 0) { e.currentTarget.style.backgroundColor = "#15803d"; e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.borderColor = "#15803d"; } }}
+                              onMouseLeave={e => { if (batchSelectedItemIds.size > 0) { e.currentTarget.style.backgroundColor = "#f0fdf4"; e.currentTarget.style.color = "#15803d"; e.currentTarget.style.borderColor = "#86efac"; } }}
+                            >
+                              {batchSponsorMutation.isPending
+                                ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
+                                : <CheckCircle style={{ width: 13, height: 13 }} />}
+                              Aprovar Selecionadas
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Form de motivo de reprovação em lote */}
               {batchShowRejectForm && (
@@ -913,10 +1056,10 @@ export default function Atendimento() {
                     <AlertCircle style={{ width: 16, height: 16, color: "#f97316", flexShrink: 0, marginTop: 1 }} />
                     <div>
                       <p style={{ fontSize: 13, fontWeight: 700, color: "#c2410c", margin: 0 }}>
-                        Reprovar {batchItemCount} {batchItemCount === 1 ? "peça" : "peças"} em lote
+                        Reprovar {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? "peça" : "peças"} em lote
                       </p>
                       <p style={{ fontSize: 12, color: "#78716c", margin: "2px 0 0" }}>
-                        Todas as peças pendentes serão devolvidas para a Arte. Informe o motivo.
+                        As peças selecionadas serão devolvidas para a Arte. Informe o motivo.
                       </p>
                     </div>
                   </div>

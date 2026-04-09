@@ -434,37 +434,14 @@ export default function VincularPatrocinadores() {
       await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds });
     },
     onMutate: async ({ itemId, sponsorIds }) => {
-      setItemSponsorsMap(prev => ({
-        ...prev,
-        [itemId]: sponsorIds
-      }));
+      // Atualização otimista — reflete imediatamente sem esperar o servidor
+      setItemSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
+      setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
     },
-    onSuccess: async (_, { itemId }) => {
-      try {
-        const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
-        const itemSponsors = await response.json();
-        const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
-        
-        // Atualizar tanto o mapa atual quanto o original
-        setItemSponsorsMap(prev => ({
-          ...prev,
-          [itemId]: sponsorIds
-        }));
-        
-        setOriginalSponsorsMap(prev => ({
-          ...prev,
-          [itemId]: sponsorIds
-        }));
-
-        toast({
-          title: "Atualizado!",
-          description: "Patrocinadores vinculados com sucesso",
-        });
-      } catch (error) {
-        console.error(`Erro ao recarregar sponsors do item ${itemId}:`, error);
-      }
-      
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    onSuccess: (_, { itemId }) => {
+      // Só invalida em background — não bloqueia a UI
+      queryClient.invalidateQueries({ queryKey: ["/api/items", itemId, "sponsors"] });
+      toast({ title: "Atualizado!", description: "Patrocinadores vinculados com sucesso" });
     },
     onError: (error: Error) => {
       toast({
@@ -541,7 +518,6 @@ export default function VincularPatrocinadores() {
       const validItemIds = itemIdsToSave.filter(itemId => {
         const item = visibleItems.find(i => i.id === itemId);
         if (!item || !getItemEditability(item)) return false;
-        
         const changes = pendingChanges[itemId];
         return changes && changes.isDirty;
       });
@@ -552,8 +528,6 @@ export default function VincularPatrocinadores() {
 
       for (const itemId of validItemIds) {
         const changes = pendingChanges[itemId];
-
-        // Sincronizar patrocinadores e skipApproval (backend atualiza status automaticamente)
         await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
           sponsorIds: changes.sponsorIds,
           skipApproval: changes.skipApproval
@@ -562,49 +536,42 @@ export default function VincularPatrocinadores() {
       
       return validItemIds;
     },
-    onSuccess: async (validItemIds) => {
-      // Limpar pendingChanges
+    onMutate: (itemIdsToSave: string[]) => {
+      // Atualização otimista: reflete o novo estado nos mapas antes do servidor responder
+      const snapshot = { itemSponsorsMap: { ...itemSponsorsMap }, originalSponsorsMap: { ...originalSponsorsMap } };
+      
+      itemIdsToSave.forEach(itemId => {
+        const changes = pendingChanges[itemId];
+        if (changes) {
+          setItemSponsorsMap(prev => ({ ...prev, [itemId]: changes.sponsorIds }));
+          setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: changes.sponsorIds }));
+        }
+      });
+
+      return snapshot; // Usado no onError para reverter
+    },
+    onSuccess: (validItemIds) => {
+      // Limpar pendingChanges dos itens salvos
       setPendingChanges(prev => {
         const newChanges = { ...prev };
-        validItemIds.forEach(id => {
-          delete newChanges[id];
-        });
+        validItemIds.forEach(id => { delete newChanges[id]; });
         return newChanges;
       });
 
-      // Invalidar cache E forçar refetch para pegar novo status
-      await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      await queryClient.refetchQueries({ queryKey: ["/api/items"], type: 'active' });
-      
-      // Recarregar patrocinadores
-      const sponsorResults = await Promise.all(
-        validItemIds.map(async (itemId) => {
-          try {
-            const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
-            const itemSponsors = await response.json();
-            const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
-            return { itemId, sponsorIds };
-          } catch (error) {
-            console.error(`Erro ao recarregar sponsors do item ${itemId}:`, error);
-            return { itemId, sponsorIds: [] };
-          }
-        })
-      );
-      
-      setOriginalSponsorsMap(prev => {
-        const newMap = { ...prev };
-        sponsorResults.forEach(({ itemId, sponsorIds }) => {
-          newMap[itemId] = sponsorIds;
-        });
-        return newMap;
-      });
-      
+      // Invalida em background — não bloqueia a UI
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+
       toast({
-        title: "✅ Vinculação salva!",
-        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} pronto${validItemIds.length !== 1 ? 's' : ''} para enviar. Clique em "Enviar para Arte" quando estiver tudo certo.`,
+        title: "Vinculação salva!",
+        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} pronto${validItemIds.length !== 1 ? 's' : ''} para enviar.`,
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _, snapshot: any) => {
+      // Reverter estado otimista em caso de erro
+      if (snapshot) {
+        setItemSponsorsMap(snapshot.itemSponsorsMap);
+        setOriginalSponsorsMap(snapshot.originalSponsorsMap);
+      }
       toast({
         title: "Erro ao salvar vinculação",
         description: error.message,
@@ -619,11 +586,17 @@ export default function VincularPatrocinadores() {
       const res = await apiRequest("POST", "/api/items/send-to-arte", { itemIds });
       return res.json();
     },
+    onMutate: (itemIds: string[]) => {
+      // Atualização otimista: marca visualmente como ENVIADO antes da resposta do servidor
+      setOptimisticSentIds(prev => new Set([...prev, ...itemIds]));
+    },
     onSuccess: (data) => {
+      // Invalida em background — não bloqueia
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItemIds(new Set());
       setSelectedForSending(new Set());
-      setOptimisticSentIds(new Set()); // Limpar otimistas — dados reais já chegaram
+      setOptimisticSentIds(new Set()); // Limpa otimistas — dados reais já chegaram
+      setSendConfirmModal(null);
       
       if (data.errors && data.errors.length > 0) {
         toast({
@@ -633,12 +606,18 @@ export default function VincularPatrocinadores() {
         });
       } else {
         toast({
-          title: "✅ Enviado para Arte!",
-          description: `${data.sent} item${data.sent !== 1 ? 's' : ''} enviado${data.sent !== 1 ? 's' : ''} para criação do thumb de aprovação.`,
+          title: "Enviado para Arte!",
+          description: `${data.sent} item${data.sent !== 1 ? 's' : ''} enviado${data.sent !== 1 ? 's' : ''} com sucesso.`,
         });
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, itemIds: string[]) => {
+      // Reverter estado otimista
+      setOptimisticSentIds(prev => {
+        const next = new Set(prev);
+        itemIds.forEach(id => next.delete(id));
+        return next;
+      });
       toast({
         title: "Erro ao enviar para Arte",
         description: error.message,

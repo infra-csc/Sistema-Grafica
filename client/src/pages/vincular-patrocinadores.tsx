@@ -12,7 +12,9 @@ import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatusBadge } from "@/components/status-badge";
@@ -159,6 +161,13 @@ export default function VincularPatrocinadores() {
   // Seleção em lote na aba "Por Patrocinador"
   const [sponsorBulkSelected, setSponsorBulkSelected] = useState<Set<string>>(new Set());
   const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
+
+  // Modal de confirmação de envio
+  interface SendConfirmModal {
+    items: any[];
+    pendingByItem: Record<string, Set<string>>; // sponsorIds NOVOS a vincular
+  }
+  const [sendConfirmModal, setSendConfirmModal] = useState<SendConfirmModal | null>(null);
 
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -1020,6 +1029,74 @@ export default function VincularPatrocinadores() {
     setSponsorBulkSelected(new Set());
   };
 
+  // ===== Modal de Confirmação de Envio =====
+
+  // Abre o modal para o botão "Enviar" individual (item já vinculado)
+  const openSendModalForItem = (item: any, preSelectedSponsorId?: string) => {
+    const pending: Set<string> = new Set();
+    if (preSelectedSponsorId) pending.add(preSelectedSponsorId);
+    setSendConfirmModal({ items: [item], pendingByItem: { [item.id]: pending } });
+  };
+
+  // Abre o modal para o bulk "Vincular e Enviar"
+  const openSendModalForBulk = () => {
+    const grouped = groupSelectedBySponsor();
+    const itemIds = Object.keys(grouped);
+    if (itemIds.length === 0) return;
+    const items = visibleItems.filter(i => itemIds.includes(i.id));
+    const pendingByItem: Record<string, Set<string>> = {};
+    items.forEach(item => {
+      const existing = originalSponsorsMap[item.id] || [];
+      // Only NEW sponsors (not yet linked)
+      const newOnes = (grouped[item.id] || []).filter(id => !existing.includes(id));
+      pendingByItem[item.id] = new Set(newOnes);
+    });
+    setSendConfirmModal({ items, pendingByItem });
+  };
+
+  // Alterna sponsor no modal (na seção "outros patrocinadores")
+  const toggleModalSponsor = (itemId: string, sponsorId: string) => {
+    setSendConfirmModal(prev => {
+      if (!prev) return prev;
+      const next = new Set(prev.pendingByItem[itemId] || []);
+      next.has(sponsorId) ? next.delete(sponsorId) : next.add(sponsorId);
+      return { ...prev, pendingByItem: { ...prev.pendingByItem, [itemId]: next } };
+    });
+  };
+
+  // Confirma e executa o envio com os patrocinadores finais do modal
+  const handleModalConfirmSend = async () => {
+    if (!sendConfirmModal) return;
+    const { items, pendingByItem } = sendConfirmModal;
+    setSendConfirmModal(null);
+
+    try {
+      for (const item of items) {
+        const existing = originalSponsorsMap[item.id] || [];
+        const newOnes = Array.from(pendingByItem[item.id] || []);
+        const merged = Array.from(new Set([...existing, ...newOnes]));
+        if (newOnes.some(id => !existing.includes(id))) {
+          await apiRequest("POST", `/api/items/${item.id}/sponsors/sync`, {
+            sponsorIds: merged,
+            skipApproval: false,
+          });
+          setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
+          setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
+        }
+      }
+      const itemIds = items.map(i => i.id);
+      setOptimisticSentIds(prev => new Set([...prev, ...itemIds]));
+      sendToArteMutation.mutate(itemIds);
+    } catch (err: any) {
+      toast({
+        title: "Erro ao enviar",
+        description: err?.message || "Tente novamente",
+        variant: "destructive",
+      });
+    }
+    setSponsorBulkSelected(new Set());
+  };
+
   // Vincular patrocinador a item individual (aba Por Patrocinador)
   const linkSponsorToItem = (itemId: string, sponsorId: string) => {
     const current = originalSponsorsMap[itemId] || [];
@@ -1707,7 +1784,7 @@ export default function VincularPatrocinadores() {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
-                  onClick={handleSponsorBulkSendToArte}
+                  onClick={openSendModalForBulk}
                   disabled={sendToArteMutation.isPending}
                   style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, height: 38, padding: '0 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
                 >
@@ -1851,7 +1928,7 @@ export default function VincularPatrocinadores() {
                                         </span>
                                       ) : isLinked ? (
                                         <button
-                                          onClick={() => sendToArteMutation.mutate([item.id])}
+                                          onClick={() => openSendModalForItem(item)}
                                           disabled={sendToArteMutation.isPending}
                                           style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 7, height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background-color 0.2s' }}
                                           onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
@@ -2073,6 +2150,139 @@ export default function VincularPatrocinadores() {
         open={!!selectedItemForDetails}
         onOpenChange={(open) => !open && setSelectedItemForDetails(null)}
       />
+
+      {/* ===== Modal de Confirmação de Envio ===== */}
+      <Dialog open={!!sendConfirmModal} onOpenChange={(open) => !open && setSendConfirmModal(null)}>
+        <DialogContent style={{ maxWidth: 560, padding: 0, borderRadius: 12, overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #e7e5e4' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ShieldCheck style={{ width: 18, height: 18, color: '#f97316' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#1c1917' }}>Confirmar Envio para Arte</div>
+                <div style={{ fontSize: 12, color: '#78716c', marginTop: 1 }}>
+                  Revise os patrocinadores antes de confirmar
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Corpo — lista de itens */}
+          <ScrollArea style={{ maxHeight: 420 }}>
+            <div style={{ padding: '16px 28px' }}>
+              {sendConfirmModal?.items.map((item, idx) => {
+                const confirmed = (originalSponsorsMap[item.id] || []);
+                const pending = sendConfirmModal.pendingByItem[item.id] || new Set<string>();
+                const allSponsorIds = (sponsors as any[]).map((s: any) => s.id);
+                const otherSponsorIds = allSponsorIds.filter((sid: string) => !confirmed.includes(sid));
+
+                return (
+                  <div key={item.id}>
+                    {idx > 0 && <Separator style={{ margin: '16px 0' }} />}
+
+                    {/* Item header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                      <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#f97316', fontWeight: 700 }}>
+                        {item.displayId}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>{item.type}</span>
+                      {item.description && (
+                        <span style={{ fontSize: 11, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                          {item.description}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Patrocinadores já confirmados */}
+                    {confirmed.length > 0 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                          Já vinculados
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {confirmed.map((sid: string) => {
+                            const sp = (sponsors as any[]).find((s: any) => s.id === sid);
+                            if (!sp) return null;
+                            return (
+                              <div key={sid} style={{ display: 'flex', alignItems: 'center', gap: 6, backgroundColor: '#f0fdf4', border: '1px solid #86efac', borderRadius: 100, padding: '4px 12px' }}>
+                                <div style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: sp.color || '#3b82f6', flexShrink: 0 }} />
+                                <span style={{ fontSize: 12, color: '#15803d', fontWeight: 500 }}>{sp.name}</span>
+                                <Check style={{ width: 11, height: 11, color: '#15803d' }} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Outros patrocinadores (selecionar para adicionar) */}
+                    {otherSponsorIds.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                          {confirmed.length > 0 ? 'Adicionar mais patrocinadores' : 'Selecionar patrocinadores'}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {otherSponsorIds.map((sid: string) => {
+                            const sp = (sponsors as any[]).find((s: any) => s.id === sid);
+                            if (!sp) return null;
+                            const isChecked = pending.has(sid);
+                            return (
+                              <label
+                                key={sid}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', backgroundColor: isChecked ? '#fff7ed' : 'transparent', border: `1px solid ${isChecked ? '#fed7aa' : 'transparent'}`, transition: 'all 0.15s' }}
+                                onClick={() => toggleModalSponsor(item.id, sid)}
+                              >
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={() => toggleModalSponsor(item.id, sid)}
+                                  onClick={e => e.stopPropagation()}
+                                />
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sp.color || '#3b82f6', flexShrink: 0 }} />
+                                <span style={{ fontSize: 13, color: isChecked ? '#c2410c' : '#1c1917', fontWeight: isChecked ? 600 : 400 }}>{sp.name}</span>
+                                {isChecked && (
+                                  <span style={{ marginLeft: 'auto', fontSize: 10, color: '#f97316', fontWeight: 600 }}>A vincular</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {confirmed.length === 0 && otherSponsorIds.length === 0 && (
+                      <div style={{ fontSize: 12, color: '#a8a29e', fontStyle: 'italic' }}>
+                        Nenhum patrocinador disponível
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+
+          {/* Footer */}
+          <div style={{ padding: '16px 28px', borderTop: '1px solid #e7e5e4', display: 'flex', justifyContent: 'flex-end', gap: 10, backgroundColor: '#fafaf9' }}>
+            <button
+              onClick={() => setSendConfirmModal(null)}
+              style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 8, height: 38, padding: '0 18px', fontWeight: 500, fontSize: 13, cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleModalConfirmSend}
+              disabled={sendToArteMutation.isPending}
+              style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 8, height: 38, padding: '0 20px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
+              onMouseEnter={e => { if (!sendToArteMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917'; }}
+            >
+              <Send style={{ width: 14, height: 14 }} />
+              Confirmar e Enviar{sendConfirmModal && sendConfirmModal.items.length > 1 ? ` ${sendConfirmModal.items.length} itens` : ''}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -36,14 +36,21 @@ const TI = {
 };
 
 const statusConfig: Record<string, { label: string; bg: string; color: string; border: string }> = {
-  approved:     { label: "Liberado",     bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
-  liberado:     { label: "Liberado",     bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
-  inProduction: { label: "Em Produção",  bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
-  em_producao:  { label: "Em Produção",  bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
-  produced:     { label: "Produzido",    bg: "#dcfce7", color: "#15803d", border: "#86efac" },
-  produzido:    { label: "Produzido",    bg: "#dcfce7", color: "#15803d", border: "#86efac" },
-  delivered:    { label: "Entregue",     bg: "#f0fdf4", color: "#166534", border: "#6ee7b7" },
-  entregue:     { label: "Entregue",     bg: "#f0fdf4", color: "#166534", border: "#6ee7b7" },
+  approved:               { label: "Liberado",           bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
+  liberado:               { label: "Liberado",           bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
+  pronto_para_producao:   { label: "Pronto p/ Prod.",    bg: "#ede9fe", color: "#6d28d9", border: "#c4b5fd" },
+  inProduction:           { label: "Em Produção",        bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
+  em_producao:            { label: "Em Produção",        bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
+  produced:               { label: "Produzido",          bg: "#dcfce7", color: "#15803d", border: "#86efac" },
+  produzido:              { label: "Produzido",          bg: "#dcfce7", color: "#15803d", border: "#86efac" },
+  delivered:              { label: "Entregue",           bg: "#f0fdf4", color: "#166534", border: "#6ee7b7" },
+  entregue:               { label: "Entregue",           bg: "#f0fdf4", color: "#166534", border: "#6ee7b7" },
+  solicitado:             { label: "Solicitado",         bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
+  aguardando_vinculacao:  { label: "Ag. Vinculação",     bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  aguardando_envio:       { label: "Ag. Envio",          bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  aguardando_aprovacao:   { label: "Ag. Aprovação",      bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  aguardando_finalizacao: { label: "Ag. Finalização",    bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  aguardando_revisao_final:{ label: "Ag. Revisão",       bg: "#fef9c3", color: "#a16207", border: "#fde047" },
 };
 
 function StatusPill({ status }: { status: string }) {

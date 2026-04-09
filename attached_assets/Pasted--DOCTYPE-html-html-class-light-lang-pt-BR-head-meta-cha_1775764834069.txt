@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE APEX - Aprovação do Patrocinador</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed-dim": "#ccc5c2",
+                      "on-secondary-fixed-variant": "#783200",
+                      "on-primary-container": "#35322f",
+                      "tertiary-container": "#00a2f4",
+                      "surface-dim": "#dadad9",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-bright": "#f9f9f8",
+                      "on-secondary": "#ffffff",
+                      "inverse-surface": "#2f3130",
+                      "surface-variant": "#e2e2e2",
+                      "secondary-fixed-dim": "#ffb690",
+                      "tertiary-fixed": "#cde5ff",
+                      "inverse-primary": "#ccc5c2",
+                      "tertiary-fixed-dim": "#93ccff",
+                      "primary-container": "#9f9996",
+                      "on-primary-fixed-variant": "#4a4643",
+                      "surface-tint": "#625d5b",
+                      "primary": "#625d5b",
+                      "surface": "#f9f9f8",
+                      "on-surface": "#1a1c1c",
+                      "surface-container-high": "#e8e8e7",
+                      "secondary": "#9d4300",
+                      "tertiary": "#006398",
+                      "secondary-container": "#fd761a",
+                      "surface-container-low": "#f3f4f3",
+                      "inverse-on-surface": "#f1f1f0",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "outline-variant": "#e0c0b1",
+                      "on-tertiary-container": "#003554",
+                      "surface-container-highest": "#e2e2e2",
+                      "surface-container": "#eeeeed",
+                      "on-primary-fixed": "#1e1b19",
+                      "secondary-fixed": "#ffdbca",
+                      "primary-fixed": "#e9e1dd",
+                      "on-tertiary": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "on-error": "#ffffff",
+                      "on-tertiary-fixed": "#001d32",
+                      "on-error-container": "#93000a",
+                      "outline": "#8c7164",
+                      "on-surface-variant": "#584237",
+                      "on-secondary-fixed": "#341100",
+                      "on-background": "#1a1c1c",
+                      "background": "#f9f9f8",
+                      "on-tertiary-fixed-variant": "#004b74",
+                      "on-secondary-container": "#5c2400"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "fontFamily": {
+                      "headline": ["Space Grotesk"],
+                      "body": ["Plus Jakarta Sans"],
+                      "label": ["Plus Jakarta Sans"]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .font-space-grotesk { font-family: 'Space Grotesk', sans-serif; }
+        .font-plus-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .tracking-tighter-premium { letter-spacing: -0.05em; }
+        .glass-brand {
+            background: rgba(226, 222, 222, 0.6);
+            backdrop-filter: blur(12px);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #625d5b; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-surface font-plus-jakarta text-on-surface">
+<!-- TopNavBar -->
+<nav class="bg-stone-50 dark:bg-stone-950 docked full-width top-0 z-50 fixed flex justify-between items-center w-full px-8 py-4 h-16 max-w-[1920px] mx-auto">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black tracking-tighter text-stone-900 dark:text-stone-50 uppercase font-space-grotesk">NORTE APEX</span>
+<div class="hidden md:flex gap-6">
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-colors duration-200" href="#">Dashboard</a>
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-colors duration-200" href="#">Patrocinadores</a>
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-900 transition-colors duration-200" href="#">Eventos</a>
+<a class="text-orange-600 dark:text-orange-500 font-bold border-b-2 border-orange-600" href="#">Aprovações</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-stone-100 transition-all active:scale-95 duration-150 ease-in-out">
+<span class="material-symbols-outlined text-stone-600">notifications</span>
+</button>
+<button class="p-2 rounded-full hover:bg-stone-100 transition-all active:scale-95 duration-150 ease-in-out">
+<span class="material-symbols-outlined text-stone-600">settings</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-stone-200">
+<img alt="Avatar do Gestor" data-alt="close-up portrait of a professional manager with a clean workspace background, professional studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSEYfoxxBk-YHQ4gCsImLkgyMTCm9DuHJF0FxJCcgs5ZiD2vcwfqvGrmOYosvDdtCecE4KBXdqo7n21HSrorfI0vBxBptPAPLrERY9zDqDwTFP1h_ZRf1lQpOD_vCpI7guzX4xz9IeXZsGIpp9zkwnsYWZROu76eLL0NGWnSooqkIIiBLw7OXz-i394B95haatfG7JLfC8KiPZziHwszkiWmrmXogc26hfchUfXWqRFCu6uKquHaqhOR_lhAv5ne9WuNOk03_5LS2y"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 bg-stone-100 dark:bg-stone-900 flex flex-col p-4 gap-2 border-r border-stone-200 dark:border-stone-800">
+<div class="mb-6 px-2">
+<h2 class="text-stone-900 dark:text-stone-50 font-bold text-sm">Gestão Apex</h2>
+<p class="text-stone-500 text-xs">Temporada 2024</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 rounded-md hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-semibold text-sm">Visão Geral</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-stone-200 dark:bg-stone-800 text-orange-600 dark:text-orange-500 rounded-md shadow-sm" href="#">
+<span class="material-symbols-outlined" data-icon="pending_actions">pending_actions</span>
+<span class="font-semibold text-sm">Pendentes</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 rounded-md hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="verified">verified</span>
+<span class="font-semibold text-sm">Revisados</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 rounded-md hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span class="font-semibold text-sm">Histórico</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 rounded-md hover:translate-x-1 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-semibold text-sm">Relatórios</span>
+</a>
+</nav>
+<button class="mt-4 w-full bg-secondary text-on-secondary py-2.5 rounded-md font-bold text-xs uppercase tracking-wider hover:brightness-105 transition-all">
+            Nova Aprovação
+        </button>
+<div class="mt-auto pt-4 border-t border-stone-200 dark:border-stone-800 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 rounded-md" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-semibold text-sm">Suporte</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 rounded-md" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-semibold text-sm">Sair</span>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="ml-64 mt-16 p-8 min-h-screen bg-surface">
+<!-- Header Section -->
+<header class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="max-w-2xl">
+<div class="flex items-center gap-3 mb-2">
+<span class="bg-secondary-container text-on-secondary-container text-[10px] font-extrabold px-2 py-0.5 rounded tracking-widest uppercase">Fluxo de Verificação</span>
+<span class="h-1.5 w-1.5 rounded-full bg-secondary"></span>
+<span class="text-stone-500 text-xs font-bold uppercase tracking-tight">Temporada Apex 2024</span>
+</div>
+<h1 class="text-4xl md:text-5xl font-headline font-black tracking-tighter-premium text-stone-900 leading-none mb-4">Aprovação do Patrocinador</h1>
+<p class="text-stone-600 text-lg font-medium leading-relaxed">Gestão centralizada de ativos de marca, validação técnica de entregáveis e revisão editorial para conformidade com padrões de patrocinadores Tier 1.</p>
+</div>
+<div class="flex flex-col items-end gap-2">
+<span class="text-stone-400 text-[10px] font-bold uppercase tracking-[0.2em]">Pendências Atuais</span>
+<div class="flex items-center gap-2">
+<div class="bg-stone-900 text-white px-4 py-2 rounded-lg flex items-center gap-3">
+<span class="text-2xl font-black font-headline leading-none">24</span>
+<span class="text-[10px] leading-tight uppercase font-bold opacity-70">Ativos em<br/>Análise</span>
+</div>
+</div>
+</div>
+</header>
+<!-- Filters Bar -->
+<section class="mb-8 bg-surface-container-low p-6 rounded-xl border border-outline-variant/15 flex flex-wrap gap-4 items-center">
+<div class="flex-1 min-w-[300px]">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-secondary transition-colors">search</span>
+<input class="w-full pl-10 pr-4 py-3 bg-white rounded-lg border-none focus:ring-2 focus:ring-secondary/20 font-medium text-sm" placeholder="Buscar por ID, Marca ou Evento..." type="text"/>
+</div>
+</div>
+<div class="flex flex-wrap gap-3">
+<select class="bg-white border-none rounded-lg text-sm font-semibold px-4 py-3 focus:ring-2 focus:ring-secondary/20">
+<option>Todos Eventos</option>
+<option>Apex Masters SP</option>
+<option>Endurance Rio</option>
+</select>
+<select class="bg-white border-none rounded-lg text-sm font-semibold px-4 py-3 focus:ring-2 focus:ring-secondary/20">
+<option>Tipo de Entrega</option>
+<option>Banner Digital</option>
+<option>Backdrop Físico</option>
+</select>
+<select class="bg-white border-none rounded-lg text-sm font-semibold px-4 py-3 focus:ring-2 focus:ring-secondary/20">
+<option>Patrocinador</option>
+<option>Red Bull</option>
+<option>Michelin</option>
+<option>Heineken 0.0</option>
+</select>
+<button class="bg-stone-900 text-white p-3 rounded-lg flex items-center justify-center hover:bg-stone-800 transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+</section>
+<!-- Bulk Approval Panel -->
+<section class="mb-8 bg-stone-950 text-white p-8 rounded-xl relative overflow-hidden shadow-2xl">
+<div class="absolute top-0 right-0 p-8 opacity-10">
+<span class="material-symbols-outlined text-[120px]" style="font-variation-settings: 'FILL' 1;">speed</span>
+</div>
+<div class="relative z-10">
+<div class="flex items-center gap-4 mb-6">
+<div class="bg-secondary p-2 rounded-lg">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+<div>
+<h3 class="text-xl font-headline font-bold tracking-tight">Aprovação em Lote</h3>
+<p class="text-stone-400 text-sm">Selecione um patrocinador para processar múltiplos arquivos simultaneamente.</p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-end">
+<div class="space-y-2">
+<label class="text-[10px] font-bold uppercase tracking-widest text-stone-500">Filtrar por Patrocinador</label>
+<select class="w-full bg-stone-900 border border-stone-800 text-white rounded-lg py-3 px-4 focus:ring-secondary focus:border-secondary">
+<option>Heineken 0.0 (Global Partner)</option>
+<option>Oracle Cloud</option>
+</select>
+</div>
+<div class="lg:col-span-2 overflow-x-auto">
+<div class="flex gap-4 pb-2">
+<div class="flex-shrink-0 flex items-center gap-3 bg-stone-900/50 p-2 rounded-lg border border-stone-800 min-w-[220px]">
+<input class="rounded border-stone-700 bg-stone-800 text-secondary focus:ring-secondary" type="checkbox"/>
+<img class="h-10 w-10 rounded object-cover bg-stone-800" data-alt="thumbnail of a professional racing poster design with vibrant colors and typography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzrTsj5E0HTTtwfP1SFtgLy6bpf6vM1HA9f3enLk2gid4CXdB8Jl5sGYxFGvVWugEyGdxvUCPVkUCWje4I_dygajOOk_omPkC286xGEyzhorPe4rZxTo946J-q8LVDv8-JteOgqhtxAgwSMgY4dhz-Ah3AL4nXUbvWklUsLALAjf9Ps_mY68kc-xzV1-c2sOk9FApnlGUfhs-FJiXF4TPHQAD5EDl1L4XMii55FVnNbcEZycF_WbniQEv4wBs1LE-GHmJviom0V3S_"/>
+<div class="overflow-hidden">
+<p class="text-xs font-bold truncate">Banner_SP_01.pdf</p>
+<p class="text-[10px] text-stone-500">ID: #8821</p>
+</div>
+</div>
+<div class="flex-shrink-0 flex items-center gap-3 bg-stone-900/50 p-2 rounded-lg border border-stone-800 min-w-[220px]">
+<input class="rounded border-stone-700 bg-stone-800 text-secondary focus:ring-secondary" type="checkbox"/>
+<img class="h-10 w-10 rounded object-cover bg-stone-800" data-alt="thumbnail of a race track layout schematic technical drawing" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBhbmflzjyHY0d5XyNssMJnvsPOo4rbNwbFEnOHP29RP-ExvPE8Vj7n89wzAl6TqOY3aA_KFBE3msecpeybXp5FcKH3jSR7THeQ96rwHU8e35nDVPsVvfBwiGzqT38pk345rfB4YT2falIr-GIHQgyZinDRafwDQ6zpf1ItO8RU7HA_byvXwMq0XfIS0UvIqUDOWJRnvrVuHHTHIQqafheB_DK5bzoAV_gLx91ewHhti7slsab3Cuc9SH06E8aEsRumAKcVNcy45wJF"/>
+<div class="overflow-hidden">
+<p class="text-xs font-bold truncate">Layout_Pits_V2.png</p>
+<p class="text-[10px] text-stone-500">ID: #8845</p>
+</div>
+</div>
+<div class="flex-shrink-0 flex items-center gap-3 bg-stone-900/50 p-2 rounded-lg border border-stone-800 min-w-[220px]">
+<input class="rounded border-stone-700 bg-stone-800 text-secondary focus:ring-secondary" type="checkbox"/>
+<img class="h-10 w-10 rounded object-cover bg-stone-800" data-alt="thumbnail of corporate branding logos on a white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAfj17v6r7fK0BpvIMNRlI1DdoZ8JC9c6aWDIuza93KAKDr6uh09TxhlXzPIReSIE5xCuPaM0nSu-ZZ_7uuzNSbrZnFPHMHJ6amqLhITVoiDhBkjSS9u3Y3PyPdbOlG3Aw3V-nca4H9rA1qqnCXPygobkO4P6RjYPtMMbmrGmRPV2PtmDI1yP58Xqlkgf016xzuWTAtUsFRxqbY6G_GGZXZC5tzMahqj_CstvofBVyLZ8VXs80-Q1Jo7s1qee3Iu2l9cJsDj_GIc7iT"/>
+<div class="overflow-hidden">
+<p class="text-xs font-bold truncate">Logos_Sidepod.eps</p>
+<p class="text-[10px] text-stone-500">ID: #8867</p>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 bg-stone-800 hover:bg-stone-700 text-white font-bold text-xs py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">close</span> Recusar
+                        </button>
+<button class="flex-1 bg-secondary hover:brightness-110 text-white font-bold text-xs py-3 rounded-lg transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">check_circle</span> Aprovar Seleção
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Main Content Area: Grouped Table -->
+<div class="space-y-6">
+<!-- Group Header -->
+<div class="flex items-center gap-4 py-4 border-b border-stone-200">
+<span class="material-symbols-outlined text-secondary">event_available</span>
+<h4 class="text-xl font-headline font-extrabold tracking-tight">Apex Masters Interlagos <span class="text-stone-400 font-medium ml-2">Abril 2024</span></h4>
+</div>
+<!-- Bento-Style Grid for Rows -->
+<div class="grid grid-cols-1 gap-4">
+<!-- Pending Item Card -->
+<div class="bg-white rounded-xl border-l-4 border-l-orange-500 shadow-sm hover:shadow-md transition-shadow group overflow-hidden">
+<div class="flex items-center p-5 gap-6">
+<div class="relative h-16 w-16 flex-shrink-0 rounded-lg overflow-hidden bg-stone-100">
+<img class="h-full w-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" data-alt="close-up of professional printing machinery detail, high-resolution photography, industrial aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDt3sacCw8T-5o8gidULAtt-XGo62suDnXMh2XaQ0XbLEE0zPypKZI_ekHzZAH11XJb0l8nLZHa5ML5JYLGB-IGZZPlGHwPjEoGgB3LlBWpLsY6GUcxcVjCnmTnj_dqlKDux0tgTKZmsnu2USKXda5XmRRylX5ZLQFbIzO6YfGX7uE1TIY7R7kryb-k9GRkhAK-ZCE_b5HT6Bz1vEmQSDIIDhkfjeHdBcE35aUqLe6MdbNiQ01cuuZImWCAyL2a0ioIvOOyEZgsWWFg"/>
+<div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-white text-sm">visibility</span>
+</div>
+</div>
+<div class="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+<div>
+<h5 class="text-sm font-bold text-stone-900 truncate">Banner Principal - Reta dos Boxes</h5>
+<p class="text-[10px] font-bold text-stone-400 uppercase">ID: APX-9921 • Digital Display</p>
+</div>
+<div>
+<p class="text-[10px] text-stone-400 uppercase font-bold mb-1">Patrocinador</p>
+<div class="flex items-center gap-2">
+<div class="h-6 w-6 rounded bg-stone-100 p-0.5 border border-stone-200">
+<img class="h-full w-full object-contain" data-alt="Red Bull brand logo on white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNvRbhAiSjK1kT2nCA2eHEgsUibn1sNlVLBU1daX9lUNUdOMZbjxfVGx430RiX5tJzSg8sVrsmUclXXGK_YmPCQZaKNHJKQKtH7vS-c0e2H0D9sywLR-vnVoO4uBtKOgo3WuWw2226LOlwfUpjq0XPcEis7-xK4WQnbITB6bbiPXYJ-mWKuCzZIwTQuLpo6vt-q-yWahHyRYUWYCblcuKNNQovyUITBE6UoSvspXB_ItvEx9gD-At61UgI-UpfSv1T0y7bUNlTQBQR"/>
+</div>
+<span class="text-xs font-bold">Red Bull Racing</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-[10px] text-stone-400 uppercase font-bold">Status Aprovação</p>
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-orange-100 text-orange-700 text-[10px] font-bold w-fit">
+<span class="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse"></span> AGUARDANDO REVISÃO
+                                </span>
+</div>
+<div class="flex justify-end">
+<button class="bg-stone-100 hover:bg-stone-900 hover:text-white text-stone-900 px-6 py-2.5 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2">
+                                    Revisar <span class="material-symbols-outlined text-sm">open_in_new</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Approved Item Card -->
+<div class="bg-white/60 rounded-xl border-l-4 border-l-stone-200 shadow-sm opacity-80 overflow-hidden">
+<div class="flex items-center p-5 gap-6">
+<div class="h-16 w-16 flex-shrink-0 rounded-lg overflow-hidden bg-stone-100 grayscale">
+<img class="h-full w-full object-cover" data-alt="architectural blueprint on a wooden desk with sunlight coming from the side" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_JSugz6LUdD1649BfQOn0hT2xdHdr_IGSrwWfX7Nnn-YBYQjLJYiV-1Rh4LULwhUfpBFYVBFv6M_kAR9le2HdmW-kdFKwwPm5cEEmT80e-zce5Bas6Y1NJB3PcIlZdXmyj7M-cRgfezPFYDSzklr276L9u5pKfN-_mCxx6hWTU1antLR5kUSi6MaAFpdyAjNErwkmyugOG2CmRntIPI4wy1YTtvWVKTIc9_JeisL8SRBScvEbupM5N4etd29-gnfbLg19ubuH5GWz"/>
+</div>
+<div class="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+<div>
+<h5 class="text-sm font-bold text-stone-500 truncate">Viseira Capacete - Pilotos Grid</h5>
+<p class="text-[10px] font-bold text-stone-300 uppercase">ID: APX-9905 • Impressão UV</p>
+</div>
+<div>
+<p class="text-[10px] text-stone-300 uppercase font-bold mb-1">Patrocinador</p>
+<div class="flex items-center gap-2 opacity-50">
+<div class="h-6 w-6 rounded bg-stone-100 p-0.5 border border-stone-200">
+<img class="h-full w-full object-contain" data-alt="Shell oil brand logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUEFpTwCDXdXgYXCIz5H4ioafCgLCJdxDkIWe5EN41jF2eFccoVXlyWL2x5uWlH6IxZC3OfxwjYITyEJn0TKMnD2Y1UOzCWTmpPRKSV_TSaXvzBcO1GdJTlDBKVLx1iewgct4cJ070lnOrk_GNa-C9el1xLQAt2kBLyXBpjdgJU53Xl68simJ9vtTUtZQfjvKZBUbLOx8UjeoSuDxOgAPScvjxXbpksQzQ6KgkaNYuG9khVlP97GU-WGdp_YCZCbP451vWM2FSEPtN"/>
+</div>
+<span class="text-xs font-bold">Shell Global</span>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<p class="text-[10px] text-stone-300 uppercase font-bold">Status Aprovação</p>
+<span class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-stone-100 text-stone-500 text-[10px] font-bold w-fit">
+<span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">check_circle</span> APROVADO
+                                </span>
+</div>
+<div class="flex justify-end">
+<button class="bg-stone-50 text-stone-400 px-6 py-2.5 rounded-lg text-xs font-bold uppercase cursor-default">
+                                    Histórico
+                                </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Overlay / Modal Individual Revision (Simulated) -->
+<div class="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+<div class="bg-white w-full max-w-6xl max-h-[921px] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+<!-- Modal Header -->
+<div class="p-6 border-b border-stone-100 flex justify-between items-center bg-stone-50">
+<div class="flex items-center gap-4">
+<div class="bg-stone-900 text-white p-3 rounded-xl">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div>
+<h2 class="text-2xl font-headline font-black tracking-tight leading-none mb-1">REVISÃO DE ATIVO #APX-9921</h2>
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-bold text-stone-500 uppercase tracking-widest">Enviado em 14 Abr 2024 às 10:45</span>
+<span class="h-1 w-1 rounded-full bg-stone-300"></span>
+<span class="text-[10px] font-extrabold text-orange-600 uppercase">Prioridade Alta</span>
+</div>
+</div>
+</div>
+<button class="h-10 w-10 flex items-center justify-center rounded-full hover:bg-stone-200 transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Modal Content Layout -->
+<div class="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12">
+<!-- Left Sidebar: Technical Data -->
+<div class="lg:col-span-3 border-r border-stone-100 p-6 space-y-8 bg-stone-50/50">
+<div>
+<h4 class="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-4">Metadados Técnicos</h4>
+<div class="space-y-4">
+<div class="bg-white p-3 rounded-lg border border-stone-100">
+<p class="text-[10px] text-stone-400 font-bold uppercase mb-1">Formato de Saída</p>
+<p class="text-sm font-bold">PDF/X-4 (Vetorial)</p>
+</div>
+<div class="bg-white p-3 rounded-lg border border-stone-100">
+<p class="text-[10px] text-stone-400 font-bold uppercase mb-1">Dimensões Reais</p>
+<p class="text-sm font-bold">4500mm x 1200mm</p>
+</div>
+<div class="bg-white p-3 rounded-lg border border-stone-100">
+<p class="text-[10px] text-stone-400 font-bold uppercase mb-1">Perfil de Cores</p>
+<p class="text-sm font-bold">CMYK - FOGRA39</p>
+</div>
+</div>
+</div>
+<div>
+<h4 class="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-4">Link Direto</h4>
+<a class="flex items-center justify-between p-3 bg-secondary/5 text-secondary border border-secondary/10 rounded-lg group" href="#">
+<span class="text-xs font-black uppercase">Abrir Arte (High-Res)</span>
+<span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">download_for_offline</span>
+</a>
+</div>
+</div>
+<!-- Center: Visual Preview -->
+<div class="lg:col-span-6 p-6 space-y-6">
+<div class="aspect-video bg-stone-100 rounded-xl overflow-hidden border border-stone-200 shadow-inner group relative">
+<img class="h-full w-full object-cover" data-alt="professional race car livery design displayed in a studio setting, high-end 3D rendering" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDQ--qire5NKHhwBn9jmoMrLeaPPcGDHcuN9P0itWqz9oGm9eFg1irfhbXxtiXgCfSh1pRORfghSIh3QkLg81pvrnkkKn0XD6qj2KAFrIheYaR9FxCqppj3IeZOqTDA6R_r9wpuzmZ8Y8YlWvKcEId1e2948fY3ldfqLAoyPZaxp0yvWKW_IfmR0gAwv1cTNOxTh-yFkniYs5c1TAWVJzLJKD5OoUmKP_Wp0k3s3CMWReeT3cFqtBMc73qA92gWF2kAp7cmF6tmmXZR"/>
+<div class="absolute inset-0 bg-stone-900/0 hover:bg-stone-900/20 transition-all flex items-center justify-center">
+<button class="bg-white px-4 py-2 rounded-lg text-xs font-bold shadow-xl opacity-0 group-hover:opacity-100 transition-opacity">Zoom Visualizador</button>
+</div>
+</div>
+<!-- Feedback Cards -->
+<div class="space-y-4">
+<h4 class="text-[10px] font-black text-stone-400 uppercase tracking-widest">Feedback do Patrocinador</h4>
+<div class="p-4 rounded-xl border-2 border-dashed border-stone-200 hover:border-secondary transition-colors">
+<div class="flex items-center gap-3 mb-3">
+<div class="h-8 w-8 rounded-full overflow-hidden">
+<img alt="Avatar Designer" data-alt="close-up of a creative female designer in a modern studio environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8uiNSqP13NrAgOId5FmkFx2wns3q_AEIWQC7kNGVND0k90rXkVPxyBpThONQaq4Qmae3KR2wuY2iPN_RCCCE0iM2YDu2kN4bV1ZhRCCkWVk6xhooOJzZ59rW8q9IPqIyX4mhazkPyZ-bcWiNDl74GN55ZGkZ3dKMJQSNeoBY2BSBRV5EMEeP9DIUkDdP90YKuWVfD2J8JTD-YfOCNihvZN4Jnza1N1YkPEm3BIXzOOcoB_rbCIQhFiaXhYmzawiPMgdmrbp0dSgQi"/>
+</div>
+<div>
+<p class="text-xs font-bold">Sara Miller <span class="text-stone-400 font-normal">• Brand Manager Heineken</span></p>
+</div>
+</div>
+<textarea class="w-full bg-stone-50 border-none rounded-lg text-sm p-3 focus:ring-secondary/20 h-24" placeholder="Adicionar feedback ou observação para correção..."></textarea>
+</div>
+</div>
+</div>
+<!-- Right Sidebar: History -->
+<div class="lg:col-span-3 border-l border-stone-100 p-6 bg-stone-50/30">
+<h4 class="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-6">Histórico de Alterações</h4>
+<div class="relative space-y-8 before:content-[''] before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[1px] before:bg-stone-200">
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-5 h-5 rounded-full bg-stone-900 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[12px] text-white">upload</span>
+</div>
+<p class="text-[11px] font-bold text-stone-900">Versão 02 Enviada</p>
+<p class="text-[10px] text-stone-400">14 Abr, 2024 - 10:45</p>
+<p class="text-[10px] bg-white border border-stone-100 p-2 rounded mt-2 text-stone-600 italic">"Correção de contraste no logo conforme solicitado."</p>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1 w-5 h-5 rounded-full bg-orange-100 border border-orange-500 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[12px] text-orange-600">rate_review</span>
+</div>
+<p class="text-[11px] font-bold text-stone-900">Reprovado pelo Revisor</p>
+<p class="text-[10px] text-stone-400">13 Abr, 2024 - 16:20</p>
+</div>
+<div class="relative pl-8 opacity-50">
+<div class="absolute left-0 top-1 w-5 h-5 rounded-full bg-stone-200 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[12px] text-stone-400">upload</span>
+</div>
+<p class="text-[11px] font-bold text-stone-900">Versão 01 Enviada</p>
+<p class="text-[10px] text-stone-400">12 Abr, 2024 - 09:15</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="p-6 border-t border-stone-100 flex justify-end gap-3 bg-white">
+<button class="px-6 py-2.5 rounded-lg text-xs font-black uppercase text-stone-500 hover:bg-stone-50 transition-colors">Solicitar Ajuste</button>
+<button class="px-6 py-2.5 rounded-lg text-xs font-black uppercase text-white bg-error hover:brightness-110 transition-all">Reprovar Ativo</button>
+<button class="px-8 py-2.5 rounded-lg text-xs font-black uppercase text-white bg-secondary shadow-lg shadow-secondary/20 hover:brightness-110 transition-all">Aprovar Ativo</button>
+</div>
+</div>
+</div>
+</body></html>

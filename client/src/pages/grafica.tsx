@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer } from "lucide-react";
 import { Fragment, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -638,47 +638,54 @@ export default function Grafica() {
 
       {/* ── Modal de Produção / Entrega ── */}
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={open => { if (!open) { setSelectedItem(null); setModalType(null); } }}>
-        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 440, borderRadius: 12, overflow: "hidden" }}>
-          {/* Header dark */}
-          <div style={{ backgroundColor: TI.text, padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: "#ffffff", textTransform: "uppercase", letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif" }}>
-                {modalType === "production"
-                  ? (selectedItem?.quantityProduced > 0 ? "Continuar Produção" : "Iniciar Produção")
-                  : "Confirmar Entrega"}
-              </div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 3 }}>
-                {modalType === "production" ? "Registre a quantidade produzida" : "Registre a entrega do material"}
-              </div>
-            </div>
+        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 448, borderRadius: 12, overflow: "hidden" }}>
+
+          {/* ── Header dark ── */}
+          <div style={{ backgroundColor: TI.text, padding: "24px" }}>
+            <h2 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#ffffff", textTransform: "uppercase", letterSpacing: "-0.02em", lineHeight: 1 }}>
+              {modalType === "production"
+                ? (selectedItem?.quantityProduced > 0 ? "Continuar Produção" : "Iniciar Produção")
+                : "Confirmar Entrega"}
+            </h2>
+            <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>
+              {modalType === "production" ? "Registre a quantidade produzida" : "Registre a entrega do material"}
+            </p>
           </div>
 
-          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
-            {/* Info card */}
+          {/* ── Corpo ── */}
+          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+
+            {/* Card de identificação */}
             {selectedItem && (
-              <div style={{ backgroundColor: "#f4f3f0", borderRadius: 8, padding: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                  <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.accent }}>
-                    {selectedItem.displayId}
-                  </span>
-                  <StatusPill status={selectedItem.status} />
+              <div style={{ backgroundColor: "#f4f3f0", borderRadius: 8, padding: 16, display: "flex", alignItems: "flex-start", gap: 14 }}>
+                {/* Ícone */}
+                <div style={{ backgroundColor: "#ffffff", borderRadius: 6, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
+                  {modalType === "production"
+                    ? <Printer style={{ width: 20, height: 20, color: TI.accent }} />
+                    : <Truck style={{ width: 20, height: 20, color: TI.accent }} />}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
-                <div style={{ fontSize: 12, color: TI.secondary, marginTop: 4 }}>
-                  {selectedItem.event?.name} · {selectedItem.material}
-                  {selectedItem.visualWidth && ` · ${selectedItem.visualWidth}×${selectedItem.visualHeight}`}
+                {/* Info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: TI.accent }}>{selectedItem.displayId}</span>
+                    <StatusPill status={selectedItem.status} />
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: TI.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedItem.type}</div>
+                  <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>
+                    {selectedItem.material}{selectedItem.visualWidth ? ` | ${selectedItem.visualWidth} × ${selectedItem.visualHeight}m` : ""}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Produção */}
+            {/* ── FORM: PRODUÇÃO ── */}
             {selectedItem && modalType === "production" && (
-              <form onSubmit={handleSubmitProduction} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <form onSubmit={handleSubmitProduction} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, marginBottom: 8 }}>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
                     Quantidade a Produzir
                   </label>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
                     <input
                       type="number"
                       min={1}
@@ -687,29 +694,38 @@ export default function Grafica() {
                       onChange={e => setProductionData({ quantityProduced: parseInt(e.target.value) || 0 })}
                       required
                       data-testid="input-quantity-produced"
-                      style={{ flex: 1, padding: "10px 14px", textAlign: "center", backgroundColor: "#f4f3f0", border: `1px solid ${TI.border}`, borderRadius: 6, fontSize: 16, fontWeight: 700, color: TI.text, outline: "none" }}
+                      style={{ flex: 1, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, color: TI.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: 8, padding: "16px 12px", outline: "none" }}
                     />
-                    <span style={{ fontSize: 13, color: TI.secondary, whiteSpace: "nowrap" }}>/ {selectedItem.quantity} total</span>
                     <button
                       type="button"
                       onClick={() => setProductionData({ quantityProduced: selectedItem.quantity })}
                       data-testid="button-set-total"
-                      style={{ backgroundColor: "#f4f3f0", border: `1px solid ${TI.border}`, borderRadius: 6, padding: "8px 12px", fontSize: 12, fontWeight: 600, color: TI.secondary, cursor: "pointer" }}
+                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                      onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d6d3d1")}
+                      onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e7e5e4")}
                     >
                       Tudo
                     </button>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, paddingTop: 4 }}>
-                  <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }} style={{ flex: 1, border: `1px solid ${TI.border}`, backgroundColor: "transparent", color: TI.secondary, borderRadius: 6, padding: "11px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+
+                {/* Footer */}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedItem(null); setModalType(null); }}
+                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f4f3f0")}
+                    onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
+                  >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={startProductionMutation.isPending || productionData.quantityProduced === 0}
                     data-testid="button-confirm-production"
-                    style={{ flex: 1, backgroundColor: TI.text, color: "#ffffff", border: "none", borderRadius: 6, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: startProductionMutation.isPending ? "not-allowed" : "pointer", opacity: startProductionMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
-                    onMouseEnter={e => { if (!startProductionMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent; }}
+                    style={{ flex: 2, padding: "12px 0", backgroundColor: TI.text, border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "-0.01em", cursor: startProductionMutation.isPending || productionData.quantityProduced === 0 ? "not-allowed" : "pointer", borderRadius: 8, opacity: startProductionMutation.isPending || productionData.quantityProduced === 0 ? 0.6 : 1, transition: "background-color 0.15s" }}
+                    onMouseEnter={e => { if (!startProductionMutation.isPending && productionData.quantityProduced > 0) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#000000"; }}
                     onMouseLeave={e => { if (!startProductionMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                   >
                     {startProductionMutation.isPending ? "Salvando..." : "Confirmar Produção"}
@@ -718,13 +734,14 @@ export default function Grafica() {
               </form>
             )}
 
-            {/* Entrega */}
+            {/* ── FORM: ENTREGA ── */}
             {selectedItem && modalType === "delivery" && (
-              <form onSubmit={handleSubmitDelivery} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {/* Quem recebeu */}
+              <form onSubmit={handleSubmitDelivery} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+                {/* Responsável */}
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, marginBottom: 8 }}>
-                    Responsável pelo recebimento *
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
+                    Responsável pelo Recebimento *
                   </label>
                   <Popover open={openRecipientCombobox} onOpenChange={setOpenRecipientCombobox}>
                     <PopoverTrigger asChild>
@@ -732,10 +749,12 @@ export default function Grafica() {
                         type="button"
                         role="combobox"
                         data-testid="button-recipient-combobox"
-                        style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", backgroundColor: "#f4f3f0", border: `1px solid ${TI.border}`, borderRadius: 6, fontSize: 13, color: deliveryData.receivedBy ? TI.text : TI.muted, cursor: "pointer", textAlign: "left" }}
+                        style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, fontWeight: 500, color: deliveryData.receivedBy ? TI.text : "#a8a29e", cursor: "pointer", transition: "border-color 0.15s" }}
+                        onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.borderColor = "#d6d3d1")}
+                        onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.borderColor = "transparent")}
                       >
-                        {deliveryData.receivedBy || "Selecione ou digite o nome..."}
-                        <ChevronsUpDown style={{ width: 14, height: 14, color: TI.muted, flexShrink: 0 }} />
+                        {deliveryData.receivedBy || "Selecione o recebedor..."}
+                        <ChevronDown style={{ width: 16, height: 16, color: "#a8a29e", flexShrink: 0 }} />
                       </button>
                     </PopoverTrigger>
                     <PopoverContent style={{ width: "100%", padding: 0 }} align="start">
@@ -763,16 +782,18 @@ export default function Grafica() {
                   </Popover>
                 </div>
 
-                {/* Foto da entrega */}
+                {/* Comprovante fotográfico */}
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, marginBottom: 8 }}>
-                    Comprovante fotográfico (opcional)
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
+                    Comprovante Fotográfico <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(opcional)</span>
                   </label>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    {/* Área de upload */}
                     <div style={{ flex: 1 }}>
                       <ObjectUploader
                         maxFileSize={10485760}
-                        buttonVariant="outline"
+                        buttonVariant="ghost"
+                        buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
                         onFileSelect={(_file, previewUrl) => setPhotoPreviewUrl(previewUrl)}
                         onGetUploadParameters={async () => {
                           const res = await fetch("/api/objects/upload", { method: "POST" });
@@ -789,41 +810,70 @@ export default function Grafica() {
                           toast({ title: "Erro no upload", description: error.message, variant: "destructive" });
                         }}
                       >
-                        <Camera style={{ width: 14, height: 14, marginRight: 6 }} />
-                        {photoPreviewUrl ? "Trocar Foto" : "Anexar Foto"}
+                        <div style={{ width: "100%", aspectRatio: "1", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}>
+                          <Camera style={{ width: 24, height: 24, color: "#a8a29e" }} />
+                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#a8a29e" }}>
+                            {photoPreviewUrl ? "Trocar Foto" : "Anexar Foto"}
+                          </span>
+                        </div>
                       </ObjectUploader>
                     </div>
-                    {photoPreviewUrl && (
-                      <div style={{ position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", border: `1px solid ${TI.border}`, flexShrink: 0 }}>
-                        <img src={photoPreviewUrl} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} data-testid="photo-preview" />
-                        {isPhotoUploaded && (
-                          <div style={{ position: "absolute", top: 4, right: 4, backgroundColor: "#15803d", borderRadius: "50%", padding: 2 }}>
-                            <Check style={{ width: 10, height: 10, color: "#ffffff" }} />
-                          </div>
-                        )}
-                      </div>
-                    )}
+
+                    {/* Preview */}
+                    <div style={{ flex: 1, aspectRatio: "1", position: "relative", borderRadius: 8, overflow: "hidden", backgroundColor: "#f4f3f0", border: `1px solid ${TI.border}` }}>
+                      {photoPreviewUrl ? (
+                        <>
+                          <img
+                            src={photoPreviewUrl}
+                            alt="Preview da entrega"
+                            data-testid="photo-preview"
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                          {isPhotoUploaded && (
+                            <>
+                              <div style={{ position: "absolute", top: 8, right: 8, backgroundColor: "#15803d", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>
+                                <Check style={{ width: 12, height: 12, color: "#ffffff" }} />
+                              </div>
+                              <div style={{ position: "absolute", bottom: 8, left: 8, backgroundColor: "rgba(20,40,20,0.8)", backdropFilter: "blur(4px)", borderRadius: 4, padding: "2px 6px" }}>
+                                <span style={{ fontSize: 8, fontWeight: 700, color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.06em" }}>Upload OK</span>
+                              </div>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Camera style={{ width: 24, height: 24, color: "#d6d3d1" }} />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 8, paddingTop: 4 }}>
-                  <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }} style={{ flex: 1, border: `1px solid ${TI.border}`, backgroundColor: "transparent", color: TI.secondary, borderRadius: 6, padding: "11px 0", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                {/* Footer */}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedItem(null); setModalType(null); }}
+                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f4f3f0")}
+                    onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
+                  >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={markDeliveredMutation.isPending}
                     data-testid="button-confirm-delivery"
-                    style={{ flex: 1, backgroundColor: "#15803d", color: "#ffffff", border: "none", borderRadius: 6, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: markDeliveredMutation.isPending ? "not-allowed" : "pointer", opacity: markDeliveredMutation.isPending ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "background-color 0.15s" }}
+                    style={{ flex: 2, padding: "12px 0", backgroundColor: "#15803d", border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "-0.01em", cursor: markDeliveredMutation.isPending ? "not-allowed" : "pointer", borderRadius: 8, opacity: markDeliveredMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
                     onMouseEnter={e => { if (!markDeliveredMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#166534"; }}
                     onMouseLeave={e => { if (!markDeliveredMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#15803d"; }}
                   >
-                    <Truck style={{ width: 14, height: 14 }} />
                     {markDeliveredMutation.isPending ? "Salvando..." : "Confirmar Entrega"}
                   </button>
                 </div>
               </form>
             )}
+
           </div>
         </DialogContent>
       </Dialog>

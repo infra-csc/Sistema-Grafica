@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE Production - Controle de Produção</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f9f9f8",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "surface-dim": "#dadad9",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "outline": "#8c7164",
+                        "surface": "#f9f9f8",
+                        "on-background": "#1a1c1c",
+                        "outline-variant": "#e0c0b1",
+                        "surface-container-low": "#f3f4f3",
+                        "on-error": "#ffffff",
+                        "inverse-surface": "#2f3130",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#00a2f4",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#341100",
+                        "on-secondary-container": "#5c2400",
+                        "primary-fixed": "#e9e1dd",
+                        "on-tertiary-fixed": "#001d32",
+                        "on-surface": "#1a1c1c",
+                        "inverse-on-surface": "#f1f1f0",
+                        "secondary-fixed": "#ffdbca",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#e8e8e7",
+                        "surface-tint": "#625d5b",
+                        "surface-variant": "#e2e2e2",
+                        "on-primary-fixed": "#1e1b19",
+                        "surface-container-highest": "#e2e2e2",
+                        "inverse-primary": "#ccc5c2",
+                        "on-secondary-fixed-variant": "#783200",
+                        "surface-container": "#eeeeed",
+                        "primary": "#625d5b",
+                        "background": "#f9f9f8",
+                        "secondary-container": "#fd761a",
+                        "error-container": "#ffdad6",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "tertiary-fixed": "#cde5ff",
+                        "tertiary": "#006398",
+                        "secondary": "#9d4300",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#584237",
+                        "on-primary-container": "#35322f",
+                        "secondary-fixed-dim": "#ffb690",
+                        "primary-container": "#9f9996",
+                        "on-tertiary-container": "#003554",
+                        "on-error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .negative-kerning { letter-spacing: -0.02em; }
+        .glass-card {
+            background: rgba(226, 226, 222, 0.6);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="bg-surface-bright font-body text-on-surface antialiased">
+<!-- Production Shell Overlay (Visual Reference) -->
+<div class="fixed inset-0 bg-stone-900/20 backdrop-blur-sm z-0"></div>
+<!-- Main Content Canvas for Presentation -->
+<main class="relative z-10 flex flex-col lg:flex-row items-center justify-center min-h-screen p-8 gap-12">
+<!-- MODAL 01: INICIAR PRODUÇÃO -->
+<section class="w-full max-w-md bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl">
+<!-- Header -->
+<header class="bg-[#1c1917] p-6 text-white">
+<h2 class="font-headline text-2xl font-bold tracking-tighter uppercase negative-kerning">INICIAR PRODUÇÃO</h2>
+<p class="font-body text-xs text-stone-400 mt-1 uppercase tracking-widest">Registre a quantidade produzida</p>
+</header>
+<!-- Body -->
+<div class="p-6 space-y-6">
+<!-- Identification Card -->
+<div class="bg-[#f4f3f0] p-4 rounded-lg flex items-start gap-4">
+<div class="bg-white p-2 rounded-md shadow-sm">
+<span class="material-symbols-outlined text-secondary" data-icon="print">print</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-headline font-bold text-secondary text-sm">#GS-4021</span>
+<span class="text-[10px] font-bold px-2 py-0.5 bg-stone-200 rounded text-stone-600">EM FILA</span>
+</div>
+<h3 class="font-headline font-semibold text-on-surface mt-1">Banner Pórtico Entrada A</h3>
+<p class="text-xs text-stone-500 font-medium">Lona 440g | 12.00 x 3.50m</p>
+</div>
+</div>
+<!-- Input Field Section -->
+<div class="space-y-3">
+<label class="text-[10px] font-bold text-stone-500 uppercase tracking-widest">QUANTIDADE A PRODUZIR</label>
+<div class="flex gap-2">
+<input class="flex-1 text-center font-headline text-2xl font-bold bg-[#f4f3f0] border-none rounded-lg py-4 focus:ring-2 focus:ring-secondary/20" type="number" value="1"/>
+<button class="bg-stone-200 hover:bg-stone-300 transition-colors px-6 font-bold text-xs rounded-lg uppercase tracking-tighter">Tudo</button>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="p-6 pt-0 flex gap-3">
+<button class="flex-1 py-3 text-stone-500 font-bold text-xs uppercase tracking-widest hover:bg-stone-100 transition-colors rounded-lg">Cancelar</button>
+<button class="flex-[2] py-3 bg-[#1c1917] text-white font-headline font-bold text-sm uppercase tracking-tight rounded-lg hover:bg-black transition-all">Confirmar Produção</button>
+</footer>
+</section>
+<!-- MODAL 02: CONFIRMAR ENTREGA -->
+<section class="w-full max-w-md bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl">
+<!-- Header -->
+<header class="bg-[#1c1917] p-6 text-white">
+<h2 class="font-headline text-2xl font-bold tracking-tighter uppercase negative-kerning">CONFIRMAR ENTREGA</h2>
+<p class="font-body text-xs text-stone-400 mt-1 uppercase tracking-widest">Registre a entrega do material</p>
+</header>
+<!-- Body -->
+<div class="p-6 space-y-5">
+<!-- Identification Card -->
+<div class="bg-[#f4f3f0] p-4 rounded-lg flex items-start gap-4">
+<div class="bg-white p-2 rounded-md shadow-sm">
+<span class="material-symbols-outlined text-secondary" data-icon="local_shipping">local_shipping</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center">
+<span class="font-headline font-bold text-secondary text-sm">#GS-4021</span>
+<span class="text-[10px] font-bold px-2 py-0.5 bg-green-100 rounded text-green-700">PRODUZIDO</span>
+</div>
+<h3 class="font-headline font-semibold text-on-surface mt-1">Banner Pórtico Entrada A</h3>
+<p class="text-xs text-stone-500 font-medium">Lona 440g | 12.00 x 3.50m</p>
+</div>
+</div>
+<!-- Responsible Combo -->
+<div class="space-y-2">
+<label class="text-[10px] font-bold text-stone-500 uppercase tracking-widest">RESPONSÁVEL PELO RECEBIMENTO</label>
+<div class="relative group">
+<div class="w-full bg-surface-container-high p-3 rounded-lg flex justify-between items-center cursor-pointer border border-transparent group-hover:border-stone-300 transition-all">
+<span class="text-sm font-medium text-stone-700">Selecione o recebedor...</span>
+<span class="material-symbols-outlined text-stone-400" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Proof Image Section -->
+<div class="space-y-3">
+<label class="text-[10px] font-bold text-stone-500 uppercase tracking-widest">COMPROVANTE FOTOGRÁFICO</label>
+<div class="flex gap-4">
+<div class="relative flex-1 group">
+<div class="aspect-square bg-stone-100 rounded-lg overflow-hidden border-2 border-dashed border-stone-300 flex flex-col items-center justify-center transition-all group-hover:bg-stone-200">
+<span class="material-symbols-outlined text-stone-400 mb-2" data-icon="add_a_photo">add_a_photo</span>
+<span class="text-[10px] font-bold text-stone-500 uppercase">Anexar Foto</span>
+</div>
+</div>
+<div class="relative flex-1">
+<img alt="Preview da Entrega" class="w-full aspect-square object-cover rounded-lg grayscale group-hover:grayscale-0 transition-all" data-alt="Close-up of a high-quality large format vinyl banner print installation with vivid colors and sharp details" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdJZ66-RCLyJIqIf7e_VskUwacxI4C-HbAMfpRpksdInC0S2obmiEgPgWcyiswHkyULk9M3gLMSd2qWw7dCq42e7Gi6Gii3kWFcrgt6pY6AeHrl01ZxCXmAt6ZBf2sy3yfUv6m7mx_lEPqnXpCOgDKE07t6Lj6TKZzM6hvsOtpTPmgK3qlKGlQS42F3HXBC1XV6_fFnD94mZbZgbwzpU0xTowzrX2NJQi1vYHKn3LNeF7SnFyct5S7RCwT5RZeuSOTzn2m6uI3reC9"/>
+<div class="absolute top-2 right-2 bg-[#15803d] text-white p-1 rounded-full flex items-center justify-center shadow-lg">
+<span class="material-symbols-outlined text-xs" data-icon="check" data-weight="fill">check</span>
+</div>
+<div class="absolute bottom-2 left-2 px-2 py-0.5 bg-green-900/80 backdrop-blur-md rounded text-[8px] font-bold text-white uppercase">Upload OK</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<footer class="p-6 pt-0 flex gap-3">
+<button class="flex-1 py-3 text-stone-500 font-bold text-xs uppercase tracking-widest hover:bg-stone-100 transition-colors rounded-lg">Cancelar</button>
+<button class="flex-[2] py-3 bg-[#15803d] text-white font-headline font-bold text-sm uppercase tracking-tight rounded-lg hover:bg-[#166534] transition-all">Confirmar Entrega</button>
+</footer>
+</section>
+</main>
+<!-- App Branding Element (Floating Background) -->
+<div class="fixed bottom-12 right-12 opacity-5 pointer-events-none select-none overflow-hidden">
+<h1 class="font-headline text-[20rem] font-extrabold tracking-tighter leading-none text-stone-900">NORTE</h1>
+</div>
+</body></html>

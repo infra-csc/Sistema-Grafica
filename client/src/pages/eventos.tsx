@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter, Flag, Building2 } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
@@ -718,112 +718,111 @@ export default function Eventos() {
             const truckColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#6ee7b7' : '#78716c');
             const truckTextColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#d1fae5' : '#1c1917');
 
-            // Card concluído: tema escuro
+            // ── Shared action buttons (invisible until hover) ──
+            const ActionButtons = ({ dark = false }: { dark?: boolean }) => (
+              <div
+                className="opacity-0 group-hover:opacity-100"
+                style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
+                onClick={(e) => e.preventDefault()}
+              >
+                {!dark && (
+                  <button
+                    onClick={(e) => handleSetPriority(event, e)}
+                    title="Definir prioridade"
+                    data-testid={`button-priority-event-${event.id}`}
+                    style={{ padding: '8px', backgroundColor: '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: event.priority ? cardBorderHex : '#a8a29e', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
+                  >
+                    <Flag style={{ width: '13px', height: '13px', fill: event.priority ? cardBorderHex : 'none' }} />
+                  </button>
+                )}
+                {hasPermission("admin") && (
+                  <>
+                    <button onClick={(e) => handleEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
+                      style={{ padding: '8px', backgroundColor: dark ? 'rgba(255,255,255,0.1)' : '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#d4d0cb' : '#78716c', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
+                      <Pencil style={{ width: '13px', height: '13px' }} />
+                    </button>
+                    <button onClick={(e) => handleDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
+                      style={{ padding: '8px', backgroundColor: dark ? 'rgba(239,68,68,0.15)' : '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#f87171' : '#ef4444', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
+                      <Trash2 style={{ width: '13px', height: '13px' }} />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+
+            // ── Card Concluído: branco com borda verde e ícone decorativo ──
             if (isCompleted) {
               return (
                 <Link key={event.id} href={`/eventos/${event.id}`}>
                   <div
-                    className="group relative cursor-pointer rounded-xl flex flex-col gap-4 overflow-hidden"
-                    style={{ backgroundColor: '#1c1917', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'box-shadow 0.3s, transform 0.2s' }}
+                    className="group relative cursor-pointer bg-white rounded-xl flex flex-col gap-4 overflow-hidden"
+                    style={{
+                      border: '1px solid #e7e5e4',
+                      borderLeft: '4px solid #10b981',
+                      padding: '24px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      transition: 'box-shadow 0.3s ease, transform 0.3s ease',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
                     data-testid={`card-event-${event.id}`}
                   >
-                    {/* Detalhe decorativo */}
-                    <div style={{ position: 'absolute', right: '-12px', bottom: '-12px', width: '100px', height: '100px', borderRadius: '50%', backgroundColor: '#10b981', opacity: 0.08 }} />
-                    <div style={{ position: 'absolute', right: '8px', bottom: '8px', width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#10b981', opacity: 0.05 }} />
+                    {/* Ícone decorativo de fundo */}
+                    <div style={{ position: 'absolute', right: '-16px', bottom: '-16px', opacity: 0.03, pointerEvents: 'none' }}>
+                      <CheckCircle style={{ width: '120px', height: '120px', color: '#10b981' }} />
+                    </div>
 
-                    {/* Linha topo: badge + id */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
-                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6ee7b7', backgroundColor: 'rgba(16,185,129,0.12)', padding: '4px 10px', borderRadius: '6px' }}>
+                    <ActionButtons />
+
+                    {/* Topo: badge + id */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', padding: '4px 10px', borderRadius: '6px' }}>
                         Concluído
                       </span>
                       {event.displayId && (
-                        <span style={{ fontSize: '11px', fontWeight: '500', color: '#78716c' }}>#{String(event.displayId).padStart(4, '0')}</span>
+                        <span style={{ fontSize: '11px', fontWeight: '500', color: '#c0bbb8' }}>#{String(event.displayId).padStart(4, '0')}</span>
                       )}
                     </div>
 
                     {/* Nome */}
                     <div style={{ position: 'relative', zIndex: 1 }}>
-                      <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#ffffff', lineHeight: 1.25, margin: 0 }}>
+                      <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', lineHeight: 1.25, margin: 0 }}>
                         {event.name}
                       </h3>
                     </div>
 
                     {/* Progresso */}
-                    <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', position: 'relative', zIndex: 1 }}>
+                    <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee', position: 'relative', zIndex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '600', color: '#78716c' }}>{deliveredCount}/{itemCount} itens</span>
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#6ee7b7' }}>Finalizado</span>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Itens</span>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Finalizado</span>
                       </div>
-                      <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '99px', height: '4px' }}>
+                      <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '6px', overflow: 'hidden' }}>
                         <div style={{ height: '100%', backgroundColor: '#10b981', borderRadius: '99px', width: '100%' }} />
                       </div>
-                    </div>
-
-                    {/* Ações hover */}
-                    <div
-                      className="opacity-0 group-hover:opacity-100"
-                      style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '4px', transition: 'opacity 0.2s', zIndex: 10 }}
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      {hasPermission("admin") && (
-                        <>
-                          <button onClick={(e) => handleEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
-                            style={{ padding: '6px', backgroundColor: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#d4d0cb' }}>
-                            <Pencil style={{ width: '13px', height: '13px' }} />
-                          </button>
-                          <button onClick={(e) => handleDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
-                            style={{ padding: '6px', backgroundColor: 'rgba(239,68,68,0.15)', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#f87171' }}>
-                            <Trash2 style={{ width: '13px', height: '13px' }} />
-                          </button>
-                        </>
-                      )}
                     </div>
                   </div>
                 </Link>
               );
             }
 
-            // Card normal (prioridade)
+            // ── Card Normal (com prioridade) ──
             return (
               <Link key={event.id} href={`/eventos/${event.id}`}>
                 <div
                   className="group relative cursor-pointer bg-white rounded-xl flex flex-col gap-4"
                   style={{
-                    border: `1px solid #e7e5e4`,
+                    border: '1px solid #e7e5e4',
                     borderLeft: `4px solid ${cardBorderHex}`,
                     padding: '24px',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-                    transition: 'box-shadow 0.3s',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                   }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
                   data-testid={`card-event-${event.id}`}
                 >
-                  {/* Ações — aparecem no hover */}
-                  <div
-                    className="opacity-0 group-hover:opacity-100"
-                    style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '4px', transition: 'opacity 0.2s', zIndex: 10 }}
-                    onClick={(e) => e.preventDefault()}
-                  >
-                    <button
-                      onClick={(e) => handleSetPriority(event, e)}
-                      title="Definir prioridade"
-                      data-testid={`button-priority-event-${event.id}`}
-                      style={{ padding: '6px', backgroundColor: '#f5f5f4', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: event.priority ? cardBorderHex : '#a8a29e' }}
-                    >
-                      <Flag style={{ width: '13px', height: '13px', fill: event.priority ? cardBorderHex : 'none' }} />
-                    </button>
-                    {hasPermission("admin") && (
-                      <>
-                        <button onClick={(e) => handleEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
-                          style={{ padding: '6px', backgroundColor: '#f5f5f4', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#78716c' }}>
-                          <Pencil style={{ width: '13px', height: '13px' }} />
-                        </button>
-                        <button onClick={(e) => handleDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
-                          style={{ padding: '6px', backgroundColor: '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#ef4444' }}>
-                          <Trash2 style={{ width: '13px', height: '13px' }} />
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  <ActionButtons />
 
                   {/* Linha 1: badge prioridade + id */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -849,21 +848,21 @@ export default function Eventos() {
                     </h3>
                   </div>
 
-                  {/* Datas — estilo label + ícone + valor */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Datas — label + ícone + valor */}
+                  <div className="grid grid-cols-2 gap-4" style={{ margin: '4px 0' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
+                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
-                        <Calendar style={{ width: '13px', height: '13px', color: cardBorderHex, flexShrink: 0 }} />
+                        <Calendar style={{ width: '14px', height: '14px', color: cardBorderHex, flexShrink: 0 }} />
                         <span style={{ fontSize: '12px', fontWeight: '700' }}>
                           {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
                         </span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
+                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className={truckUrgency === 'urgent' ? 'animate-pulse' : ''}>
-                        <Truck style={{ width: '13px', height: '13px', color: truckColor, flexShrink: 0 }} />
+                        <Truck style={{ width: '14px', height: '14px', color: truckColor, flexShrink: 0 }} />
                         <span style={{ fontSize: '12px', fontWeight: '700', color: truckTextColor }}>
                           {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
                           {' · '}
@@ -876,17 +875,47 @@ export default function Eventos() {
                   {/* Progresso */}
                   <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#78716c' }}>{deliveredCount}/{itemCount} entregues</span>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Entregues</span>
                       <span style={{ fontSize: '11px', fontWeight: '800', color: '#1c1917' }}>{progressPct}%</span>
                     </div>
-                    <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '4px' }}>
-                      <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.3s' }} />
+                    <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '6px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.4s ease' }} />
                     </div>
                   </div>
                 </div>
               </Link>
             );
           })}
+
+          {/* ── Card de Branding NORTE ── */}
+          <div
+            className="relative rounded-xl overflow-hidden flex flex-col justify-center items-center text-center"
+            style={{ backgroundColor: '#1c1917', padding: '32px', minHeight: '200px' }}
+          >
+            {/* Gradiente de fundo */}
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(249,115,22,0.15) 0%, rgba(249,115,22,0.05) 100%)', zIndex: 0 }} />
+            {/* Círculos decorativos */}
+            <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '160px', height: '160px', borderRadius: '50%', backgroundColor: '#f97316', opacity: 0.06, zIndex: 0 }} />
+            <div style={{ position: 'absolute', bottom: '-30px', left: '-20px', width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#f97316', opacity: 0.04, zIndex: 0 }} />
+
+            {/* Conteúdo glass */}
+            <div style={{ position: 'relative', zIndex: 1, backgroundColor: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', padding: '24px 28px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <h4 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', fontSize: '20px', letterSpacing: '-0.02em', color: '#ffffff', margin: '0 0 6px 0' }}>
+                NORTE Production
+              </h4>
+              <p style={{ fontSize: '11px', fontWeight: '500', color: '#a8a29e', margin: '0 0 20px 0' }}>
+                O padrão ouro em logística esportiva.
+              </p>
+              <button
+                style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', backgroundColor: '#f97316', color: '#ffffff', padding: '8px 20px', borderRadius: '99px', border: 'none', cursor: 'pointer', transition: 'opacity 0.2s' }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+              >
+                Ver Relatórios
+              </button>
+            </div>
+          </div>
+
         </div>
       )}
 

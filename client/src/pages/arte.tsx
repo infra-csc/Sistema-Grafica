@@ -421,6 +421,11 @@ export default function Arte() {
                         { label: 'ID', w: 80 },
                         { label: 'Qtd', w: 50 },
                         { label: `${group.type}`, flex: true },
+                        ...(tabId === 'finalizados' ? [
+                          { label: 'Patrocinadores', w: 140 },
+                          { label: 'Thumb', w: 80 },
+                          { label: 'Arq. Final', w: 160 },
+                        ] : []),
                         { label: 'Dimensões (V / A)', w: 160 },
                         { label: 'M²', w: 60 },
                         { label: 'Material', w: 120 },
@@ -485,7 +490,7 @@ export default function Arte() {
                           <td style={{ padding: '12px 16px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                               <span style={{ fontWeight: 600, color: '#1c1917', fontSize: 13 }}>{item.description || item.type}</span>
-                              {item.sponsors && item.sponsors.length > 0 && (
+                              {tabId !== 'finalizados' && item.sponsors && item.sponsors.length > 0 && (
                                 <span style={{ fontSize: 11, color: '#78716c' }}>
                                   Logos: {item.sponsors.map((s: any) => s.name).join(', ')}
                                 </span>
@@ -497,6 +502,84 @@ export default function Arte() {
                               )}
                             </div>
                           </td>
+                          {/* Patrocinadores — finalizados only */}
+                          {tabId === 'finalizados' && (
+                            <td style={{ padding: '12px 16px' }}>
+                              {item.sponsors && item.sponsors.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                  {item.sponsors.map((s: any) => (
+                                    <span
+                                      key={s.id}
+                                      style={{
+                                        display: 'inline-block', fontSize: 10, fontWeight: 700,
+                                        backgroundColor: '#fff7ed', color: '#c2410c',
+                                        border: '1px solid #fed7aa', borderRadius: 4,
+                                        padding: '2px 6px', whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      {s.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>
+                              )}
+                            </td>
+                          )}
+
+                          {/* Thumb aprovado — finalizados only */}
+                          {tabId === 'finalizados' && (
+                            <td style={{ padding: '12px 16px' }}>
+                              {item.approvalThumbUrl ? (() => {
+                                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(item.approvalThumbUrl.toLowerCase());
+                                return isImage ? (
+                                  <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" title="Ver thumb aprovado">
+                                    <img
+                                      src={item.approvalThumbUrl}
+                                      alt="Thumb"
+                                      style={{ width: 48, height: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4', display: 'block' }}
+                                    />
+                                  </a>
+                                ) : (
+                                  <a
+                                    href={item.approvalThumbUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Ver PDF aprovado"
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 32, backgroundColor: '#fef2f2', borderRadius: 4, border: '1px solid #fecaca' }}
+                                  >
+                                    <FileText style={{ width: 16, height: 16, color: '#ef4444' }} />
+                                  </a>
+                                );
+                              })() : (
+                                <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>
+                              )}
+                            </td>
+                          )}
+
+                          {/* Arquivo final — finalizados only */}
+                          {tabId === 'finalizados' && (
+                            <td style={{ padding: '12px 16px', maxWidth: 160 }}>
+                              {item.finalFileUrl ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  <FolderOpen style={{ width: 12, height: 12, color: '#16a34a', flexShrink: 0 }} />
+                                  <span
+                                    title={item.finalFileUrl}
+                                    style={{
+                                      fontSize: 11, color: '#15803d', fontWeight: 600,
+                                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                      maxWidth: 120,
+                                    }}
+                                  >
+                                    {item.finalFileUrl.split('/').pop() || item.finalFileUrl}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: 11, color: '#f97316', fontWeight: 600 }}>Pendente</span>
+                              )}
+                            </td>
+                          )}
+
                           {/* Dimensões */}
                           <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                             {item.visualWidth && item.visualHeight ? (

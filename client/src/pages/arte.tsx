@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1238,109 +1238,134 @@ export default function Arte() {
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
         topActions={selectedItem?.status === 'sponsor_approved' ? (
-          <Card className="border-2 border-green-200 dark:border-green-900">
-            <CardHeader className="px-4 py-3 bg-green-50/50 dark:bg-green-950/20">
-              <CardTitle className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
+          <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Section header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', color: '#1c1917', margin: 0 }}>
                 Finalização de Layout
-              </CardTitle>
-              <p className="text-xs text-green-600 dark:text-green-500 mt-1">
-                Patrocinador aprovou! Adicione o caminho do arquivo final.
-              </p>
-            </CardHeader>
-            <CardContent className="px-4 py-4 space-y-4">
-              {selectedItem.approvalThumbUrl && (
-                <div className="space-y-2">
-                  {(() => {
-                    const url = selectedItem.approvalThumbUrl.toLowerCase();
-                    const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
-                    const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                    return (
-                      <>
-                        <Label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-                          {isPdf ? <><FileText className="h-3.5 w-3.5" />Thumb Aprovado (PDF)</> : <><FileImage className="h-3.5 w-3.5" />Thumb Aprovado</>}
-                        </Label>
-                        <div className="flex justify-center rounded-lg bg-muted/50 p-3 border">
-                          {isPdf ? (
-                            <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg hover-elevate text-red-700 dark:text-red-400 font-medium">
-                              <FileText className="h-5 w-5" />
-                              <div className="flex flex-col items-start"><span>Abrir PDF</span><span className="text-xs text-red-600 dark:text-red-500">Clique para visualizar</span></div>
-                            </a>
-                          ) : (
-                            <img src={selectedItem.approvalThumbUrl} alt="Thumb aprovado" className="max-h-[150px] max-w-full object-contain rounded shadow-sm" />
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="finalFilePath" className="text-xs font-medium flex items-center gap-2">
-                  <FolderOpen className="h-3.5 w-3.5" />
-                  Caminho do Arquivo Final
-                </Label>
-                <Input
-                  id="finalFilePath"
-                  placeholder="Ex: /servidor/artes/evento/arquivo-final.pdf"
-                  value={finalFileUrl}
-                  onChange={(e) => setFinalFileUrl(e.target.value)}
-                  className="text-sm"
-                  data-testid="input-final-file-path"
-                />
-                <p className="text-xs text-muted-foreground">Informe o caminho onde o arquivo final está salvo no servidor</p>
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSubmitFinalFile} disabled={submitFinalFileMutation.isPending || !finalFileUrl} data-testid="button-submit-final">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Enviar para Revisão
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-        customActions={selectedItem && (
-          <div className="space-y-4">
-            {(selectedItem.status === 'requested' || selectedItem.status === 'awaiting_submission') && (
-              <Card className="border-purple-200 dark:border-purple-800">
-                <CardHeader className="px-4 py-3 bg-purple-50/50 dark:bg-purple-950/20 border-b border-purple-100 dark:border-purple-900">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-full bg-purple-600 flex items-center justify-center">
-                      <FileImage className="h-3.5 w-3.5 text-white" />
+              </h3>
+              <span style={{ fontSize: 10, backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                FASE FINAL
+              </span>
+            </div>
+
+            {/* Glass-green container */}
+            <div style={{
+              background: 'rgba(240,253,244,0.5)', backdropFilter: 'blur(8px)',
+              border: '2px solid #bbf7d0', borderRadius: 12, padding: 20,
+              display: 'flex', flexDirection: 'column', gap: 20
+            }}>
+              {/* Thumb aprovado preview */}
+              {selectedItem.approvalThumbUrl && (() => {
+                const url = selectedItem.approvalThumbUrl.toLowerCase();
+                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                const isPdf = !isImage;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.6)', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {isPdf
+                        ? <FileText style={{ width: 20, height: 20, color: '#ef4444' }} />
+                        : <img src={selectedItem.approvalThumbUrl} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+                      }
                     </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold text-purple-800 dark:text-purple-300">Thumb de Aprovação</CardTitle>
-                      <p className="text-xs text-purple-600 dark:text-purple-400">
-                        {approvalThumbUrl ? "Thumb carregado — confirme o envio abaixo" : "Faça upload da imagem de aprovação"}
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: '#14532d', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+                        {selectedItem.approvalThumbUrl.split('/').pop() || 'THUMB_APROVADO'}
                       </p>
+                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: '#16a34a', textDecoration: 'underline' }}>
+                        Clique para visualizar
+                      </a>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="px-4 py-3 space-y-3">
-                  {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
-                    <div className="space-y-3">
-                      <div className="relative w-full min-h-48 max-h-80 rounded-lg border-2 border-dashed border-purple-200 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/10 flex items-center justify-center p-4">
+                );
+              })()}
+
+              {/* Input caminho arquivo final */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(20,83,45,0.6)', paddingLeft: 4 }}>
+                  Caminho do Arquivo Final
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <FolderOpen style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#16a34a' }} />
+                  <Input
+                    id="finalFilePath"
+                    placeholder="Cole o caminho ou link do servidor..."
+                    value={finalFileUrl}
+                    onChange={(e) => setFinalFileUrl(e.target.value)}
+                    data-testid="input-final-file-path"
+                    style={{ paddingLeft: 36, paddingRight: 16, paddingTop: 12, paddingBottom: 12, background: '#ffffff', border: 'none', boxShadow: '0 0 0 1px #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 500 }}
+                  />
+                </div>
+              </div>
+
+              {/* CTA button */}
+              <button
+                onClick={handleSubmitFinalFile}
+                disabled={submitFinalFileMutation.isPending || !finalFileUrl}
+                data-testid="button-submit-final"
+                style={{
+                  width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
+                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl) ? '#fcd9b7' : '#fd761a',
+                  color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
+                  fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.15em',
+                  cursor: (submitFinalFileMutation.isPending || !finalFileUrl) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: '0 4px 16px rgba(253,118,26,0.2)', transition: 'filter 0.15s, transform 0.1s'
+                }}
+                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
+                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
+                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+              >
+                {submitFinalFileMutation.isPending ? 'Enviando...' : 'Enviar para Revisão'}
+                {!submitFinalFileMutation.isPending && <ArrowRight style={{ width: 16, height: 16 }} />}
+              </button>
+            </div>
+          </section>
+        ) : null}
+        customActions={selectedItem && (
+          <div>
+            {(selectedItem.status === 'requested' || selectedItem.status === 'awaiting_submission') && (
+              <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Section header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', color: '#1c1917', margin: 0 }}>
+                    Thumb de Aprovação
+                  </h3>
+                  <span style={{ fontSize: 10, backgroundColor: 'rgba(159,153,150,0.2)', color: '#35322f', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                    REQUISITO A
+                  </span>
+                </div>
+
+                {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
+                  /* State A2: thumb uploaded */
+                  <div style={{ background: 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)', border: '1px solid #ddd6fe', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Thumbnail row */}
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                      <div style={{ width: 96, height: 64, borderRadius: 8, overflow: 'hidden', border: '1px solid #ddd6fe', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flexShrink: 0, backgroundColor: '#e5e7eb' }}>
                         <img
                           src={approvalThumbPreview}
                           alt="Preview do Thumb"
-                          className="max-h-full max-w-full object-contain rounded shadow-sm"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
-                        <div className="absolute top-2 right-2">
-                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">
-                            <Check className="h-3 w-3 mr-1" />
-                            Carregado
-                          </Badge>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ backgroundColor: '#dcfce7', color: '#15803d', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', padding: '2px 6px', borderRadius: 3, lineHeight: 1 }}>
+                            Carregado
+                          </span>
+                          <span style={{ fontSize: 10, color: 'rgba(59,7,100,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
+                            {approvalThumbPreview.split('/').pop() || 'thumb_upload'}
+                          </span>
+                        </div>
                         <FileUploader
                           onGetUploadParameters={getUploadUrl}
                           onComplete={(result) => {
                             const localPath = convertGCSUrlToLocalPath(result.url);
                             setApprovalThumbUrl(localPath);
                             setApprovalThumbPreview(localPath);
-                            toast({ title: "Upload concluído", description: "Thumb atualizado — clique em Enviar para Aprovação para confirmar" });
+                            toast({ title: "Upload concluído", description: "Thumb atualizado" });
                           }}
                           onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
                           onFileSelect={(file) => {
@@ -1349,51 +1374,78 @@ export default function Arte() {
                             reader.readAsDataURL(file);
                           }}
                           accept="image/*"
-                          buttonVariant="outline"
+                          buttonVariant="ghost"
+                          buttonClassName="h-auto p-0 text-[11px] font-bold text-purple-600 underline hover:text-purple-800 hover:bg-transparent"
                         >
-                          <Upload className="h-4 w-4 mr-2" />
                           Alterar Thumb
                         </FileUploader>
                       </div>
-                      <div className="pt-1 border-t border-purple-100 dark:border-purple-900">
-                        <Button onClick={handleSubmitForApproval} disabled={submitForApprovalMutation.isPending} className="w-full bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-submit-approval-header">
-                          <Send className="h-4 w-4 mr-2" />
-                          {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar para Aprovação"}
-                        </Button>
-                      </div>
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="w-full min-h-48 rounded-lg border-2 border-dashed border-purple-200 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/10 flex flex-col items-center justify-center p-6 text-center">
-                        <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-3">
-                          <FileImage className="h-6 w-6 text-purple-500" />
-                        </div>
-                        <p className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">Nenhuma imagem selecionada</p>
-                        <p className="text-xs text-purple-500 dark:text-purple-400 mb-4">Faça upload de uma imagem leve (preview) para o patrocinador aprovar</p>
-                        <FileUploader
-                          onGetUploadParameters={getUploadUrl}
-                          onComplete={(result) => {
-                            const localPath = convertGCSUrlToLocalPath(result.url);
-                            setApprovalThumbUrl(localPath);
-                            setApprovalThumbPreview(localPath);
-                            toast({ title: "Upload concluído", description: "Thumb de aprovação enviado com sucesso" });
-                          }}
-                          onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
-                          onFileSelect={(file) => {
-                            const reader = new FileReader();
-                            reader.onload = (e) => { setApprovalThumbPreview(e.target?.result as string); };
-                            reader.readAsDataURL(file);
-                          }}
-                          accept="image/*"
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Fazer Upload do Thumb
-                        </FileUploader>
-                      </div>
+
+                    {/* Enviar para Aprovação */}
+                    <button
+                      onClick={handleSubmitForApproval}
+                      disabled={submitForApprovalMutation.isPending}
+                      data-testid="button-submit-approval-header"
+                      style={{
+                        width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: submitForApprovalMutation.isPending ? '#c4b5fd' : '#7c3aed',
+                        color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
+                        fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em',
+                        cursor: submitForApprovalMutation.isPending ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        boxShadow: '0 4px 16px rgba(124,58,237,0.2)', transition: 'filter 0.15s, transform 0.1s'
+                      }}
+                      onMouseEnter={e => { if (submitForApprovalMutation.isPending) return; e.currentTarget.style.filter = 'brightness(0.88)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                      onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
+                      onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                    >
+                      <Send style={{ width: 14, height: 14 }} />
+                      {submitForApprovalMutation.isPending ? 'Enviando...' : 'Enviar para Aprovação'}
+                    </button>
+                  </div>
+                ) : (
+                  /* State A1: empty upload zone */
+                  <div style={{
+                    background: 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)',
+                    border: '1px dashed #ddd6fe', borderRadius: 12, padding: 32,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    textAlign: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.15s'
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(237,233,254,0.5)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(250,245,255,0.5)'; }}
+                  >
+                    <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <FileImage style={{ width: 24, height: 24, color: '#7c3aed' }} />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#3b0764', margin: '0 0 4px' }}>Upload de Miniatura</p>
+                      <p style={{ fontSize: 12, color: 'rgba(59,7,100,0.6)', margin: 0 }}>Arraste ou selecione o arquivo JPG/PNG</p>
+                    </div>
+                    <FileUploader
+                      onGetUploadParameters={getUploadUrl}
+                      onComplete={(result) => {
+                        const localPath = convertGCSUrlToLocalPath(result.url);
+                        setApprovalThumbUrl(localPath);
+                        setApprovalThumbPreview(localPath);
+                        toast({ title: "Upload concluído", description: "Thumb de aprovação enviado com sucesso" });
+                      }}
+                      onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
+                      onFileSelect={(file) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => { setApprovalThumbPreview(e.target?.result as string); };
+                        reader.readAsDataURL(file);
+                      }}
+                      accept="image/*"
+                      buttonVariant="ghost"
+                      buttonClassName="mt-2 text-[11px] font-bold uppercase tracking-wider bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 hover:text-white transition-all"
+                    >
+                      Fazer Upload do Thumb
+                    </FileUploader>
+                  </div>
+                )}
+              </section>
             )}
           </div>
         )}

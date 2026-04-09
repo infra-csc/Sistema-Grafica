@@ -214,23 +214,23 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
 
       {/* TABLE AREA */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '32px' }}>
-        <div style={{ minWidth: '1100px' }}>
+        <div style={{ minWidth: '1220px' }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
             <thead>
               <tr style={{ textAlign: 'left' }}>
                 {[
-                  { label: 'Tipo', w: '130px' },
-                  { label: 'Descrição', w: '' },
-                  { label: 'Qtd', w: '60px' },
-                  { label: 'Vis. L', w: '72px', orange: true },
-                  { label: 'Vis. A', w: '72px', orange: true },
-                  { label: 'Arq. L', w: '72px' },
-                  { label: 'Arq. A', w: '72px' },
-                  { label: 'M²', w: '72px', accent: true },
-                  { label: 'Material', w: '110px' },
-                  { label: 'Acabamento', w: '110px' },
-                  { label: 'Obs', w: '' },
-                  { label: '', w: '72px' },
+                  { label: 'Tipo', w: '140px' },
+                  { label: 'Descrição', w: '180px' },
+                  { label: 'Qtd', w: '68px' },
+                  { label: 'Vis. L', w: '86px', orange: true },
+                  { label: 'Vis. A', w: '86px', orange: true },
+                  { label: 'Arq. L', w: '86px' },
+                  { label: 'Arq. A', w: '86px' },
+                  { label: 'M²', w: '80px', accent: true },
+                  { label: 'Material', w: '115px' },
+                  { label: 'Acabamento', w: '115px' },
+                  { label: 'Obs', w: '110px' },
+                  { label: '', w: '64px' },
                 ].map((col, i) => (
                   <th
                     key={i}

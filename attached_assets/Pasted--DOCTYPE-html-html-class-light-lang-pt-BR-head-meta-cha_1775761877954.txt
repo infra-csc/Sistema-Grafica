@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Norte Elite - Detalhe do Item</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary": "#006398",
+                        "tertiary-fixed": "#cde5ff",
+                        "on-surface-variant": "#584237",
+                        "on-primary-fixed": "#1e1b19",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "secondary-fixed-dim": "#ffb690",
+                        "surface-tint": "#625d5b",
+                        "surface-container": "#eeeeed",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#e0c0b1",
+                        "outline": "#8c7164",
+                        "on-tertiary-container": "#003554",
+                        "inverse-on-surface": "#f1f1f0",
+                        "primary-fixed": "#e9e1dd",
+                        "on-background": "#1a1c1c",
+                        "tertiary-container": "#00a2f4",
+                        "surface": "#f9f9f8",
+                        "secondary-container": "#fd761a",
+                        "on-tertiary-fixed": "#001d32",
+                        "background": "#f9f9f8",
+                        "inverse-surface": "#2f3130",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "on-secondary-fixed": "#341100",
+                        "on-secondary-container": "#5c2400",
+                        "error": "#ba1a1a",
+                        "primary-container": "#9f9996",
+                        "on-surface": "#1a1c1c",
+                        "secondary-fixed": "#ffdbca",
+                        "inverse-primary": "#ccc5c2",
+                        "primary": "#625d5b",
+                        "surface-container-lowest": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#35322f",
+                        "surface-dim": "#dadad9",
+                        "secondary": "#9d4300",
+                        "surface-variant": "#e2e2e2",
+                        "on-primary": "#ffffff",
+                        "surface-container-high": "#e8e8e7",
+                        "surface-container-low": "#f3f4f3",
+                        "surface-bright": "#f9f9f8",
+                        "on-secondary-fixed-variant": "#783200",
+                        "error-container": "#ffdad6",
+                        "primary-fixed-dim": "#ccc5c2"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"],
+                        "mono": ["DM Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .tight-kerning { letter-spacing: -0.04em; }
+        .glass-purple {
+            background: rgba(157, 67, 0, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(157, 67, 0, 0.1);
+        }
+        .glass-green {
+            background: rgba(0, 99, 152, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 99, 152, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased">
+<!-- TopNavBar Mapping -->
+<nav class="bg-[#f9f9f8] dark:bg-[#1c1917] flex justify-between items-center w-full px-8 h-16 fixed top-0 z-50">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-bold tracking-tighter text-[#1c1917] dark:text-[#f9f9f8] font-headline uppercase">NORTE ELITE</span>
+<div class="hidden md:flex gap-6 items-center">
+<a class="font-headline tracking-tight font-bold uppercase text-[#625d5b] dark:text-[#f9f9f8]/60 hover:text-[#f97316] transition-colors duration-200" href="#">Dashboard</a>
+<a class="font-headline tracking-tight font-bold uppercase text-[#625d5b] dark:text-[#f9f9f8]/60 hover:text-[#f97316] transition-colors duration-200" href="#">Roster</a>
+<a class="font-headline tracking-tight font-bold uppercase text-[#f97316] border-b-2 border-[#f97316] pb-1" href="#">Events</a>
+<a class="font-headline tracking-tight font-bold uppercase text-[#625d5b] dark:text-[#f9f9f8]/60 hover:text-[#f97316] transition-colors duration-200" href="#">Logistics</a>
+<a class="font-headline tracking-tight font-bold uppercase text-[#625d5b] dark:text-[#f9f9f8]/60 hover:text-[#f97316] transition-colors duration-200" href="#">Analytics</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#625d5b]">notifications</span>
+<span class="material-symbols-outlined text-[#625d5b]">settings</span>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest overflow-hidden">
+<img alt="User profile avatar" data-alt="Close up portrait of a professional athletic coach with a confident expression in a bright modern studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAlFicv6wjJrZkDMPs61mhe28dPzANT8emQR_tqJ1Io0X7OWVIW7XGA6C1igTA4kW8ny5bOkwjjxBMJa4sVpzXCprm_ANECZSZ8ZIOCYwo7HCylG0fZAgWvYHz_GwpjnfZNWC3Hy4qZe2nJiQOIP0QOZH5DGCCkXRk-q9onPaVP718rWLdfjsv8kxXHlI0jiW08chCMbkfJhCKzXBtZgVbvLj595g2R7_PYtCwB1y1zwVwm1D8h1JKqaYuwP370GeAXb86p7C9Qq_B"/>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-16 px-8 max-w-7xl mx-auto">
+<!-- Modal Container (Simulated) -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl">
+<!-- Header Section -->
+<div class="p-8 bg-[#1c1917] text-white">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<p class="font-headline uppercase text-secondary-container text-xs font-bold tracking-widest mb-1">DETALHE DO ITEM</p>
+<h1 class="font-headline text-4xl md:text-5xl font-extrabold tight-kerning">#0065 · IRONMAN 70.3</h1>
+<div class="flex flex-wrap gap-2 mt-4">
+<span class="px-3 py-1 rounded-full bg-secondary text-white text-[10px] font-bold uppercase tracking-wider">Current Status: Em Arte</span>
+<span class="px-3 py-1 rounded-full bg-error/20 text-error border border-error/30 text-[10px] font-bold uppercase tracking-wider">Rejected</span>
+<span class="px-3 py-1 rounded-full bg-surface-container-highest text-on-surface-variant text-[10px] font-bold uppercase tracking-wider">Skipped Approval</span>
+</div>
+</div>
+<!-- Horizontal Timeline -->
+<div class="flex items-center gap-4 overflow-x-auto pb-2">
+<div class="flex items-center gap-2 group">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold text-xs">1</div>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-white/90">Vinculação</span>
+<div class="w-8 h-px bg-white/20"></div>
+</div>
+<div class="flex items-center gap-2 group">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold text-xs ring-4 ring-secondary-container/20">2</div>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-white">Arte</span>
+<div class="w-8 h-px bg-white/20"></div>
+</div>
+<div class="flex items-center gap-2 group">
+<div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/40 font-bold text-xs">3</div>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-white/40">Aprovação</span>
+<div class="w-8 h-px bg-white/20"></div>
+</div>
+<div class="flex items-center gap-2 group">
+<div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/40 font-bold text-xs">4</div>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-white/40">Finalização</span>
+<div class="w-8 h-px bg-white/20"></div>
+</div>
+<div class="flex items-center gap-2 group">
+<div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/40 font-bold text-xs">5</div>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-white/40">Revisão</span>
+<div class="w-8 h-px bg-white/20"></div>
+</div>
+<div class="flex items-center gap-2 group">
+<div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/40 font-bold text-xs">6</div>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-white/40">Produção</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Banner Description -->
+<div class="p-8 bg-surface-container-low border-l-8 border-secondary">
+<p class="text-on-surface-variant leading-relaxed max-w-4xl">
+                    Produção de pórtico inflável personalizado e sinalização de percurso para a etapa Ironman 70.3. O projeto contempla materiais de alta resistência climática, acabamento fosco premium para evitar reflexos em transmissões oficiais e sistema de fixação reforçado para ventos de até 40km/h.
+                </p>
+</div>
+<!-- Two-Column Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-10 gap-1 p-8 bg-surface-container">
+<!-- Left Column (60%) -->
+<div class="lg:col-span-6 space-y-6">
+<!-- Event Info Card -->
+<section class="bg-surface-container-lowest p-6 rounded-lg">
+<h3 class="font-headline font-bold text-xl uppercase tight-kerning mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary">event</span>
+                            Informações do Evento
+                        </h3>
+<div class="grid grid-cols-2 gap-8">
+<div>
+<label class="text-[10px] font-bold uppercase tracking-wider text-outline mb-1 block">Data de Início</label>
+<p class="font-mono text-lg text-on-surface font-medium">12 OUT 2024</p>
+</div>
+<div>
+<label class="text-[10px] font-bold uppercase tracking-wider text-outline mb-1 block">Saída do Caminhão</label>
+<p class="font-mono text-lg text-secondary font-bold">08 OUT 2024</p>
+</div>
+</div>
+<div class="mt-8 pt-8 border-t border-surface-container">
+<h4 class="text-xs font-bold uppercase tracking-widest text-outline mb-4">Especificações Técnicas</h4>
+<div class="grid grid-cols-3 gap-4">
+<div class="bg-surface-container-low p-4 rounded">
+<p class="text-[10px] font-bold text-outline uppercase">Tipo</p>
+<p class="font-headline font-bold text-sm">Pórtico Inflável</p>
+</div>
+<div class="bg-surface-container-low p-4 rounded">
+<p class="text-[10px] font-bold text-outline uppercase">Material</p>
+<p class="font-headline font-bold text-sm">Nylon 600D</p>
+</div>
+<div class="bg-surface-container-low p-4 rounded">
+<p class="text-[10px] font-bold text-outline uppercase">Acabamento</p>
+<p class="font-headline font-bold text-sm">Fosco Anti-Reflexo</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Sponsors Section -->
+<section class="bg-surface-container-lowest p-6 rounded-lg">
+<h3 class="font-headline font-bold text-xl uppercase tight-kerning mb-6">Patrocinadores Vinculados</h3>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded group hover:bg-surface-container-high transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-white rounded flex items-center justify-center p-2">
+<img alt="Logo Sponsor" data-alt="Minimalist corporate tech company logo with geometric shapes and bold sans-serif typography on a white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDU8VRLBAYCfWswVE2nkyN1bolxjXUU_fLuOs7gyx6bROlkpz0FwuQVB9qSjkxyNOFhmOGfRPomtbddW2pVZj7bOKGsX7kfofZCddP6SzqitdKTS3nVHMDOCNl5wAaP9nHe2GJBLfWLeCZdXUKe4zjapSHBIJRFgZq0w62h2058KHI2Xum0DZgJHT0-5YSoDcumSkqzEC2FJ9BNWUqpVdaPZobB0cMa4pAM8_VamXxqozXM7bteJwKcgyTzvNSXSRWKGM6vcYyVALyG"/>
+</div>
+<span class="font-bold text-sm">Mastercard Global</span>
+</div>
+<span class="px-3 py-1 rounded-full bg-tertiary/10 text-tertiary text-[10px] font-bold uppercase">Aprovado</span>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded group hover:bg-surface-container-high transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-white rounded flex items-center justify-center p-2">
+<img alt="Logo Sponsor" data-alt="Clean circular brand emblem for an organic lifestyle brand featuring a stylized leaf icon in dark slate gray" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBORVwIAVUQxgqbN8AYZvQXOgYbQPTDMupW57yhjkis3SEigI5hQzoHufw7XAXPfwvIOnvH5mFIQ7czmlWvULr5XnbnQ5qN57xEacgMn1lQzJ7WvslPfT-LmXqDuXvOk3KUy9FTpcVdokQYRrb5jtbXWzN3PMvWBEZQqTdmdV5kqbQoQbR-z-zDGRl8m7Aik9QAvL0hJJ9tTu8PjE9t_3oscnfavqx9ckL9-6EkSLKdvgL0IjCMTsdk6rxKIN4ZXiHzCGRbo-zvg8Uc"/>
+</div>
+<span class="font-bold text-sm">Red Bull Energy</span>
+</div>
+<span class="px-3 py-1 rounded-full bg-error/10 text-error text-[10px] font-bold uppercase">Reprovado</span>
+</div>
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded group hover:bg-surface-container-high transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-white rounded flex items-center justify-center p-2">
+<img alt="Logo Sponsor" data-alt="Professional logo for a sports equipment company with sharp angular lines and a metallic silver finish" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6RrYbdTxtVsV9BbWcBiVguG78Sg1NX3UU5Iegl9QWyKpJSPSBNgLqCsHqR53JPtAvykF93rLYHlS3PX10J4_5OBfbmn9T1AUKxyWqkXjllZoFovUc1REF9zKKvmqbOIGKRAdF2Zu8JHsWTAXUk7CE3Z_vKQwQTtrrpY_Cmwzu-HgC11hn8eVEZ7HK9KmLX-KJpWkaXYpMdz9QmGHILEx8RVQR77TK2JPnwJZBD1-rYz40k-GvtGpCI1VYZXhCYifO6qJbBhlQy4qg"/>
+</div>
+<span class="font-bold text-sm">Oakley Performance</span>
+</div>
+<span class="px-3 py-1 rounded-full bg-surface-container-highest text-on-surface-variant text-[10px] font-bold uppercase">Aguardando</span>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column (40%) -->
+<div class="lg:col-span-4 space-y-6">
+<!-- Art Approval (Purple Glass) -->
+<section class="glass-purple p-6 rounded-lg border-l-4 border-secondary">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline font-bold text-xl uppercase tight-kerning text-secondary">Aprovação de Arte</h3>
+<span class="material-symbols-outlined text-secondary">brush</span>
+</div>
+<div class="aspect-video bg-white/40 rounded-lg overflow-hidden relative group cursor-pointer mb-4">
+<img alt="Art Preview" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" data-alt="Technical graphic design layout showing 3D mockups of a large inflatable sports arch with orange and charcoal branding" src="https://lh3.googleusercontent.com/aida-public/AB6AXuApsbl29PJn9gqSlcULDExsWfXf_WZ5G2wBlO2ClZfqdYREfWxk4Oa7-6hYOeUkoL4gVid-xisp65kAl3KWmv9YA3YpHrRtZtUEjv4kFqz2IVND4e2QCv-d-F5gspRBmBERP_RCOk3rG0nmC7GluDW20OBL07VXbx-GmnMk78Z18UsMsjkpZLgeljcbcD0kZrftxEiyKmDYQcCZ3_ArDrOxFlp1z7jPtXUqo3oPVcpBz3udp3Lda06WwYrvOh8fGfJ9YjTtwedvX08-"/>
+<div class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="text-white font-bold flex items-center gap-2">
+<span class="material-symbols-outlined">visibility</span> Visualizar PDF
+                                </span>
+</div>
+</div>
+<div class="space-y-2">
+<p class="text-[10px] font-bold uppercase text-on-surface-variant/60">Última Atualização</p>
+<p class="text-xs font-medium">Design_Final_V4_Ajustado.pdf</p>
+<p class="text-[10px] font-mono text-on-surface-variant/40">Enviado por: Roberto Silva · 05/10/24 14:20</p>
+</div>
+</section>
+<!-- Final File (Green Glass) -->
+<section class="glass-green p-6 rounded-lg border-l-4 border-tertiary">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline font-bold text-xl uppercase tight-kerning text-tertiary">Arquivo Final</h3>
+<span class="material-symbols-outlined text-tertiary">inventory_2</span>
+</div>
+<div class="p-4 bg-white/40 rounded border border-tertiary/20">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-tertiary mt-1">folder_zip</span>
+<div>
+<p class="text-xs font-bold text-tertiary-fixed-dim bg-tertiary px-2 py-0.5 rounded inline-block mb-2 uppercase tracking-tighter">PRONTO PARA IMPRESSÃO</p>
+<p class="font-mono text-[11px] break-all text-on-tertiary-container">
+                                        /production/2024/IM703/FINAL_PRINT_0065.tiff
+                                    </p>
+</div>
+</div>
+</div>
+<button class="w-full mt-4 py-3 bg-tertiary text-on-tertiary rounded font-bold text-sm uppercase tracking-widest hover:brightness-110 transition-all">
+                            Baixar Pacote de Produção
+                        </button>
+</section>
+</div>
+</div>
+<!-- Full-Width Sections -->
+<div class="p-8 space-y-12">
+<!-- Production Data Table -->
+<section>
+<h3 class="font-headline font-bold text-2xl uppercase tight-kerning mb-6">Dados de Produção</h3>
+<div class="overflow-hidden rounded-lg bg-surface-container-low">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high">
+<th class="p-4 text-[10px] font-black uppercase tracking-widest text-outline">Item Componente</th>
+<th class="p-4 text-[10px] font-black uppercase tracking-widest text-outline">Quantidade</th>
+<th class="p-4 text-[10px] font-black uppercase tracking-widest text-outline">M2 Total</th>
+<th class="p-4 text-[10px] font-black uppercase tracking-widest text-outline">Dimensões (LxA)</th>
+<th class="p-4 text-[10px] font-black uppercase tracking-widest text-outline">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<tr>
+<td class="p-4 text-sm font-bold">Lona Frontlight Superior</td>
+<td class="p-4 font-mono text-sm">02 un</td>
+<td class="p-4 font-mono text-sm">18.50 m²</td>
+<td class="p-4 font-mono text-sm">4500 x 2050 mm</td>
+<td class="p-4"><span class="w-2 h-2 rounded-full bg-secondary inline-block"></span></td>
+</tr>
+<tr>
+<td class="p-4 text-sm font-bold">Painéis Laterais (Fechamento)</td>
+<td class="p-4 font-mono text-sm">04 un</td>
+<td class="p-4 font-mono text-sm">12.00 m²</td>
+<td class="p-4 font-mono text-sm">1500 x 2000 mm</td>
+<td class="p-4"><span class="w-2 h-2 rounded-full bg-surface-container-highest inline-block"></span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Delivery Photo & Observations -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<section>
+<h3 class="font-headline font-bold text-xl uppercase tight-kerning mb-4">Registro de Entrega</h3>
+<div class="relative group aspect-video rounded-xl overflow-hidden shadow-lg">
+<img alt="Delivery Proof" class="w-full h-full object-cover" data-alt="A large-scale athletic event setup in progress with professional staff moving equipment near a giant orange inflatable finish line arch" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCi0hd4GIYhwTvDzygAq7rwR76jcbpo4h7XrNi4nlb0MzY1iFbsYYtiOb59dsBYztrtliYLH-B0A46RUDemLOcELQ15r9pVVHu5gTUwdTOgQOl8d9d71GE-UDksDoLxryDmvFViCPh5lFNN8--6PPw1jY9DfuiN1vaul3d37Swj2ctxWMueUcVgqpQ99ZNSeoRgpM2TtvKO74ocqcZrw1A6afg2W8n35_xzASsCcR8_lrW3VdkXFNk3ytTVffG2YKIlQ5pcwZMdUQcm"/>
+<div class="absolute bottom-0 left-0 right-0 p-4 bg-black/60 backdrop-blur-md text-white">
+<p class="text-[10px] font-bold uppercase tracking-widest opacity-70">Local de Entrega</p>
+<p class="text-sm font-bold">Base Logística A · Ironman Maceió</p>
+</div>
+</div>
+</section>
+<section>
+<h3 class="font-headline font-bold text-xl uppercase tight-kerning mb-4">Observações</h3>
+<div class="bg-surface-container-low p-6 rounded-xl border border-surface-container-high h-[200px]">
+<p class="text-on-surface-variant italic leading-relaxed text-sm">
+                                "Atenção redobrada na costura dos ilhoses laterais. O cliente solicitou reforço duplo devido à previsão de ventos fortes na região costeira durante o final de semana do evento. Utilizar linha de nylon 0.60mm."
+                            </p>
+<p class="mt-4 text-[10px] font-bold text-secondary uppercase tracking-widest">— Coordenação de Produção</p>
+</div>
+</section>
+</div>
+<!-- Date Traceability & Audit Trail -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Date Traceability (2/3 width) -->
+<div class="lg:col-span-2">
+<h3 class="font-headline font-bold text-xl uppercase tight-kerning mb-6">Rastreabilidade Temporal</h3>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="border-b border-surface-container">
+<tr>
+<th class="pb-3 text-[10px] font-black uppercase text-outline">Etapa</th>
+<th class="pb-3 text-[10px] font-black uppercase text-outline">Data/Hora</th>
+<th class="pb-3 text-[10px] font-black uppercase text-outline">Responsável</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container/50">
+<tr>
+<td class="py-3 text-xs font-bold">Criação do Item</td>
+<td class="py-3 font-mono text-xs">28 SET 24 09:12</td>
+<td class="py-3 text-xs">Sistema Auto</td>
+</tr>
+<tr>
+<td class="py-3 text-xs font-bold">Arte Enviada</td>
+<td class="py-3 font-mono text-xs">02 OUT 24 14:45</td>
+<td class="py-3 text-xs">Roberto S.</td>
+</tr>
+<tr>
+<td class="py-3 text-xs font-bold">Aprovação Parcial</td>
+<td class="py-3 font-mono text-xs">05 OUT 24 10:30</td>
+<td class="py-3 text-xs">Fernanda M.</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Audit History (1/3 width) -->
+<div>
+<h3 class="font-headline font-bold text-xl uppercase tight-kerning mb-6">Histórico / Audit</h3>
+<div class="space-y-6 relative before:absolute before:left-[11px] before:top-2 before:bottom-0 before:w-px before:bg-surface-container-highest">
+<div class="relative pl-8">
+<div class="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-secondary ring-4 ring-secondary/10"></div>
+<p class="text-xs font-bold uppercase tracking-tighter">Status alterado para "Em Arte"</p>
+<p class="text-[10px] text-outline font-medium">Há 2 horas por @robertosantos</p>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-surface-container-highest"></div>
+<p class="text-xs font-bold uppercase tracking-tighter text-outline-variant">Documentação vinculada</p>
+<p class="text-[10px] text-outline font-medium">Há 5 horas por @sistemarpa</p>
+</div>
+<div class="relative pl-8">
+<div class="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-surface-container-highest"></div>
+<p class="text-xs font-bold uppercase tracking-tighter text-outline-variant">Item criado por solicitação</p>
+<p class="text-[10px] text-outline font-medium">28 Set por @marcelo.prod</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Action Bar -->
+<div class="p-6 bg-surface-container-high flex flex-wrap justify-between items-center gap-4">
+<div class="flex items-center gap-4">
+<span class="text-[10px] font-bold text-outline uppercase tracking-widest">ID Único: AD-092-2024-XP</span>
+<div class="h-4 w-px bg-outline/20"></div>
+<span class="text-[10px] font-bold text-outline uppercase tracking-widest">Versão do Documento: 1.0.4</span>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-2 bg-surface-container-lowest border border-outline/20 font-bold text-xs uppercase tracking-widest hover:bg-surface-container transition-colors">Fechar Detalhes</button>
+<button class="px-6 py-2 bg-secondary text-white font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">print</span> Imprimir Ficha
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- SideNavBar Mapping -->
+<aside class="hidden lg:flex flex-col h-screen py-6 bg-[#f9f9f8] dark:bg-[#1c1917] fixed left-0 top-0 w-64 border-r-0 z-40 pt-20">
+<div class="px-8 mb-8">
+<h2 class="text-xl font-black text-[#1c1917] dark:text-[#f9f9f8] font-headline tracking-tighter uppercase">NORTE</h2>
+<p class="text-[10px] uppercase font-bold tracking-[0.2em] text-[#625d5b]/60">Elite Performance</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-4 px-8 py-3 text-[#625d5b] dark:text-[#f9f9f8]/40 hover:bg-[#f97316]/10 hover:text-[#f97316] transition-all duration-200 ease-out font-headline tracking-tighter" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>Operations</span>
+</a>
+<a class="flex items-center gap-4 px-8 py-3 text-[#f97316] font-bold bg-[#f97316]/5 rounded-r-lg font-headline tracking-tighter" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">groups</span>
+<span>Athletes</span>
+</a>
+<a class="flex items-center gap-4 px-8 py-3 text-[#625d5b] dark:text-[#f9f9f8]/40 hover:bg-[#f97316]/10 hover:text-[#f97316] transition-all duration-200 ease-out font-headline tracking-tighter" href="#">
+<span class="material-symbols-outlined">verified</span>
+<span>Sponsorships</span>
+</a>
+<a class="flex items-center gap-4 px-8 py-3 text-[#625d5b] dark:text-[#f9f9f8]/40 hover:bg-[#f97316]/10 hover:text-[#f97316] transition-all duration-200 ease-out font-headline tracking-tighter" href="#">
+<span class="material-symbols-outlined">perm_media</span>
+<span>Media Assets</span>
+</a>
+<a class="flex items-center gap-4 px-8 py-3 text-[#625d5b] dark:text-[#f9f9f8]/40 hover:bg-[#f97316]/10 hover:text-[#f97316] transition-all duration-200 ease-out font-headline tracking-tighter" href="#">
+<span class="material-symbols-outlined">history</span>
+<span>Audit Logs</span>
+</a>
+</nav>
+<div class="px-8 mt-auto">
+<button class="w-full py-3 bg-secondary text-white rounded font-bold text-xs uppercase tracking-widest hover:brightness-110 mb-6">
+                Download Report
+            </button>
+<div class="space-y-4">
+<a class="flex items-center gap-4 text-[#625d5b] dark:text-[#f9f9f8]/40 text-sm hover:text-secondary transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">help</span>
+<span>Support</span>
+</a>
+<a class="flex items-center gap-4 text-[#625d5b] dark:text-[#f9f9f8]/40 text-sm hover:text-secondary transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">logout</span>
+<span>Sign Out</span>
+</a>
+</div>
+</div>
+</aside>
+</body></html>

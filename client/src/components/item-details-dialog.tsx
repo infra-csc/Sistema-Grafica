@@ -2,9 +2,9 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Calendar, ClipboardList, Package, Building2, FileText, History,
+  Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
-  FileImage, FolderOpen, ExternalLink, Factory, Camera, Clock, ShieldCheck,
+  FileImage, FolderOpen, ExternalLink, Camera, Clock, ShieldCheck, Package,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,7 +20,6 @@ interface ItemDetailsDialogProps {
   onEditSave?: (editedItem: any) => void;
 }
 
-// ── Timeline step config ──────────────────────────────────
 const TIMELINE_STEPS = [
   { label: "Vinculação", icon: Link2,       idx: 0 },
   { label: "Arte",       icon: Palette,     idx: 1 },
@@ -41,7 +40,6 @@ const STATUS_STEP: Record<string, number> = {
   produced: 6, delivered: 6,
 };
 
-// ── Status badge pill (header) ────────────────────────────
 const STATUS_LABELS: Record<string, string> = {
   requested: "Solicitado",
   awaiting_linking: "Aguard. Vinculação",
@@ -73,10 +71,8 @@ export function ItemDetailsDialog({
 
   const handleEditChange = (field: string, value: any) =>
     setEditedItem((p: any) => ({ ...p, [field]: value }));
-
   const handleSave = () => { onEditSave?.(editedItem); setEditMode(false); };
 
-  // ── Audit log helpers ─────────────────────────────────
   const itemLogs = auditLogs
     .filter((l: any) => (l.entityId ?? l.entity_id ?? "") === item.id)
     .sort((a: any, b: any) =>
@@ -104,7 +100,7 @@ export function ItemDetailsDialog({
     if (!l) return null;
     const ts   = l.createdAt ?? l.created_at;
     const name = l.userName  ?? l.user_name;
-    return `${fmtShort(ts)}${name ? ` · ${name}` : ""}`;
+    return { date: fmtShort(ts), user: name };
   };
 
   const historyStages = [
@@ -117,137 +113,135 @@ export function ItemDetailsDialog({
 
   const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
 
-  const hasActions = !!(customActions || topActions);
-
-  // ── Approval thumb helpers ────────────────────────────
   const thumbUrl = item.approvalThumbUrl;
   const isThumbImage = thumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl.toLowerCase());
-  const isThumbPdf   = thumbUrl && !isThumbImage;
+
+  const hasDeliveryPhoto = !!item.deliveryPhotoUrl;
+  const hasObservations  = !!item.observations;
+  const hasTimestamps    = !!(item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt);
+
+  const traceRows = [
+    { label: "Aprovado pelo Patrocinador", value: item.sponsorApprovedAt,  by: item.sponsorApprovedBy, dot: "#7c3aed" },
+    { label: "Revisado pelo Criador",      value: item.creatorReviewedAt,  by: null,                   dot: "#d946ef" },
+    { label: "Liberado para Produção",     value: item.approvedAt,         by: null,                   dot: "#f97316" },
+    { label: "Produção Iniciada",          value: item.productionStartedAt,by: null,                   dot: "#f59e0b" },
+    { label: "Produzido",                  value: item.producedAt,         by: null,                   dot: "#ec4899" },
+    { label: "Entregue",                   value: item.deliveredAt,        by: item.receivedBy,        dot: "#10b981" },
+  ].filter(r => r.value);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 gap-0"
-        style={{ backgroundColor: "#ffffff", borderRadius: 12, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.18)" }}
+        style={{ backgroundColor: "#f9f9f8", borderRadius: 6, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)", overflow: "hidden" }}
       >
         {/* ── Close button ── */}
         <button
           onClick={() => onOpenChange(false)}
           style={{
-            position: "absolute", top: 24, right: 24, zIndex: 10,
-            background: "none", border: "none", cursor: "pointer",
-            color: "#78716c", padding: 4, borderRadius: 4,
-            display: "flex", alignItems: "center",
-            transition: "color 0.15s",
+            position: "absolute", top: 16, right: 16, zIndex: 50,
+            background: "rgba(255,255,255,0.1)", border: "none", cursor: "pointer",
+            color: "rgba(255,255,255,0.6)", padding: 6, borderRadius: 4,
+            display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s",
           }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#78716c")}
+          onMouseEnter={e => { e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.background = "rgba(255,255,255,0.2)"; }}
+          onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
         >
-          <X style={{ width: 28, height: 28 }} />
+          <X style={{ width: 24, height: 24 }} />
         </button>
 
-        {/* ── Header ── */}
-        <header style={{ padding: "40px 32px 24px 32px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.12em" }}>
-              PROJETO ATIVO
-            </span>
-            <h1 style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em",
-              color: "#1c1917", margin: 0, lineHeight: 1.1,
-            }}>
-              {item.displayId} • <span style={{ color: "#f97316" }}>{item.event?.name?.toUpperCase()}</span>
-            </h1>
-          </div>
+        {/* ══════════════════════════════════════════════════════
+            HEADER — Dark
+        ══════════════════════════════════════════════════════ */}
+        <header style={{ backgroundColor: "#1c1917", padding: 32, color: "#ffffff" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, flexWrap: "wrap" }}>
 
-          {/* Status pills */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span style={{
-              padding: "5px 14px", borderRadius: 999,
-              backgroundColor: "#f97316", color: "#ffffff",
-              fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-            }}>
-              {STATUS_LABELS[rawStatus] || rawStatus}
-            </span>
-            {item.rejectedBySponsor && (
-              <span style={{
-                padding: "5px 14px", borderRadius: 999,
-                border: "2px solid #dc2626", color: "#dc2626",
-                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-              }}>Reprovado Patrocinador</span>
-            )}
-            {item.rejectedByCreator && (
-              <span style={{
-                padding: "5px 14px", borderRadius: 999,
-                border: "2px solid #f97316", color: "#f97316",
-                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-              }}>Reprovado Criador</span>
-            )}
-            {item.skipApproval && (
-              <span style={{
-                padding: "5px 14px", borderRadius: 999,
-                backgroundColor: "#f0f9ff", border: "1px solid #bae6fd", color: "#0284c7",
-                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-              }}>Aprovação Ignorada</span>
-            )}
-          </div>
+            {/* Left: eyebrow + title + pills */}
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <p style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                color: "#fd761a", fontSize: 10, fontWeight: 700,
+                textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 6px 0",
+              }}>
+                DETALHE DO ITEM
+              </p>
+              <h1 style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 800,
+                letterSpacing: "-0.04em", color: "#ffffff", margin: 0, lineHeight: 1.05,
+              }}>
+                {item.displayId} · {item.event?.name?.toUpperCase() || "—"}
+              </h1>
 
-          {/* ── Timeline ── */}
-          <div style={{ marginTop: 40, overflowX: "auto", paddingBottom: 4 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", minWidth: 640, position: "relative", padding: "0 8px" }}>
-              {/* Background line */}
-              <div style={{
-                position: "absolute", top: 16, left: 40, right: 40,
-                height: 2, backgroundColor: "#e7e5e4", zIndex: 0,
-              }} />
+              {/* Pills */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
+                <span style={{
+                  padding: "4px 12px", borderRadius: 999,
+                  backgroundColor: "#9d4300", color: "#ffffff",
+                  fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                }}>
+                  {STATUS_LABELS[rawStatus] || rawStatus}
+                </span>
+                {item.rejectedBySponsor && (
+                  <span style={{
+                    padding: "4px 12px", borderRadius: 999,
+                    backgroundColor: "rgba(186,26,26,0.2)", color: "#ff5449",
+                    border: "1px solid rgba(186,26,26,0.3)",
+                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                  }}>Reprovado Patrocinador</span>
+                )}
+                {item.rejectedByCreator && (
+                  <span style={{
+                    padding: "4px 12px", borderRadius: 999,
+                    backgroundColor: "rgba(186,26,26,0.2)", color: "#ff5449",
+                    border: "1px solid rgba(186,26,26,0.3)",
+                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                  }}>Reprovado Criador</span>
+                )}
+                {item.skipApproval && (
+                  <span style={{
+                    padding: "4px 12px", borderRadius: 999,
+                    backgroundColor: "#e2e2e2", color: "#584237",
+                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                  }}>Aprovação Ignorada</span>
+                )}
+              </div>
+            </div>
 
-              {TIMELINE_STEPS.map((s) => {
+            {/* Right: horizontal timeline */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, overflowX: "auto", paddingBottom: 4, flexShrink: 0 }}>
+              {TIMELINE_STEPS.map((s, i) => {
                 const done    = s.idx < step;
                 const current = s.idx === step;
                 const pending = s.idx > step;
                 return (
-                  <div key={s.idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, position: "relative", zIndex: 1 }}>
-                    {done ? (
+                  <div key={s.idx} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                       <div style={{
                         width: 32, height: 32, borderRadius: "50%",
-                        backgroundColor: "#f97316", color: "#ffffff",
+                        backgroundColor: (done || current) ? "#fd761a" : "rgba(255,255,255,0.1)",
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        boxShadow: "0 4px 12px rgba(249,115,22,0.35)",
+                        color: (done || current) ? "#5c2400" : "rgba(255,255,255,0.4)",
+                        fontWeight: 700, fontSize: 12,
+                        boxShadow: current ? "0 0 0 4px rgba(253,118,26,0.25)" : "none",
+                        flexShrink: 0,
                       }}>
-                        <Check style={{ width: 16, height: 16, strokeWidth: 3 }} />
+                        {done
+                          ? <Check style={{ width: 14, height: 14, strokeWidth: 3 }} />
+                          : <span>{s.idx + 1}</span>
+                        }
                       </div>
-                    ) : current ? (
-                      <div style={{ position: "relative", width: 32, height: 32 }}>
-                        <div className="animate-ping" style={{
-                          position: "absolute", inset: 0, borderRadius: "50%",
-                          backgroundColor: "#f97316", opacity: 0.25,
-                        }} />
-                        <div style={{
-                          width: 32, height: 32, borderRadius: "50%",
-                          border: "4px solid #f97316", backgroundColor: "#ffffff",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          position: "relative", zIndex: 1,
-                        }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#f97316" }} />
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{
-                        width: 32, height: 32, borderRadius: "50%",
-                        backgroundColor: "#e7e5e4",
-                        display: "flex", alignItems: "center", justifyContent: "center",
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em",
+                        color: (done || current) ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)",
+                        whiteSpace: "nowrap",
                       }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "rgba(28,25,23,0.2)" }} />
-                      </div>
+                        {s.label}
+                      </span>
+                    </div>
+                    {i < TIMELINE_STEPS.length - 1 && (
+                      <div style={{ width: 20, height: 1, backgroundColor: "rgba(255,255,255,0.15)", flexShrink: 0, marginBottom: 16 }} />
                     )}
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
-                      color: current ? "#f97316" : pending ? "rgba(28,25,23,0.3)" : "#78716c",
-                      whiteSpace: "nowrap",
-                    }}>
-                      {s.label}
-                    </span>
                   </div>
                 );
               })}
@@ -255,323 +249,343 @@ export function ItemDetailsDialog({
           </div>
         </header>
 
-        {/* ── Main body ── */}
-        <main style={{ padding: "8px 32px 32px 32px", display: "flex", flexDirection: "column", gap: 40 }}>
+        {/* ══════════════════════════════════════════════════════
+            BANNER DESCRIPTION
+        ══════════════════════════════════════════════════════ */}
+        {item.description && (
+          <div style={{ padding: "24px 32px", backgroundColor: "#f3f4f3", borderLeft: "8px solid #fd761a" }}>
+            <p style={{ color: "#584237", lineHeight: 1.65, maxWidth: 800, margin: 0, fontSize: 14 }}>
+              {item.description}
+            </p>
+          </div>
+        )}
 
-          {/* Description */}
-          {item.description && (
-            <section style={{
-              backgroundColor: "#f3f4f3",
-              padding: 24, borderRadius: 8,
-              borderLeft: "4px solid #f97316",
-            }}>
-              <h3 style={{ fontSize: 10, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.09em", margin: "0 0 6px 0" }}>
-                Descrição do Item
+        {/* ══════════════════════════════════════════════════════
+            TWO-COLUMN GRID
+        ══════════════════════════════════════════════════════ */}
+        <div style={{ display: "grid", gridTemplateColumns: "6fr 4fr", gap: 4, padding: 32, backgroundColor: "#eeeeed" }}>
+
+          {/* ── LEFT COLUMN (60%) ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* Event info + Specs */}
+            <section style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 2 }}>
+              <h3 style={{
+                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18,
+                textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 24px 0",
+                display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <Calendar style={{ width: 20, height: 20, color: "#fd761a" }} />
+                Informações do Evento
               </h3>
-              <p style={{ fontSize: 18, fontWeight: 500, color: "#1c1917", margin: 0 }}>
-                {item.description}
-              </p>
-            </section>
-          )}
 
-          {/* 2-col grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>
-
-            {/* LEFT — Event + Sponsors */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Calendar style={{ width: 20, height: 20, color: "#f97316" }} />
-                <h2 style={{
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 15, fontWeight: 700, textTransform: "uppercase",
-                  letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
-                }}>Informações do Evento</h2>
-              </div>
-
-              <div style={{ backgroundColor: "#fafaf9", borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e7e5e4", paddingBottom: 12, marginBottom: 12 }}>
-                  <span style={{ fontSize: 13, color: "#78716c" }}>Nome</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }}>{item.event?.name || "—"}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #e7e5e4", paddingBottom: 12, marginBottom: 12 }}>
-                  <span style={{ fontSize: 13, color: "#78716c" }}>Início do Evento</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }}>
-                    {item.event?.startDate ? format(new Date(item.event.startDate), "dd/MM/yyyy", { locale: ptBR }) : "—"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 13, color: "#78716c" }}>Saída Caminhão</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: item.event?.truckDepartureDate ? "#f97316" : "#1c1917" }}>
-                    {item.event?.truckDepartureDate
-                      ? format(new Date(item.event.truckDepartureDate), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                      : "—"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Sponsors */}
-              {item.sponsors && item.sponsors.length > 0 && (
+              {/* Dates */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                    <ShieldCheck style={{ width: 16, height: 16, color: "#f97316" }} />
-                    <h3 style={{ fontSize: 10, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.09em", margin: 0 }}>
-                      Patrocinadores Vinculados
-                    </h3>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {item.sponsors.map((s: any) => {
-                      const approval = item.sponsorApprovals?.find((a: any) => a.sponsorId === s.id);
-                      const isApproved = approval?.approved === true;
-                      const isRejected = approval?.approved === false;
-                      return (
-                        <div key={s.id} style={{
-                          border: "1px solid #e7e5e4", borderRadius: 6,
-                          padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{
-                              width: 30, height: 30, borderRadius: 4,
-                              backgroundColor: s.color || "#1c1917",
-                              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                            }}>
-                              <span style={{ color: "#ffffff", fontSize: 12, fontWeight: 700 }}>
-                                {(s.name || "?")[0].toUpperCase()}
-                              </span>
-                            </div>
-                            <div>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", display: "block" }}>{s.name}</span>
-                              {approval?.approvedAt && (
-                                <span style={{ fontSize: 10, color: "#78716c" }}>
-                                  {format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
-                                  {approval.approvedBy ? ` · ${approval.approvedBy}` : ""}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {isApproved ? (
-                            <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", backgroundColor: "#f0fdf4", color: "#16a34a", border: "1px solid #dcfce7", borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap" }}>
-                              Aprovado
-                            </span>
-                          ) : isRejected ? (
-                            <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap" }}>
-                              Reprovado
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap" }}>
-                              Aguardando
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {/* Aprovação geral pelo patrocinador */}
-                  {item.sponsorApprovedBy && item.sponsorApprovedAt && (
-                    <div style={{ marginTop: 10, padding: "8px 12px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                      <CheckCircle style={{ width: 14, height: 14, color: "#16a34a", flexShrink: 0 }} />
-                      <span style={{ fontSize: 11, color: "#14532d", fontWeight: 600 }}>
-                        Aprovado por <strong>{item.sponsorApprovedBy}</strong> em {format(new Date(item.sponsorApprovedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                      </span>
-                    </div>
+                  <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8c7164", display: "block", marginBottom: 4 }}>
+                    Data de Início
+                  </label>
+                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#1a1c1c", fontWeight: 500, margin: 0 }}>
+                    {item.event?.startDate
+                      ? format(new Date(item.event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()
+                      : "—"}
+                  </p>
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8c7164", display: "block", marginBottom: 4 }}>
+                    Saída do Caminhão
+                  </label>
+                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#fd761a", fontWeight: 700, margin: 0 }}>
+                    {item.event?.truckDepartureDate
+                      ? format(new Date(item.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR }).toUpperCase()
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Specs */}
+              <div style={{ marginTop: 32, paddingTop: 32, borderTop: "1px solid #eeeeed" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#8c7164", margin: 0 }}>
+                    Especificações Técnicas
+                  </h4>
+                  {!editMode && onEditSave && (
+                    <button
+                      onClick={() => { setEditedItem(item); setEditMode(true); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#fd761a", textTransform: "uppercase", padding: 0 }}
+                    >
+                      <Edit style={{ width: 11, height: 11 }} /> EDITAR
+                    </button>
                   )}
                 </div>
-              )}
-            </div>
 
-            {/* RIGHT — Specs + Art Preview */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <ClipboardList style={{ width: 20, height: 20, color: "#f97316" }} />
-                  <h2 style={{
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    fontSize: 15, fontWeight: 700, textTransform: "uppercase",
-                    letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
-                  }}>Especificações Técnicas</h2>
-                </div>
-                {!editMode && (
-                  <button
-                    onClick={() => { setEditedItem(item); setEditMode(true); }}
-                    style={{
-                      background: "none", border: "none", cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 4,
-                      fontSize: 11, fontWeight: 700, color: "#f97316", textTransform: "uppercase",
-                    }}
-                  >
-                    <Edit style={{ width: 13, height: 13 }} /> EDITAR
-                  </button>
-                )}
-              </div>
-
-              {editMode ? (
-                <div style={{ backgroundColor: "#fafaf9", borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 12 }}>
-                  {[
-                    { label: "Tipo",       field: "type" },
-                    { label: "Material",   field: "material" },
-                    { label: "Acabamento", field: "finish" },
-                  ].map(({ label, field }) => (
-                    <div key={field}>
-                      <label style={{ fontSize: 11, color: "#a8a29e", display: "block", marginBottom: 4 }}>{label}</label>
-                      <Input
-                        value={editedItem?.[field] || ""}
-                        onChange={(e) => handleEditChange(field, e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                  ))}
-                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <Button size="sm" variant="outline" onClick={() => setEditMode(false)}>Cancelar</Button>
-                    <Button size="sm" onClick={handleSave}><Save className="h-3 w-3 mr-1" />Salvar</Button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ backgroundColor: "#fafaf9", borderRadius: 8, padding: 24 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                {editMode ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {[
-                      { label: "Tipo",        value: item.type },
-                      { label: "Material",    value: item.material },
-                      { label: "Acabamento",  value: item.finish },
-                      { label: "Qtd",         value: item.quantity ? `${item.quantity} un.` : null },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <span style={{ fontSize: 11, color: "#a8a29e", display: "block", marginBottom: 3 }}>{label}</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }}>{value || "—"}</span>
+                      { label: "Tipo",       field: "type" },
+                      { label: "Material",   field: "material" },
+                      { label: "Acabamento", field: "finish" },
+                    ].map(({ label, field }) => (
+                      <div key={field}>
+                        <label style={{ fontSize: 11, color: "#a8a29e", display: "block", marginBottom: 4 }}>{label}</label>
+                        <Input value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className="h-8 text-sm" />
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                      <Button size="sm" variant="outline" onClick={() => setEditMode(false)}>Cancelar</Button>
+                      <Button size="sm" onClick={handleSave}><Save className="h-3 w-3 mr-1" />Salvar</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                    {[
+                      { label: "Tipo",       value: item.type },
+                      { label: "Material",   value: item.material },
+                      { label: "Acabamento", value: item.finish },
+                      { label: "Quantidade", value: item.quantity ? `${item.quantity} un.` : null },
+                      { label: "M²",         value: item.calculatedM2 ? `${item.calculatedM2} m²` : null },
+                      { label: "Medida",     value: item.measurement },
+                    ].filter(x => x.value).map(({ label, value }) => (
+                      <div key={label} style={{ backgroundColor: "#f3f4f3", padding: "14px 16px", borderRadius: 2 }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px 0" }}>{label}</p>
+                        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, color: "#1a1c1c", margin: 0 }}>{value}</p>
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+            </section>
+
+            {/* Sponsors */}
+            {item.sponsors && item.sponsors.length > 0 && (
+              <section style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 2 }}>
+                <h3 style={{
+                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18,
+                  textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 20px 0",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  <ShieldCheck style={{ width: 20, height: 20, color: "#fd761a" }} />
+                  Patrocinadores Vinculados
+                </h3>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {item.sponsors.map((s: any) => {
+                    const approval = item.sponsorApprovals?.find((a: any) => a.sponsorId === s.id);
+                    const isApproved = approval?.approved === true;
+                    const isRejected = approval?.approved === false;
+                    return (
+                      <div
+                        key={s.id}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, backgroundColor: "#f3f4f3", borderRadius: 2, transition: "background 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#e8e8e7"}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#f3f4f3"}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{
+                            width: 40, height: 40, backgroundColor: "#ffffff", borderRadius: 2,
+                            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                          }}>
+                            <span style={{ fontSize: 16, fontWeight: 700, color: s.color || "#1c1917" }}>
+                              {(s.name || "?")[0].toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ fontWeight: 700, fontSize: 14, color: "#1a1c1c", display: "block" }}>{s.name}</span>
+                            {approval?.approvedAt && (
+                              <span style={{ fontSize: 10, color: "#78716c", fontFamily: "'DM Mono', monospace" }}>
+                                {format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+                                {approval.approvedBy ? ` · ${approval.approvedBy}` : ""}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {isApproved ? (
+                          <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "rgba(0,99,152,0.1)", color: "#006398", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Aprovado</span>
+                        ) : isRejected ? (
+                          <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.1)", color: "#ba1a1a", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Reprovado</span>
+                        ) : (
+                          <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "#e2e2e2", color: "#584237", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Aguardando</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {item.sponsorApprovedBy && item.sponsorApprovedAt && (
+                  <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(0,99,152,0.05)", border: "1px solid rgba(0,99,152,0.15)", borderRadius: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                    <CheckCircle style={{ width: 14, height: 14, color: "#006398", flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, color: "#003554", fontWeight: 600 }}>
+                      Aprovado por <strong>{item.sponsorApprovedBy}</strong> em {format(new Date(item.sponsorApprovedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+
+          {/* ── RIGHT COLUMN (40%) ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* Aprovação de Arte — glass-purple/orange */}
+            <section style={{
+              background: "rgba(157,67,0,0.05)", backdropFilter: "blur(12px)",
+              border: "1px solid rgba(157,67,0,0.1)", borderLeft: "4px solid #fd761a",
+              padding: 24, borderRadius: 2,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", color: "#9d4300", margin: 0 }}>
+                  Aprovação de Arte
+                </h3>
+                <FileImage style={{ width: 20, height: 20, color: "#9d4300" }} />
+              </div>
+
+              {thumbUrl ? (
+                <>
+                  <div
+                    style={{ position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 4, overflow: "hidden", cursor: "pointer", marginBottom: 16 }}
+                    onClick={() => window.open(thumbUrl, "_blank")}
+                    onMouseEnter={e => { const ov = e.currentTarget.querySelector(".thumb-ov") as HTMLElement; if (ov) ov.style.opacity = "1"; }}
+                    onMouseLeave={e => { const ov = e.currentTarget.querySelector(".thumb-ov") as HTMLElement; if (ov) ov.style.opacity = "0"; }}
+                  >
+                    {isThumbImage && (
+                      <img src={thumbUrl} alt="Thumb de aprovação" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                    )}
+                    <div className="thumb-ov" style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.2s" }}>
+                      <span style={{ color: "#ffffff", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                        <Eye style={{ width: 18, height: 18 }} />
+                        {isThumbImage ? "Visualizar Imagem" : "Abrir PDF"}
+                      </span>
+                    </div>
+                    {!isThumbImage && (
+                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(157,67,0,0.05)" }}>
+                        <FileText style={{ width: 48, height: 48, color: "#9d4300", opacity: 0.4 }} />
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "rgba(88,66,55,0.6)", margin: 0 }}>Arquivo de Aprovação</p>
+                    <p style={{ fontSize: 12, fontWeight: 500, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{thumbUrl.split("/").pop()}</p>
+                    <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: "#9d4300", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                      <ExternalLink style={{ width: 10, height: 10 }} /> Abrir original
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <div style={{ aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, border: "1px dashed rgba(157,67,0,0.2)" }}>
+                  <FileImage style={{ width: 32, height: 32, color: "rgba(157,67,0,0.3)" }} />
+                  <p style={{ fontSize: 12, color: "rgba(157,67,0,0.5)", margin: 0 }}>Nenhum arquivo enviado</p>
                 </div>
               )}
+            </section>
 
-              {/* Art Preview */}
-              {thumbUrl && (
-                <div style={{
-                  position: "relative", borderRadius: 10, overflow: "hidden",
-                  backgroundColor: "#1c1917", aspectRatio: "16/9",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {isThumbImage ? (
-                    <img
-                      src={thumbUrl}
-                      alt="Thumb de aprovação"
-                      style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.75 }}
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                    />
-                  ) : null}
-                  <div style={{
-                    position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.45)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
+            {/* Arquivo Final — glass-green/blue */}
+            <section style={{
+              background: "rgba(0,99,152,0.05)", backdropFilter: "blur(12px)",
+              border: "1px solid rgba(0,99,152,0.1)", borderLeft: "4px solid #006398",
+              padding: 24, borderRadius: 2,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", color: "#006398", margin: 0 }}>
+                  Arquivo Final
+                </h3>
+                <FolderOpen style={{ width: 20, height: 20, color: "#006398" }} />
+              </div>
+
+              {item.finalFileUrl ? (
+                <>
+                  <div style={{ padding: 16, backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 2, border: "1px solid rgba(0,99,152,0.15)" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                      <FolderOpen style={{ width: 20, height: 20, color: "#006398", marginTop: 2, flexShrink: 0 }} />
+                      <div style={{ overflow: "hidden" }}>
+                        <p style={{
+                          fontSize: 9, fontWeight: 700, backgroundColor: "#006398", color: "#ffffff",
+                          padding: "2px 8px", borderRadius: 2, display: "inline-block",
+                          marginBottom: 8, textTransform: "uppercase", letterSpacing: "-0.04em",
+                        }}>
+                          PRONTO PARA IMPRESSÃO
+                        </p>
+                        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, wordBreak: "break-all", color: "#003554", margin: 0 }}>
+                          {item.finalFileUrl}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  {item.finalFileUrl.startsWith("http") && (
                     <a
-                      href={thumbUrl}
+                      href={item.finalFileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
-                        backgroundColor: "#ffffff", color: "#1c1917",
-                        padding: "10px 20px", borderRadius: 6,
-                        fontWeight: 700, fontSize: 12, textTransform: "uppercase",
-                        display: "flex", alignItems: "center", gap: 8,
-                        textDecoration: "none",
-                        transition: "background-color 0.15s",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        width: "100%", marginTop: 12, padding: "12px 0",
+                        backgroundColor: "#006398", color: "#ffffff", borderRadius: 2,
+                        fontWeight: 700, fontSize: 11, textTransform: "uppercase",
+                        letterSpacing: "0.1em", textDecoration: "none",
+                        transition: "filter 0.15s",
                       }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#f97316"; (e.currentTarget as HTMLAnchorElement).style.color = "#ffffff"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#ffffff"; (e.currentTarget as HTMLAnchorElement).style.color = "#1c1917"; }}
+                      onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1.1)"}
+                      onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1)"}
                     >
-                      <FileText style={{ width: 16, height: 16 }} />
-                      {isThumbPdf ? "Abrir PDF de Aprovação" : "Ver Arquivo"}
+                      <ExternalLink style={{ width: 14, height: 14, marginRight: 8 }} />
+                      Abrir Arquivo Final
                     </a>
-                  </div>
-                  <div style={{ position: "absolute", bottom: 12, left: 12 }}>
-                    <span style={{
-                      backgroundColor: "rgba(0,0,0,0.6)", color: "#ffffff",
-                      fontSize: 10, padding: "3px 8px", borderRadius: 2,
-                      fontFamily: "monospace",
-                    }}>
-                      {thumbUrl.split("/").pop()?.toUpperCase() || "ARQUIVO"}
-                    </span>
-                  </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ padding: 24, backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 2, border: "1px dashed rgba(0,99,152,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <p style={{ fontSize: 12, color: "rgba(0,99,152,0.45)", margin: 0 }}>Arquivo final não informado</p>
                 </div>
               )}
-
-              {/* Final file path */}
-              {item.finalFileUrl && (
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                    <FolderOpen style={{ width: 13, height: 13 }} /> Arquivo Final
-                  </p>
-                  <div style={{
-                    backgroundColor: "#fafaf9", border: "1px solid #e7e5e4",
-                    borderRadius: 6, padding: "8px 12px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-                  }}>
-                    <span style={{ fontFamily: "monospace", fontSize: 12, color: "#1c1917", wordBreak: "break-all", flex: 1 }}>
-                      {item.finalFileUrl}
-                    </span>
-                    {item.finalFileUrl.startsWith("http") && (
-                      <a href={item.finalFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#f97316", flexShrink: 0 }}>
-                        <ExternalLink style={{ width: 15, height: 15 }} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            </section>
           </div>
+        </div>
 
-          {/* ── Production data table ── */}
+        {/* ══════════════════════════════════════════════════════
+            FULL-WIDTH SECTIONS
+        ══════════════════════════════════════════════════════ */}
+        <div style={{ padding: "8px 32px 32px 32px", display: "flex", flexDirection: "column", gap: 40 }}>
+
+          {/* ── Dados de Produção ── */}
           <section>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-              <Factory style={{ width: 20, height: 20, color: "#f97316" }} />
-              <h2 style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 15, fontWeight: 700, textTransform: "uppercase",
-                letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
-              }}>Dados de Produção</h2>
-            </div>
-            <div style={{ border: "1px solid #e8e8e7", borderRadius: 8, overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 22, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 20px 0", display: "flex", alignItems: "center", gap: 10 }}>
+              <Package style={{ width: 20, height: 20, color: "#fd761a" }} />
+              Dados de Produção
+            </h3>
+            <div style={{ overflow: "hidden", borderRadius: 4, backgroundColor: "#f3f4f3" }}>
+              <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "#e8e8e7" }}>
-                    {["Quantidade", "Total M²", "Dimensões Visuais", "Dimensões Arquivo", "Medida"].map((col) => (
-                      <th key={col} style={{
-                        padding: "12px 16px", textAlign: "left",
-                        fontSize: 10, fontWeight: 900, color: "#57534e",
-                        textTransform: "uppercase", letterSpacing: "0.09em",
-                      }}>{col}</th>
+                    {["Quantidade", "Total M²", "Dimensões Visuais", "Dimensões Arquivo", "Medida"].map(col => (
+                      <th key={col} style={{ padding: "14px 16px", fontSize: 9, fontWeight: 900, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style={{ borderTop: "1px solid #e8e8e7" }}>
-                    <td style={{ padding: "16px", fontSize: 18, fontWeight: 700, color: "#1c1917" }}>
-                      {item.quantity || 0} un.
-                    </td>
-                    <td style={{ padding: "16px", fontSize: 14, fontWeight: 500, color: "#57534e" }}>
-                      {item.calculatedM2 ?? "—"} m²
-                    </td>
-                    <td style={{ padding: "16px", fontSize: 14, fontWeight: 500, color: "#57534e", fontFamily: "monospace" }}>
+                  <tr style={{ borderTop: "1px solid #eeeeed" }}>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#1a1c1c" }}>{item.quantity || 0} un.</td>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>{item.calculatedM2 ?? "—"} m²</td>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>
                       {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—"}
                     </td>
-                    <td style={{ padding: "16px", fontSize: 14, fontWeight: 500, color: "#57534e", fontFamily: "monospace" }}>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>
                       {item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : "—"}
                     </td>
-                    <td style={{ padding: "16px", fontSize: 14, fontWeight: 500, color: "#57534e" }}>
-                      {item.measurement || "—"}
-                    </td>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>{item.measurement || "—"}</td>
                   </tr>
                   {(item.quantityProduced || item.receivedBy) && (
-                    <tr style={{ borderTop: "1px solid #e8e8e7", backgroundColor: "#fafaf9" }}>
+                    <tr style={{ borderTop: "1px solid #eeeeed", backgroundColor: "#fafaf9" }}>
                       <td colSpan={5} style={{ padding: "12px 16px" }}>
                         <div style={{ display: "flex", gap: 32 }}>
                           {item.quantityProduced && (
                             <div>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Produzido</span>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: "#1c1917", margin: "2px 0 0 0" }}>{item.quantityProduced}</p>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Produzido</span>
+                              <p style={{ fontSize: 14, fontWeight: 700, color: "#1a1c1c", margin: "2px 0 0 0", fontFamily: "'DM Mono', monospace" }}>{item.quantityProduced}</p>
                             </div>
                           )}
                           {item.receivedBy && (
                             <div>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: "#1c1917", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
+                              <p style={{ fontSize: 14, fontWeight: 700, color: "#1a1c1c", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
                             </div>
                           )}
                         </div>
@@ -583,189 +597,186 @@ export function ItemDetailsDialog({
             </div>
           </section>
 
-          {/* ── Delivery photo ── */}
-          {item.deliveryPhotoUrl && (
-            <section>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <Camera style={{ width: 20, height: 20, color: "#f97316" }} />
-                <h2 style={{
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 15, fontWeight: 700, textTransform: "uppercase",
-                  letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
-                }}>Foto de Entrega</h2>
-              </div>
-              <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e7e5e4", position: "relative", display: "inline-block", width: "100%" }}>
-                <img
-                  src={item.deliveryPhotoUrl}
-                  alt="Foto de entrega"
-                  style={{ width: "100%", maxHeight: 320, objectFit: "cover", display: "block" }}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                />
-                <a
-                  href={item.deliveryPhotoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    position: "absolute", bottom: 12, right: 12,
-                    backgroundColor: "rgba(0,0,0,0.6)", color: "#ffffff",
-                    padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700,
-                    textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
-                  }}
-                >
-                  <ExternalLink style={{ width: 12, height: 12 }} />
-                  Ver original
-                </a>
-              </div>
-            </section>
-          )}
-
-          {/* ── Rastreabilidade de Datas ── */}
-          {(item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt) && (
-            <section>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-                <Clock style={{ width: 20, height: 20, color: "#f97316" }} />
-                <h2 style={{
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 15, fontWeight: 700, textTransform: "uppercase",
-                  letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
-                }}>Rastreabilidade de Datas</h2>
-              </div>
-              <div style={{ border: "1px solid #e7e5e4", borderRadius: 8, overflow: "hidden" }}>
-                {[
-                  { label: "Aprovado pelo Patrocinador",  value: item.sponsorApprovedAt,      by: item.sponsorApprovedBy,  dot: "#7c3aed" },
-                  { label: "Revisado pelo Criador",       value: item.creatorReviewedAt,       by: null,                   dot: "#d946ef" },
-                  { label: "Liberado para Produção",      value: item.approvedAt,              by: null,                   dot: "#f97316" },
-                  { label: "Produção Iniciada",           value: item.productionStartedAt,     by: null,                   dot: "#f59e0b" },
-                  { label: "Produzido",                   value: item.producedAt,              by: null,                   dot: "#ec4899" },
-                  { label: "Entregue",                    value: item.deliveredAt,             by: item.receivedBy,        dot: "#10b981" },
-                ].filter(r => r.value).map((row, i, arr) => (
-                  <div key={row.label} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "12px 16px",
-                    borderBottom: i < arr.length - 1 ? "1px solid #f5f5f4" : "none",
-                    backgroundColor: i % 2 === 0 ? "#ffffff" : "#fafaf9",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: row.dot, flexShrink: 0, display: "inline-block" }} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{row.label}</span>
-                      {row.by && (
-                        <span style={{ fontSize: 11, color: "#78716c", fontStyle: "italic" }}>· {row.by}</span>
-                      )}
-                    </div>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, color: "#78716c",
-                      backgroundColor: "#f5f5f4", padding: "2px 10px", borderRadius: 4, whiteSpace: "nowrap",
-                    }}>
-                      {format(new Date(row.value!), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* ── Observations ── */}
-          {item.observations && (
-            <section>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <FileText style={{ width: 20, height: 20, color: "#f97316" }} />
-                <h2 style={{
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 15, fontWeight: 700, textTransform: "uppercase",
-                  letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
-                }}>Observações</h2>
-              </div>
-              <p style={{ fontSize: 13, color: "#1c1917", whiteSpace: "pre-wrap", margin: 0 }}>{item.observations}</p>
-            </section>
-          )}
-
-          {/* ── Custom/Top action slots ── */}
+          {/* ── Action slots ── */}
           {topActions && <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{topActions}</div>}
           {customActions && <div>{customActions}</div>}
 
-          {/* ── History vertical timeline ── */}
-          <section style={{ paddingBottom: hasActions ? 0 : 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 28 }}>
-              <History style={{ width: 20, height: 20, color: "#f97316" }} />
-              <h2 style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 15, fontWeight: 700, textTransform: "uppercase",
-                letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
-              }}>Histórico de Alterações</h2>
-            </div>
-
-            <div style={{ position: "relative", paddingLeft: 40 }}>
-              {/* Vertical line */}
-              <div style={{
-                position: "absolute", left: 11, top: 8, bottom: 8,
-                width: 2, backgroundColor: "#e7e5e4",
-              }} />
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                {historyStages.map((stage, idx) => {
-                  const dateStr = getLog(stage.keywords, stage.pool);
-                  return (
-                    <div key={idx} style={{ position: "relative" }}>
-                      {/* Dot */}
-                      <div style={{
-                        position: "absolute", left: -29, top: 4,
-                        width: 22, height: 22, borderRadius: "50%",
-                        backgroundColor: "#e8e8e7",
-                        border: "4px solid #ffffff",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {dateStr && (
-                          <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f97316" }} />
-                        )}
+          {/* ── Delivery photo + Observations ── */}
+          {(hasDeliveryPhoto || hasObservations) && (
+            <div style={{ display: "grid", gridTemplateColumns: hasDeliveryPhoto && hasObservations ? "1fr 1fr" : "1fr", gap: 32 }}>
+              {hasDeliveryPhoto && (
+                <section>
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
+                    <Camera style={{ width: 18, height: 18, color: "#fd761a" }} />
+                    Registro de Entrega
+                  </h3>
+                  <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
+                    <img
+                      src={item.deliveryPhotoUrl}
+                      alt="Foto de entrega"
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                    {item.receivedBy && (
+                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", color: "#ffffff" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.7, margin: "0 0 2px 0" }}>Recebido por</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{item.receivedBy}</p>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", textTransform: "uppercase", margin: 0 }}>
-                          {stage.label}
-                        </p>
-                        {dateStr && (
-                          <span style={{
-                            fontSize: 10, fontWeight: 500, color: "#78716c",
-                            backgroundColor: "#e8e8e7", padding: "2px 8px", borderRadius: 4,
-                            whiteSpace: "nowrap",
-                          }}>
-                            {dateStr}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {deliveryLog && (
-                  <div style={{ position: "relative" }}>
-                    <div style={{
-                      position: "absolute", left: -29, top: 4,
-                      width: 22, height: 22, borderRadius: "50%",
-                      backgroundColor: "#e8e8e7",
-                      border: "4px solid #ffffff",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#10b981" }} />
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", textTransform: "uppercase", margin: 0 }}>
-                        {deliveryLog.details || "Entregue"}
-                      </p>
-                      <span style={{
-                        fontSize: 10, fontWeight: 500, color: "#78716c",
-                        backgroundColor: "#e8e8e7", padding: "2px 8px", borderRadius: 4,
-                        whiteSpace: "nowrap",
-                      }}>
-                        {fmtShort(deliveryLog.createdAt ?? deliveryLog.created_at)}
-                        {(deliveryLog.userName ?? deliveryLog.user_name) ? ` · ${deliveryLog.userName ?? deliveryLog.user_name}` : ""}
-                      </span>
-                    </div>
+                    )}
+                    <a
+                      href={item.deliveryPhotoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", color: "#ffffff", padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <ExternalLink style={{ width: 12, height: 12 }} /> Ver original
+                    </a>
                   </div>
-                )}
+                </section>
+              )}
+              {hasObservations && (
+                <section>
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
+                    <FileText style={{ width: 18, height: 18, color: "#fd761a" }} />
+                    Observações
+                  </h3>
+                  <div style={{ backgroundColor: "#f3f4f3", padding: 24, borderRadius: 8, border: "1px solid #e8e8e7", minHeight: 160 }}>
+                    <p style={{ color: "#584237", fontStyle: "italic", lineHeight: 1.65, fontSize: 14, margin: "0 0 16px 0" }}>
+                      "{item.observations}"
+                    </p>
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+
+          {/* ── Rastreabilidade + Histórico ── */}
+          {(hasTimestamps || historyStages.length > 0 || deliveryLog) && (
+            <div style={{ display: "grid", gridTemplateColumns: hasTimestamps ? "2fr 1fr" : "1fr", gap: 32 }}>
+
+              {/* Rastreabilidade Temporal */}
+              {hasTimestamps && (
+                <div>
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 20px 0", display: "flex", alignItems: "center", gap: 8 }}>
+                    <Clock style={{ width: 18, height: 18, color: "#fd761a" }} />
+                    Rastreabilidade Temporal
+                  </h3>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid #eeeeed" }}>
+                          {["Etapa", "Data / Hora", "Responsável"].map(col => (
+                            <th key={col} style={{ paddingBottom: 12, fontSize: 9, fontWeight: 900, textTransform: "uppercase", color: "#8c7164", letterSpacing: "0.08em" }}>{col}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody style={{ borderCollapse: "collapse" }}>
+                        {traceRows.map((row, i) => (
+                          <tr key={row.label} style={{ borderBottom: i < traceRows.length - 1 ? "1px solid rgba(238,238,237,0.6)" : "none" }}>
+                            <td style={{ padding: "12px 0", fontSize: 13, fontWeight: 700, color: "#1a1c1c", display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: row.dot, display: "inline-block", flexShrink: 0 }} />
+                              {row.label}
+                            </td>
+                            <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#57534e" }}>
+                              {format(new Date(row.value!), "dd MMM yy HH:mm", { locale: ptBR }).toUpperCase()}
+                            </td>
+                            <td style={{ padding: "12px 0", fontSize: 12, color: "#8c7164" }}>
+                              {row.by || <span style={{ opacity: 0.4 }}>—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Histórico / Audit */}
+              <div>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 20px 0", display: "flex", alignItems: "center", gap: 8 }}>
+                  <History style={{ width: 18, height: 18, color: "#fd761a" }} />
+                  Histórico
+                </h3>
+                <div style={{ position: "relative", paddingLeft: 28 }}>
+                  <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 1, backgroundColor: "#e8e8e7" }} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    {historyStages.map((stage, idx) => {
+                      const logEntry = getLog(stage.keywords, stage.pool);
+                      return (
+                        <div key={idx} style={{ position: "relative" }}>
+                          <div style={{
+                            position: "absolute", left: -23, top: 4,
+                            width: 12, height: 12, borderRadius: "50%",
+                            backgroundColor: logEntry ? "#fd761a" : "#e2e2e2",
+                            boxShadow: logEntry ? "0 0 0 4px rgba(253,118,26,0.1)" : "none",
+                          }} />
+                          <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em", color: logEntry ? "#1a1c1c" : "#8c7164", margin: "0 0 2px 0" }}>
+                            {stage.label}
+                          </p>
+                          {logEntry && (
+                            <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>
+                              {logEntry.date}{logEntry.user ? ` · @${logEntry.user}` : ""}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {deliveryLog && (
+                      <div style={{ position: "relative" }}>
+                        <div style={{
+                          position: "absolute", left: -23, top: 4,
+                          width: 12, height: 12, borderRadius: "50%",
+                          backgroundColor: "#10b981",
+                          boxShadow: "0 0 0 4px rgba(16,185,129,0.15)",
+                        }} />
+                        <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em", color: "#1a1c1c", margin: "0 0 2px 0" }}>
+                          {deliveryLog.details || "Entregue"}
+                        </p>
+                        <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>
+                          {fmtShort(deliveryLog.createdAt ?? deliveryLog.created_at)}
+                          {(deliveryLog.userName ?? deliveryLog.user_name) ? ` · @${deliveryLog.userName ?? deliveryLog.user_name}` : ""}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </section>
-        </main>
+          )}
+        </div>
+
+        {/* ══════════════════════════════════════════════════════
+            FOOTER ACTION BAR
+        ══════════════════════════════════════════════════════ */}
+        <footer style={{
+          padding: "20px 32px", backgroundColor: "#e8e8e7",
+          display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              ID: {item.displayId}
+            </span>
+            <div style={{ width: 1, height: 14, backgroundColor: "rgba(140,113,100,0.2)" }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              {item.updatedAt ? `Atualizado: ${format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}` : "Norte Production"}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={() => onOpenChange(false)}
+              style={{
+                padding: "8px 24px", backgroundColor: "#ffffff",
+                border: "1px solid rgba(140,113,100,0.2)",
+                fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em",
+                cursor: "pointer", borderRadius: 2, transition: "background 0.15s",
+              }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#f3f4f3"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#ffffff"}
+            >
+              Fechar Detalhes
+            </button>
+          </div>
+        </footer>
       </DialogContent>
     </Dialog>
   );

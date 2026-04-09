@@ -2,9 +2,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Filter, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, ClipboardList, Send, FolderOpen, FileText, RotateCcw, X } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -40,13 +39,12 @@ export default function Arte() {
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
-  
-  // Multi-selection states
+  const [searchFilter, setSearchFilter] = useState<string>("");
+
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [sharedPdfUrl, setSharedPdfUrl] = useState<string>("");
 
-  // Correção states
   const [correcaoItem, setCorrecaoItem] = useState<any>(null);
   const [correcaoThumbUrl, setCorrecaoThumbUrl] = useState<string>("");
   const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
@@ -93,7 +91,6 @@ export default function Arte() {
 
   const submitBulkForApprovalMutation = useMutation({
     mutationFn: async ({ itemIds, pdfUrl }: { itemIds: string[]; pdfUrl: string }) => {
-      // Submit all selected items with the same PDF
       const promises = itemIds.map(itemId =>
         apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, { approvalThumbUrl: pdfUrl })
       );
@@ -167,114 +164,70 @@ export default function Arte() {
   };
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
-    // If it's already a local path, return as is
-    if (gcsUrl.startsWith('/')) {
-      return gcsUrl;
-    }
-    // Extract the file path from GCS URL
+    if (gcsUrl.startsWith('/')) return gcsUrl;
     const match = gcsUrl.match(/\/\.private\/(.+?)(?:\?|$)/);
-    if (match) {
-      const filePath = match[1];
-      return `/objects/${filePath}`;
-    }
-    // If no match, return original URL
+    if (match) return `/objects/${match[1]}`;
     return gcsUrl;
   };
 
-  // Obter tipos, materiais e acabamentos únicos
   const uniqueTypes = Array.from(new Set(allItems.map(item => item.type))).sort();
   const uniqueMaterials = Array.from(new Set(allItems.map(item => item.material).filter(Boolean))).sort();
   const uniqueFinishes = Array.from(new Set(allItems.map(item => item.finish).filter(Boolean))).sort();
 
-  // Meses do ano
   const months = [
     { value: "all", label: "Todos os meses" },
-    { value: "1", label: "Janeiro" },
-    { value: "2", label: "Fevereiro" },
-    { value: "3", label: "Março" },
-    { value: "4", label: "Abril" },
-    { value: "5", label: "Maio" },
-    { value: "6", label: "Junho" },
-    { value: "7", label: "Julho" },
-    { value: "8", label: "Agosto" },
-    { value: "9", label: "Setembro" },
-    { value: "10", label: "Outubro" },
-    { value: "11", label: "Novembro" },
-    { value: "12", label: "Dezembro" },
+    { value: "1", label: "Janeiro" }, { value: "2", label: "Fevereiro" },
+    { value: "3", label: "Março" }, { value: "4", label: "Abril" },
+    { value: "5", label: "Maio" }, { value: "6", label: "Junho" },
+    { value: "7", label: "Julho" }, { value: "8", label: "Agosto" },
+    { value: "9", label: "Setembro" }, { value: "10", label: "Outubro" },
+    { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
   ];
 
-  // Function to filter items based on active tab
   const getFilteredItemsForTab = (tab: string) => {
     return allItems
       .filter(item => {
         const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
         let matchesView = false;
         if (tab === "criar-aprovacoes") {
-          // 'awaiting_submission' = rejected by creator (Solicitação) → Arte needs to redo + resubmit
-          // 'requested' = new item, Arte needs to send for approval
-          // Note: awaiting_arte sponsor rejections now appear in the Correção tab, NOT here
-          matchesView = item.status === 'requested' || 
-            item.status === 'awaiting_submission';
+          matchesView = item.status === 'requested' || item.status === 'awaiting_submission';
         } else if (tab === "finalizar-layouts") {
           matchesView = item.status === 'sponsor_approved';
         } else if (tab === "finalizados") {
-          matchesView = item.status === 'awaiting_final_review' || 
-            item.status === 'ready_for_production' || 
-            item.status === 'approved' || 
-            item.status === 'inProduction' || 
-            item.status === 'produced' || 
-            item.status === 'delivered';
+          matchesView = ['awaiting_final_review','ready_for_production','approved','inProduction','produced','delivered'].includes(item.status);
         }
         const matchesType = typeFilter === "all" || item.type === typeFilter;
         const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
         const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
-        
-        // Filtro de próximos 10 dias
         let matchesNext10Days = true;
         if (next10DaysFilter && item.event?.truckDepartureDate) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const tenDaysFromNow = new Date(today);
-          tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
-          const departureDate = new Date(item.event.truckDepartureDate);
-          matchesNext10Days = departureDate >= today && departureDate <= tenDaysFromNow;
+          const today = new Date(); today.setHours(0,0,0,0);
+          const tenDaysFromNow = new Date(today); tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+          const dep = new Date(item.event.truckDepartureDate);
+          matchesNext10Days = dep >= today && dep <= tenDaysFromNow;
         }
-        
-        // Filtro por mês
         let matchesMonth = true;
         if (monthFilter !== "all" && item.event?.truckDepartureDate) {
-          const departureDate = new Date(item.event.truckDepartureDate);
-          const month = departureDate.getMonth() + 1; // getMonth() retorna 0-11
-          matchesMonth = month.toString() === monthFilter;
+          matchesMonth = (new Date(item.event.truckDepartureDate).getMonth() + 1).toString() === monthFilter;
         }
-        
-        return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth;
+        const matchesSearch = !searchFilter || [item.displayId, item.type, item.description, item.event?.name].some(
+          f => f && f.toLowerCase().includes(searchFilter.toLowerCase())
+        );
+        return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth && matchesSearch;
       })
       .sort((a, b) => {
-        // Primeiro ordenar por evento
-        const eventA = a.event?.name || '';
-        const eventB = b.event?.name || '';
-        if (eventA !== eventB) {
-          return eventA.localeCompare(eventB);
-        }
-        // Depois ordenar por tipo
+        const eA = a.event?.name || '', eB = b.event?.name || '';
+        if (eA !== eB) return eA.localeCompare(eB);
         return a.type.localeCompare(b.type);
       });
   };
 
   const filteredItems = getFilteredItemsForTab(activeTab);
-
-  // Filter items by selected event for statistics cards
-  const itemsForEvent = eventFilter === "all" 
-    ? allItems 
-    : allItems.filter(item => item.eventId === eventFilter);
-
-  // Calculate badge counts using the same filtered pipeline
+  const itemsForEvent = eventFilter === "all" ? allItems : allItems.filter(item => item.eventId === eventFilter);
   const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
   const finalizadosCount = getFilteredItemsForTab("finalizados").length;
   const correcaoCount = correcaoItems.length;
-
   const pendingItems = filteredItems.filter(item => item.status === 'requested' || item.status === 'awaiting_submission');
 
   const handleViewDetails = (item: any) => {
@@ -286,11 +239,7 @@ export default function Arte() {
 
   const handleSubmitForApproval = () => {
     if (!selectedItem || !approvalThumbUrl) {
-      toast({
-        title: "Erro",
-        description: "É necessário fazer upload do thumb de aprovação",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "É necessário fazer upload do thumb de aprovação", variant: "destructive" });
       return;
     }
     submitForApprovalMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
@@ -298,913 +247,826 @@ export default function Arte() {
 
   const handleSubmitFinalFile = () => {
     if (!selectedItem || !finalFileUrl) {
-      toast({
-        title: "Erro",
-        description: "É necessário fazer upload do arquivo final",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "É necessário informar o caminho do arquivo final", variant: "destructive" });
       return;
     }
     submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl });
   };
 
   const toggleItemSelection = (itemId: string) => {
-    const newSet = new Set(selectedItemIds);
-    if (newSet.has(itemId)) {
-      newSet.delete(itemId);
-    } else {
-      newSet.add(itemId);
-    }
-    setSelectedItemIds(newSet);
+    const s = new Set(selectedItemIds);
+    if (s.has(itemId)) s.delete(itemId); else s.add(itemId);
+    setSelectedItemIds(s);
   };
 
   const toggleAllSelection = () => {
-    if (selectedItemIds.size === pendingItems.length) {
-      setSelectedItemIds(new Set());
-    } else {
-      setSelectedItemIds(new Set(pendingItems.map(item => item.id)));
-    }
+    if (selectedItemIds.size === pendingItems.length) setSelectedItemIds(new Set());
+    else setSelectedItemIds(new Set(pendingItems.map(i => i.id)));
   };
 
   const handleBulkSubmit = () => {
     if (!sharedPdfUrl) {
-      toast({
-        title: "Erro",
-        description: "É necessário fazer upload do PDF compartilhado",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "É necessário fazer upload do PDF compartilhado", variant: "destructive" });
       return;
     }
-    submitBulkForApprovalMutation.mutate({ 
-      itemIds: Array.from(selectedItemIds), 
-      pdfUrl: sharedPdfUrl 
+    submitBulkForApprovalMutation.mutate({ itemIds: Array.from(selectedItemIds), pdfUrl: sharedPdfUrl });
+  };
+
+  // ─── RENDER ────────────────────────────────────────────────────────────────
+  const tabs = [
+    { id: "criar-aprovacoes", label: "Mandar para Aprovação", count: pendingCount, testId: "tab-criar-aprovacoes" },
+    { id: "correcao", label: "Correção", count: correcaoCount, testId: "tab-correcao" },
+    { id: "finalizar-layouts", label: "Finalizar Arte", count: needsFinalFileCount, testId: "tab-finalizar-layouts" },
+    { id: "finalizados", label: "Finalizados", count: finalizadosCount, testId: "tab-finalizados" },
+  ];
+
+  const statCards = [
+    {
+      label: "Pendentes",
+      value: pendingCount,
+      sub: "+hoje",
+      subColor: "#f97316",
+      iconBg: "#fff7ed",
+      iconColor: "#f97316",
+      Icon: Clock,
+      testId: "stat-pending",
+      borderLeft: false,
+    },
+    {
+      label: "Aguard. Patrocin.",
+      value: itemsForEvent.filter(i => i.status === 'awaiting_sponsor_approval').length,
+      sub: "Aguardando",
+      subColor: "#d97706",
+      iconBg: "#fffbeb",
+      iconColor: "#d97706",
+      Icon: Clock,
+      testId: "stat-awaiting-sponsor",
+      borderLeft: false,
+    },
+    {
+      label: "Patrocin. Aprovou",
+      value: itemsForEvent.filter(i => i.status === 'sponsor_approved').length,
+      sub: "Verificado",
+      subColor: "#2563eb",
+      iconBg: "#eff6ff",
+      iconColor: "#2563eb",
+      Icon: CheckCircle,
+      testId: "stat-sponsor-approved",
+      borderLeft: false,
+    },
+    {
+      label: "Prontos p/ Prod.",
+      value: itemsForEvent.filter(i => ['ready_for_production','approved'].includes(i.status)).length,
+      sub: "Liberado",
+      subColor: "#16a34a",
+      iconBg: "#f0fdf4",
+      iconColor: "#16a34a",
+      Icon: Package,
+      testId: "stat-ready-production",
+      borderLeft: true,
+    },
+  ];
+
+  const renderGroupedTable = (items: any[], tabId: string) => {
+    if (items.length === 0) {
+      return (
+        <div style={{ textAlign: 'center', padding: '48px 0' }}>
+          {tabId === "criar-aprovacoes" ? <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} /> :
+           tabId === "finalizar-layouts" ? <Upload style={{ width: 48, height: 48, color: '#2563eb', margin: '0 auto 16px' }} /> :
+           <Eye style={{ width: 48, height: 48, color: '#a8a29e', margin: '0 auto 16px' }} />}
+          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>
+            {tabId === "criar-aprovacoes" ? "Tudo liberado!" : tabId === "finalizar-layouts" ? "Nenhum item aguardando arquivo final" : "Nenhum item finalizado"}
+          </p>
+          <p style={{ fontSize: 13, color: '#a8a29e' }}>
+            {tabId === "criar-aprovacoes" ? "Não há itens pendentes no momento" : "Histórico vazio"}
+          </p>
+        </div>
+      );
+    }
+
+    const groups: { event: string; type: string; eventObj: any; items: any[] }[] = [];
+    items.forEach(item => {
+      const eventName = item.event?.name || 'Sem Evento';
+      const typeName = item.type;
+      const last = groups[groups.length - 1];
+      if (last && last.event === eventName && last.type === typeName) {
+        last.items.push(item);
+      } else {
+        groups.push({ event: eventName, type: typeName, eventObj: item.event, items: [item] });
+      }
     });
+
+    let lastEventName = '';
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {groups.map((group, gIdx) => {
+          const showEventHeader = group.event !== lastEventName;
+          lastEventName = group.event;
+          const allPendingInGroup = group.items.filter(i => i.status === 'requested' || i.status === 'awaiting_submission');
+          return (
+            <div key={`${group.event}-${group.type}-${gIdx}`} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#ffffff', border: '1px solid #e7e5e4' }}>
+              {showEventHeader && (
+                <div style={{
+                  padding: '14px 20px',
+                  background: 'linear-gradient(to right, #ea580c, #f97316)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Star style={{ width: 18, height: 18, color: '#ffffff', fill: '#ffffff' }} />
+                    <span style={{ color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 16, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
+                      {group.event}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    {group.eventObj?.startDate && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
+                        <Calendar style={{ width: 12, height: 12 }} />
+                        {new Date(group.eventObj.startDate).toLocaleDateString('pt-BR')}
+                      </span>
+                    )}
+                    {group.eventObj?.truckDepartureDate && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
+                        <Truck style={{ width: 12, height: 12 }} />
+                        Saída: {new Date(group.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(group.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                    <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {group.items.length} {group.items.length === 1 ? 'Item' : 'Itens'}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
+                      {tabId === "criar-aprovacoes" && (
+                        <th style={{ padding: '10px 16px', width: 40 }}>
+                          <Checkbox
+                            checked={allPendingInGroup.length > 0 && allPendingInGroup.every(i => selectedItemIds.has(i.id))}
+                            onCheckedChange={() => {
+                              const s = new Set(selectedItemIds);
+                              if (allPendingInGroup.every(i => s.has(i.id))) {
+                                allPendingInGroup.forEach(i => s.delete(i.id));
+                              } else {
+                                allPendingInGroup.forEach(i => s.add(i.id));
+                              }
+                              setSelectedItemIds(s);
+                            }}
+                            data-testid={`checkbox-group-${gIdx}`}
+                          />
+                        </th>
+                      )}
+                      {[
+                        { label: 'ID', w: 80 },
+                        { label: 'Qtd', w: 50 },
+                        { label: `${group.type}`, flex: true },
+                        { label: 'Dimensões (V / A)', w: 160 },
+                        { label: 'M²', w: 60 },
+                        { label: 'Material', w: 120 },
+                        { label: 'Ações', w: 120, right: true },
+                      ].map((col, ci) => (
+                        <th
+                          key={ci}
+                          style={{
+                            padding: '10px 16px',
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: '#a8a29e',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            width: col.flex ? undefined : col.w,
+                            textAlign: col.right ? 'right' : 'left',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.items.map(item => (
+                      <Fragment key={item.id}>
+                        <tr
+                          data-testid={`row-pending-item-${item.id}`}
+                          style={{ borderBottom: '1px solid #f5f5f4', transition: 'background 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff'}
+                        >
+                          {tabId === "criar-aprovacoes" && (
+                            <td style={{ padding: '12px 16px', width: 40 }}>
+                              <Checkbox
+                                checked={selectedItemIds.has(item.id)}
+                                onCheckedChange={() => toggleItemSelection(item.id)}
+                                data-testid={`checkbox-item-${item.id}`}
+                              />
+                            </td>
+                          )}
+                          {/* ID */}
+                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#78716c', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
+                                {item.displayId}
+                              </span>
+                              {tabId === "finalizados" && <StatusBadge status={item.status} />}
+                              {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
+                                <span style={{ fontSize: 9, fontWeight: 700, color: '#dc2626', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '1px 5px' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
+                                  REPROV.
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          {/* Qtd */}
+                          <td style={{ padding: '12px 16px', fontWeight: 700, color: '#1c1917', fontSize: 14 }}>
+                            {String(item.quantity || '—').padStart(2, '0')}
+                          </td>
+                          {/* Descrição */}
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ fontWeight: 600, color: '#1c1917', fontSize: 13 }}>{item.description || item.type}</span>
+                              {item.sponsors && item.sponsors.length > 0 && (
+                                <span style={{ fontSize: 11, color: '#78716c' }}>
+                                  Logos: {item.sponsors.map((s: any) => s.name).join(', ')}
+                                </span>
+                              )}
+                              {item.observations && (
+                                <span style={{ fontSize: 11, color: '#d97706', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                  <AlertCircle style={{ width: 10, height: 10 }} />{item.observations}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          {/* Dimensões */}
+                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                            {item.visualWidth && item.visualHeight ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917' }}>{item.visualWidth} × {item.visualHeight}</span>
+                                {item.fileWidth && item.fileHeight && (
+                                  <span style={{ fontSize: 11, color: '#a8a29e' }}>{item.fileWidth} × {item.fileHeight} <span style={{ fontSize: 9 }}>(sangria)</span></span>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#a8a29e', fontSize: 12 }}>—</span>
+                            )}
+                          </td>
+                          {/* m² */}
+                          <td style={{ padding: '12px 16px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 600, fontSize: 13, color: '#1c1917' }}>
+                            {item.calculatedM2 || '—'}
+                          </td>
+                          {/* Material */}
+                          <td style={{ padding: '12px 16px' }}>
+                            {item.material ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  backgroundColor: '#f5f5f4',
+                                  color: '#78716c',
+                                  borderRadius: 4,
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.04em',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  {item.material}
+                                </span>
+                                {item.finish && (
+                                  <span style={{ fontSize: 10, color: '#a8a29e' }}>{item.finish}</span>
+                                )}
+                              </div>
+                            ) : <span style={{ color: '#a8a29e', fontSize: 12 }}>—</span>}
+                          </td>
+                          {/* Ações */}
+                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
+                              <button
+                                onClick={() => handleViewDetails(item)}
+                                data-testid={`button-view-${item.id}`}
+                                title="Ver detalhes"
+                                style={{
+                                  width: 32, height: 32, borderRadius: 8,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
+                                  color: '#a8a29e', transition: 'all 0.15s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.borderColor = '#f97316'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                              >
+                                <Eye style={{ width: 14, height: 14 }} />
+                              </button>
+                              {(tabId === "criar-aprovacoes" || tabId === "finalizar-layouts") && (
+                                <button
+                                  onClick={() => handleViewDetails(item)}
+                                  data-testid={`button-action-${item.id}`}
+                                  style={{
+                                    height: 32, padding: '0 12px', borderRadius: 8,
+                                    backgroundColor: tabId === "criar-aprovacoes" ? '#f97316' : '#2563eb',
+                                    color: '#ffffff', border: 'none', cursor: 'pointer',
+                                    fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                                    transition: 'filter 0.15s',
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
+                                  onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+                                >
+                                  {tabId === "criar-aprovacoes" ? "Enviar Aprovação" : "Finalizar Arte"}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderCorrecaoTab = () => {
+    if (correcaoLoading) {
+      return (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      );
+    }
+    if (correcaoItems.length === 0) {
+      return (
+        <div style={{ textAlign: 'center', padding: '48px 0' }}>
+          <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
+          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Sem correção pendente</p>
+          <p style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum item aguarda nova versão de arte</p>
+        </div>
+      );
+    }
+
+    const correcaoSponsors: { id: string; name: string; color: string }[] = [];
+    const seenSponsorIds = new Set<string>();
+    correcaoItems.forEach((item: any) => {
+      (item.awaitingArteApprovals || []).forEach((a: any) => {
+        if (a.sponsor && !seenSponsorIds.has(a.sponsorId)) {
+          seenSponsorIds.add(a.sponsorId);
+          correcaoSponsors.push({ id: a.sponsorId, name: a.sponsor.name, color: a.sponsor.color });
+        }
+      });
+    });
+
+    const filteredCorrecaoItems = correcaoSponsorFilter === "all"
+      ? correcaoItems
+      : correcaoItems.filter((item: any) => (item.awaitingArteApprovals || []).some((a: any) => a.sponsorId === correcaoSponsorFilter));
+
+    return (
+      <div>
+        {/* Section header */}
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', marginBottom: 8 }}>
+            <AlertTriangle style={{ width: 20, height: 20, color: '#ba1a1a' }} />
+            Aguardando Correções
+          </h2>
+
+          {/* Sponsor filter pills */}
+          {correcaoSponsors.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar:</span>
+              {[{ id: "all", name: "Todos", color: "#a8a29e" }, ...correcaoSponsors].map(sp => {
+                const isActive = correcaoSponsorFilter === sp.id;
+                return (
+                  <button
+                    key={sp.id}
+                    onClick={() => setCorrecaoSponsorFilter(sp.id)}
+                    data-testid={`filter-correcao-sponsor-${sp.id}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      height: 28, padding: '0 12px', borderRadius: 100,
+                      border: isActive ? '1.5px solid #ba1a1a' : '1px solid #e7e5e4',
+                      backgroundColor: isActive ? '#fef2f2' : '#ffffff',
+                      color: isActive ? '#ba1a1a' : '#78716c',
+                      fontSize: 12, fontWeight: isActive ? 700 : 500,
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    {sp.id !== "all" && <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: sp.color }} />}
+                    {sp.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Correction cards — 2-col grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: 20 }}>
+          {filteredCorrecaoItems.map((item: any) => {
+            const approvalsToShow = correcaoSponsorFilter === "all"
+              ? item.awaitingArteApprovals
+              : item.awaitingArteApprovals.filter((a: any) => a.sponsorId === correcaoSponsorFilter);
+            const isImage = item.approvalThumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl);
+            return (
+              <div
+                key={item.id}
+                data-testid={`card-correcao-${item.id}`}
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e7e5e4',
+                  borderLeft: '4px solid #ba1a1a',
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative',
+                }}
+              >
+                {/* Watermark */}
+                <div style={{ position: 'absolute', right: -12, top: -12, opacity: 0.04, pointerEvents: 'none' }}>
+                  <X style={{ width: 96, height: 96, color: '#ba1a1a' }} />
+                </div>
+
+                {/* Card body: thumb + info side by side */}
+                <div style={{ display: 'flex', gap: 0, padding: '20px 20px 16px' }}>
+                  {/* Thumb */}
+                  <div style={{
+                    width: 140, height: 140, borderRadius: 8,
+                    backgroundColor: '#f5f5f4',
+                    flexShrink: 0, overflow: 'hidden',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    marginRight: 16,
+                  }}>
+                    {isImage ? (
+                      <img
+                        src={item.approvalThumbUrl}
+                        alt="Thumb reprovado"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : item.approvalThumbUrl ? (
+                      <a
+                        href={item.approvalThumbUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textDecoration: 'none', color: '#ba1a1a' }}
+                      >
+                        <FileText style={{ width: 28, height: 28 }} />
+                        <span style={{ fontSize: 10, fontWeight: 600 }}>Ver PDF</span>
+                      </a>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#a8a29e' }}>
+                        <FileImage style={{ width: 24, height: 24 }} />
+                        <span style={{ fontSize: 10 }}>Sem thumb</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#ba1a1a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Recusado pelo Patrocinador
+                        </span>
+                        <span style={{ color: '#e7e5e4' }}>•</span>
+                        <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, color: '#a8a29e' }}>{item.displayId}</span>
+                      </div>
+                      <h4 style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 15, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.02em', marginBottom: 8, lineHeight: 1.3 }}>
+                        {item.type}{item.description ? ` — ${item.description}` : ''}
+                      </h4>
+
+                      {/* Rejection reasons */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {approvalsToShow.map((approval: any) => (
+                          <div
+                            key={approval.id}
+                            style={{
+                              padding: '8px 10px',
+                              backgroundColor: 'rgba(186,26,26,0.04)',
+                              border: '1px solid rgba(186,26,26,0.12)',
+                              borderRadius: 8,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: approval.rejectionReason ? 4 : 0 }}>
+                              {approval.sponsor?.color && (
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
+                              )}
+                              <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                              {approval.rejectedAt && (
+                                <span style={{ fontSize: 10, color: '#a8a29e' }}>em {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')}</span>
+                              )}
+                            </div>
+                            {approval.rejectionReason && (
+                              <p style={{ fontSize: 12, color: '#ba1a1a', margin: 0, lineHeight: 1.4 }}>
+                                <strong>Motivo:</strong> {approval.rejectionReason}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{
+                  padding: '12px 20px',
+                  backgroundColor: '#fafaf9',
+                  borderTop: '1px solid #e7e5e4',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}>
+                  <button
+                    onClick={() => {
+                      setCorrecaoItem(item);
+                      setCorrecaoThumbUrl("");
+                      setCorrecaoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
+                    }}
+                    data-testid={`button-open-correcao-${item.id}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      backgroundColor: '#f97316', color: '#ffffff', border: 'none',
+                      borderRadius: 8, height: 36, padding: '0 18px',
+                      fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                      transition: 'filter 0.15s',
+                      boxShadow: '0 2px 8px rgba(249,115,22,0.3)',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
+                    onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+                  >
+                    <RotateCcw style={{ width: 13, height: 13 }} />
+                    Enviar Nova Arte
+                  </button>
+                  {item.approvalThumbUrl && (
+                    <a
+                      href={item.approvalThumbUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: 12, fontWeight: 600, color: '#78716c',
+                        textDecoration: 'none', transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
+                      onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
+                    >
+                      Ver Histórico
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground" data-testid="title-arte">
-          Arte - Liberação de Arquivos
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Revise e libere itens para impressão
-        </p>
-      </div>
+    <div style={{ padding: '32px', maxWidth: 1600, margin: '0 auto' }} className="space-y-8">
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Pendentes",
-            value: pendingCount,
-            sub: "Aguardando liberação",
-            icon: AlertCircle,
-            accent: "#f97316",
-            testId: "stat-pending",
-          },
-          {
-            label: "Aguard. Patrocinador",
-            value: itemsForEvent.filter(i => i.status === 'awaiting_sponsor_approval').length,
-            sub: "Enviado p/ aprovação",
-            icon: Clock,
-            accent: "#d97706",
-            testId: "stat-awaiting-sponsor",
-          },
-          {
-            label: "Patrocinador Aprovou",
-            value: itemsForEvent.filter(i => i.status === 'sponsor_approved').length,
-            sub: "Aguard. solicitação",
-            icon: CheckCircle,
-            accent: "#2563eb",
-            testId: "stat-sponsor-approved",
-          },
-          {
-            label: "Prontos p/ Produção",
-            value: itemsForEvent.filter(i => i.status === 'ready_for_production' || i.status === 'approved').length,
-            sub: "Liberados",
-            icon: Package,
-            accent: "#16a34a",
-            testId: "stat-ready-production",
-          },
-        ].map((stat, idx) => {
-          const Icon = stat.icon;
+      {/* ── 1. STAT CARDS ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCards.map((stat) => {
+          const Icon = stat.Icon;
           return (
             <div
               key={stat.testId}
               style={{
                 backgroundColor: '#ffffff',
-                border: '1px solid #e7e5e4',
-                borderLeft: idx === 0 ? '3px solid #f97316' : '1px solid #e7e5e4',
+                padding: '20px 24px',
                 borderRadius: 12,
-                padding: '16px 20px',
-                transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                cursor: 'default',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+                border: '1px solid #e7e5e4',
+                borderLeft: stat.borderLeft ? '4px solid #22c55e' : '1px solid #e7e5e4',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                  {stat.label}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: '#78716c' }}>{stat.label}</span>
+                <span style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  backgroundColor: stat.iconBg, color: stat.iconColor,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Icon style={{ width: 16, height: 16 }} />
                 </span>
-                <Icon style={{ width: 16, height: 16, color: '#e7e5e4' }} />
               </div>
-              <div style={{ fontSize: 32, fontWeight: 800, color: '#1c1917', lineHeight: 1 }} data-testid={stat.testId}>
-                {stat.value}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 36, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', lineHeight: 1 }} data-testid={stat.testId}>
+                  {String(stat.value).padStart(2, '0')}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: stat.subColor }}>{stat.sub}</span>
               </div>
-              <p style={{ fontSize: 12, color: '#a8a29e', marginTop: 4 }}>{stat.sub}</p>
             </div>
           );
         })}
       </div>
 
-      {/* Abas Titanium — segmented control premium */}
+      {/* ── 2. FILTERS BAR ────────────────────────────────────────────────── */}
       <div style={{
-        backgroundColor: '#ffffff',
-        border: '1px solid #e7e5e4',
+        backgroundColor: '#f3f4f3',
+        padding: '12px 16px',
         borderRadius: 12,
-        padding: 6,
         display: 'flex',
-        gap: 4,
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 10,
       }}>
-        {[
-          {
-            id: "criar-aprovacoes", label: "Mandar para Aprovação", count: pendingCount,
-            icon: Send, testId: "tab-criar-aprovacoes",
-            activeBg: '#fafaf9', activeColor: '#1c1917', badgeBg: '#1c1917', badgeColor: '#ffffff',
-          },
-          {
-            id: "correcao", label: "Correção", count: correcaoCount,
-            icon: RotateCcw, testId: "tab-correcao",
-            activeBg: '#fef2f2', activeColor: '#dc2626', badgeBg: '#dc2626', badgeColor: '#ffffff',
-          },
-          {
-            id: "finalizar-layouts", label: "Finalizar Arte", count: needsFinalFileCount,
-            icon: Upload, testId: "tab-finalizar-layouts",
-            activeBg: '#f0fdf4', activeColor: '#15803d', badgeBg: '#15803d', badgeColor: '#ffffff',
-          },
-          {
-            id: "finalizados", label: "Finalizados", count: finalizadosCount,
-            icon: CheckCircle, testId: "tab-finalizados",
-            activeBg: '#fafaf9', activeColor: '#78716c', badgeBg: '#e7e5e4', badgeColor: '#78716c',
-          },
-        ].map(tab => {
+        {/* Search */}
+        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 200 }}>
+          <Search style={{ width: 14, height: 14, color: '#a8a29e', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="text"
+            value={searchFilter}
+            onChange={e => setSearchFilter(e.target.value)}
+            placeholder="Buscar arte, ID ou projeto..."
+            data-testid="input-search-filter"
+            style={{
+              width: '100%', paddingLeft: 32, paddingRight: 12, height: 36,
+              backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
+              fontSize: 13, color: '#1c1917', outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* Event combobox */}
+        <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
+          <PopoverTrigger asChild>
+            <button
+              style={{
+                height: 36, padding: '0 12px', borderRadius: 8,
+                backgroundColor: '#ffffff', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 13, fontWeight: 500, color: '#1c1917',
+                minWidth: 160,
+              }}
+              data-testid="button-event-filter"
+            >
+              <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {eventFilter === "all" ? "Evento: Todos" : events.find((e: any) => e.id === eventFilter)?.name || "Selecionar"}
+              </span>
+              <ChevronsUpDown style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent style={{ width: 280, padding: 0 }}>
+            <Command>
+              <CommandInput placeholder="Buscar evento..." />
+              <CommandList>
+                <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem value="all" onSelect={() => { setEventFilter("all"); setOpenEventCombobox(false); }}>
+                    <Check className={cn("mr-2 h-4 w-4", eventFilter === "all" ? "opacity-100" : "opacity-0")} />
+                    Todos os eventos
+                  </CommandItem>
+                  {events.map((event: any) => (
+                    <CommandItem key={event.id} value={event.name} onSelect={() => { setEventFilter(event.id); setOpenEventCombobox(false); }}>
+                      <Check className={cn("mr-2 h-4 w-4", eventFilter === event.id ? "opacity-100" : "opacity-0")} />
+                      {event.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        {/* Month select */}
+        <select
+          value={monthFilter}
+          onChange={e => setMonthFilter(e.target.value)}
+          data-testid="select-month-filter"
+          style={{
+            height: 36, padding: '0 12px', borderRadius: 8,
+            backgroundColor: '#ffffff', border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 500, color: '#1c1917',
+            minWidth: 140,
+          }}
+        >
+          {months.map(m => <option key={m.value} value={m.value}>{m.value === "all" ? "Mês: Todos" : m.label}</option>)}
+        </select>
+
+        {/* Next 10 days toggle */}
+        <button
+          onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+          data-testid="button-next-10-days-filter"
+          style={{
+            height: 36, padding: '0 12px', borderRadius: 8,
+            backgroundColor: next10DaysFilter ? '#1c1917' : '#ffffff',
+            color: next10DaysFilter ? '#ffffff' : '#78716c',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 13, fontWeight: 500, transition: 'all 0.15s',
+          }}
+        >
+          <Truck style={{ width: 13, height: 13 }} />
+          Próximos 10 dias
+        </button>
+
+        {/* PDF Upload button (ml-auto, only in criar-aprovacoes) */}
+        {activeTab === "criar-aprovacoes" && (
+          <button
+            onClick={() => setShowBulkDialog(true)}
+            disabled={selectedItemIds.size === 0}
+            data-testid="button-open-bulk-upload"
+            style={{
+              marginLeft: 'auto',
+              height: 36, padding: '0 16px', borderRadius: 8,
+              backgroundColor: selectedItemIds.size > 0 ? '#1c1917' : '#e7e5e4',
+              color: selectedItemIds.size > 0 ? '#ffffff' : '#a8a29e',
+              border: 'none', cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <Upload style={{ width: 13, height: 13 }} />
+            {selectedItemIds.size > 0 ? `Upload PDF Compartilhado (${selectedItemIds.size})` : "Selecione itens para PDF"}
+          </button>
+        )}
+      </div>
+
+      {/* ── 3. TABS ───────────────────────────────────────────────────────── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: 4, backgroundColor: 'rgba(214,211,209,0.5)',
+        borderRadius: 12, width: 'fit-content',
+      }}>
+        {tabs.map(tab => {
           const isActive = activeTab === tab.id;
-          const Icon = tab.icon;
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               data-testid={tab.testId}
               style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                height: 40,
-                padding: '0 16px',
-                borderRadius: 8,
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                backgroundColor: isActive ? tab.activeBg : 'transparent',
-                color: isActive ? tab.activeColor : '#78716c',
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '8px 20px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                backgroundColor: isActive ? '#ffffff' : 'transparent',
+                color: isActive ? '#1c1917' : '#78716c',
                 fontWeight: isActive ? 700 : 500,
+                fontSize: 13,
+                boxShadow: isActive ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
               }}
-              onMouseEnter={e => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = '#fafaf9';
-                  e.currentTarget.style.color = '#1c1917';
-                }
-              }}
-              onMouseLeave={e => {
-                if (!isActive) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = '#78716c';
-                }
-              }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#78716c'; }}
             >
-              <Icon style={{ width: 14, height: 14 }} />
-              <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>{tab.label}</span>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 20,
-                height: 18,
-                borderRadius: 100,
-                fontSize: 11,
-                fontWeight: 700,
-                backgroundColor: isActive ? tab.badgeBg : '#f5f5f4',
-                color: isActive ? tab.badgeColor : '#71717a',
-                padding: '1px 7px',
-              }}>
-                {tab.count}
-              </span>
+              {tab.label}
+              {tab.count > 0 && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  minWidth: 18, height: 18, borderRadius: 100,
+                  fontSize: 10, fontWeight: 700,
+                  backgroundColor: isActive ? '#1c1917' : '#e7e5e4',
+                  color: isActive ? '#ffffff' : '#78716c',
+                  padding: '0 5px',
+                }}>
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Filtros */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div className="flex flex-wrap gap-2">
-                <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openEventCombobox}
-                      className="w-[200px] justify-between"
-                      data-testid="button-event-filter"
-                    >
-                      <span className="truncate">
-                        {eventFilter === "all" 
-                          ? "Todos os eventos" 
-                          : events.find((event) => event.id === eventFilter)?.name || "Selecione um evento"}
-                      </span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[280px] p-0">
-                    <Command>
-                      <CommandInput placeholder="Buscar evento..." />
-                      <CommandList>
-                        <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            value="all"
-                            onSelect={() => {
-                              setEventFilter("all");
-                              setOpenEventCombobox(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                eventFilter === "all" ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            Todos os eventos
-                          </CommandItem>
-                          {events.map((event) => (
-                            <CommandItem
-                              key={event.id}
-                              value={event.name}
-                              onSelect={() => {
-                                setEventFilter(event.id);
-                                setOpenEventCombobox(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  eventFilter === event.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {event.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                
-                <Select value={monthFilter} onValueChange={setMonthFilter}>
-                  <SelectTrigger className="w-[160px]" data-testid="select-month-filter">
-                    <SelectValue placeholder="Mês de saída" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {months.map((month) => (
-                      <SelectItem key={month.value} value={month.value}>
-                        {month.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+      {/* ── 4. CONTENT AREA ───────────────────────────────────────────────── */}
+      {isLoading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      ) : activeTab === "correcao" ? (
+        renderCorrecaoTab()
+      ) : (
+        renderGroupedTable(filteredItems, activeTab)
+      )}
 
-                <Button
-                  variant={next10DaysFilter ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-                  data-testid="button-next-10-days-filter"
-                >
-                  <Truck className="h-4 w-4 mr-2" />
-                  Próximos 10 dias
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className={showAdvancedFilters ? "bg-muted" : ""}
-                  data-testid="button-toggle-advanced-filters"
-                >
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filtros Avançados
-                </Button>
-              </div>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              {activeTab === "criar-aprovacoes" && (
-                <Button
-                  variant={selectedItemIds.size > 0 ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setShowBulkDialog(true)}
-                  disabled={selectedItemIds.size === 0}
-                  data-testid="button-open-bulk-upload"
-                >
-                  <File className="h-4 w-4 mr-2" />
-                  {selectedItemIds.size > 0 
-                    ? `Upload PDF Compartilhado (${selectedItemIds.size})` 
-                    : "Selecione itens para PDF"}
-                </Button>
-              )}
-            </div>
-
-            {showAdvancedFilters && (
-              <div className="flex flex-col gap-3 pt-4 border-t">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-full" data-testid="select-type-filter">
-                      <SelectValue placeholder="Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os tipos</SelectItem>
-                      {uniqueTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={materialFilter} onValueChange={setMaterialFilter}>
-                    <SelectTrigger className="w-full" data-testid="select-material-filter">
-                      <SelectValue placeholder="Material" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os materiais</SelectItem>
-                      {uniqueMaterials.map((material) => (
-                        <SelectItem key={material} value={material}>
-                          {material}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={finishFilter} onValueChange={setFinishFilter}>
-                    <SelectTrigger className="w-full" data-testid="select-finish-filter">
-                      <SelectValue placeholder="Acabamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os acabamentos</SelectItem>
-                      {uniqueFinishes.map((finish) => (
-                        <SelectItem key={finish} value={finish}>
-                          {finish}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {(typeFilter !== "all" || materialFilter !== "all" || finishFilter !== "all") && (
-                  <div className="sm:col-span-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setTypeFilter("all");
-                        setMaterialFilter("all");
-                        setFinishFilter("all");
-                      }}
-                      className="text-xs"
-                      data-testid="button-reset-advanced-filters"
-                    >
-                      Limpar filtros avançados
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-            </div>
-        </CardHeader>
-        <CardContent>
-          {activeTab === "correcao" ? (
-            /* ---- CORREÇÃO TAB ---- */
-            correcaoLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            ) : correcaoItems.length === 0 ? (
-              <div className="text-center py-12">
-                <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 6 }}>Sem correção pendente</h3>
-                <p style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum item aguarda nova versão de arte</p>
-              </div>
-            ) : (() => {
-              // Compute unique sponsors across all correcao items
-              const correcaoSponsors: { id: string; name: string; color: string }[] = [];
-              const seenSponsorIds = new Set<string>();
-              correcaoItems.forEach((item: any) => {
-                (item.awaitingArteApprovals || []).forEach((a: any) => {
-                  if (a.sponsor && !seenSponsorIds.has(a.sponsorId)) {
-                    seenSponsorIds.add(a.sponsorId);
-                    correcaoSponsors.push({ id: a.sponsorId, name: a.sponsor.name, color: a.sponsor.color });
-                  }
-                });
-              });
-
-              // Apply sponsor filter
-              const filteredCorrecaoItems = correcaoSponsorFilter === "all"
-                ? correcaoItems
-                : correcaoItems.filter((item: any) =>
-                    (item.awaitingArteApprovals || []).some((a: any) => a.sponsorId === correcaoSponsorFilter)
-                  );
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-
-                  {/* ── FILTRO POR PATROCINADOR ──────────────── */}
-                  {correcaoSponsors.length > 1 && (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      marginBottom: 14, flexWrap: 'wrap',
-                    }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
-                        Filtrar:
-                      </span>
-                      {[{ id: "all", name: "Todos", color: "#a8a29e" }, ...correcaoSponsors].map(sp => {
-                        const isActive = correcaoSponsorFilter === sp.id;
-                        return (
-                          <button
-                            key={sp.id}
-                            onClick={() => setCorrecaoSponsorFilter(sp.id)}
-                            data-testid={`filter-correcao-sponsor-${sp.id}`}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 6,
-                              height: 30, padding: '0 12px', borderRadius: 100,
-                              border: isActive ? '1.5px solid #dc2626' : '1px solid #e7e5e4',
-                              backgroundColor: isActive ? '#fef2f2' : '#ffffff',
-                              color: isActive ? '#dc2626' : '#78716c',
-                              fontSize: 12, fontWeight: isActive ? 700 : 500,
-                              cursor: 'pointer', transition: 'all 0.15s',
-                            }}
-                            onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = '#1c1917'; e.currentTarget.style.color = '#1c1917'; } }}
-                            onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; } }}
-                          >
-                            {sp.id !== "all" && (
-                              <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: sp.color, flexShrink: 0 }} />
-                            )}
-                            {sp.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* ── CONTADOR ─────────────────────────────── */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <span style={{
-                      width: 8, height: 8, borderRadius: '50%', backgroundColor: '#dc2626',
-                      flexShrink: 0, animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
-                    }} />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#dc2626' }}>
-                      {filteredCorrecaoItems.length} {filteredCorrecaoItems.length === 1 ? 'item aguardando' : 'itens aguardando'} correção
-                      {correcaoSponsorFilter !== "all" && ` · ${correcaoSponsors.find(s => s.id === correcaoSponsorFilter)?.name}`}
-                    </span>
-                  </div>
-
-                  {/* ── CARDS ────────────────────────────────── */}
-                  {filteredCorrecaoItems.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                      <p style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum item para o patrocinador selecionado</p>
-                    </div>
-                  ) : filteredCorrecaoItems.map((item: any) => {
-                    const approvalsToShow = correcaoSponsorFilter === "all"
-                      ? item.awaitingArteApprovals
-                      : item.awaitingArteApprovals.filter((a: any) => a.sponsorId === correcaoSponsorFilter);
-                    return (
-                      <div
-                        key={item.id}
-                        data-testid={`card-correcao-${item.id}`}
-                        style={{
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #e7e5e4',
-                          borderLeft: '4px solid #dc2626',
-                          borderRadius: 12,
-                          overflow: 'hidden',
-                          marginBottom: 12,
-                        }}
-                      >
-                        {/* ── LINHA 1 — HEADER COMPACTO ─────────── */}
-                        <div style={{
-                          padding: '14px 16px 10px',
-                          display: 'flex', alignItems: 'center',
-                          gap: 8, flexWrap: 'wrap',
-                        }}>
-                          <span style={{
-                            fontFamily: '"DM Mono", monospace', fontWeight: 700, fontSize: 12,
-                            backgroundColor: '#1c1917', color: '#ffffff',
-                            padding: '3px 8px', borderRadius: 6, flexShrink: 0,
-                          }}>
-                            {item.displayId}
-                          </span>
-                          <span style={{
-                            backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
-                            borderRadius: 6, padding: '3px 9px',
-                            fontSize: 12, fontWeight: 600, color: '#1c1917', flexShrink: 0,
-                          }}>
-                            {item.type}
-                          </span>
-                          <span style={{ color: '#e7e5e4', flexShrink: 0 }}>·</span>
-                          <span style={{ fontSize: 12, color: '#78716c', flexShrink: 0 }}>
-                            Qtde: <strong style={{ color: '#1c1917' }}>{item.quantity ?? '—'}</strong>
-                          </span>
-                          {item.event && (
-                            <>
-                              <span style={{ color: '#e7e5e4', flexShrink: 0 }}>·</span>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#78716c', flexShrink: 0 }}>
-                                <Calendar style={{ width: 11, height: 11 }} />
-                                {item.event.name}
-                              </span>
-                              {item.event.truckDepartureDate && (
-                                <>
-                                  <span style={{ color: '#e7e5e4', flexShrink: 0 }}>·</span>
-                                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#78716c', flexShrink: 0 }}>
-                                    <Truck style={{ width: 11, height: 11 }} />
-                                    Saída: {new Date(item.event.truckDepartureDate).toLocaleDateString('pt-BR')}
-                                  </span>
-                                </>
-                              )}
-                            </>
-                          )}
-                          <span style={{
-                            marginLeft: 'auto', flexShrink: 0,
-                            backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-                            color: '#dc2626', borderRadius: 6,
-                            fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
-                            padding: '3px 10px',
-                          }}>
-                            CORREÇÃO
-                          </span>
-                        </div>
-
-                        {/* ── LINHA 2 — REPROVAÇÕES ─────────────── */}
-                        <div style={{
-                          padding: '0 16px 12px',
-                          borderTop: '1px solid #fef2f2', paddingTop: 10,
-                        }}>
-                          <p style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
-                            Reprovado por
-                          </p>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {approvalsToShow.map((approval: any) => (
-                              <div
-                                key={approval.id}
-                                style={{
-                                  display: 'flex', alignItems: 'flex-start', gap: 12,
-                                  backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-                                  borderRadius: 8, padding: '10px 12px',
-                                }}
-                              >
-                                {/* Coluna esquerda */}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-                                    {approval.sponsor?.color && (
-                                      <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
-                                    )}
-                                    <span style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>
-                                      {approval.sponsor?.name || 'Patrocinador'}
-                                    </span>
-                                    <span style={{ fontSize: 11, color: '#a8a29e' }}>
-                                      por {approval.rejectedBy}
-                                      {approval.rejectedAt && <> em {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')}</>}
-                                    </span>
-                                  </div>
-                                  {approval.rejectionReason && (
-                                    <div style={{
-                                      backgroundColor: '#ffffff', border: '1px solid #fecaca',
-                                      borderRadius: 6, padding: '6px 10px', marginTop: 6,
-                                      fontSize: 12,
-                                    }}>
-                                      <span style={{ fontWeight: 700, color: '#dc2626' }}>Motivo:</span>
-                                      <span style={{ color: '#1c1917' }}> {approval.rejectionReason}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                {/* Coluna direita — botão ver arquivo */}
-                                {item.approvalThumbUrl && (
-                                  <a
-                                    href={item.approvalThumbUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                      flexShrink: 0,
-                                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                                      backgroundColor: '#ffffff', border: '1px solid #fecaca',
-                                      color: '#dc2626', borderRadius: 6,
-                                      fontSize: 11, fontWeight: 500,
-                                      padding: '5px 10px', whiteSpace: 'nowrap',
-                                      textDecoration: 'none', transition: 'background 0.15s',
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fef2f2')}
-                                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
-                                  >
-                                    <FileText style={{ width: 11, height: 11 }} />
-                                    Ver arquivo
-                                  </a>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* ── LINHA 3 — FOOTER ──────────────────── */}
-                        <div style={{
-                          padding: '10px 16px',
-                          backgroundColor: '#fafaf9',
-                          borderTop: '1px solid #e7e5e4',
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#a8a29e' }}>
-                            {item.approvalThumbUrl ? (
-                              <><FileText style={{ width: 12, height: 12 }} /> Thumb reprovado anexado</>
-                            ) : (
-                              <span style={{ color: '#fca5a5' }}>Sem thumb anterior</span>
-                            )}
-                          </span>
-                          <button
-                            onClick={() => {
-                              setCorrecaoItem(item);
-                              setCorrecaoThumbUrl("");
-                              setCorrecaoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
-                            }}
-                            data-testid={`button-open-correcao-${item.id}`}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 6,
-                              backgroundColor: '#dc2626', color: '#ffffff', border: 'none',
-                              borderRadius: 8, height: 36, padding: '0 16px',
-                              fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                              transition: 'background 0.2s',
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#b91c1c')}
-                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#dc2626')}
-                          >
-                            <RotateCcw style={{ width: 13, height: 13 }} />
-                            Enviar Nova Arte
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()
-          ) : isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="text-center py-12">
-              {activeTab === "criar-aprovacoes" ? (
-                <>
-                  <CheckCircle className="h-12 w-12 text-status-completed mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Tudo liberado!</h3>
-                  <p className="text-muted-foreground">Não há itens pendentes no momento</p>
-                </>
-              ) : activeTab === "finalizar-layouts" ? (
-                <>
-                  <Upload className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhum item aguardando arquivo final</h3>
-                  <p className="text-muted-foreground">Nenhum item finalizado encontrado</p>
-                </>
-              ) : (
-                <>
-                  <Eye className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhum item liberado</h3>
-                  <p className="text-muted-foreground">Histórico vazio. Libere itens para vê-los aqui</p>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {(() => {
-                const groups: { event: string; type: string; items: typeof filteredItems }[] = [];
-                filteredItems.forEach(item => {
-                  const eventName = item.event?.name || 'Sem Evento';
-                  const typeName = item.type;
-                  const lastGroup = groups[groups.length - 1];
-                  if (lastGroup && lastGroup.event === eventName && lastGroup.type === typeName) {
-                    lastGroup.items.push(item);
-                  } else {
-                    groups.push({ event: eventName, type: typeName, items: [item] });
-                  }
-                });
-                return groups.map((group, groupIndex) => (
-                  <Fragment key={`${group.event}-${group.type}-${groupIndex}`}>
-                    {(groupIndex === 0 || groups[groupIndex - 1].event !== group.event) && (
-                      <div className="bg-gradient-to-r from-primary/10 to-primary/5 border-l-4 border-primary rounded-md p-2 mt-2">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-bold text-primary uppercase tracking-wide">
-                            {group.event}
-                          </div>
-                          {group.items[0].event && (
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                <span className="hidden sm:inline">Início: </span>
-                                <strong className="text-foreground">{new Date(group.items[0].event.startDate).toLocaleDateString('pt-BR')}</strong>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Truck className="h-3 w-3" />
-                                <span className="hidden sm:inline">Saída: </span>
-                                <strong className="text-foreground">{new Date(group.items[0].event.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(group.items[0].event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    <div className="mt-1 overflow-x-auto">
-                      <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
-                        <thead className="bg-muted/20">
-                          {activeTab === "criar-aprovacoes" ? (
-                            <>
-                              <tr className="border-b border-border/30">
-                                <th className="text-center py-1 px-2 w-10" rowSpan={2}>
-                                  <Checkbox
-                                    checked={selectedItemIds.size === pendingItems.length && pendingItems.length > 0}
-                                    onCheckedChange={toggleAllSelection}
-                                    data-testid="checkbox-select-all"
-                                  />
-                                </th>
-                                <th colSpan={8} className="text-left py-1 px-2 font-semibold">
-                                  {group.type}
-                                </th>
-                              </tr>
-                              <tr className="border-b border-border/40">
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">ID</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-10">Qtde</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground flex-1">Descrição</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Visual</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Arquivo</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">m²</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-32">Material/Acabamento</th>
-                                <th className="text-right py-1 px-2 font-medium text-muted-foreground w-16">Ações</th>
-                              </tr>
-                            </>
-                          ) : (
-                            <>
-                              <tr className="border-b border-border/30">
-                                <th colSpan={8} className="text-left py-1 px-2 font-semibold">
-                                  {group.type}
-                                </th>
-                              </tr>
-                              <tr className="border-b border-border/40">
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">ID</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-10">Qtde</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground flex-1">Descrição</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Visual</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-24">Dim. Arquivo</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-12">m²</th>
-                                <th className="text-left py-1 px-2 font-medium text-muted-foreground w-32">Material/Acabamento</th>
-                                <th className="text-right py-1 px-2 font-medium text-muted-foreground w-16">Ações</th>
-                              </tr>
-                            </>
-                          )}
-                        </thead>
-                        <tbody>
-                          {group.items.map(item => (
-                            <Fragment key={item.id}>
-                            <tr className="border-b border-border/40 hover-elevate" data-testid={`row-pending-item-${item.id}`}>
-                              {activeTab === "criar-aprovacoes" && (
-                                <td className="text-center py-1 px-2">
-                                  <Checkbox
-                                    checked={selectedItemIds.has(item.id)}
-                                    onCheckedChange={() => toggleItemSelection(item.id)}
-                                    data-testid={`checkbox-item-${item.id}`}
-                                  />
-                                </td>
-                              )}
-                              <td className="py-1 px-2 min-w-[120px]">
-                                <div className="flex flex-col items-start gap-0.5">
-                                  <span className="font-mono font-semibold text-primary whitespace-nowrap" data-testid={`text-display-id-${item.id}`}>
-                                    {item.displayId}
-                                  </span>
-                                  {activeTab === "finalizados" && <StatusBadge status={item.status} />}
-                                  {activeTab === "criar-aprovacoes" && item.rejectedBySponsor && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400"
-                                      data-testid={`badge-rejected-sponsor-${item.id}`}
-                                    >
-                                      {item.status === 'awaiting_sponsor_approval' ? 'Refazer Thumb' : 'Reprovado Patrocinador'}
-                                    </Badge>
-                                  )}
-                                  {activeTab === "criar-aprovacoes" && item.rejectedByCreator && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-400"
-                                      data-testid={`badge-rejected-creator-${item.id}`}
-                                    >
-                                      Reprovado Criador
-                                    </Badge>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-1 px-2 tabular-nums w-10">{item.quantity}</td>
-                              <td className="py-1 px-2 text-sm text-muted-foreground flex-1 break-words">{item.description || '—'}</td>
-                              <td className="py-1 px-2 tabular-nums text-xs w-24">
-                                {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}` : '—'}
-                              </td>
-                              <td className="py-1 px-2 tabular-nums text-xs w-24">
-                                {item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}` : '—'}
-                              </td>
-                              <td className="py-1 px-2 tabular-nums font-semibold w-12">{item.calculatedM2}</td>
-                              <td className="py-1 px-2 text-xs w-32">{item.material} · {item.finish}</td>
-                              <td className="py-1 px-2 text-right">
-                                <Button
-                                  size="icon"
-                                  variant={activeTab === "criar-aprovacoes" || activeTab === "finalizar-layouts" ? "default" : "outline"}
-                                  onClick={() => handleViewDetails(item)}
-                                  data-testid={`button-view-${item.id}`}
-                                  title={activeTab === "criar-aprovacoes" ? "Enviar p/ Aprovação" : activeTab === "finalizar-layouts" ? "Finalizar Layout" : "Ver Detalhes"}
-                                >
-                                  {activeTab === "criar-aprovacoes" ? <Send className="h-4 w-4" /> :
-                                   activeTab === "finalizar-layouts" ? <FileImage className="h-4 w-4" /> :
-                                   <Eye className="h-4 w-4" />}
-                                </Button>
-                              </td>
-                            </tr>
-                            {item.observations && (
-                              <tr className="bg-amber-50/50 dark:bg-amber-950/20 border-b border-amber-200/30 dark:border-amber-900/30">
-                                <td colSpan={8} className="py-2 px-3">
-                                  <div className="flex gap-2 items-start">
-                                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                                    <div className="text-sm text-amber-800 dark:text-amber-200">
-                                      <span className="font-semibold">Observações da Ação:</span> {item.observations}
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                            </Fragment>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </Fragment>
-                ));
-              })()}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ---- CORREÇÃO DIALOG ---- */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 1 — CORREÇÃO: Enviar Nova Arte                               */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={!!correcaoItem} onOpenChange={(open) => {
-        if (!open) {
-          setCorrecaoItem(null);
-          setCorrecaoThumbUrl("");
-          setCorrecaoSelectedSponsorIds(new Set());
-        }
+        if (!open) { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }
       }}>
         <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 560, borderRadius: 16, backgroundColor: '#ffffff' }}>
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
-          {/* ── HEADER ─────────────────────────────── */}
+          {/* Header */}
           <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #e7e5e4', position: 'relative' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <RotateCcw style={{ width: 18, height: 18, color: '#dc2626', flexShrink: 0 }} />
-              <span style={{ fontSize: 17, fontWeight: 700, color: '#1c1917' }}>Enviar Nova Arte</span>
+              <RotateCcw style={{ width: 18, height: 18, color: '#f97316', flexShrink: 0 }} />
+              <span style={{ fontSize: 17, fontWeight: 700, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.03em' }}>Enviar Nova Arte</span>
             </div>
             {correcaoItem && (
               <p style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>
-                {correcaoItem.displayId} — {correcaoItem.type}
-                {correcaoItem.event?.name ? ` · ${correcaoItem.event.name}` : ''}
+                {correcaoItem.displayId} — {correcaoItem.type}{correcaoItem.event?.name ? ` · ${correcaoItem.event.name}` : ''}
               </p>
             )}
             <button
               onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }}
-              style={{
-                position: 'absolute', top: 16, right: 16,
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#a8a29e', padding: 4, borderRadius: 6, lineHeight: 1,
-                transition: 'color 0.15s',
-              }}
+              style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 4, borderRadius: 6, lineHeight: 1 }}
               onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
               onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
               data-testid="button-close-correcao-dialog"
@@ -1215,11 +1077,9 @@ export default function Arte() {
 
           {correcaoItem && (
             <>
-              {/* ── REPROVAÇÕES ────────────────────────── */}
+              {/* Reprovações */}
               <div style={{ padding: '16px 24px', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
-                <p style={{ fontSize: 10, fontWeight: 600, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 10 }}>
-                  Reprovações
-                </p>
+                <p style={{ fontSize: 10, fontWeight: 600, color: '#ba1a1a', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 10 }}>Reprovações</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {correcaoItem.awaitingArteApprovals.map((approval: any) => (
                     <div key={approval.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
@@ -1237,17 +1097,11 @@ export default function Arte() {
                 </div>
               </div>
 
-              {/* ── UPLOAD ─────────────────────────────── */}
+              {/* Upload */}
               <div style={{ padding: '16px 24px', borderBottom: '1px solid #e7e5e4' }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
-                  Nova Arte (Upload)
-                </p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>Nova Arte (Upload)</p>
                 {correcaoThumbUrl ? (
-                  <div style={{
-                    border: '2px dashed #86efac', borderRadius: 10,
-                    backgroundColor: '#f0fdf4', padding: 24,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-                  }}>
+                  <div style={{ border: '2px dashed #86efac', borderRadius: 10, backgroundColor: '#f0fdf4', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl) ? (
                       <img src={correcaoThumbUrl} alt="Nova arte" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
                     ) : (
@@ -1259,41 +1113,23 @@ export default function Arte() {
                     <button
                       onClick={() => setCorrecaoThumbUrl("")}
                       data-testid="button-remove-correcao-thumb"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        background: 'none', border: '1px solid #86efac', borderRadius: 6,
-                        color: '#166534', fontSize: 12, padding: '4px 10px', cursor: 'pointer',
-                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: '1px solid #86efac', borderRadius: 6, color: '#166534', fontSize: 12, padding: '4px 10px', cursor: 'pointer' }}
                     >
                       <X style={{ width: 12, height: 12 }} /> Remover
                     </button>
                   </div>
                 ) : (
                   <div
-                    style={{
-                      border: '2px dashed #e7e5e4', borderRadius: 10,
-                      backgroundColor: '#fafaf9', padding: 24,
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                      transition: 'border-color 0.15s, background-color 0.15s',
-                    }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLElement).style.borderColor = '#f97316';
-                      (e.currentTarget as HTMLElement).style.backgroundColor = '#fff7ed';
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4';
-                      (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9';
-                    }}
+                    style={{ border: '2px dashed #e7e5e4', borderRadius: 10, backgroundColor: '#fafaf9', padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'border-color 0.15s, background-color 0.15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#f97316'; (e.currentTarget as HTMLElement).style.backgroundColor = '#fff7ed'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; }}
                   >
                     <Upload style={{ width: 24, height: 24, color: '#a8a29e' }} />
                     <p style={{ fontSize: 13, color: '#78716c', margin: 0 }}>Arraste o arquivo ou clique para selecionar</p>
                     <p style={{ fontSize: 11, color: '#a8a29e', margin: 0 }}>PDF, JPG, PNG — máx. 50MB</p>
                     <FileUploader
                       onGetUploadParameters={getUploadUrl}
-                      onComplete={(result) => {
-                        const localPath = convertGCSUrlToLocalPath(result.url);
-                        setCorrecaoThumbUrl(localPath);
-                      }}
+                      onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
                       accept="image/*,application/pdf"
                       data-testid="uploader-correcao-thumb"
                     >
@@ -1304,19 +1140,16 @@ export default function Arte() {
                 )}
               </div>
 
-              {/* ── PATROCINADORES ─────────────────────── */}
+              {/* Patrocinadores */}
               <div style={{ padding: '16px 24px', borderBottom: '1px solid #e7e5e4' }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', marginBottom: 10 }}>
-                  Enviar para quais patrocinadores?
-                </p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', marginBottom: 10 }}>Enviar para quais patrocinadores?</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {correcaoItem.awaitingArteApprovals.map((approval: any) => (
                     <label
                       key={approval.sponsorId}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
-                        userSelect: 'none', transition: 'background 0.15s, border-color 0.15s',
+                        padding: '10px 14px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
                         backgroundColor: correcaoSelectedSponsorIds.has(approval.sponsorId) ? '#f0fdf4' : '#fafaf9',
                         border: `1px solid ${correcaoSelectedSponsorIds.has(approval.sponsorId) ? '#86efac' : '#e7e5e4'}`,
                       }}
@@ -1325,33 +1158,23 @@ export default function Arte() {
                         checked={correcaoSelectedSponsorIds.has(approval.sponsorId)}
                         onCheckedChange={(checked) => {
                           const next = new Set(correcaoSelectedSponsorIds);
-                          if (checked) next.add(approval.sponsorId);
-                          else next.delete(approval.sponsorId);
+                          if (checked) next.add(approval.sponsorId); else next.delete(approval.sponsorId);
                           setCorrecaoSelectedSponsorIds(next);
                         }}
                         data-testid={`checkbox-correcao-sponsor-${approval.sponsorId}`}
-                        style={{ accentColor: '#1c1917' }}
                       />
-                      {approval.sponsor?.color && (
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
-                      )}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', flex: 1 }}>
-                        {approval.sponsor?.name || 'Patrocinador'}
-                      </span>
+                      {approval.sponsor?.color && <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: approval.sponsor.color }} />}
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
-              {/* ── FOOTER ──────────────────────────────── */}
+              {/* Footer */}
               <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button
                   onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }}
-                  style={{
-                    backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
-                    color: '#78716c', borderRadius: 8, height: 40, padding: '0 20px',
-                    fontSize: 13, cursor: 'pointer', transition: 'background 0.15s, color 0.15s',
-                  }}
+                  style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 8, height: 40, padding: '0 20px', fontSize: 13, cursor: 'pointer' }}
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#1c1917'; e.currentTarget.style.color = '#ffffff'; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; e.currentTarget.style.color = '#78716c'; }}
                 >
@@ -1361,41 +1184,24 @@ export default function Arte() {
                   disabled={!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending}
                   onClick={() => {
                     if (correcaoItem) {
-                      resubmitMutation.mutate({
-                        itemId: correcaoItem.id,
-                        newThumbUrl: correcaoThumbUrl,
-                        sponsorIds: Array.from(correcaoSelectedSponsorIds),
-                      });
+                      resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: Array.from(correcaoSelectedSponsorIds) });
                     }
                   }}
                   data-testid="button-submit-correcao"
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
-                    backgroundColor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#fca5a5' : '#dc2626',
-                    color: '#ffffff', border: 'none', borderRadius: 8,
-                    height: 40, padding: '0 20px', fontWeight: 700, fontSize: 14,
+                    backgroundColor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#fca5a5' : '#f97316',
+                    color: '#ffffff', border: 'none', borderRadius: 8, height: 40, padding: '0 20px',
+                    fontWeight: 700, fontSize: 14,
                     cursor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'not-allowed' : 'pointer',
-                    transition: 'background 0.2s',
                   }}
-                  onMouseEnter={e => {
-                    if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return;
-                    e.currentTarget.style.backgroundColor = '#b91c1c';
-                  }}
-                  onMouseLeave={e => {
-                    if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return;
-                    e.currentTarget.style.backgroundColor = '#dc2626';
-                  }}
+                  onMouseEnter={e => { if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return; e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
                 >
                   {resubmitMutation.isPending ? (
-                    <>
-                      <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
-                      Enviando...
-                    </>
+                    <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
                   ) : (
-                    <>
-                      <RotateCcw style={{ width: 14, height: 14 }} />
-                      Enviar Nova Arte
-                    </>
+                    <><RotateCcw style={{ width: 14, height: 14 }} />Enviar Nova Arte</>
                   )}
                 </button>
               </div>
@@ -1404,6 +1210,9 @@ export default function Arte() {
         </DialogContent>
       </Dialog>
 
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 2 — ITEM DETAILS DIALOG                                      */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       <ItemDetailsDialog
         item={selectedItem}
         auditLogs={selectedItem ? auditLogs.filter((log: any) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
@@ -1421,49 +1230,25 @@ export default function Arte() {
               </p>
             </CardHeader>
             <CardContent className="px-4 py-4 space-y-4">
-              {/* THUMB DE APROVAÇÃO - Primeiro e em destaque */}
               {selectedItem.approvalThumbUrl && (
                 <div className="space-y-2">
                   {(() => {
                     const url = selectedItem.approvalThumbUrl.toLowerCase();
                     const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
                     const isPdf = url.includes('.pdf') || (!isImage && url.includes('/objects/'));
-                    
                     return (
                       <>
                         <Label className="text-xs font-medium text-muted-foreground flex items-center gap-2">
-                          {isPdf ? (
-                            <>
-                              <FileText className="h-3.5 w-3.5" />
-                              Thumb Aprovado (PDF)
-                            </>
-                          ) : (
-                            <>
-                              <FileImage className="h-3.5 w-3.5" />
-                              Thumb Aprovado
-                            </>
-                          )}
+                          {isPdf ? <><FileText className="h-3.5 w-3.5" />Thumb Aprovado (PDF)</> : <><FileImage className="h-3.5 w-3.5" />Thumb Aprovado</>}
                         </Label>
                         <div className="flex justify-center rounded-lg bg-muted/50 p-3 border">
                           {isPdf ? (
-                            <a
-                              href={selectedItem.approvalThumbUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg hover-elevate text-red-700 dark:text-red-400 font-medium"
-                            >
+                            <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg hover-elevate text-red-700 dark:text-red-400 font-medium">
                               <FileText className="h-5 w-5" />
-                              <div className="flex flex-col items-start">
-                                <span>Abrir PDF</span>
-                                <span className="text-xs text-red-600 dark:text-red-500">Clique para visualizar</span>
-                              </div>
+                              <div className="flex flex-col items-start"><span>Abrir PDF</span><span className="text-xs text-red-600 dark:text-red-500">Clique para visualizar</span></div>
                             </a>
                           ) : (
-                            <img
-                              src={selectedItem.approvalThumbUrl}
-                              alt="Thumb aprovado"
-                              className="max-h-[150px] max-w-full object-contain rounded shadow-sm"
-                            />
+                            <img src={selectedItem.approvalThumbUrl} alt="Thumb aprovado" className="max-h-[150px] max-w-full object-contain rounded shadow-sm" />
                           )}
                         </div>
                       </>
@@ -1471,8 +1256,6 @@ export default function Arte() {
                   })()}
                 </div>
               )}
-
-              {/* CAMINHO DO ARQUIVO FINAL - Campo de texto */}
               <div className="space-y-2">
                 <Label htmlFor="finalFilePath" className="text-xs font-medium flex items-center gap-2">
                   <FolderOpen className="h-3.5 w-3.5" />
@@ -1486,18 +1269,10 @@ export default function Arte() {
                   className="text-sm"
                   data-testid="input-final-file-path"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Informe o caminho onde o arquivo final está salvo no servidor
-                </p>
+                <p className="text-xs text-muted-foreground">Informe o caminho onde o arquivo final está salvo no servidor</p>
               </div>
-
-              {/* Botão de enviar */}
               <div className="flex justify-end">
-                <Button
-                  onClick={handleSubmitFinalFile}
-                  disabled={submitFinalFileMutation.isPending || !finalFileUrl}
-                  data-testid="button-submit-final"
-                >
+                <Button onClick={handleSubmitFinalFile} disabled={submitFinalFileMutation.isPending || !finalFileUrl} data-testid="button-submit-final">
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Enviar para Revisão
                 </Button>
@@ -1507,7 +1282,6 @@ export default function Arte() {
         ) : null}
         customActions={selectedItem && (
           <div className="space-y-4">
-            {/* Upload de Thumb de Aprovação */}
             {(selectedItem.status === 'requested' || selectedItem.status === 'awaiting_submission') && (
               <Card className="border-purple-200 dark:border-purple-800">
                 <CardHeader className="px-4 py-3 bg-purple-50/50 dark:bg-purple-950/20 border-b border-purple-100 dark:border-purple-900">
@@ -1516,9 +1290,7 @@ export default function Arte() {
                       <FileImage className="h-3.5 w-3.5 text-white" />
                     </div>
                     <div>
-                      <CardTitle className="text-sm font-semibold text-purple-800 dark:text-purple-300">
-                        Thumb de Aprovação
-                      </CardTitle>
+                      <CardTitle className="text-sm font-semibold text-purple-800 dark:text-purple-300">Thumb de Aprovação</CardTitle>
                       <p className="text-xs text-purple-600 dark:text-purple-400">
                         {approvalThumbUrl ? "Thumb carregado — confirme o envio abaixo" : "Faça upload da imagem de aprovação"}
                       </p>
@@ -1526,19 +1298,14 @@ export default function Arte() {
                   </div>
                 </CardHeader>
                 <CardContent className="px-4 py-3 space-y-3">
-                  {/* Área de Preview e Upload */}
                   {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
                     <div className="space-y-3">
-                      {/* Preview da imagem */}
                       <div className="relative w-full min-h-48 max-h-80 rounded-lg border-2 border-dashed border-purple-200 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/10 flex items-center justify-center p-4">
-                        <img 
-                          src={approvalThumbPreview} 
-                          alt="Preview do Thumb" 
+                        <img
+                          src={approvalThumbPreview}
+                          alt="Preview do Thumb"
                           className="max-h-full max-w-full object-contain rounded shadow-sm"
-                          onError={(e) => {
-                            console.error('Erro ao carregar imagem:', approvalThumbPreview);
-                            e.currentTarget.style.display = 'none';
-                          }}
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
                         <div className="absolute top-2 right-2">
                           <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">
@@ -1554,23 +1321,12 @@ export default function Arte() {
                             const localPath = convertGCSUrlToLocalPath(result.url);
                             setApprovalThumbUrl(localPath);
                             setApprovalThumbPreview(localPath);
-                            toast({
-                              title: "Upload concluído",
-                              description: "Thumb atualizado — clique em Enviar para Aprovação para confirmar",
-                            });
+                            toast({ title: "Upload concluído", description: "Thumb atualizado — clique em Enviar para Aprovação para confirmar" });
                           }}
-                          onError={(error) => {
-                            toast({
-                              title: "Erro no upload",
-                              description: error.message,
-                              variant: "destructive",
-                            });
-                          }}
+                          onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
                           onFileSelect={(file) => {
                             const reader = new FileReader();
-                            reader.onload = (e) => {
-                              setApprovalThumbPreview(e.target?.result as string);
-                            };
+                            reader.onload = (e) => { setApprovalThumbPreview(e.target?.result as string); };
                             reader.readAsDataURL(file);
                           }}
                           accept="image/*"
@@ -1580,14 +1336,8 @@ export default function Arte() {
                           Alterar Thumb
                         </FileUploader>
                       </div>
-                      {/* Botão de envio — aparece somente após o upload */}
                       <div className="pt-1 border-t border-purple-100 dark:border-purple-900">
-                        <Button
-                          onClick={handleSubmitForApproval}
-                          disabled={submitForApprovalMutation.isPending}
-                          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                          data-testid="button-submit-approval-header"
-                        >
+                        <Button onClick={handleSubmitForApproval} disabled={submitForApprovalMutation.isPending} className="w-full bg-purple-600 hover:bg-purple-700 text-white" data-testid="button-submit-approval-header">
                           <Send className="h-4 w-4 mr-2" />
                           {submitForApprovalMutation.isPending ? "Enviando..." : "Enviar para Aprovação"}
                         </Button>
@@ -1595,41 +1345,24 @@ export default function Arte() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {/* Área de upload vazia com instruções */}
                       <div className="w-full min-h-48 rounded-lg border-2 border-dashed border-purple-200 dark:border-purple-700 bg-purple-50/30 dark:bg-purple-950/10 flex flex-col items-center justify-center p-6 text-center">
                         <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-3">
                           <FileImage className="h-6 w-6 text-purple-500" />
                         </div>
-                        <p className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">
-                          Nenhuma imagem selecionada
-                        </p>
-                        <p className="text-xs text-purple-500 dark:text-purple-400 mb-4">
-                          Faça upload de uma imagem leve (preview) para o patrocinador aprovar
-                        </p>
+                        <p className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">Nenhuma imagem selecionada</p>
+                        <p className="text-xs text-purple-500 dark:text-purple-400 mb-4">Faça upload de uma imagem leve (preview) para o patrocinador aprovar</p>
                         <FileUploader
                           onGetUploadParameters={getUploadUrl}
                           onComplete={(result) => {
                             const localPath = convertGCSUrlToLocalPath(result.url);
                             setApprovalThumbUrl(localPath);
                             setApprovalThumbPreview(localPath);
-                            toast({
-                              title: "Upload concluído",
-                              description: "Thumb de aprovação enviado com sucesso",
-                            });
+                            toast({ title: "Upload concluído", description: "Thumb de aprovação enviado com sucesso" });
                           }}
-                          onError={(error) => {
-                            toast({
-                              title: "Erro no upload",
-                              description: error.message,
-                              variant: "destructive",
-                            });
-                          }}
+                          onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
                           onFileSelect={(file) => {
                             const reader = new FileReader();
-                            reader.onload = (e) => {
-                              const preview = e.target?.result as string;
-                              setApprovalThumbPreview(preview);
-                            };
+                            reader.onload = (e) => { setApprovalThumbPreview(e.target?.result as string); };
                             reader.readAsDataURL(file);
                           }}
                           accept="image/*"
@@ -1643,12 +1376,13 @@ export default function Arte() {
                 </CardContent>
               </Card>
             )}
-
           </div>
         )}
       />
 
-      {/* Dialog de Upload Compartilhado de PDF */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 3 — BULK PDF UPLOAD                                          */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showBulkDialog} onOpenChange={setShowBulkDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1665,17 +1399,10 @@ export default function Arte() {
                   const item = allItems.find(i => i.id === itemId);
                   return item ? (
                     <div key={itemId} className="text-xs flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {item.event?.name || 'Sem Evento'}
-                      </Badge>
+                      <Badge variant="outline" className="text-xs">{item.event?.name || 'Sem Evento'}</Badge>
                       <span className="text-muted-foreground">•</span>
                       <span>{item.type}</span>
-                      {item.description && (
-                        <>
-                          <span className="text-muted-foreground">•</span>
-                          <span className="text-muted-foreground">{item.description}</span>
-                        </>
-                      )}
+                      {item.description && <><span className="text-muted-foreground">•</span><span className="text-muted-foreground">{item.description}</span></>}
                     </div>
                   ) : null;
                 })}
@@ -1687,40 +1414,17 @@ export default function Arte() {
                 <File className="h-4 w-4" />
                 PDF Compartilhado <span className="text-destructive">*</span>
               </p>
-              <p className="text-xs text-muted-foreground">
-                Envie 1 PDF contendo todas as artes. Ele será usado por todas as peças marcadas.
-              </p>
+              <p className="text-xs text-muted-foreground">Envie 1 PDF contendo todas as artes. Ele será usado por todas as peças marcadas.</p>
               {sharedPdfUrl ? (
                 <div className="space-y-2">
-                  <a
-                    href={sharedPdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg hover-elevate text-red-700 dark:text-red-400 font-medium"
-                  >
+                  <a href={sharedPdfUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg hover-elevate text-red-700 dark:text-red-400 font-medium">
                     <FileText className="h-5 w-5" />
-                    <div className="flex flex-col items-start">
-                      <span>Abrir PDF Compartilhado</span>
-                      <span className="text-xs text-red-600 dark:text-red-500">Clique para visualizar</span>
-                    </div>
+                    <div className="flex flex-col items-start"><span>Abrir PDF Compartilhado</span><span className="text-xs text-red-600 dark:text-red-500">Clique para visualizar</span></div>
                   </a>
                   <FileUploader
                     onGetUploadParameters={getUploadUrl}
-                    onComplete={(result) => {
-                      const localPath = convertGCSUrlToLocalPath(result.url);
-                      setSharedPdfUrl(localPath);
-                      toast({
-                        title: "Upload concluído",
-                        description: "PDF compartilhado enviado com sucesso",
-                      });
-                    }}
-                    onError={(error) => {
-                      toast({
-                        title: "Erro no upload",
-                        description: error.message,
-                        variant: "destructive",
-                      });
-                    }}
+                    onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
+                    onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
                     accept=".pdf,application/pdf"
                     buttonVariant="outline"
                   >
@@ -1731,21 +1435,8 @@ export default function Arte() {
               ) : (
                 <FileUploader
                   onGetUploadParameters={getUploadUrl}
-                  onComplete={(result) => {
-                    const localPath = convertGCSUrlToLocalPath(result.url);
-                    setSharedPdfUrl(localPath);
-                    toast({
-                      title: "Upload concluído",
-                      description: "PDF compartilhado enviado com sucesso",
-                    });
-                  }}
-                  onError={(error) => {
-                    toast({
-                      title: "Erro no upload",
-                      description: error.message,
-                      variant: "destructive",
-                    });
-                  }}
+                  onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
+                  onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
                   accept=".pdf,application/pdf"
                 >
                   <Upload className="h-4 w-4 mr-2" />
@@ -1755,29 +1446,12 @@ export default function Arte() {
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowBulkDialog(false);
-                setSharedPdfUrl("");
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleBulkSubmit}
-              disabled={submitBulkForApprovalMutation.isPending || !sharedPdfUrl}
-            >
+            <Button variant="outline" onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}>Cancelar</Button>
+            <Button onClick={handleBulkSubmit} disabled={submitBulkForApprovalMutation.isPending || !sharedPdfUrl}>
               {submitBulkForApprovalMutation.isPending ? (
-                <>
-                  <Upload className="h-4 w-4 mr-2 animate-spin" />
-                  Enviando...
-                </>
+                <><Upload className="h-4 w-4 mr-2 animate-spin" />Enviando...</>
               ) : (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Enviar {selectedItemIds.size} Peças para Aprovação
-                </>
+                <><CheckCircle className="h-4 w-4 mr-2" />Enviar {selectedItemIds.size} Peças para Aprovação</>
               )}
             </Button>
           </DialogFooter>

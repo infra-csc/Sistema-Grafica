@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#e2e2e2",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "inverse-surface": "#2f3130",
+                        "inverse-on-surface": "#f1f1f0",
+                        "on-background": "#1a1c1c",
+                        "background": "#f9f9f8",
+                        "on-secondary-container": "#5c2400",
+                        "on-primary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#001d32",
+                        "outline-variant": "#e0c0b1",
+                        "on-primary-container": "#35322f",
+                        "primary-container": "#9f9996",
+                        "on-surface-variant": "#584237",
+                        "surface-tint": "#625d5b",
+                        "on-error-container": "#93000a",
+                        "surface-container-lowest": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f3f4f3",
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-bright": "#f9f9f8",
+                        "on-surface": "#1a1c1c",
+                        "surface-container-high": "#e8e8e7",
+                        "on-tertiary-container": "#003554",
+                        "tertiary-fixed": "#cde5ff",
+                        "surface-container": "#eeeeed",
+                        "surface": "#f9f9f8",
+                        "primary-fixed": "#e9e1dd",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "secondary-fixed-dim": "#ffb690",
+                        "on-secondary-fixed": "#341100",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "secondary-fixed": "#ffdbca",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "primary": "#625d5b",
+                        "outline": "#8c7164",
+                        "on-secondary-fixed-variant": "#783200",
+                        "tertiary-container": "#00a2f4",
+                        "on-primary-fixed": "#1e1b19",
+                        "inverse-primary": "#ccc5c2",
+                        "secondary-container": "#fd761a",
+                        "secondary": "#9d4300",
+                        "surface-dim": "#dadad9",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#006398",
+                        "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.05em; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-norte { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<div class="flex min-h-screen">
+<!-- Side Navigation Bar -->
+<aside class="hidden md:flex flex-col h-screen w-64 bg-stone-100 dark:bg-stone-950 p-6 space-y-8 fixed left-0 top-0 z-40 border-r-0">
+<div class="flex flex-col">
+<span class="text-orange-600 font-black text-2xl font-headline tracking-tighter">NORTE</span>
+<span class="text-stone-500 text-xs font-label uppercase tracking-widest mt-1">Elite Performance</span>
+</div>
+<nav class="flex flex-col space-y-1 flex-1">
+<a class="flex items-center space-x-3 p-3 text-stone-500 hover:text-orange-600 transition-colors rounded-md group" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body text-sm font-medium">Dashboard</span>
+</a>
+<a class="flex items-center space-x-3 p-3 bg-stone-200 dark:bg-stone-800 text-stone-900 dark:text-stone-50 font-bold rounded-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">movie_filter</span>
+<span class="font-body text-sm">Production</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-stone-500 hover:text-orange-600 transition-colors rounded-md" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-body text-sm font-medium">Roster</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-stone-500 hover:text-orange-600 transition-colors rounded-md" href="#">
+<span class="material-symbols-outlined">leaderboard</span>
+<span class="font-body text-sm font-medium">Analytics</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-stone-500 hover:text-orange-600 transition-colors rounded-md" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="font-body text-sm font-medium">Contracting</span>
+</a>
+</nav>
+<div class="pt-6 space-y-1">
+<a class="flex items-center space-x-3 p-3 text-stone-500 hover:text-orange-600 transition-colors" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-body text-sm">Support</span>
+</a>
+<a class="flex items-center space-x-3 p-3 text-stone-500 hover:text-orange-600 transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-body text-sm">Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-64 min-w-0">
+<!-- Top App Bar -->
+<header class="bg-stone-50/60 backdrop-blur-xl sticky top-0 z-30 w-full px-8 py-4 flex justify-between items-center shadow-[0_16px_32px_-12px_rgba(28,25,23,0.05)]">
+<div class="flex items-center space-x-4">
+<h1 class="text-2xl font-bold tracking-tighter text-stone-900">Arte - Liberação de Arquivos</h1>
+<span class="text-stone-400 font-light px-4 border-l border-stone-200">Management &amp; Media Pipeline</span>
+</div>
+<div class="flex items-center space-x-6">
+<div class="hidden lg:flex items-center space-x-8 mr-8">
+<a class="text-stone-600 font-medium hover:text-stone-900" href="#">Athletes</a>
+<a class="text-stone-600 font-medium hover:text-stone-900" href="#">Events</a>
+<a class="text-stone-600 font-medium hover:text-stone-900" href="#">Talent</a>
+<a class="text-orange-600 border-b-2 border-orange-600 pb-1" href="#">Strategy</a>
+</div>
+<div class="flex items-center space-x-4">
+<button class="material-symbols-outlined text-stone-500 hover:bg-stone-200/50 p-2 rounded-full transition-all">notifications</button>
+<button class="material-symbols-outlined text-stone-500 hover:bg-stone-200/50 p-2 rounded-full transition-all">settings</button>
+<div class="w-10 h-10 rounded-full overflow-hidden bg-stone-200">
+<img alt="Athlete Manager Profile" data-alt="Professional athlete manager portrait with neutral background and sharp focus" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZRMQ6N0kPhNpn9bSNVUTc7JP43rv3edkAUBOIhrRc_jJ6zXi_jj6TWGOe9zKz5LA6taRI-oTIq-vQjWZ-8_rw3e4eRgMeYLRElc3Ib8huCmcNebFKdujP7HqgpNDF5HgsK3u6UR7h05juMu7CxVyX6j5WB4lTfcsdVW86JIYb_XtwsT_-zd2vWQWpbj7g2bi1YQjQ8SjPrU07DBTDFcKcaEECo4ODA93aOEAEZy3ch8SAh5Hi4aG5c6StKUjxMCwP5cK1sQ20bjg0"/>
+</div>
+</div>
+</div>
+</header>
+<div class="p-8 max-w-[1600px] mx-auto space-y-8">
+<!-- Stat Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="bg-surface-container-lowest p-6 rounded-xl flex flex-col space-y-4">
+<div class="flex justify-between items-start">
+<span class="text-stone-500 font-medium text-sm">Pendentes</span>
+<span class="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">pending_actions</span>
+</span>
+</div>
+<div class="flex items-baseline space-x-2">
+<span class="text-4xl font-headline font-bold text-stone-900">24</span>
+<span class="text-xs text-orange-600 font-bold">+3 hoje</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl flex flex-col space-y-4">
+<div class="flex justify-between items-start">
+<span class="text-stone-500 font-medium text-sm">Aguard. Patrocin.</span>
+<span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">timer</span>
+</span>
+</div>
+<div class="flex items-baseline space-x-2">
+<span class="text-4xl font-headline font-bold text-stone-900">12</span>
+<span class="text-xs text-amber-600 font-bold">Aguardando</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl flex flex-col space-y-4">
+<div class="flex justify-between items-start">
+<span class="text-stone-500 font-medium text-sm">Patrocin. Aprovou</span>
+<span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">verified</span>
+</span>
+</div>
+<div class="flex items-baseline space-x-2">
+<span class="text-4xl font-headline font-bold text-stone-900">08</span>
+<span class="text-xs text-blue-600 font-bold">Verificado</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl flex flex-col space-y-4 border-l-4 border-green-500">
+<div class="flex justify-between items-start">
+<span class="text-stone-500 font-medium text-sm">Prontos p/ Prod.</span>
+<span class="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">precision_manufacturing</span>
+</span>
+</div>
+<div class="flex items-baseline space-x-2">
+<span class="text-4xl font-headline font-bold text-stone-900">42</span>
+<span class="text-xs text-green-600 font-bold">Liberado</span>
+</div>
+</div>
+</div>
+<!-- Filters & Controls -->
+<div class="bg-surface-container-low p-4 rounded-xl flex flex-wrap items-center gap-4">
+<div class="relative flex-1 min-w-[240px]">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-white border-none rounded-lg text-sm focus:ring-2 focus:ring-secondary/20 placeholder:text-stone-400" placeholder="Buscar arte, ID ou projeto..." type="text"/>
+</div>
+<select class="bg-white border-none rounded-lg text-sm py-2 px-4 focus:ring-2 focus:ring-secondary/20 font-medium text-stone-600 min-w-[160px]">
+<option>Evento: Todos</option>
+<option>Ironman 70.3</option>
+<option>Maratona de SP</option>
+</select>
+<select class="bg-white border-none rounded-lg text-sm py-2 px-4 focus:ring-2 focus:ring-secondary/20 font-medium text-stone-600">
+<option>Mês: Outubro</option>
+<option>Novembro</option>
+</select>
+<button class="ml-auto bg-stone-900 text-white px-5 py-2 rounded-lg flex items-center space-x-2 hover:bg-stone-800 transition-colors text-sm font-medium">
+<span class="material-symbols-outlined text-sm">upload_file</span>
+<span>Upload PDF Compartilhado</span>
+</button>
+</div>
+<!-- Navigation Tabs -->
+<div class="flex items-center space-x-1 p-1 bg-stone-200/50 rounded-xl w-fit">
+<button class="px-6 py-2.5 rounded-lg bg-white text-stone-900 font-bold shadow-sm text-sm">Mandar para Aprovação</button>
+<button class="px-6 py-2.5 rounded-lg text-stone-500 font-medium hover:text-stone-900 text-sm transition-all">Correção</button>
+<button class="px-6 py-2.5 rounded-lg text-stone-500 font-medium hover:text-stone-900 text-sm transition-all">Finalizar Arte</button>
+<button class="px-6 py-2.5 rounded-lg text-stone-500 font-medium hover:text-stone-900 text-sm transition-all">Finalizados</button>
+</div>
+<!-- Content Area: Grouped Table -->
+<div class="space-y-6">
+<!-- Event Group 1 -->
+<div class="rounded-xl overflow-hidden bg-surface-container-lowest">
+<div class="p-4 bg-gradient-to-r from-orange-600 to-orange-400 flex justify-between items-center">
+<div class="flex items-center space-x-3">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">stars</span>
+<h3 class="text-white font-headline font-bold text-lg">IRONMAN 70.3 — SAO PAULO</h3>
+</div>
+<span class="text-white/80 text-xs font-bold uppercase tracking-widest">12 Itens Pendentes</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-stone-50 text-stone-400 text-[10px] uppercase tracking-widest font-bold">
+<th class="px-6 py-4">ID</th>
+<th class="px-6 py-4">Qtd</th>
+<th class="px-6 py-4">Descrição do Item</th>
+<th class="px-6 py-4">Dimensões (V/A)</th>
+<th class="px-6 py-4">M²</th>
+<th class="px-6 py-4">Material</th>
+<th class="px-6 py-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-100">
+<tr class="hover:bg-stone-50/50 transition-colors group">
+<td class="px-6 py-4 font-mono text-xs text-stone-500">#ART-9012</td>
+<td class="px-6 py-4 font-bold text-stone-900">04</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-bold text-stone-900">Pórtico de Chegada - Principal</span>
+<span class="text-xs text-stone-500">Logos: Norte, Oakley, Shimano</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-medium">
+<span class="text-stone-900">8.00 x 3.50m</span>
+<span class="block text-stone-400">8.20 x 3.70m (Sangria)</span>
+</td>
+<td class="px-6 py-4 text-sm font-headline">28.00</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-stone-100 text-stone-600 rounded text-[10px] font-bold uppercase">Lona Mesh</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex justify-end space-x-2">
+<button class="p-2 text-stone-400 hover:text-orange-600 transition-colors"><span class="material-symbols-outlined text-lg">visibility</span></button>
+<button class="bg-secondary text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:brightness-105 transition-all">Enviar Aprovação</button>
+</div>
+</td>
+</tr>
+<tr class="hover:bg-stone-50/50 transition-colors group">
+<td class="px-6 py-4 font-mono text-xs text-stone-500">#ART-9015</td>
+<td class="px-6 py-4 font-bold text-stone-900">12</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-bold text-stone-900">Totem Sinalização - Km 21</span>
+<span class="text-xs text-stone-500">Direcionais de percurso</span>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-medium">
+<span class="text-stone-900">0.80 x 2.10m</span>
+<span class="block text-stone-400">0.85 x 2.15m (Sangria)</span>
+</td>
+<td class="px-6 py-4 text-sm font-headline">20.16</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-stone-100 text-stone-600 rounded text-[10px] font-bold uppercase">PS 2mm</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex justify-end space-x-2">
+<button class="p-2 text-stone-400 hover:text-orange-600 transition-colors"><span class="material-symbols-outlined text-lg">visibility</span></button>
+<button class="bg-secondary text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:brightness-105 transition-all">Enviar Aprovação</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Corrections Header -->
+<div class="pt-8">
+<h2 class="text-xl font-headline font-bold text-stone-900 flex items-center space-x-2">
+<span class="material-symbols-outlined text-error">report_problem</span>
+<span>Aguardando Correções Urgentemente</span>
+</h2>
+</div>
+<!-- Correction Cards Asymmetric Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<div class="bg-surface-container-lowest p-6 rounded-xl border-l-4 border-error flex flex-col md:flex-row gap-6 relative overflow-hidden">
+<div class="absolute -right-4 -top-4 opacity-5 pointer-events-none">
+<span class="material-symbols-outlined text-9xl">cancel</span>
+</div>
+<div class="w-full md:w-48 h-48 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="Abstract dynamic 3D render with orange and white fluid shapes on neutral background representing modern artwork" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwONfZmW6HXdw_4le7WK4lUlmHd9XYUZsUckFSPhoZ-EW8jsuw2lO5MyEw9Wx4Ly18PWmyIjGJ30DqO9-p-Ev3cp-_Tu7voRttm14OWykC-aAu35Lbl7vflEAyEQaVXbb6bJ8BBkkTaW4-ML4IZ8eoauV-17fvXMaOA8m36UvhJ857EKl9knx_LugfzbVLjsMCjrDap0VdCAAkEaJBfisTuzJETUZLPJrRtXRq6OnLQznCu8qHky9waor2_H4NQhqybziW200vXYuc"/>
+</div>
+<div class="flex flex-col justify-between py-1">
+<div class="space-y-2">
+<div class="flex items-center space-x-2">
+<span class="text-xs font-bold text-error uppercase">Recusado pelo Patrocinador</span>
+<span class="text-stone-300">•</span>
+<span class="text-xs text-stone-500 font-mono">#ART-8822</span>
+</div>
+<h4 class="text-lg font-bold text-stone-900 leading-tight">Backdrop Entrevistas Flash - Oakley</h4>
+<div class="p-3 bg-error/5 rounded-lg border border-error/10 mt-3">
+<p class="text-sm text-error font-medium leading-relaxed">
+<strong>Motivo:</strong> Cor do logo está errada. Utilizar o Pantone 151C conforme o manual de marca v2. Reduzir espaçamento entre logos em 15%.
+                                        </p>
+</div>
+</div>
+<div class="flex items-center space-x-4 mt-6">
+<button class="bg-secondary text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-secondary/20 hover:brightness-105 active:scale-95 transition-all">
+                                        Enviar Nova Arte
+                                    </button>
+<button class="text-stone-500 font-bold text-sm hover:text-stone-900 transition-colors">
+                                        Ver Histórico
+                                    </button>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl border-l-4 border-error flex flex-col md:flex-row gap-6 relative overflow-hidden">
+<div class="absolute -right-4 -top-4 opacity-5 pointer-events-none">
+<span class="material-symbols-outlined text-9xl">cancel</span>
+</div>
+<div class="w-full md:w-48 h-48 bg-stone-100 rounded-lg overflow-hidden flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="High-tech geometric digital pattern with orange and charcoal gray lines for sports brand identity visualization" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBd6uVZK9MinExfl8BGiBtLHAodj6iPlRVX4zUH-n8BaYBPi2WgtTRX8y-v1TMFn4U4Fp_FkgxEHzv8I3BlHFdzYGLLUFsGlhg9VKicVoqC4DbGHL52KZLSzt45_guum0x00KXaz8T98oihHwY4Br9_VDB9GimMgIU2em50lwjaW4KgtRPG7uG7Egzj96aBPwXGMt0gLStDJ6R4nR5Wjwaal6ZTr0RXccfnI6DeWbQonBclJIuVBaUliub4NTvyWR3EEuZsxF00ocub"/>
+</div>
+<div class="flex flex-col justify-between py-1">
+<div class="space-y-2">
+<div class="flex items-center space-x-2">
+<span class="text-xs font-bold text-error uppercase">Erro de Produção</span>
+<span class="text-stone-300">•</span>
+<span class="text-xs text-stone-500 font-mono">#ART-8845</span>
+</div>
+<h4 class="text-lg font-bold text-stone-900 leading-tight">Placa de Pódio (1º ao 3º) - Geral</h4>
+<div class="p-3 bg-error/5 rounded-lg border border-error/10 mt-3">
+<p class="text-sm text-error font-medium leading-relaxed">
+<strong>Motivo:</strong> O arquivo enviado está com baixa resolução nos logos do rodapé. Necessário envio em vetor ou imagem de no mínimo 300dpi.
+                                        </p>
+</div>
+</div>
+<div class="flex items-center space-x-4 mt-6">
+<button class="bg-secondary text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-secondary/20 hover:brightness-105 active:scale-95 transition-all">
+                                        Enviar Nova Arte
+                                    </button>
+<button class="text-stone-500 font-bold text-sm hover:text-stone-900 transition-colors">
+                                        Ver Histórico
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+```</body></html>

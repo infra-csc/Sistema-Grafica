@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE APEX - Maratona Internacional de São Paulo</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .font-headline { font-family: 'Space_Grotesk', sans-serif; }
+        .font-body { font-family: 'Plus_Jakarta_Sans', sans-serif; }
+        .no-line-rule { border: none !important; }
+        .negative-kerning { letter-spacing: -0.03em; }
+        .glass-card {
+            background: rgba(226, 222, 222, 0.6);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-container": "#00a2f4",
+                      "surface-dim": "#dadad9",
+                      "surface-container-high": "#e8e8e7",
+                      "on-surface-variant": "#584237",
+                      "on-primary-container": "#35322f",
+                      "on-error": "#ffffff",
+                      "secondary-fixed-dim": "#ffb690",
+                      "inverse-primary": "#ccc5c2",
+                      "secondary-fixed": "#ffdbca",
+                      "primary-container": "#9f9996",
+                      "primary-fixed-dim": "#ccc5c2",
+                      "on-secondary-fixed-variant": "#783200",
+                      "on-primary": "#ffffff",
+                      "tertiary-fixed": "#cde5ff",
+                      "outline-variant": "#e0c0b1",
+                      "surface-bright": "#f9f9f8",
+                      "surface-container": "#eeeeed",
+                      "surface-variant": "#e2e2e2",
+                      "on-tertiary-fixed-variant": "#004b74",
+                      "secondary-container": "#fd761a",
+                      "on-primary-fixed": "#1e1b19",
+                      "on-error-container": "#93000a",
+                      "error-container": "#ffdad6",
+                      "primary": "#625d5b",
+                      "on-surface": "#1a1c1c",
+                      "on-secondary": "#ffffff",
+                      "on-secondary-container": "#5c2400",
+                      "secondary": "#9d4300",
+                      "on-background": "#1a1c1c",
+                      "on-tertiary-container": "#003554",
+                      "tertiary-fixed-dim": "#93ccff",
+                      "surface": "#f9f9f8",
+                      "on-tertiary": "#ffffff",
+                      "tertiary": "#006398",
+                      "surface-container-highest": "#e2e2e2",
+                      "outline": "#8c7164",
+                      "on-tertiary-fixed": "#001d32",
+                      "on-secondary-fixed": "#341100",
+                      "primary-fixed": "#e9e1dd",
+                      "background": "#f9f9f8",
+                      "surface-tint": "#625d5b",
+                      "surface-container-low": "#f3f4f3",
+                      "on-primary-fixed-variant": "#4a4643",
+                      "error": "#ba1a1a",
+                      "inverse-on-surface": "#f1f1f0",
+                      "surface-container-lowest": "#ffffff",
+                      "inverse-surface": "#2f3130"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "fontFamily": {
+                      "headline": ["Space Grotesk"],
+                      "body": ["Plus Jakarta Sans"],
+                      "label": ["Plus Jakarta Sans"]
+              }
+            },
+          }
+        }
+      </script>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 bg-stone-50/80 dark:bg-stone-950/80 backdrop-blur-xl flex justify-between items-center px-8 h-16 no-line-rule bg-stone-200/50 dark:bg-stone-800/50">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-bold tracking-tighter text-stone-900 dark:text-stone-50 font-headline">NORTE APEX</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors font-headline tracking-tight font-bold" href="#">Dashboard</a>
+<a class="text-orange-600 dark:text-orange-500 border-b-2 border-orange-600 pb-1 font-headline tracking-tight font-bold" href="#">Events</a>
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors font-headline tracking-tight font-bold" href="#">Inventory</a>
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors font-headline tracking-tight font-bold" href="#">Production</a>
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors font-headline tracking-tight font-bold" href="#">Staff</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-stone-500 hover:bg-stone-200/40 p-2 rounded-full transition-all">notifications</button>
+<button class="material-symbols-outlined text-stone-500 hover:bg-stone-200/40 p-2 rounded-full transition-all">settings</button>
+<div class="w-8 h-8 rounded-full bg-stone-200 overflow-hidden">
+<img alt="User profile" data-alt="professional headshot of a creative director in a minimalist studio setting with soft natural light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoXzZrVysFZxGnzkf2I_OjBEavyZzyATxyoJ0X3liv9a_AxIhhkBX-xjQbfflZcZ22iIEHXfPuh8vI74nkIQ_2pWUBCCH-x2XRLwSl5nBJXpRN5NEeiJL0U2sSsmFSiXWjcikMnNZXb9ZwJNm7a05iXE6q7LS1iHN7A0fNRSQ2ebAwKaT0VmFXD9LLkZTr5ZO6OOuMGEwzQps6J4BzDSNhpqUcG0oeySOV81K6_DEcWPasTrhq875uvb3CyBoYZjHSiIENt0F_5zF2"/>
+</div>
+</div>
+</header>
+<!-- Main Content Layout -->
+<div class="flex pt-16">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-16 bg-stone-100 dark:bg-stone-900 flex flex-col p-4 space-y-2">
+<div class="mb-6 px-2">
+<p class="text-lg font-bold font-headline tracking-tighter text-stone-900">Apex Championship</p>
+<p class="text-xs text-stone-500 uppercase tracking-widest font-medium">Elite Sports Management</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="bg-stone-200 dark:bg-stone-800 text-orange-600 dark:text-orange-500 font-bold rounded-lg flex items-center gap-3 px-3 py-2 text-sm hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">analytics</span> Event Overview
+                </a>
+<a class="text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 rounded-lg flex items-center gap-3 px-3 py-2 text-sm hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span> Production List
+                </a>
+<a class="text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 rounded-lg flex items-center gap-3 px-3 py-2 text-sm hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">architecture</span> Technical Specs
+                </a>
+<a class="text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 rounded-lg flex items-center gap-3 px-3 py-2 text-sm hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">local_shipping</span> Logistics
+                </a>
+<a class="text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 rounded-lg flex items-center gap-3 px-3 py-2 text-sm hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined">payments</span> Financials
+                </a>
+</nav>
+<button class="mt-auto w-full bg-orange-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-orange-700 transition-colors">
+                Export Report
+            </button>
+</aside>
+<!-- Canvas Area -->
+<main class="ml-64 flex-1 p-10 min-h-screen">
+<!-- Header Section -->
+<div class="mb-12">
+<a class="flex items-center gap-2 text-stone-500 hover:text-orange-600 transition-colors text-sm mb-4 font-medium" href="/eventos">
+<span class="material-symbols-outlined text-sm">arrow_back</span>
+                    Voltar para eventos
+                </a>
+<div class="flex justify-between items-end">
+<div>
+<h1 class="text-5xl font-headline font-bold negative-kerning text-stone-900 mb-2">Maratona Internacional de São Paulo</h1>
+<p class="text-stone-400 text-sm font-medium tracking-wide">Criado em 12/10/2023</p>
+</div>
+<button class="bg-[#1c1917] text-white px-6 py-3 flex items-center gap-2 rounded-md font-bold hover:bg-stone-800 transition-all active:scale-95">
+<span class="material-symbols-outlined">add_circle</span>
+                        Adicionar Item
+                    </button>
+</div>
+<!-- Date Chips Container -->
+<div class="flex gap-4 mt-8">
+<div class="bg-surface-container-low px-4 py-2 flex items-center gap-3 rounded-full">
+<span class="material-symbols-outlined text-orange-600" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+<div class="flex flex-col leading-none">
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-tighter">Início</span>
+<span class="text-sm font-bold text-stone-900">12/10/2023</span>
+</div>
+</div>
+<div class="bg-surface-container-low px-4 py-2 flex items-center gap-3 rounded-full">
+<span class="material-symbols-outlined text-orange-600" style="font-variation-settings: 'FILL' 1;">departure_board</span>
+<div class="flex flex-col leading-none">
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-tighter">Saída</span>
+<span class="text-sm font-bold text-stone-900">10/10/2023 · 14:00</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bento Production Grid / Table -->
+<div class="space-y-12">
+<!-- Group: PÓRTICOS -->
+<section>
+<div class="flex items-center gap-4 mb-4">
+<h2 class="text-2xl font-headline font-bold negative-kerning text-stone-900">PÓRTICOS</h2>
+<div class="h-[2px] flex-1 bg-stone-100"></div>
+<span class="text-stone-400 text-xs font-bold px-3 py-1 bg-stone-100 rounded-full">3 ITENS</span>
+</div>
+<div class="bg-surface-container-lowest overflow-hidden rounded-xl">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-stone-50 text-[11px] text-stone-400 uppercase tracking-widest font-bold">
+<th class="px-6 py-4">ID</th>
+<th class="px-6 py-4">Descrição</th>
+<th class="px-6 py-4">Qtd</th>
+<th class="px-6 py-4">Dimensões (V vs A)</th>
+<th class="px-6 py-4">M²</th>
+<th class="px-6 py-4">Material</th>
+<th class="px-6 py-4">Patrocinador</th>
+<th class="px-6 py-4">Status</th>
+<th class="px-6 py-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="text-sm">
+<tr class="group hover:bg-stone-50 transition-colors">
+<td class="px-6 py-4 font-bold text-orange-600">#0065</td>
+<td class="px-6 py-4 text-stone-900 font-medium">Pórtico de Largada Principal</td>
+<td class="px-6 py-4">01</td>
+<td class="px-6 py-4 text-stone-500 italic">12.0 x 4.5m / 12.2 x 4.7m</td>
+<td class="px-6 py-4 font-extrabold text-stone-900">54.00</td>
+<td class="px-6 py-4 text-stone-500">Lona Backlit / Alumínio</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-sm bg-stone-100 flex items-center justify-center">
+<img alt="Sponsor" class="w-4 h-4 object-contain" data-alt="minimalist tech company logo icon in black and white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAw658CMxWzmAFzjFRLO6yxAek6N3jl_RCYc7qsPJSSeW60zf9-NQzBVbVPz6zVyZ-CWIk6FNuUhcuvzA_8tNkqerRCzSK5x3mZ0TepQfq5oYfy7xdeWK5N-5hzTp_rnlAkEJuZGsJt3mjkmrNINAnc9H0-YFQqNWsSr8kOANmBBJlsLD3JhQdXb6PoHf0eO6_oIlvavyF94bLDQQj6_s-uPYNwWr616haIfO8oiR2qCkm6PoovE7BG_SJqNxUwZCZC1TWOmtjDBk9P"/>
+</div>
+<span class="text-xs font-bold">NIKE</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight">Produzido</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="material-symbols-outlined text-stone-400 hover:text-stone-900">edit</button>
+<button class="material-symbols-outlined text-stone-400 hover:text-error">delete</button>
+</div>
+</td>
+</tr>
+<tr class="group hover:bg-stone-50 transition-colors bg-stone-50/30">
+<td class="px-6 py-4 font-bold text-orange-600">#0068</td>
+<td class="px-6 py-4 text-stone-900 font-medium">Pórtico de Chegada Elite</td>
+<td class="px-6 py-4">01</td>
+<td class="px-6 py-4 text-stone-500 italic">8.0 x 3.5m / 8.2 x 3.7m</td>
+<td class="px-6 py-4 font-extrabold text-stone-900">28.00</td>
+<td class="px-6 py-4 text-stone-500">Lona Frontlit / Q30</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-stone-400">-</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight">Em Revisão</span>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="material-symbols-outlined text-stone-400 hover:text-stone-900">edit</button>
+<button class="material-symbols-outlined text-stone-400 hover:text-error">delete</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Group: SINALIZAÇÃO -->
+<section>
+<div class="flex items-center gap-4 mb-4">
+<h2 class="text-2xl font-headline font-bold negative-kerning text-stone-900">SINALIZAÇÃO</h2>
+<div class="h-[2px] flex-1 bg-stone-100"></div>
+<span class="text-stone-400 text-xs font-bold px-3 py-1 bg-stone-100 rounded-full">12 ITENS</span>
+</div>
+<!-- Asymmetric Layout for Signaling Section -->
+<div class="grid grid-cols-12 gap-6">
+<div class="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-xl overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-stone-50 text-[11px] text-stone-400 uppercase tracking-widest font-bold">
+<th class="px-6 py-4">ID</th>
+<th class="px-6 py-4">Descrição</th>
+<th class="px-6 py-4">Qtd</th>
+<th class="px-6 py-4">M²</th>
+<th class="px-6 py-4">Material</th>
+<th class="px-6 py-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="text-sm">
+<tr class="group hover:bg-stone-50 transition-colors">
+<td class="px-6 py-4 font-bold text-orange-600">#1240</td>
+<td class="px-6 py-4 text-stone-900 font-medium">Placa de Quilometragem (1-42km)</td>
+<td class="px-6 py-4">42</td>
+<td class="px-6 py-4 font-extrabold text-stone-900">10.50</td>
+<td class="px-6 py-4 text-stone-500">PVC 2mm / Adesivado</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="material-symbols-outlined text-stone-400 hover:text-stone-900">edit</button>
+<button class="material-symbols-outlined text-stone-400 hover:text-error">delete</button>
+</div>
+</td>
+</tr>
+<tr class="group hover:bg-stone-50 transition-colors border-t border-stone-50">
+<td class="px-6 py-4 font-bold text-orange-600">#1245</td>
+<td class="px-6 py-4 text-stone-900 font-medium">Totem Informativo Hidratação</td>
+<td class="px-6 py-4">15</td>
+<td class="px-6 py-4 font-extrabold text-stone-900">45.00</td>
+<td class="px-6 py-4 text-stone-500">Papelão Especial / Ecológico</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="material-symbols-outlined text-stone-400 hover:text-stone-900">edit</button>
+<button class="material-symbols-outlined text-stone-400 hover:text-error">delete</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Side Feature Card -->
+<div class="col-span-12 lg:col-span-4 bg-[#1c1917] rounded-xl p-8 text-white flex flex-col justify-between relative overflow-hidden">
+<div class="relative z-10">
+<span class="text-[10px] uppercase font-bold tracking-[0.2em] text-orange-500 mb-4 block">Destaque de Produção</span>
+<h3 class="text-3xl font-headline font-bold negative-kerning leading-tight mb-4">Sustentabilidade em Foco</h3>
+<p class="text-stone-400 text-sm leading-relaxed mb-6">Todos os materiais de sinalização interna foram migrados para substratos 100% recicláveis para esta edição.</p>
+<div class="flex gap-4">
+<div class="text-center">
+<p class="text-2xl font-headline font-bold">157</p>
+<p class="text-[10px] text-stone-500 font-bold uppercase">Peças Eco</p>
+</div>
+<div class="w-px h-10 bg-stone-800"></div>
+<div class="text-center">
+<p class="text-2xl font-headline font-bold">12</p>
+<p class="text-[10px] text-stone-500 font-bold uppercase">Categorias</p>
+</div>
+</div>
+</div>
+<!-- Background pattern/image decoration -->
+<div class="absolute -right-20 -bottom-20 w-64 h-64 opacity-20 rotate-12">
+<img alt="Abstract Pattern" class="w-full h-full object-cover" data-alt="abstract architectural geometry with sharp lines and dark shadows in black and white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsVEqZtoW1FT9t_84TX0kOoJnBawi5ipJe_-Px-AGUPWMK9ykebGliJiQjEWXG6I9-D_16fRWXRmsuEk9rnOuEvD6FmKdbhz8HEDOJfvQ6LnfGzVQ2Dr3rwCjyIOhMjtFp5-zU5CBZyoOBbUsVy8we4D-AZMBIFgx9UpwnYqf9pws-B_4REZ_XLGl2SG80jHfk4sF5G5gNmKcEhP0Lrn5BlnNjGmvyln7ufvw-0uDTKNxlOgBFKckHdjF8HJ_e9ipPlCY1Kh3mXlOj"/>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Footer Meta -->
+<footer class="mt-20 pt-10 border-t border-stone-100 flex justify-between items-center text-stone-400 text-xs font-medium uppercase tracking-widest">
+<div>NORTE APEX © 2023 - Sistema de Gestão de Produção</div>
+<div class="flex gap-6">
+<a class="hover:text-orange-600 transition-colors" href="#">Relatório de Impacto</a>
+<a class="hover:text-orange-600 transition-colors" href="#">Configurações do Evento</a>
+<a class="hover:text-orange-600 transition-colors" href="#">Logs de Auditoria</a>
+</div>
+</footer>
+</main>
+</div>
+<!-- Floating Action for Quick Add (Contextual Suppression Logic handled by designer discretion) -->
+<!-- Not rendered here per suppression rules for Detail screens -->
+</body></html>

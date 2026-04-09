@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE Production - Add Item</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-container": "#eeeeed",
+                        "on-primary-fixed": "#1e1b19",
+                        "secondary-fixed": "#ffdbca",
+                        "primary-fixed": "#e9e1dd",
+                        "on-tertiary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "outline-variant": "#e0c0b1",
+                        "on-tertiary-container": "#003554",
+                        "on-background": "#1a1c1c",
+                        "background": "#f9f9f8",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "on-secondary-container": "#5c2400",
+                        "on-tertiary-fixed": "#001d32",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "outline": "#8c7164",
+                        "on-secondary-fixed": "#341100",
+                        "on-surface-variant": "#584237",
+                        "surface-variant": "#e2e2e2",
+                        "secondary-fixed-dim": "#ffb690",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "on-primary-container": "#35322f",
+                        "on-secondary-fixed-variant": "#783200",
+                        "tertiary-container": "#00a2f4",
+                        "surface-dim": "#dadad9",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-bright": "#f9f9f8",
+                        "on-secondary": "#ffffff",
+                        "inverse-surface": "#2f3130",
+                        "surface": "#f9f9f8",
+                        "on-surface": "#1a1c1c",
+                        "surface-container-high": "#e8e8e7",
+                        "secondary": "#9d4300",
+                        "surface-container-low": "#f3f4f3",
+                        "tertiary": "#006398",
+                        "secondary-container": "#fd761a",
+                        "inverse-on-surface": "#f1f1f0",
+                        "inverse-primary": "#ccc5c2",
+                        "tertiary-fixed": "#cde5ff",
+                        "surface-tint": "#625d5b",
+                        "primary": "#625d5b",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "primary-container": "#9f9996",
+                        "on-primary-fixed-variant": "#4a4643"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .negative-tracking { letter-spacing: -0.02em; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .custom-label {
+            font-family: 'Space Grotesk';
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #a8a29e;
+        }
+        .norte-input {
+            border: none;
+            background-color: #f0efee;
+            border-radius: 10px;
+            font-family: 'Plus Jakarta Sans';
+            font-size: 14px;
+            padding: 0.75rem 1rem;
+            width: 100%;
+        }
+        .norte-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+            background-color: #e5e4e3;
+        }
+    </style>
+</head>
+<body class="bg-[#1c1917] font-body text-on-surface min-h-screen flex items-center justify-center p-4">
+<!-- OVERLAY BACKGROUND -->
+<div class="fixed inset-0 bg-[#1c1917]/80 backdrop-blur-sm z-0"></div>
+<!-- MAIN CONTAINER (Toggle between Bulk and Simple - Shown as a split view or single view for the exercise) -->
+<div class="relative z-10 w-full max-w-[95vw] flex flex-col gap-8 items-center">
+<!-- VARIATION 1: BULK ENTRY MODE (Entrada Rápida) -->
+<div class="w-full bg-[#f9f9f8] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[921px]">
+<!-- Header -->
+<header class="flex justify-between items-center px-8 py-6 bg-stone-50 border-b border-stone-200/20">
+<div class="flex flex-col">
+<h1 class="font-headline text-2xl font-bold negative-tracking text-stone-900">Entrada Rápida</h1>
+<span class="custom-label tracking-widest">Bulk Entry Mode — NORTE Apex v2.0</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 px-4 py-2 bg-stone-200/50 hover:bg-stone-200 text-stone-700 rounded-lg transition-all text-sm font-semibold">
+<span class="material-symbols-outlined text-sm">swap_horiz</span>
+                        Modo Simples
+                    </button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-stone-200 transition-colors">
+<span class="material-symbols-outlined text-stone-500">close</span>
+</button>
+</div>
+</header>
+<!-- Table Content -->
+<div class="flex-1 overflow-auto p-8 no-scrollbar">
+<table class="w-full text-left border-separate border-spacing-y-3">
+<thead>
+<tr>
+<th class="custom-label pb-2 px-2">Type</th>
+<th class="custom-label pb-2 px-2">Description</th>
+<th class="custom-label pb-2 px-2 text-center">Qty</th>
+<th class="custom-label pb-2 px-2 text-center text-orange-600">Vis. W</th>
+<th class="custom-label pb-2 px-2 text-center text-orange-600">Vis. H</th>
+<th class="custom-label pb-2 px-2 text-center text-stone-400">File W</th>
+<th class="custom-label pb-2 px-2 text-center text-stone-400">File H</th>
+<th class="custom-label pb-2 px-2 text-center">M2</th>
+<th class="custom-label pb-2 px-2">Material</th>
+<th class="custom-label pb-2 px-2">Finish</th>
+<th class="custom-label pb-2 px-2">Observations</th>
+<th class="custom-label pb-2 px-2"></th>
+</tr>
+</thead>
+<tbody>
+<!-- Row 1 -->
+<tr class="group">
+<td class="w-32"><input class="norte-input !py-2" type="text" value="Banner"/></td>
+<td><input class="norte-input !py-2" type="text" value="Frontlit High Tension"/></td>
+<td class="w-16"><input class="norte-input !py-2 text-center" type="number" value="12"/></td>
+<td class="w-20"><input class="norte-input !py-2 text-center border-l-2 border-orange-500 !rounded-l-none" type="text" value="1200"/></td>
+<td class="w-20"><input class="norte-input !py-2 text-center" type="text" value="2400"/></td>
+<td class="w-20"><input class="norte-input !py-2 text-center border-l-2 border-stone-300 !rounded-l-none" type="text" value="1210"/></td>
+<td class="w-20"><input class="norte-input !py-2 text-center" type="text" value="2410"/></td>
+<td class="w-20"><div class="px-2 font-mono text-sm font-bold text-stone-400">2.88</div></td>
+<td class="w-40"><input class="norte-input !py-2" type="text" value="PVC 510g"/></td>
+<td class="w-32"><input class="norte-input !py-2" type="text" value="Matte"/></td>
+<td><input class="norte-input !py-2" placeholder="..." type="text"/></td>
+<td class="w-24">
+<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 hover:bg-stone-200 rounded text-stone-500" title="Duplicate"><span class="material-symbols-outlined text-[20px]">content_copy</span></button>
+<button class="p-1 hover:bg-red-50 rounded text-red-500" title="Delete"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="group">
+<td class="w-32"><input class="norte-input !py-2" type="text" value="Vinyl"/></td>
+<td><input class="norte-input !py-2" type="text" value="Window Graphic - Storefront"/></td>
+<td class="w-16"><input class="norte-input !py-2 text-center" type="number" value="4"/></td>
+<td class="w-20"><input class="norte-input !py-2 text-center border-l-2 border-orange-500 !rounded-l-none" type="text" value="850"/></td>
+<td class="w-20"><input class="norte-input !py-2 text-center" type="text" value="1100"/></td>
+<td class="w-20"><input class="norte-input !py-2 text-center border-l-2 border-stone-300 !rounded-l-none" type="text" value="860"/></td>
+<td class="w-20"><input class="norte-input !py-2 text-center" type="text" value="1110"/></td>
+<td class="w-20"><div class="px-2 font-mono text-sm font-bold text-stone-400">0.94</div></td>
+<td class="w-40"><input class="norte-input !py-2" type="text" value="Monomeric"/></td>
+<td class="w-32"><input class="norte-input !py-2" type="text" value="Gloss"/></td>
+<td><input class="norte-input !py-2" placeholder="..." type="text"/></td>
+<td class="w-24">
+<div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 hover:bg-stone-200 rounded text-stone-500"><span class="material-symbols-outlined text-[20px]">content_copy</span></button>
+<button class="p-1 hover:bg-red-50 rounded text-red-500"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Footer -->
+<footer class="p-6 bg-stone-50/50 flex justify-between items-center px-8 border-t border-stone-200/10">
+<button class="flex items-center gap-2 px-6 py-2.5 rounded-lg border border-stone-200 text-stone-600 font-bold text-sm hover:bg-stone-100 transition-all">
+<span class="material-symbols-outlined">add_circle</span>
+                    ADICIONAR LINHA
+                </button>
+<div class="flex gap-4 items-center">
+<div class="text-right mr-4">
+<p class="custom-label !mb-0">Total M2 Estimado</p>
+<p class="font-headline font-bold text-xl text-stone-900">38.42 m²</p>
+</div>
+<button class="px-10 py-3 bg-[#1c1917] text-white font-bold rounded-lg hover:bg-stone-800 transition-all shadow-lg shadow-stone-900/10">
+                        FINALIZAR LOTE
+                    </button>
+</div>
+</footer>
+</div>
+<!-- VARIATION 2: SIMPLE MODE (Modo Simples) -->
+<div class="w-full max-w-lg bg-[#f9f9f8] rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
+<!-- Header -->
+<header class="flex justify-between items-center px-6 py-5 bg-stone-50 border-b border-stone-200/20">
+<div class="flex flex-col">
+<h1 class="font-headline text-xl font-bold negative-tracking text-stone-900">Modo Simples</h1>
+<span class="custom-label tracking-widest">New Production Item</span>
+</div>
+<button class="flex items-center gap-2 px-3 py-1.5 bg-orange-100/50 text-orange-600 rounded-lg text-[11px] font-bold uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">grid_view</span>
+                    Bulk Mode
+                </button>
+</header>
+<form class="p-6 space-y-5">
+<!-- Row 1: Type & Qty -->
+<div class="flex gap-4">
+<div class="flex-1">
+<label class="custom-label block mb-1.5">Item Type</label>
+<div class="relative">
+<select class="norte-input appearance-none">
+<option>Banner Impressão</option>
+<option>Adesivo Vinil</option>
+<option>Placa Rígida</option>
+<option>Estrutura Metálica</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="w-24">
+<label class="custom-label block mb-1.5">Qty</label>
+<input class="norte-input text-center" type="number" value="1"/>
+</div>
+</div>
+<!-- Description -->
+<div>
+<label class="custom-label block mb-1.5">Description</label>
+<input class="norte-input" placeholder="Ex: Frontlit Exterior Billboard" type="text"/>
+</div>
+<!-- Dimensions Layout -->
+<div class="grid grid-cols-2 gap-6 p-4 bg-stone-100/50 rounded-xl">
+<!-- Visual Dimensions -->
+<div class="space-y-4 relative pl-4 border-l-4 border-orange-500">
+<h4 class="custom-label text-orange-600">Visual Dimensions</h4>
+<div>
+<label class="text-[9px] font-bold text-stone-400 uppercase mb-1 block">Width (mm)</label>
+<input class="norte-input !bg-white" type="text" value="1200"/>
+</div>
+<div>
+<label class="text-[9px] font-bold text-stone-400 uppercase mb-1 block">Height (mm)</label>
+<input class="norte-input !bg-white" type="text" value="2400"/>
+</div>
+</div>
+<!-- File Dimensions -->
+<div class="space-y-4 relative pl-4 border-l-4 border-stone-300">
+<h4 class="custom-label text-stone-500">File Dimensions</h4>
+<div>
+<label class="text-[9px] font-bold text-stone-400 uppercase mb-1 block">Width (mm)</label>
+<input class="norte-input !bg-white" type="text" value="1210"/>
+</div>
+<div>
+<label class="text-[9px] font-bold text-stone-400 uppercase mb-1 block">Height (mm)</label>
+<input class="norte-input !bg-white" type="text" value="2410"/>
+</div>
+</div>
+</div>
+<!-- Calculated Field -->
+<div class="flex items-center justify-between p-3 bg-stone-900 rounded-lg text-white">
+<span class="custom-label !text-stone-400">M2 Total (ReadOnly)</span>
+<span class="font-headline font-bold text-lg">2.92 m²</span>
+</div>
+<!-- Material & Finish -->
+<div class="flex gap-4">
+<div class="flex-1">
+<label class="custom-label block mb-1.5">Material</label>
+<input class="norte-input" type="text" value="PVC 510g"/>
+</div>
+<div class="flex-1">
+<label class="custom-label block mb-1.5">Finish</label>
+<input class="norte-input" type="text" value="Ilhós 20cm"/>
+</div>
+</div>
+<!-- Observations -->
+<div>
+<label class="custom-label block mb-1.5">Observations</label>
+<textarea class="norte-input resize-none" placeholder="Informações adicionais para produção..." rows="2"></textarea>
+</div>
+<!-- Footer Buttons -->
+<div class="pt-4 flex gap-3">
+<button class="flex-1 py-3 border border-stone-200 text-stone-600 font-bold rounded-lg hover:bg-stone-50 transition-all" type="button">
+                        CANCEL
+                    </button>
+<button class="flex-[2] py-3 bg-[#1c1917] text-white font-bold rounded-lg hover:bg-stone-800 transition-all" type="submit">
+                        SUBMIT ITEM
+                    </button>
+</div>
+</form>
+</div>
+</div>
+</body></html>

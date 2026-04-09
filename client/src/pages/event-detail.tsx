@@ -664,52 +664,43 @@ export default function EventDetail() {
                 setOpen(true);
               }
             }}>
-              <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh]" : "sm:max-w-lg max-h-[90vh] overflow-y-auto"}>
-                <DialogHeader style={{ borderBottom: "1px solid #e7e5e4", paddingBottom: "16px", marginBottom: "4px" }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      {editingItem && (
-                        <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0" style={{ backgroundColor: "#fff7ed" }}>
-                          <Pencil className="h-4 w-4" style={{ color: "#f97316" }} />
-                        </div>
-                      )}
-                      <div>
-                        <DialogTitle className="text-base font-bold" style={{ color: "#1c1917" }}>
-                          {editingItem 
-                            ? "Editar Item" 
-                            : (bulkMode ? "Entrada Rápida - Múltiplos Itens" : "Adicionar Item ao Evento")
-                          }
-                        </DialogTitle>
-                        <DialogDescription className="text-xs mt-0.5" style={{ color: "#a8a29e" }}>
-                          {editingItem
-                            ? "Atualize as informações do item"
-                            : (bulkMode ? "Adicione vários itens de uma vez usando a tabela" : "Preencha as informações do item gráfico")
-                          }
-                        </DialogDescription>
-                      </div>
-                    </div>
-                    {!editingItem && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setBulkMode(!bulkMode)}
-                        data-testid="button-toggle-mode"
-                      >
-                        {bulkMode ? (
-                          <>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Modo Simples
-                          </>
-                        ) : (
-                          <>
-                            <List className="h-4 w-4 mr-2" />
-                            Entrada Rápida
-                          </>
-                        )}
-                      </Button>
-                    )}
+              <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh] p-0 overflow-hidden gap-0" : "sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0"}>
+                {/* HEADER */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', backgroundColor: '#f9f9f8', borderBottom: '1px solid rgba(231,229,228,0.5)' }}>
+                  <div>
+                    <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
+                      {editingItem ? "Editar Item" : (bulkMode ? "Entrada Rápida" : "Novo Item")}
+                    </DialogTitle>
+                    <DialogDescription style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', marginTop: '2px' }}>
+                      {editingItem ? "Editar item de produção" : (bulkMode ? "Modo Lote — NORTE Apex" : "Item de Produção Gráfica")}
+                    </DialogDescription>
                   </div>
-                </DialogHeader>
+                  {!editingItem && (
+                    bulkMode ? (
+                      <button
+                        onClick={() => setBulkMode(false)}
+                        data-testid="button-toggle-mode"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'rgba(231,229,228,0.6)', color: '#57534e', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', transition: 'background-color 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e7e5e4')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(231,229,228,0.6)')}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Modo Simples
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setBulkMode(true)}
+                        data-testid="button-toggle-mode"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'rgba(255,237,213,0.6)', color: '#ea580c', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', transition: 'background-color 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fed7aa')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,237,213,0.6)')}
+                      >
+                        <List className="h-3.5 w-3.5" />
+                        Entrada Rápida
+                      </button>
+                    )
+                  )}
+                </div>
                 
                 {bulkMode && !editingItem ? (
                   <div className="overflow-y-auto -mx-6 px-6">
@@ -727,294 +718,184 @@ export default function EventDetail() {
                   />
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmit} className="flex flex-col gap-0">
-                    {/* Corpo com scroll */}
-                    <div className="flex flex-col gap-4 py-4">
+                  <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
+                    {/* Corpo */}
+                    <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
 
-                      {/* Tipo de Item — largura total */}
-                      <div className="space-y-1.5">
-                        <Label htmlFor="type" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Tipo de Item</Label>
-                        <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              aria-expanded={typePopoverOpen}
-                              className="w-full justify-between font-normal text-sm"
-                              style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
-                              data-testid="select-item-type"
-                            >
-                              <span className="truncate">
-                                {formData.type || "Selecione o tipo"}
-                              </span>
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" style={{ color: "#a8a29e" }} />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-full p-0" align="start">
-                            <Command>
-                              <CommandInput 
-                                placeholder="Buscar ou adicionar tipo..." 
-                                value={customTypeInput}
-                                onValueChange={setCustomTypeInput}
-                              />
-                              <CommandList>
-                                <CommandEmpty>
-                                  <div className="p-2 space-y-2">
-                                    <p className="text-sm text-muted-foreground">Nenhum tipo encontrado.</p>
-                                    {customTypeInput && (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        className="w-full"
-                                        onClick={() => {
-                                          setFormData({ ...formData, type: customTypeInput });
-                                          setCustomTypeInput("");
-                                          setTypePopoverOpen(false);
-                                        }}
-                                      >
-                                        <Plus className="h-3 w-3 mr-1" />
-                                        Adicionar "{customTypeInput}"
-                                      </Button>
-                                    )}
-                                  </div>
-                                </CommandEmpty>
-                                {standardItems.length > 0 && (
-                                  <CommandGroup heading="Modelos">
-                                    {standardItems.map((item: any) => (
-                                      <CommandItem
-                                        key={item.id}
-                                        value={item.name}
-                                        onSelect={() => {
-                                          setFormData({
-                                            ...formData,
-                                            type: item.name,
-                                            visualWidth: item.visualWidth ? String(item.visualWidth) : (item.area ? String(item.area) : ""),
-                                            visualHeight: item.visualHeight ? String(item.visualHeight) : (item.visual ? String(item.visual) : ""),
-                                            fileWidth: item.fileWidth ? String(item.fileWidth) : "",
-                                            fileHeight: item.fileHeight ? String(item.fileHeight) : "",
-                                            material: item.material || "",
-                                            finish: item.finish || "",
-                                            measurement: (item.visualWidth && item.visualHeight) ? `${item.visualWidth} × ${item.visualHeight}` : (item.area && item.visual ? `${item.area} × ${item.visual}` : ""),
-                                          });
-                                          setCustomTypeInput("");
-                                          setTypePopoverOpen(false);
-                                        }}
-                                      >
-                                        <Check className={cn("mr-2 h-4 w-4", formData.type === item.name ? "opacity-100" : "opacity-0")} />
-                                        {item.name}
+                      {/* LINHA 1: Tipo + Quantidade lado a lado */}
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
+                        {/* Tipo de Item — flex-1 */}
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Tipo de Item</label>
+                          <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                role="combobox"
+                                aria-expanded={typePopoverOpen}
+                                data-testid="select-item-type"
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.type ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                              >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.type || "Selecione o tipo"}</span>
+                                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-full p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Buscar ou adicionar tipo..." value={customTypeInput} onValueChange={setCustomTypeInput} />
+                                <CommandList>
+                                  <CommandEmpty>
+                                    <div className="p-2 space-y-2">
+                                      <p className="text-sm text-muted-foreground">Nenhum tipo encontrado.</p>
+                                      {customTypeInput && (
+                                        <Button type="button" size="sm" className="w-full" onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
+                                          <Plus className="h-3 w-3 mr-1" /> Adicionar "{customTypeInput}"
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </CommandEmpty>
+                                  {standardItems.length > 0 && (
+                                    <CommandGroup heading="Modelos">
+                                      {standardItems.map((item: any) => (
+                                        <CommandItem key={item.id} value={item.name} onSelect={() => {
+                                          setFormData({ ...formData, type: item.name, visualWidth: item.visualWidth ? String(item.visualWidth) : (item.area ? String(item.area) : ""), visualHeight: item.visualHeight ? String(item.visualHeight) : (item.visual ? String(item.visual) : ""), fileWidth: item.fileWidth ? String(item.fileWidth) : "", fileHeight: item.fileHeight ? String(item.fileHeight) : "", material: item.material || "", finish: item.finish || "", measurement: (item.visualWidth && item.visualHeight) ? `${item.visualWidth} × ${item.visualHeight}` : (item.area && item.visual ? `${item.area} × ${item.visual}` : "") });
+                                          setCustomTypeInput(""); setTypePopoverOpen(false);
+                                        }}>
+                                          <Check className={cn("mr-2 h-4 w-4", formData.type === item.name ? "opacity-100" : "opacity-0")} />
+                                          {item.name}
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  )}
+                                  <CommandGroup heading="Outros Tipos">
+                                    {itemTypes.map((type) => (
+                                      <CommandItem key={type} value={type} onSelect={() => { setFormData({ ...formData, type }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
+                                        <Check className={cn("mr-2 h-4 w-4", formData.type === type ? "opacity-100" : "opacity-0")} />
+                                        {type}
                                       </CommandItem>
                                     ))}
                                   </CommandGroup>
-                                )}
-                                <CommandGroup heading="Outros Tipos">
-                                  {itemTypes.map((type) => (
-                                    <CommandItem
-                                      key={type}
-                                      value={type}
-                                      onSelect={() => {
-                                        setFormData({ ...formData, type });
-                                        setCustomTypeInput("");
-                                        setTypePopoverOpen(false);
-                                      }}
-                                    >
-                                      <Check className={cn("mr-2 h-4 w-4", formData.type === type ? "opacity-100" : "opacity-0")} />
-                                      {type}
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-
-                      {/* Descrição — largura total */}
-                      <div className="space-y-1.5">
-                        <Label htmlFor="description" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Descrição <span style={{ color: "#a8a29e", fontWeight: 400 }}>(opcional)</span></Label>
-                        <Input
-                          id="description"
-                          value={formData.description}
-                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                          placeholder="Descrição personalizada do item"
-                          className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                          style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
-                          data-testid="input-description"
-                        />
-                      </div>
-
-                      {/* Quantidade | m² Preview — 2 colunas */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="quantity" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Quantidade</Label>
-                          <Input
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        {/* Quantidade — fixo 96px */}
+                        <div style={{ width: '96px' }}>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Qtd</label>
+                          <input
                             id="quantity"
                             type="number"
                             min="1"
                             value={formData.quantity}
                             onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
                             required
-                            className="text-sm focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                            style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
                             data-testid="input-quantity"
+                            style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', fontSize: '14px', color: '#1a1c1c', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none' }}
+                            onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
+                            onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                           />
                         </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-sm font-semibold" style={{ color: "#1c1917" }}>m² Total</Label>
-                          <div className="flex items-center h-9 px-3 rounded-md text-sm font-semibold tabular-nums" style={{ backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#a8a29e" }}>
-                            {formData.fileWidth && formData.fileHeight && formData.quantity
-                              ? (formData.quantity * parseFloat(formData.fileWidth || "0") * parseFloat(formData.fileHeight || "0")).toFixed(2) + " m²"
-                              : "—"
-                            }
-                          </div>
-                        </div>
                       </div>
 
-                      {/* Seção Dimensões Visuais */}
-                      <div className="rounded-lg p-3 space-y-3" style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4" }}>
-                        <div className="flex items-center gap-2">
-                          <div className="h-2.5 w-0.5 rounded-full" style={{ backgroundColor: "#f97316" }}></div>
-                          <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#78716c" }}>Dimensões Visuais (m)</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="visualWidth" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Largura *</Label>
-                            <Input
-                              id="visualWidth"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.visualWidth}
-                              onChange={(e) => setFormData({ ...formData, visualWidth: e.target.value })}
-                              placeholder="Ex: 2.00"
-                              required
-                              className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                              style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
-                              data-testid="input-visual-width"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="visualHeight" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Altura *</Label>
-                            <Input
-                              id="visualHeight"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.visualHeight}
-                              onChange={(e) => setFormData({ ...formData, visualHeight: e.target.value })}
-                              placeholder="Ex: 1.00"
-                              required
-                              className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                              style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
-                              data-testid="input-visual-height"
-                            />
-                          </div>
-                        </div>
+                      {/* Descrição */}
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Descrição <span style={{ color: '#c9c4c0', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
+                        <input
+                          id="description"
+                          type="text"
+                          value={formData.description}
+                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                          placeholder="Ex: Banner Frontlit Entrada Principal"
+                          data-testid="input-description"
+                          style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                          onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
+                          onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
+                        />
                       </div>
 
-                      {/* Seção Dimensões Arquivo */}
-                      <div className="rounded-lg p-3 space-y-3" style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4" }}>
-                        <div className="flex items-center gap-2">
-                          <div className="h-2.5 w-0.5 rounded-full" style={{ backgroundColor: "#78716c" }}></div>
-                          <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "#78716c" }}>Dimensões Arquivo (m)</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="fileWidth" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Largura *</Label>
-                            <Input
-                              id="fileWidth"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.fileWidth}
-                              onChange={(e) => setFormData({ ...formData, fileWidth: e.target.value })}
-                              placeholder="Ex: 1.90"
-                              required
-                              className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                              style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
-                              data-testid="input-file-width"
+                      {/* Bloco dimensões: grid 2 colunas dentro de container */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', padding: '16px', backgroundColor: 'rgba(240,239,238,0.5)', borderRadius: '12px' }}>
+                        {/* Dimensões Visuais */}
+                        <div style={{ paddingLeft: '16px', borderLeft: '4px solid #f97316', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f97316' }}>Dimensões Visuais (m)</span>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a8a29e' }}>Largura</label>
+                            <input id="visualWidth" type="number" step="0.01" min="0" value={formData.visualWidth} onChange={e => setFormData({ ...formData, visualWidth: e.target.value })} placeholder="Ex: 2.00" required data-testid="input-visual-width"
+                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                              onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.20)')}
+                              onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                             />
                           </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="fileHeight" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Altura *</Label>
-                            <Input
-                              id="fileHeight"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.fileHeight}
-                              onChange={(e) => setFormData({ ...formData, fileHeight: e.target.value })}
-                              placeholder="Ex: 0.90"
-                              required
-                              className="text-sm bg-white focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                              style={{ borderColor: "#e7e5e4", color: "#1c1917" }}
-                              data-testid="input-file-height"
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a8a29e' }}>Altura</label>
+                            <input id="visualHeight" type="number" step="0.01" min="0" value={formData.visualHeight} onChange={e => setFormData({ ...formData, visualHeight: e.target.value })} placeholder="Ex: 1.00" required data-testid="input-visual-height"
+                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                              onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.20)')}
+                              onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
+                            />
+                          </div>
+                        </div>
+                        {/* Dimensões Arquivo */}
+                        <div style={{ paddingLeft: '16px', borderLeft: '4px solid #d6d3d1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c' }}>Dimensões Arquivo (m)</span>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a8a29e' }}>Largura</label>
+                            <input id="fileWidth" type="number" step="0.01" min="0" value={formData.fileWidth} onChange={e => setFormData({ ...formData, fileWidth: e.target.value })} placeholder="Ex: 1.90" required data-testid="input-file-width"
+                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                              onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(120,113,108,0.15)')}
+                              onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a8a29e' }}>Altura</label>
+                            <input id="fileHeight" type="number" step="0.01" min="0" value={formData.fileHeight} onChange={e => setFormData({ ...formData, fileHeight: e.target.value })} placeholder="Ex: 0.90" required data-testid="input-file-height"
+                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                              onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(120,113,108,0.15)')}
+                              onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                             />
                           </div>
                         </div>
                       </div>
 
-                      {/* Material | Acabamento — 2 colunas */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="material" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Material</Label>
+                      {/* Barra M² Total — dark */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#1c1917', borderRadius: '10px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c' }}>M² Total (calculado)</span>
+                        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', fontSize: '18px', color: formData.fileWidth && formData.fileHeight ? '#fff' : '#57534e' }}>
+                          {formData.fileWidth && formData.fileHeight && formData.quantity
+                            ? (formData.quantity * parseFloat(formData.fileWidth || "0") * parseFloat(formData.fileHeight || "0")).toFixed(2) + " m²"
+                            : "—"
+                          }
+                        </span>
+                      </div>
+
+                      {/* Material | Acabamento */}
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Material</label>
                           <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
                             <PopoverTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                role="combobox"
-                                aria-expanded={materialPopoverOpen}
-                                className="w-full justify-between font-normal text-sm"
-                                style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
-                                data-testid="select-material"
+                              <button type="button" role="combobox" data-testid="select-material"
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.material ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
-                                <span className="truncate">
-                                  {formData.material || "Material"}
-                                </span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" style={{ color: "#a8a29e" }} />
-                              </Button>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.material || "Selecionar"}</span>
+                                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
+                              </button>
                             </PopoverTrigger>
                             <PopoverContent className="w-full p-0" align="start">
                               <Command>
-                                <CommandInput 
-                                  placeholder="Buscar ou adicionar..." 
-                                  value={customMaterialInput}
-                                  onValueChange={setCustomMaterialInput}
-                                />
+                                <CommandInput placeholder="Buscar ou adicionar..." value={customMaterialInput} onValueChange={setCustomMaterialInput} />
                                 <CommandList>
                                   <CommandEmpty>
                                     <div className="p-2 space-y-2">
                                       <p className="text-sm text-muted-foreground">Nenhum material encontrado.</p>
-                                      {customMaterialInput && (
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          className="w-full"
-                                          onClick={() => {
-                                            setFormData({ ...formData, material: customMaterialInput });
-                                            setCustomMaterialInput("");
-                                            setMaterialPopoverOpen(false);
-                                          }}
-                                        >
-                                          <Plus className="h-3 w-3 mr-1" />
-                                          Adicionar "{customMaterialInput}"
-                                        </Button>
-                                      )}
+                                      {customMaterialInput && <Button type="button" size="sm" className="w-full" onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}><Plus className="h-3 w-3 mr-1" /> Adicionar "{customMaterialInput}"</Button>}
                                     </div>
                                   </CommandEmpty>
                                   <CommandGroup>
-                                    {materials.map((material) => (
-                                      <CommandItem
-                                        key={material}
-                                        value={material}
-                                        onSelect={() => {
-                                          setFormData({ ...formData, material });
-                                          setCustomMaterialInput("");
-                                          setMaterialPopoverOpen(false);
-                                        }}
-                                      >
-                                        <Check className={cn("mr-2 h-4 w-4", formData.material === material ? "opacity-100" : "opacity-0")} />
-                                        {material}
+                                    {materials.map(material => (
+                                      <CommandItem key={material} value={material} onSelect={() => { setFormData({ ...formData, material }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
+                                        <Check className={cn("mr-2 h-4 w-4", formData.material === material ? "opacity-100" : "opacity-0")} />{material}
                                       </CommandItem>
                                     ))}
                                   </CommandGroup>
@@ -1023,66 +904,31 @@ export default function EventDetail() {
                             </PopoverContent>
                           </Popover>
                         </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="finish" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Acabamento</Label>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Acabamento</label>
                           <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
                             <PopoverTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                role="combobox"
-                                aria-expanded={finishPopoverOpen}
-                                className="w-full justify-between font-normal text-sm"
-                                style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
-                                data-testid="select-finish"
+                              <button type="button" role="combobox" data-testid="select-finish"
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.finish ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
-                                <span className="truncate">
-                                  {formData.finish || "Acabamento"}
-                                </span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" style={{ color: "#a8a29e" }} />
-                              </Button>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.finish || "Selecionar"}</span>
+                                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
+                              </button>
                             </PopoverTrigger>
                             <PopoverContent className="w-full p-0" align="start">
                               <Command>
-                                <CommandInput 
-                                  placeholder="Buscar ou adicionar..." 
-                                  value={customFinishInput}
-                                  onValueChange={setCustomFinishInput}
-                                />
+                                <CommandInput placeholder="Buscar ou adicionar..." value={customFinishInput} onValueChange={setCustomFinishInput} />
                                 <CommandList>
                                   <CommandEmpty>
                                     <div className="p-2 space-y-2">
                                       <p className="text-sm text-muted-foreground">Nenhum acabamento encontrado.</p>
-                                      {customFinishInput && (
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          className="w-full"
-                                          onClick={() => {
-                                            setFormData({ ...formData, finish: customFinishInput });
-                                            setCustomFinishInput("");
-                                            setFinishPopoverOpen(false);
-                                          }}
-                                        >
-                                          <Plus className="h-3 w-3 mr-1" />
-                                          Adicionar "{customFinishInput}"
-                                        </Button>
-                                      )}
+                                      {customFinishInput && <Button type="button" size="sm" className="w-full" onClick={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}><Plus className="h-3 w-3 mr-1" /> Adicionar "{customFinishInput}"</Button>}
                                     </div>
                                   </CommandEmpty>
                                   <CommandGroup>
-                                    {finishes.map((finish) => (
-                                      <CommandItem
-                                        key={finish}
-                                        value={finish}
-                                        onSelect={() => {
-                                          setFormData({ ...formData, finish });
-                                          setCustomFinishInput("");
-                                          setFinishPopoverOpen(false);
-                                        }}
-                                      >
-                                        <Check className={cn("mr-2 h-4 w-4", formData.finish === finish ? "opacity-100" : "opacity-0")} />
-                                        {finish}
+                                    {finishes.map(finish => (
+                                      <CommandItem key={finish} value={finish} onSelect={() => { setFormData({ ...formData, finish }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
+                                        <Check className={cn("mr-2 h-4 w-4", formData.finish === finish ? "opacity-100" : "opacity-0")} />{finish}
                                       </CommandItem>
                                     ))}
                                   </CommandGroup>
@@ -1093,45 +939,47 @@ export default function EventDetail() {
                         </div>
                       </div>
 
-                      {/* Observações — largura total */}
-                      <div className="space-y-1.5">
-                        <Label htmlFor="observations" className="text-sm font-semibold" style={{ color: "#1c1917" }}>Observações <span style={{ color: "#a8a29e", fontWeight: 400 }}>(opcional)</span></Label>
-                        <Textarea
+                      {/* Observações */}
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Observações <span style={{ color: '#c9c4c0', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
+                        <textarea
                           id="observations"
                           value={formData.observations}
                           onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                          placeholder="Observações adicionais sobre este item..."
-                          rows={3}
-                          className="text-sm resize-y focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                          style={{ backgroundColor: "#fafaf9", borderColor: "#e7e5e4", color: "#1c1917" }}
+                          placeholder="Informações adicionais para produção..."
+                          rows={2}
                           data-testid="textarea-observations"
+                          style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+                          onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
+                          onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                         />
                       </div>
                     </div>
 
-                    {/* Rodapé fixo com border-t */}
-                    <div className="flex gap-2 justify-end pt-4" style={{ borderTop: "1px solid #e7e5e4" }}>
-                      <Button
+                    {/* Rodapé */}
+                    <div style={{ padding: '20px 32px', display: 'flex', gap: '12px' }}>
+                      <button
                         type="button"
-                        variant="outline"
                         onClick={handleCloseDialog}
-                        style={{ borderColor: "#e7e5e4", color: "#1c1917", backgroundColor: "#ffffff" }}
+                        style={{ flex: 1, padding: '12px', border: '1px solid #e7e5e4', borderRadius: '10px', backgroundColor: '#fff', color: '#57534e', fontWeight: '700', fontSize: '14px', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background-color 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9f9f8')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff')}
                       >
-                        Cancelar
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        disabled={createItemMutation.isPending || updateItemMutation.isPending} 
-                        style={{ backgroundColor: "#1c1917", color: "#ffffff" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#000000")}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#1c1917")}
+                        CANCELAR
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={createItemMutation.isPending || updateItemMutation.isPending}
+                        style={{ flex: 2, padding: '12px', border: 'none', borderRadius: '10px', backgroundColor: createItemMutation.isPending || updateItemMutation.isPending ? '#57534e' : '#1c1917', color: '#fff', fontWeight: '700', fontSize: '14px', cursor: createItemMutation.isPending || updateItemMutation.isPending ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background-color 0.15s' }}
+                        onMouseEnter={e => { if (!createItemMutation.isPending && !updateItemMutation.isPending) e.currentTarget.style.backgroundColor = '#f97316'; }}
+                        onMouseLeave={e => { if (!createItemMutation.isPending && !updateItemMutation.isPending) e.currentTarget.style.backgroundColor = '#1c1917'; }}
                         data-testid="button-submit-item"
                       >
                         {editingItem
-                          ? (updateItemMutation.isPending ? "Salvando..." : "Salvar Alterações")
-                          : (createItemMutation.isPending ? "Adicionando..." : "Adicionar Item")
+                          ? (updateItemMutation.isPending ? "SALVANDO..." : "SALVAR ALTERAÇÕES")
+                          : (createItemMutation.isPending ? "ADICIONANDO..." : "ADICIONAR ITEM")
                         }
-                      </Button>
+                      </button>
                     </div>
                   </form>
                 )}

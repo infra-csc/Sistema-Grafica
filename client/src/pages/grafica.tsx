@@ -36,21 +36,18 @@ const TI = {
 };
 
 const statusConfig: Record<string, { label: string; bg: string; color: string; border: string }> = {
+  draft:                  { label: "Rascunho",           bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
+  requested:              { label: "Solicitado",         bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
+  awaiting_linking:       { label: "Ag. Vinculação",     bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  awaiting_submission:    { label: "Ag. Envio",          bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  awaiting_approval:      { label: "Ag. Aprovação",      bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  awaiting_finalization:  { label: "Ag. Finalização",    bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  awaiting_final_review:  { label: "Ag. Revisão",        bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  ready_for_production:   { label: "Pronto p/ Prod.",    bg: "#ede9fe", color: "#6d28d9", border: "#c4b5fd" },
   approved:               { label: "Liberado",           bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
-  liberado:               { label: "Liberado",           bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
-  pronto_para_producao:   { label: "Pronto p/ Prod.",    bg: "#ede9fe", color: "#6d28d9", border: "#c4b5fd" },
   inProduction:           { label: "Em Produção",        bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
-  em_producao:            { label: "Em Produção",        bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
   produced:               { label: "Produzido",          bg: "#dcfce7", color: "#15803d", border: "#86efac" },
-  produzido:              { label: "Produzido",          bg: "#dcfce7", color: "#15803d", border: "#86efac" },
   delivered:              { label: "Entregue",           bg: "#f0fdf4", color: "#166534", border: "#6ee7b7" },
-  entregue:               { label: "Entregue",           bg: "#f0fdf4", color: "#166534", border: "#6ee7b7" },
-  solicitado:             { label: "Solicitado",         bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
-  aguardando_vinculacao:  { label: "Ag. Vinculação",     bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  aguardando_envio:       { label: "Ag. Envio",          bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  aguardando_aprovacao:   { label: "Ag. Aprovação",      bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  aguardando_finalizacao: { label: "Ag. Finalização",    bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  aguardando_revisao_final:{ label: "Ag. Revisão",       bg: "#fef9c3", color: "#a16207", border: "#fde047" },
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -171,10 +168,10 @@ export default function Grafica() {
 
   const itemsForEvent = eventFilter === "all" ? items : items.filter((i: any) => i.eventId === eventFilter);
   const stats = {
-    liberados:    (itemsForEvent as any[]).filter(i => i.status === 'approved' || i.status === 'liberado').length,
-    emProducao:   (itemsForEvent as any[]).filter(i => i.status === 'inProduction' || i.status === 'em_producao').length,
-    produzidos:   (itemsForEvent as any[]).filter(i => i.status === 'produced' || i.status === 'produzido').length,
-    entregues:    (itemsForEvent as any[]).filter(i => i.status === 'delivered' || i.status === 'entregue').length,
+    liberados:    (itemsForEvent as any[]).filter(i => i.status === 'approved' || i.status === 'ready_for_production').length,
+    emProducao:   (itemsForEvent as any[]).filter(i => i.status === 'inProduction').length,
+    produzidos:   (itemsForEvent as any[]).filter(i => i.status === 'produced').length,
+    entregues:    (itemsForEvent as any[]).filter(i => i.status === 'delivered').length,
     total:        itemsForEvent.length,
   };
 
@@ -302,6 +299,7 @@ export default function Grafica() {
           style={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, padding: "8px 12px", color: TI.text, outline: "none", cursor: "pointer" }}
         >
           <option value="all">Todos os status</option>
+          <option value="ready_for_production">Pronto p/ Produção</option>
           <option value="approved">Liberados</option>
           <option value="inProduction">Em Produção</option>
           <option value="produced">Produzidos</option>

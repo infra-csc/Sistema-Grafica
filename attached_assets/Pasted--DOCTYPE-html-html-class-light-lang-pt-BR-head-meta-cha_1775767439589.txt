@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE Production | Titanium Control</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#341100",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "secondary-fixed-dim": "#ffb690",
+                        "on-secondary": "#ffffff",
+                        "surface": "#f9f9f8",
+                        "on-tertiary-container": "#003554",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed": "#ffdbca",
+                        "on-error-container": "#93000a",
+                        "on-background": "#1a1c1c",
+                        "surface-tint": "#625d5b",
+                        "surface-variant": "#e2e2e2",
+                        "surface-dim": "#dadad9",
+                        "outline": "#8c7164",
+                        "on-primary-container": "#35322f",
+                        "surface-container-low": "#f3f4f3",
+                        "secondary": "#9d4300",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "on-surface": "#1a1c1c",
+                        "inverse-primary": "#ccc5c2",
+                        "background": "#f9f9f8",
+                        "surface-container": "#eeeeed",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed-variant": "#783200",
+                        "surface-bright": "#f9f9f8",
+                        "inverse-on-surface": "#f1f1f0",
+                        "primary-fixed": "#e9e1dd",
+                        "error-container": "#ffdad6",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-secondary-container": "#5c2400",
+                        "on-primary-fixed": "#1e1b19",
+                        "error": "#ba1a1a",
+                        "surface-container-high": "#e8e8e7",
+                        "primary": "#625d5b",
+                        "outline-variant": "#e0c0b1",
+                        "tertiary": "#006398",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "primary-container": "#9f9996",
+                        "tertiary-container": "#00a2f4",
+                        "on-tertiary-fixed": "#001d32",
+                        "on-surface-variant": "#584237",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#cde5ff",
+                        "secondary-container": "#fd761a",
+                        "inverse-surface": "#2f3130"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .negative-kerning { letter-spacing: -0.02em; }
+        .glass-card {
+            background: rgba(226, 226, 226, 0.6);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-50 bg-[#1c1917] shadow-[0_16px_32px_rgba(0,0,0,0.05)] flex justify-between items-center px-8 py-4 w-full">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-bold tracking-tighter text-[#f97316] italic font-['Space_Grotesk'] tracking-tight subpixel-antialiased">NORTE Production</span>
+<nav class="hidden md:flex items-center gap-6 font-['Space_Grotesk'] tracking-tight subpixel-antialiased">
+<a class="text-[#f97316] border-b-2 border-[#f97316] pb-1" href="#">Dashboard</a>
+<a class="text-stone-400 hover:text-stone-200 transition-all duration-200 ease-out" href="#">Workflows</a>
+<a class="text-stone-400 hover:text-stone-200 transition-all duration-200 ease-out" href="#">Inventory</a>
+<a class="text-stone-400 hover:text-stone-200 transition-all duration-200 ease-out" href="#">Archives</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-stone-400 hover:bg-stone-800/50 transition-all duration-200 ease-out rounded-full active:scale-95 duration-150">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-stone-400 hover:bg-stone-800/50 transition-all duration-200 ease-out rounded-full active:scale-95 duration-150">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-stone-700 overflow-hidden">
+<img alt="User profile" data-alt="Professional headshot of a production manager in a modern industrial setting with soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKmf5VuBohMIbcVDwtFeo31PExbUCOJXjawVNJkZ_n2QtqIZrRhLmOWxOloE0ezeQv_a0PinAKNKcLh_rRgqbPJjFJfe6TAiAtOOHwV9cBl2q6Pvcp5vg3hhGPWqGWrfEDaa6Xx6mFmCpqhg8oR4kQyzYd_LMpvJPVf0PHfQ2mNv7GHtYbSg-TBhYdBXXUf4V4nxfEMDUN-poboWENuHZCXdKbqWb_3kzuNQsT2pBFvGFntVgMKAh_WiDdYA5YzAhVKrY2MxcJ4S0U"/>
+</div>
+</div>
+</header>
+<div class="flex min-h-screen">
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 border-r-0 bg-[#f9f9f8] dark:bg-stone-900 flex flex-col h-full py-6 mt-16 z-40">
+<div class="px-6 mb-8">
+<h2 class="font-['Plus_Jakarta_Sans'] text-sm font-semibold text-stone-400 uppercase tracking-widest">Titanium Control</h2>
+<p class="text-[10px] text-stone-500 font-medium">Graphic Ops v2.4</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 bg-stone-200 dark:bg-stone-800 text-[#f97316] rounded-md px-4 py-3 ml-2 border-r-4 border-[#f97316] font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">precision_manufacturing</span>
+<span>Production Live</span>
+</a>
+<a class="flex items-center gap-3 text-stone-500 dark:text-stone-400 px-4 py-3 hover:bg-stone-100 dark:hover:bg-stone-800/40 hover:text-[#f97316] transition-colors duration-200 font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined">insights</span>
+<span>KPI Analytics</span>
+</a>
+<a class="flex items-center gap-3 text-stone-500 dark:text-stone-400 px-4 py-3 hover:bg-stone-100 dark:hover:bg-stone-800/40 hover:text-[#f97316] transition-colors duration-200 font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined">layers</span>
+<span>Event Groups</span>
+</a>
+<a class="flex items-center gap-3 text-stone-500 dark:text-stone-400 px-4 py-3 hover:bg-stone-100 dark:hover:bg-stone-800/40 hover:text-[#f97316] transition-colors duration-200 font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+<span>Delivery Logs</span>
+</a>
+<a class="flex items-center gap-3 text-stone-500 dark:text-stone-400 px-4 py-3 hover:bg-stone-100 dark:hover:bg-stone-800/40 hover:text-[#f97316] transition-colors duration-200 font-['Plus_Jakarta_Sans'] text-sm font-semibold" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span>Team Access</span>
+</a>
+</nav>
+<div class="px-4 mt-auto space-y-4">
+<button class="w-full bg-secondary text-on-secondary py-3 rounded-md font-semibold text-sm hover:brightness-105 transition-all active:scale-95">
+                    New Production
+                </button>
+<div class="pt-4 border-t border-stone-200 dark:border-stone-800">
+<a class="flex items-center gap-3 text-stone-500 dark:text-stone-400 px-4 py-2 hover:text-[#f97316] transition-colors text-xs font-semibold" href="#">
+<span class="material-symbols-outlined text-lg">help</span>
+<span>Support</span>
+</a>
+<a class="flex items-center gap-3 text-stone-500 dark:text-stone-400 px-4 py-2 hover:text-[#f97316] transition-colors text-xs font-semibold" href="#">
+<span class="material-symbols-outlined text-lg text-green-500" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span>System Status</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 ml-64 p-8 bg-surface">
+<!-- Header Section -->
+<div class="flex justify-between items-end mb-10">
+<div>
+<h1 class="text-4xl font-headline font-bold negative-kerning text-on-surface">Controle de Produção</h1>
+<p class="text-primary font-medium mt-1">Gestão de ativos gráficos em tempo real</p>
+</div>
+<div class="flex items-center gap-3 bg-stone-100 px-4 py-2 rounded-lg">
+<div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+<span class="text-xs font-bold uppercase tracking-widest text-stone-600">Global Status: Operacional</span>
+</div>
+</div>
+<!-- KPI Strip -->
+<div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+<div class="bg-surface-container-lowest p-5 rounded-lg border-l-4 border-tertiary shadow-sm">
+<span class="text-xs font-bold text-stone-400 uppercase font-headline">Liberados</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-3xl font-headline font-bold">142</span>
+<span class="text-xs text-stone-500 font-medium">+12%</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-lg border-l-4 border-secondary shadow-sm">
+<span class="text-xs font-bold text-stone-400 uppercase font-headline">Em Produção</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-3xl font-headline font-bold">84</span>
+<span class="text-xs text-stone-500 font-medium">Ativo</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-lg border-l-4 border-green-600 shadow-sm">
+<span class="text-xs font-bold text-stone-400 uppercase font-headline">Produzidos</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-3xl font-headline font-bold">2,410</span>
+<span class="text-xs text-green-600 font-bold">94%</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-lg border-l-4 border-blue-500 shadow-sm">
+<span class="text-xs font-bold text-stone-400 uppercase font-headline">Entregues</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-3xl font-headline font-bold">1,980</span>
+<span class="material-symbols-outlined text-blue-500 text-lg">local_shipping</span>
+</div>
+</div>
+<div class="bg-[#1c1917] p-5 rounded-lg border-l-4 border-[#f97316] shadow-xl">
+<span class="text-xs font-bold text-stone-500 uppercase font-headline">Total Geral</span>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-3xl font-headline font-bold text-white tracking-tighter">4,616</span>
+</div>
+</div>
+</div>
+<!-- Filters Bar -->
+<div class="bg-surface-container-low p-4 rounded-xl mb-6 flex flex-wrap items-center gap-4">
+<div class="relative flex-1 min-w-[200px]">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">search</span>
+<input class="w-full bg-surface-container-high border-none rounded-md pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-secondary/20" placeholder="Buscar por ID ou Descrição..." type="text"/>
+</div>
+<select class="bg-surface-container-high border-none rounded-md text-sm py-2 px-4 focus:ring-2 focus:ring-secondary/20">
+<option>Todos os Eventos</option>
+<option>Grand Slam 2024</option>
+<option>Copa Continental</option>
+</select>
+<select class="bg-surface-container-high border-none rounded-md text-sm py-2 px-4 focus:ring-2 focus:ring-secondary/20">
+<option>Todos Status</option>
+<option>Em Produção</option>
+<option>Concluído</option>
+</select>
+<select class="bg-surface-container-high border-none rounded-md text-sm py-2 px-4 focus:ring-2 focus:ring-secondary/20">
+<option>Mês Atual</option>
+<option>Janeiro</option>
+<option>Fevereiro</option>
+</select>
+<div class="flex items-center gap-3 ml-2 border-l border-stone-300 pl-4">
+<span class="text-xs font-bold uppercase text-stone-500">Próximos 10 dias</span>
+<button class="w-10 h-5 bg-secondary rounded-full relative">
+<div class="absolute right-1 top-1 w-3 h-3 bg-white rounded-full"></div>
+</button>
+</div>
+</div>
+<!-- Main Table -->
+<div class="bg-surface-container-lowest rounded-lg overflow-hidden shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead class="bg-[#1c1917] text-stone-300 text-[10px] uppercase tracking-widest font-headline">
+<tr>
+<th class="px-6 py-4">ID</th>
+<th class="px-6 py-4">Descrição</th>
+<th class="px-6 py-4">QTD</th>
+<th class="px-6 py-4">PROD</th>
+<th class="px-6 py-4">Dimensões (V x A)</th>
+<th class="px-6 py-4">M²</th>
+<th class="px-6 py-4">Material</th>
+<th class="px-6 py-4">Status</th>
+<th class="px-6 py-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="text-sm font-medium">
+<!-- Event Group Header -->
+<tr class="bg-stone-800 text-white">
+<td class="px-6 py-2" colspan="9">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-lg">event</span>
+<span class="font-headline font-bold uppercase tracking-tight">GRAND SLAM 2024 - ESTÁDIO NACIONAL</span>
+</div>
+</td>
+</tr>
+<!-- Sub-Type Header -->
+<tr class="bg-stone-200 text-stone-600">
+<td class="px-6 py-1 text-[11px] font-bold uppercase tracking-wider" colspan="9">Lona Frontlight - Área Externa</td>
+</tr>
+<!-- Table Rows -->
+<tr class="border-b border-stone-100 hover:bg-stone-50 transition-colors">
+<td class="px-6 py-4 font-mono text-[#f97316] font-bold">#GS-4021</td>
+<td class="px-6 py-4 text-on-surface">Banner Pórtico Entrada A</td>
+<td class="px-6 py-4">02</td>
+<td class="px-6 py-4">00</td>
+<td class="px-6 py-4 text-stone-500">12.00 x 3.50</td>
+<td class="px-6 py-4 text-stone-500">84.00</td>
+<td class="px-6 py-4">Lona 440g</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 bg-tertiary/10 text-tertiary rounded-full text-[10px] font-bold uppercase">Liberado</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-stone-400 hover:text-secondary transition-colors"><span class="material-symbols-outlined">play_circle</span></button>
+</td>
+</tr>
+<tr class="border-b border-stone-100 hover:bg-stone-50 transition-colors">
+<td class="px-6 py-4 font-mono text-[#f97316] font-bold">#GS-4022</td>
+<td class="px-6 py-4 text-on-surface">Painel Fundo de Quadra central</td>
+<td class="px-6 py-4">01</td>
+<td class="px-6 py-4">01</td>
+<td class="px-6 py-4 text-stone-500">24.00 x 2.00</td>
+<td class="px-6 py-4 text-stone-500">48.00</td>
+<td class="px-6 py-4">Lona Mesh</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-bold uppercase">Em Produção</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-stone-400 hover:text-secondary transition-colors"><span class="material-symbols-outlined">local_shipping</span></button>
+</td>
+</tr>
+<tr class="border-b border-stone-100 hover:bg-stone-50 transition-colors">
+<td class="px-6 py-4 font-mono text-[#f97316] font-bold">#GS-4025</td>
+<td class="px-6 py-4 text-on-surface">Sinalização Acesso VIP 02</td>
+<td class="px-6 py-4">15</td>
+<td class="px-6 py-4">15</td>
+<td class="px-6 py-4 text-stone-500">0.60 x 0.80</td>
+<td class="px-6 py-4 text-stone-500">7.20</td>
+<td class="px-6 py-4">PVC 2mm</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 bg-green-600/10 text-green-600 rounded-full text-[10px] font-bold uppercase">Concluído</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="text-stone-400 hover:text-green-600 transition-colors"><span class="material-symbols-outlined">check_circle</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</main>
+</div>
+<!-- Modals (Hidden Layer) -->
+<!-- Start Production Modal Overlay -->
+<div class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+<div class="bg-surface w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
+<div class="bg-[#1c1917] p-6 text-white flex justify-between items-center">
+<h3 class="font-headline font-bold text-xl negative-kerning uppercase">Iniciar Produção</h3>
+<button class="text-stone-400 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+</div>
+<div class="p-6">
+<div class="glass-card p-4 rounded-lg border border-stone-200 mb-6">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-bold text-secondary uppercase">OS #GS-4021</span>
+<span class="text-[10px] font-bold text-stone-500 uppercase">Aguardando</span>
+</div>
+<p class="font-bold text-on-surface">Banner Pórtico Entrada A</p>
+<p class="text-xs text-stone-500 mt-1">Lona 440g | 12.00 x 3.50m</p>
+</div>
+<div class="space-y-4">
+<div>
+<label class="block text-[10px] font-bold uppercase text-stone-500 mb-2">Quantidade a Produzir</label>
+<div class="flex items-center gap-3">
+<input class="flex-1 bg-surface-container border-none rounded-md py-3 text-center font-bold focus:ring-2 focus:ring-secondary/20" type="number" value="2"/>
+<span class="text-stone-400 font-bold text-sm">/ 02 TOTAL</span>
+</div>
+</div>
+<div class="pt-4 flex gap-3">
+<button class="flex-1 border border-stone-200 text-stone-600 py-3 rounded-md font-bold text-sm hover:bg-stone-50 transition-all">Cancelar</button>
+<button class="flex-1 bg-secondary text-on-secondary py-3 rounded-md font-bold text-sm hover:brightness-110 shadow-lg shadow-secondary/20 transition-all">Confirmar Início</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Confirm Delivery Modal (Floating Example Position) -->
+<div class="fixed bottom-8 right-8 w-96 bg-surface rounded-xl shadow-2xl border border-stone-200 overflow-hidden hidden">
+<div class="bg-[#1c1917] p-4 text-white flex justify-between items-center">
+<h3 class="font-headline font-bold text-sm negative-kerning uppercase">Confirmar Entrega</h3>
+<button class="text-stone-400 hover:text-white"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+<div class="p-5">
+<div class="mb-4">
+<label class="block text-[10px] font-bold uppercase text-stone-500 mb-2">Responsável pelo Recebimento</label>
+<input class="w-full bg-surface-container border-none rounded-md py-2 text-sm focus:ring-2 focus:ring-secondary/20" placeholder="Nome completo" type="text"/>
+</div>
+<div class="mb-5">
+<label class="block text-[10px] font-bold uppercase text-stone-500 mb-2">Comprovante Fotográfico</label>
+<div class="border-2 border-dashed border-stone-300 rounded-lg p-6 flex flex-col items-center justify-center bg-stone-50 hover:bg-stone-100 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-stone-400 text-3xl mb-2">add_a_photo</span>
+<span class="text-[10px] font-bold text-stone-500 uppercase">Anexar foto da entrega</span>
+</div>
+</div>
+<button class="w-full bg-blue-600 text-white py-3 rounded-md font-bold text-sm hover:bg-blue-700 transition-all">Finalizar Logística</button>
+</div>
+</div>
+</body></html>

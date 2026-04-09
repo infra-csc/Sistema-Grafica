@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import {
   Calendar, ClipboardList, Package, Building2, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
-  FileImage, FolderOpen, ExternalLink, Factory,
+  FileImage, FolderOpen, ExternalLink, Factory, Camera, Clock, ShieldCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -184,6 +184,13 @@ export function ItemDetailsDialog({
                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
               }}>Reprovado Criador</span>
             )}
+            {item.skipApproval && (
+              <span style={{
+                padding: "5px 14px", borderRadius: 999,
+                backgroundColor: "#f0f9ff", border: "1px solid #bae6fd", color: "#0284c7",
+                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+              }}>Aprovação Ignorada</span>
+            )}
           </div>
 
           {/* ── Timeline ── */}
@@ -305,29 +312,68 @@ export function ItemDetailsDialog({
               {/* Sponsors */}
               {item.sponsors && item.sponsors.length > 0 && (
                 <div>
-                  <h3 style={{ fontSize: 10, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.09em", margin: "0 0 14px 0" }}>
-                    Patrocinadores Confirmados
-                  </h3>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    {item.sponsors.map((s: any) => (
-                      <div key={s.id} style={{
-                        backgroundColor: "#e8e8e7", padding: "8px 14px",
-                        borderRadius: 6, display: "flex", alignItems: "center", gap: 10,
-                      }}>
-                        <div style={{
-                          width: 28, height: 28, borderRadius: 4,
-                          backgroundColor: s.color || "#1c1917",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          flexShrink: 0,
-                        }}>
-                          <span style={{ color: "#ffffff", fontSize: 11, fontWeight: 700 }}>
-                            {(s.name || "?")[0].toUpperCase()}
-                          </span>
-                        </div>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }}>{s.name}</span>
-                      </div>
-                    ))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                    <ShieldCheck style={{ width: 16, height: 16, color: "#f97316" }} />
+                    <h3 style={{ fontSize: 10, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.09em", margin: 0 }}>
+                      Patrocinadores Vinculados
+                    </h3>
                   </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {item.sponsors.map((s: any) => {
+                      const approval = item.sponsorApprovals?.find((a: any) => a.sponsorId === s.id);
+                      const isApproved = approval?.approved === true;
+                      const isRejected = approval?.approved === false;
+                      return (
+                        <div key={s.id} style={{
+                          border: "1px solid #e7e5e4", borderRadius: 6,
+                          padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{
+                              width: 30, height: 30, borderRadius: 4,
+                              backgroundColor: s.color || "#1c1917",
+                              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                            }}>
+                              <span style={{ color: "#ffffff", fontSize: 12, fontWeight: 700 }}>
+                                {(s.name || "?")[0].toUpperCase()}
+                              </span>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", display: "block" }}>{s.name}</span>
+                              {approval?.approvedAt && (
+                                <span style={{ fontSize: 10, color: "#78716c" }}>
+                                  {format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+                                  {approval.approvedBy ? ` · ${approval.approvedBy}` : ""}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {isApproved ? (
+                            <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", backgroundColor: "#f0fdf4", color: "#16a34a", border: "1px solid #dcfce7", borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap" }}>
+                              Aprovado
+                            </span>
+                          ) : isRejected ? (
+                            <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca", borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap" }}>
+                              Reprovado
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap" }}>
+                              Aguardando
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Aprovação geral pelo patrocinador */}
+                  {item.sponsorApprovedBy && item.sponsorApprovedAt && (
+                    <div style={{ marginTop: 10, padding: "8px 12px", backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                      <CheckCircle style={{ width: 14, height: 14, color: "#16a34a", flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: "#14532d", fontWeight: 600 }}>
+                        Aprovado por <strong>{item.sponsorApprovedBy}</strong> em {format(new Date(item.sponsorApprovedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -536,6 +582,87 @@ export function ItemDetailsDialog({
               </table>
             </div>
           </section>
+
+          {/* ── Delivery photo ── */}
+          {item.deliveryPhotoUrl && (
+            <section>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <Camera style={{ width: 20, height: 20, color: "#f97316" }} />
+                <h2 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 15, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
+                }}>Foto de Entrega</h2>
+              </div>
+              <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e7e5e4", position: "relative", display: "inline-block", width: "100%" }}>
+                <img
+                  src={item.deliveryPhotoUrl}
+                  alt="Foto de entrega"
+                  style={{ width: "100%", maxHeight: 320, objectFit: "cover", display: "block" }}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+                <a
+                  href={item.deliveryPhotoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    position: "absolute", bottom: 12, right: 12,
+                    backgroundColor: "rgba(0,0,0,0.6)", color: "#ffffff",
+                    padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
+                  }}
+                >
+                  <ExternalLink style={{ width: 12, height: 12 }} />
+                  Ver original
+                </a>
+              </div>
+            </section>
+          )}
+
+          {/* ── Rastreabilidade de Datas ── */}
+          {(item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt) && (
+            <section>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                <Clock style={{ width: 20, height: 20, color: "#f97316" }} />
+                <h2 style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 15, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "-0.01em", color: "#1c1917", margin: 0,
+                }}>Rastreabilidade de Datas</h2>
+              </div>
+              <div style={{ border: "1px solid #e7e5e4", borderRadius: 8, overflow: "hidden" }}>
+                {[
+                  { label: "Aprovado pelo Patrocinador",  value: item.sponsorApprovedAt,      by: item.sponsorApprovedBy,  dot: "#7c3aed" },
+                  { label: "Revisado pelo Criador",       value: item.creatorReviewedAt,       by: null,                   dot: "#d946ef" },
+                  { label: "Liberado para Produção",      value: item.approvedAt,              by: null,                   dot: "#f97316" },
+                  { label: "Produção Iniciada",           value: item.productionStartedAt,     by: null,                   dot: "#f59e0b" },
+                  { label: "Produzido",                   value: item.producedAt,              by: null,                   dot: "#ec4899" },
+                  { label: "Entregue",                    value: item.deliveredAt,             by: item.receivedBy,        dot: "#10b981" },
+                ].filter(r => r.value).map((row, i, arr) => (
+                  <div key={row.label} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "12px 16px",
+                    borderBottom: i < arr.length - 1 ? "1px solid #f5f5f4" : "none",
+                    backgroundColor: i % 2 === 0 ? "#ffffff" : "#fafaf9",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: row.dot, flexShrink: 0, display: "inline-block" }} />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{row.label}</span>
+                      {row.by && (
+                        <span style={{ fontSize: 11, color: "#78716c", fontStyle: "italic" }}>· {row.by}</span>
+                      )}
+                    </div>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: "#78716c",
+                      backgroundColor: "#f5f5f4", padding: "2px 10px", borderRadius: 4, whiteSpace: "nowrap",
+                    }}>
+                      {format(new Date(row.value!), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* ── Observations ── */}
           {item.observations && (

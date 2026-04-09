@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#625d5b",
+                        "secondary-container": "#fd761a",
+                        "inverse-primary": "#ccc5c2",
+                        "error": "#ba1a1a",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "on-primary": "#ffffff",
+                        "outline": "#8c7164",
+                        "inverse-on-surface": "#f1f1f0",
+                        "secondary-fixed-dim": "#ffb690",
+                        "on-secondary-fixed": "#341100",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "background": "#f9f9f8",
+                        "tertiary": "#006398",
+                        "primary-fixed": "#e9e1dd",
+                        "primary": "#625d5b",
+                        "on-surface": "#1a1c1c",
+                        "surface-dim": "#dadad9",
+                        "surface-variant": "#e2e2e2",
+                        "secondary": "#9d4300",
+                        "outline-variant": "#e0c0b1",
+                        "surface-container-high": "#e8e8e7",
+                        "surface-container": "#eeeeed",
+                        "on-surface-variant": "#584237",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed": "#001d32",
+                        "tertiary-container": "#00a2f4",
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-bright": "#f9f9f8",
+                        "tertiary-fixed": "#cde5ff",
+                        "on-tertiary-container": "#003554",
+                        "on-primary-fixed": "#1e1b19",
+                        "on-primary-container": "#35322f",
+                        "on-background": "#1a1c1c",
+                        "error-container": "#ffdad6",
+                        "on-secondary": "#ffffff",
+                        "surface-container-low": "#f3f4f3",
+                        "surface": "#f9f9f8",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "on-secondary-fixed-variant": "#783200",
+                        "on-secondary-container": "#5c2400",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#ffdbca",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "inverse-surface": "#2f3130",
+                        "primary-container": "#9f9996"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .editorial-shadow {
+            box-shadow: 0 16px 32px -12px rgba(26, 28, 28, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased min-h-screen">
+<!-- BACKGROUND CANVAS - MOCK DASHBOARD TO SHOW MODALS IN CONTEXT -->
+<header class="w-full top-0 sticky bg-[#f9f9f8] dark:bg-[#1c1917] z-10">
+<div class="flex justify-between items-center px-8 py-4 max-w-[1440px] mx-auto">
+<div class="text-2xl font-bold tracking-[-0.05em] text-[#1c1917] dark:text-[#f9f9f8] font-headline">NORTE Sport</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-[#f97316] border-b-2 border-[#f97316] pb-1 font-headline tracking-[-0.02em] font-bold" href="#">Events</a>
+<a class="text-[#625d5b] hover:text-[#f97316] transition-colors duration-200 font-headline tracking-[-0.02em] font-bold" href="#">Sponsors</a>
+<a class="text-[#625d5b] hover:text-[#f97316] transition-colors duration-200 font-headline tracking-[-0.02em] font-bold" href="#">Athletes</a>
+<a class="text-[#625d5b] hover:text-[#f97316] transition-colors duration-200 font-headline tracking-[-0.02em] font-bold" href="#">Analytics</a>
+</nav>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer">notifications</span>
+<span class="material-symbols-outlined text-primary cursor-pointer">settings</span>
+<button class="bg-secondary text-on-secondary px-6 py-2 rounded-md font-bold tracking-tight hover:brightness-110 transition-all">Create Event</button>
+</div>
+</div>
+</header>
+<main class="max-w-[1440px] mx-auto p-8 relative min-h-[calc(100vh-80px)]">
+<!-- Dashboard Background Content (Blurred) -->
+<div class="grid grid-cols-12 gap-6 opacity-40 blur-[2px] pointer-events-none">
+<div class="col-span-8 bg-surface-container-low h-[400px] rounded-xl flex items-center justify-center">
+<span class="font-headline text-4xl font-bold opacity-10">DASHBOARD_PREVIEW</span>
+</div>
+<div class="col-span-4 bg-surface-container-low h-[400px] rounded-xl flex items-center justify-center">
+<span class="font-headline text-4xl font-bold opacity-10">DATA_FEED</span>
+</div>
+</div>
+<!-- MODAL OVERLAY -->
+<div class="fixed inset-0 bg-[#1c1917]/60 backdrop-blur-sm z-50 flex flex-col md:flex-row items-center justify-center p-6 gap-12 overflow-y-auto">
+<!-- MODAL 1: CREATE/EDIT EVENT -->
+<section class="w-full max-w-[512px] bg-white rounded-xl overflow-hidden editorial-shadow flex flex-col">
+<header class="bg-[#fafaf9] p-6 border-b border-[#e0c0b1]/20">
+<h2 class="font-headline text-[18px] font-bold tracking-[-0.02em] text-[#1c1917] uppercase">CRIAR NOVO EVENTO</h2>
+<p class="text-on-surface-variant text-sm mt-1">Preencha os detalhes do evento.</p>
+</header>
+<div class="p-6 flex flex-col gap-5">
+<div class="space-y-2">
+<label class="block text-[10px] font-bold tracking-widest text-primary uppercase">NOME DO EVENTO</label>
+<input class="w-full bg-surface-container-high border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 focus:bg-white transition-all text-sm" placeholder="Ex: Maratona Norte 2024" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<label class="block text-[10px] font-bold tracking-widest text-primary uppercase">DATA INÍCIO</label>
+<input class="w-full bg-surface-container-high border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 focus:bg-white transition-all text-sm" type="date"/>
+</div>
+<div class="space-y-2">
+<label class="block text-[10px] font-bold tracking-widest text-primary uppercase">SAÍDA CAMINHÃO</label>
+<input class="w-full bg-surface-container-high border-none rounded-md px-4 py-3 focus:ring-2 focus:ring-secondary/20 focus:bg-white transition-all text-sm" type="time"/>
+</div>
+</div>
+<div class="space-y-3">
+<label class="block text-[10px] font-bold tracking-widest text-primary uppercase">SPONSORS</label>
+<div class="bg-[#f0efee] rounded-xl p-4 max-h-[160px] overflow-y-auto space-y-3">
+<label class="flex items-center gap-3 cursor-pointer group">
+<input checked="" class="rounded-sm border-none bg-white text-secondary focus:ring-secondary transition-colors" type="checkbox"/>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-on-primary-fixed">Nike</span>
+<span class="text-[10px] text-on-surface-variant leading-none">Nike Inc</span>
+</div>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="rounded-sm border-none bg-white text-secondary focus:ring-secondary transition-colors" type="checkbox"/>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-on-primary-fixed">Santander</span>
+<span class="text-[10px] text-on-surface-variant leading-none">Global Banking</span>
+</div>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="rounded-sm border-none bg-white text-secondary focus:ring-secondary transition-colors" type="checkbox"/>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-on-primary-fixed">Red Bull</span>
+<span class="text-[10px] text-on-surface-variant leading-none">Energy &amp; Events</span>
+</div>
+</label>
+</div>
+</div>
+</div>
+<footer class="bg-[#fafaf9] p-6 flex justify-end gap-4 border-t border-[#e0c0b1]/20">
+<button class="text-primary font-bold text-xs tracking-tight px-4 py-2 hover:bg-surface-container-high transition-colors rounded-md">CANCELAR</button>
+<button class="bg-[#1c1917] text-white font-bold text-xs tracking-tight px-8 py-2 rounded-md hover:brightness-125 transition-all">SALVAR EVENTO</button>
+</footer>
+</section>
+<!-- MODAL 2: DELETE EVENT -->
+<section class="w-full max-w-[420px] bg-white rounded-xl overflow-hidden editorial-shadow flex flex-col">
+<div class="p-8">
+<h2 class="font-headline text-[20px] font-bold tracking-[-0.02em] text-[#1c1917]">Confirmar Exclusão</h2>
+<div class="mt-6 p-4 bg-[#fff7ed] border-l-4 border-[#f97316] rounded-r-lg flex gap-4">
+<span class="material-symbols-outlined text-[#f97316]" style="font-variation-settings: 'FILL' 1;">warning</span>
+<p class="text-xs text-[#783200] leading-relaxed font-medium">
+                            Todas as peças associadas a este evento também serão removidas permanentemente.
+                        </p>
+</div>
+<p class="mt-6 text-on-surface-variant text-sm">
+                        Tem certeza que deseja excluir o evento <span class="font-bold text-on-surface">"Maratona de Verão 2024"</span>? Esta ação não pode ser desfeita.
+                    </p>
+</div>
+<footer class="p-6 pt-2 flex justify-end gap-3">
+<button class="text-primary font-bold text-xs tracking-tight px-6 py-2.5 rounded-md border border-outline-variant hover:bg-surface-container-low transition-colors">CANCELAR</button>
+<button class="bg-error text-white font-bold text-xs tracking-tight px-8 py-2.5 rounded-md hover:brightness-110 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">delete</span>
+                        EXCLUIR
+                    </button>
+</footer>
+</section>
+</div>
+</main>
+<!-- FAB (Suppressed contextually if this was a sub-page, but here for UI depth) -->
+<button class="fixed bottom-8 right-8 bg-secondary text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[60]">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0, 'wght' 600;">add</span>
+</button>
+</body></html>

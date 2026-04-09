@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, Truck, AlertCircle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
@@ -466,83 +466,90 @@ export default function Eventos() {
             </DialogTrigger>
 
             {/* ── MODAL CRIAR / EDITAR ── */}
-            <DialogContent className="sm:max-w-lg p-0 gap-0" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-              {/* Cabeçalho do modal */}
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0efee', backgroundColor: '#fafaf9' }}>
+            <DialogContent className="sm:max-w-[512px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'hidden', boxShadow: '0 16px 32px -12px rgba(26,28,28,0.18)' }}>
+              {/* Cabeçalho */}
+              <div style={{ padding: '24px', borderBottom: '1px solid rgba(224,192,177,0.2)', backgroundColor: '#fafaf9' }}>
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em', lineHeight: 1 }}>
                   {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
                 </DialogTitle>
-                <p style={{ color: '#a8a29e', fontSize: '12px', margin: '4px 0 0 0', fontWeight: '500' }}>
+                <DialogDescription style={{ color: '#78716c', fontSize: '14px', margin: '4px 0 0 0', fontWeight: '400' }}>
                   {editingEvent ? "Atualize as informações do evento." : "Preencha os detalhes do evento."}
-                </p>
+                </DialogDescription>
               </div>
 
               <form onSubmit={handleSubmit}>
                 <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
                   {/* Nome */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Nome do Evento
                     </label>
-                    <Input
+                    <input
                       id="name"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="Ex: Circuitinho BSB 2024"
                       required
                       data-testid="input-event-name"
-                      style={{ backgroundColor: '#f0efee', border: 'none', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', color: '#1c1917' }}
+                      style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
+                      onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                      onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
                     />
                   </div>
 
                   {/* Datas */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                         Data Início
                       </label>
-                      <Input
+                      <input
                         id="startDate"
                         type="date"
                         value={formData.startDate}
                         onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                         required
                         data-testid="input-start-date"
-                        style={{ backgroundColor: '#f0efee', border: 'none', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#1c1917' }}
+                        style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '13px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
+                        onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                        onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
                       />
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                         Saída Caminhão
                       </label>
-                      <Input
+                      <input
                         id="truckDepartureDate"
                         type="datetime-local"
                         value={formData.truckDepartureDate}
                         onChange={(e) => setFormData({ ...formData, truckDepartureDate: e.target.value })}
                         required
                         data-testid="input-truck-date"
-                        style={{ backgroundColor: '#f0efee', border: 'none', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#1c1917' }}
+                        style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '13px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
+                        onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                        onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
                       />
                     </div>
                   </div>
 
                   {/* Patrocinadores */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Building2 style={{ width: '12px', height: '12px', color: '#f97316' }} />
-                      Patrocinadores <span style={{ color: '#c0bbb8', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+                      Patrocinadores
+                      <span style={{ color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
                     </label>
                     {sponsors.length === 0 ? (
-                      <p style={{ fontSize: '13px', color: '#a8a29e', backgroundColor: '#f0efee', borderRadius: '10px', padding: '12px 14px' }}>
+                      <p style={{ fontSize: '13px', color: '#a8a29e', backgroundColor: '#f0efee', borderRadius: '8px', padding: '12px 16px' }}>
                         Nenhum patrocinador cadastrado.{" "}
                         <Link href="/patrocinadores" style={{ color: '#f97316', fontWeight: '600' }}>Cadastre agora</Link>
                       </p>
                     ) : (
-                      <div style={{ backgroundColor: '#f0efee', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '144px', overflowY: 'auto' }}>
+                      <div style={{ backgroundColor: '#f0efee', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '160px', overflowY: 'auto' }}>
                         {sponsors.map((sponsor) => (
-                          <div key={sponsor.id} className="flex items-center gap-2.5">
+                          <label key={sponsor.id} htmlFor={`sponsor-${sponsor.id}`} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
                             <Checkbox
                               id={`sponsor-${sponsor.id}`}
                               checked={selectedSponsorIds.includes(sponsor.id)}
@@ -551,27 +558,29 @@ export default function Eventos() {
                                 else setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
                               }}
                               data-testid={`checkbox-sponsor-${sponsor.id}`}
-                              className="border-[#d0cec9] data-[state=checked]:bg-[#1c1917] data-[state=checked]:border-[#1c1917] rounded"
+                              className="border-[#c4bfbb] bg-white data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-sm flex-shrink-0"
                             />
-                            <label htmlFor={`sponsor-${sponsor.id}`} style={{ fontSize: '13px', fontWeight: '500', color: '#1c1917', cursor: 'pointer', lineHeight: 1 }}>
-                              {sponsor.name}
-                              {sponsor.company && <span style={{ color: '#a8a29e', fontWeight: '400', marginLeft: '4px' }}>({sponsor.company})</span>}
-                            </label>
-                          </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a1c1c', lineHeight: 1.2 }}>{sponsor.name}</span>
+                              {sponsor.company && (
+                                <span style={{ fontSize: '10px', color: '#78716c', lineHeight: 1, fontWeight: '400' }}>{sponsor.company}</span>
+                              )}
+                            </div>
+                          </label>
                         ))}
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Rodapé do modal */}
-                <div style={{ padding: '16px 24px', backgroundColor: '#fafaf9', borderTop: '1px solid #f0efee', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}>
+                {/* Rodapé */}
+                <div style={{ padding: '24px', backgroundColor: '#fafaf9', borderTop: '1px solid rgba(224,192,177,0.2)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
                   <button
                     type="button"
                     onClick={handleCloseDialog}
-                    style={{ fontSize: '13px', fontWeight: '700', color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', textTransform: 'uppercase', letterSpacing: '-0.01em', transition: 'color 0.15s' }}
-                    onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
-                    onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
+                    style={{ fontSize: '12px', fontWeight: '700', color: '#625d5b', background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 16px', textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '6px', transition: 'background-color 0.15s, color 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e8e8e7'; e.currentTarget.style.color = '#1c1917'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#625d5b'; }}
                   >
                     Cancelar
                   </button>
@@ -579,15 +588,15 @@ export default function Eventos() {
                     type="submit"
                     disabled={createEventMutation.isPending || updateEventMutation.isPending}
                     data-testid="button-submit-event"
-                    style={{ backgroundColor: '#1c1917', color: '#ffffff', borderRadius: '8px', fontWeight: '700', fontSize: '13px', padding: '10px 28px', textTransform: 'uppercase', letterSpacing: '-0.01em', border: 'none', cursor: 'pointer', transition: 'background-color 0.2s, transform 0.1s' }}
-                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f97316')}
-                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#1c1917')}
+                    style={{ backgroundColor: '#1c1917', color: '#ffffff', borderRadius: '6px', fontWeight: '700', fontSize: '12px', padding: '10px 32px', textTransform: 'uppercase', letterSpacing: '0.04em', border: 'none', cursor: createEventMutation.isPending || updateEventMutation.isPending ? 'not-allowed' : 'pointer', transition: 'filter 0.15s, transform 0.1s', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                    onMouseEnter={e => { if (!createEventMutation.isPending && !updateEventMutation.isPending) e.currentTarget.style.filter = 'brightness(1.25)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
                     onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
                     onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
                   >
                     {editingEvent
-                      ? (createEventMutation.isPending || updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
-                      : (createEventMutation.isPending || updateEventMutation.isPending ? "Criando..." : "Salvar Evento")
+                      ? (updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
+                      : (createEventMutation.isPending ? "Criando..." : "Salvar Evento")
                     }
                   </button>
                 </div>
@@ -919,25 +928,33 @@ export default function Eventos() {
       )}
 
       <AlertDialog open={!!deletingEventId} onOpenChange={() => setDeletingEventId(null)}>
-        <AlertDialogContent style={{ maxWidth: "420px", backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
-          <AlertDialogHeader style={{ padding: 0, marginBottom: "20px" }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "20px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
+        <AlertDialogContent style={{ maxWidth: "420px", backgroundColor: "#ffffff", borderRadius: "16px", padding: "0", border: "none", boxShadow: "0 16px 32px -12px rgba(26,28,28,0.2)", overflow: "hidden" }}>
+          <div style={{ padding: "32px 32px 8px 32px" }}>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "20px", fontWeight: "700", letterSpacing: "-0.02em", color: "#1c1917", margin: 0 }}>
               Confirmar Exclusão
             </AlertDialogTitle>
-            <AlertDialogDescription style={{ fontSize: "14px", color: "#78716c", lineHeight: 1.6, marginTop: "6px" }}>
-              Tem certeza que deseja excluir este evento? Esta ação não pode ser desfeita.
+
+            {/* Banner aviso — borda esquerda laranja */}
+            <div style={{ marginTop: "24px", padding: "16px", backgroundColor: "#fff7ed", borderLeft: "4px solid #f97316", borderRadius: "0 8px 8px 0", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+              <AlertTriangle style={{ width: "18px", height: "18px", color: "#f97316", flexShrink: 0, marginTop: "1px" }} />
+              <p style={{ fontSize: "12px", fontWeight: "600", color: "#783200", margin: 0, lineHeight: 1.6 }}>
+                Todas as peças associadas a este evento também serão removidas permanentemente.
+              </p>
+            </div>
+
+            {/* Descrição com nome do evento */}
+            <AlertDialogDescription style={{ fontSize: "14px", color: "#78716c", lineHeight: 1.6, marginTop: "16px" }}>
+              Tem certeza que deseja excluir o evento{" "}
+              <strong style={{ color: "#1a1c1c", fontWeight: "600" }}>
+                "{events.find((e: any) => e.id === deletingEventId)?.name || "este evento"}"
+              </strong>
+              ? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
-          </AlertDialogHeader>
-          {/* Aviso de impacto */}
-          <div style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "12px 14px", marginBottom: "24px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-            <p style={{ fontSize: "12px", fontWeight: 600, color: "#ea580c", margin: 0, lineHeight: 1.5 }}>
-              Todas as peças associadas a este evento também serão removidas permanentemente.
-            </p>
           </div>
-          <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+
+          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
             <AlertDialogCancel
-              style={{ padding: "9px 20px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 600, color: "#78716c", cursor: "pointer" }}
+              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: "6px", fontSize: "12px", fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "background-color 0.15s" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f3")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
@@ -946,10 +963,11 @@ export default function Eventos() {
             <AlertDialogAction
               onClick={() => deletingEventId && deleteEventMutation.mutate(deletingEventId)}
               data-testid="button-confirm-delete-event"
-              style={{ padding: "9px 20px", backgroundColor: "#ef4444", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#ffffff", cursor: "pointer", transition: "background-color 0.15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#dc2626")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ef4444")}
+              style={{ padding: "9px 24px", backgroundColor: "#ba1a1a", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "700", color: "#ffffff", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px", transition: "filter 0.15s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1)")}
             >
+              <Trash2 style={{ width: "14px", height: "14px" }} />
               {deleteEventMutation.isPending ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>

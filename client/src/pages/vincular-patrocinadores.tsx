@@ -1575,19 +1575,52 @@ export default function VincularPatrocinadores() {
                                   {eventSponsors.length === 0 ? (
                                     <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>Adicione patrocinadores ao evento</span>
                                   ) : (uiStatus === 'PRONTO' || uiStatus === 'ENVIADO') ? (
-                                    /* Saved: dark pills com truncamento */
+                                    /* Saved: dark pills com truncamento + × para desvincular (só PRONTO) */
                                     (() => {
                                       const isExpanded = expandedSponsorCells.has(item.id);
                                       const validLinked = linkedSponsors.map(sId => eventSponsors.find(s => s.id === sId)).filter(Boolean) as any[];
                                       const visible = isExpanded ? validLinked : validLinked.slice(0, SPONSOR_PILL_LIMIT);
                                       const overflow = validLinked.length - SPONSOR_PILL_LIMIT;
+                                      const canUnlink = uiStatus === 'PRONTO' && isEditable;
                                       return (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                                           {validLinked.length > 0 ? (
                                             <>
                                               {visible.map((sp: any) => (
-                                                <span key={sp.id} style={{ padding: '3px 6px', backgroundColor: uiStatus === 'ENVIADO' ? '#e8e8e7' : '#1c1917', color: uiStatus === 'ENVIADO' ? '#78716c' : '#ffffff', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', borderRadius: 3, letterSpacing: '0.04em' }}>
+                                                <span
+                                                  key={sp.id}
+                                                  style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: canUnlink ? 4 : 0,
+                                                    padding: canUnlink ? '3px 4px 3px 6px' : '3px 6px',
+                                                    backgroundColor: uiStatus === 'ENVIADO' ? '#e8e8e7' : '#1c1917',
+                                                    color: uiStatus === 'ENVIADO' ? '#78716c' : '#ffffff',
+                                                    fontSize: 9, fontWeight: 700, textTransform: 'uppercase', borderRadius: 3, letterSpacing: '0.04em',
+                                                  }}
+                                                >
                                                   {sp.name}
+                                                  {canUnlink && (
+                                                    <button
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const newSponsors = linkedSponsors.filter(id => id !== sp.id);
+                                                        const originalSponsors = originalSponsorsMap[item.id] || [];
+                                                        const origSkip = item.skipApproval || false;
+                                                        const curSkip = pendingChanges[item.id]?.skipApproval ?? origSkip;
+                                                        const hasChanges = !areSponsorsEqual(newSponsors, originalSponsors) || curSkip !== origSkip;
+                                                        setPendingChanges(prev => {
+                                                          if (!hasChanges) { const n = { ...prev }; delete n[item.id]; return n; }
+                                                          return { ...prev, [item.id]: { sponsorIds: newSponsors, skipApproval: curSkip, isDirty: true } };
+                                                        });
+                                                        setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
+                                                      }}
+                                                      title={`Desvincular ${sp.name}`}
+                                                      style={{ background: 'none', border: 'none', padding: '1px 2px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.6)', lineHeight: 1 }}
+                                                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ffffff'; }}
+                                                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)'; }}
+                                                    >
+                                                      <X style={{ width: 9, height: 9 }} />
+                                                    </button>
+                                                  )}
                                                 </span>
                                               ))}
                                               {!isExpanded && overflow > 0 && (

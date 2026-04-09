@@ -172,6 +172,17 @@ export default function VincularPatrocinadores() {
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
+  // Estado para expandir a lista de patrocinadores por item (quando há muitos)
+  const [expandedSponsorCells, setExpandedSponsorCells] = useState<Set<string>>(new Set());
+  const toggleSponsorExpand = (itemId: string) => {
+    setExpandedSponsorCells(prev => {
+      const n = new Set(prev);
+      n.has(itemId) ? n.delete(itemId) : n.add(itemId);
+      return n;
+    });
+  };
+  const SPONSOR_PILL_LIMIT = 4;
+
   // Estado para seleção de items para ENVIAR (separado da seleção para aplicar patrocinadores)
   const [selectedForSending, setSelectedForSending] = useState<Set<string>>(new Set());
 
@@ -1558,73 +1569,114 @@ export default function VincularPatrocinadores() {
                                   {eventSponsors.length === 0 ? (
                                     <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>Adicione patrocinadores ao evento</span>
                                   ) : (uiStatus === 'PRONTO' || uiStatus === 'ENVIADO') ? (
-                                    /* Saved: dark pills */
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                      {linkedSponsors.length > 0 ? (
-                                        linkedSponsors.map(sId => {
-                                          const sp = eventSponsors.find(s => s.id === sId);
-                                          return sp ? (
-                                            <span key={sId} style={{ padding: '3px 6px', backgroundColor: uiStatus === 'ENVIADO' ? '#e8e8e7' : '#1c1917', color: uiStatus === 'ENVIADO' ? '#78716c' : '#ffffff', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', borderRadius: 3, letterSpacing: '0.04em' }}>
-                                              {sp.name}
-                                            </span>
-                                          ) : null;
-                                        })
-                                      ) : (
-                                        <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>Nenhum</span>
-                                      )}
-                                    </div>
+                                    /* Saved: dark pills com truncamento */
+                                    (() => {
+                                      const isExpanded = expandedSponsorCells.has(item.id);
+                                      const validLinked = linkedSponsors.map(sId => eventSponsors.find(s => s.id === sId)).filter(Boolean) as any[];
+                                      const visible = isExpanded ? validLinked : validLinked.slice(0, SPONSOR_PILL_LIMIT);
+                                      const overflow = validLinked.length - SPONSOR_PILL_LIMIT;
+                                      return (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                                          {validLinked.length > 0 ? (
+                                            <>
+                                              {visible.map((sp: any) => (
+                                                <span key={sp.id} style={{ padding: '3px 6px', backgroundColor: uiStatus === 'ENVIADO' ? '#e8e8e7' : '#1c1917', color: uiStatus === 'ENVIADO' ? '#78716c' : '#ffffff', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', borderRadius: 3, letterSpacing: '0.04em' }}>
+                                                  {sp.name}
+                                                </span>
+                                              ))}
+                                              {!isExpanded && overflow > 0 && (
+                                                <button onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }} style={{ padding: '2px 6px', backgroundColor: '#f0efee', color: '#78716c', fontSize: 9, fontWeight: 700, borderRadius: 3, border: 'none', cursor: 'pointer', letterSpacing: '0.03em' }}>
+                                                  +{overflow}
+                                                </button>
+                                              )}
+                                              {isExpanded && validLinked.length > SPONSOR_PILL_LIMIT && (
+                                                <button onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }} style={{ padding: '2px 6px', backgroundColor: '#f0efee', color: '#78716c', fontSize: 9, fontWeight: 700, borderRadius: 3, border: 'none', cursor: 'pointer', letterSpacing: '0.03em' }}>
+                                                  ver menos
+                                                </button>
+                                              )}
+                                            </>
+                                          ) : (
+                                            <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>Nenhum</span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()
                                   ) : (
-                                    /* Editable: pill-style checkboxes */
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                      {eventSponsors.map(sponsor => {
-                                        const isLinked = linkedSponsors.includes(sponsor.id);
-                                        return (
-                                          <label
-                                            key={sponsor.id}
-                                            style={{
-                                              display: 'inline-flex', alignItems: 'center', gap: 5,
-                                              padding: '4px 8px',
-                                              backgroundColor: isLinked ? '#fff7ed' : '#ffffff',
-                                              border: `1px solid ${isLinked ? '#f97316' : '#e7e5e4'}`,
-                                              borderRadius: 6, cursor: isEditable ? 'pointer' : 'not-allowed',
-                                              transition: 'border-color 0.12s, background-color 0.12s',
-                                            }}
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={isLinked}
-                                              disabled={!isEditable}
-                                              style={{ width: 11, height: 11, accentColor: '#f97316', cursor: isEditable ? 'pointer' : 'not-allowed' }}
-                                              data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
-                                              onChange={(e) => {
-                                                if (!isEditable) return;
-                                                const checked = e.target.checked;
-                                                const newSponsors = checked
-                                                  ? [...linkedSponsors, sponsor.id]
-                                                  : linkedSponsors.filter(id => id !== sponsor.id);
-                                                const originalSponsors = originalSponsorsMap[item.id] || [];
-                                                const origSkip = item.skipApproval || false;
-                                                const curSkip = pendingChanges[item.id]?.skipApproval ?? origSkip;
-                                                const hasChanges = !areSponsorsEqual(newSponsors, originalSponsors) || curSkip !== origSkip;
-                                                setPendingChanges(prev => {
-                                                  if (!hasChanges) { const n = { ...prev }; delete n[item.id]; return n; }
-                                                  return { ...prev, [item.id]: { sponsorIds: newSponsors, skipApproval: curSkip, isDirty: true } };
-                                                });
-                                                setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
-                                              }}
-                                            />
-                                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: isLinked ? '#c2410c' : '#78716c', letterSpacing: '0.03em' }}>
-                                              {sponsor.name}
-                                            </span>
-                                          </label>
-                                        );
-                                      })}
-                                      {isEditable && (
-                                        <button onClick={() => toggleItemSkipApproval(item)} data-testid={`btn-skip-sponsor-${item.id}`} style={{ background: 'none', border: 'none', fontSize: 10, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline', alignSelf: 'center' }}>
-                                          sem pat.
-                                        </button>
-                                      )}
-                                    </div>
+                                    /* Editable: pill-style checkboxes com truncamento */
+                                    (() => {
+                                      const isExpanded = expandedSponsorCells.has(item.id);
+                                      const visibleSponsors = isExpanded ? eventSponsors : eventSponsors.slice(0, SPONSOR_PILL_LIMIT);
+                                      const overflow = eventSponsors.length - SPONSOR_PILL_LIMIT;
+                                      return (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                                          {visibleSponsors.map(sponsor => {
+                                            const isLinked = linkedSponsors.includes(sponsor.id);
+                                            return (
+                                              <label
+                                                key={sponsor.id}
+                                                style={{
+                                                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                  padding: '4px 8px',
+                                                  backgroundColor: isLinked ? '#fff7ed' : '#ffffff',
+                                                  border: `1px solid ${isLinked ? '#f97316' : '#e7e5e4'}`,
+                                                  borderRadius: 6, cursor: isEditable ? 'pointer' : 'not-allowed',
+                                                  transition: 'border-color 0.12s, background-color 0.12s',
+                                                }}
+                                              >
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isLinked}
+                                                  disabled={!isEditable}
+                                                  style={{ width: 11, height: 11, accentColor: '#f97316', cursor: isEditable ? 'pointer' : 'not-allowed' }}
+                                                  data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
+                                                  onChange={(e) => {
+                                                    if (!isEditable) return;
+                                                    const checked = e.target.checked;
+                                                    const newSponsors = checked
+                                                      ? [...linkedSponsors, sponsor.id]
+                                                      : linkedSponsors.filter(id => id !== sponsor.id);
+                                                    const originalSponsors = originalSponsorsMap[item.id] || [];
+                                                    const origSkip = item.skipApproval || false;
+                                                    const curSkip = pendingChanges[item.id]?.skipApproval ?? origSkip;
+                                                    const hasChanges = !areSponsorsEqual(newSponsors, originalSponsors) || curSkip !== origSkip;
+                                                    setPendingChanges(prev => {
+                                                      if (!hasChanges) { const n = { ...prev }; delete n[item.id]; return n; }
+                                                      return { ...prev, [item.id]: { sponsorIds: newSponsors, skipApproval: curSkip, isDirty: true } };
+                                                    });
+                                                    setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
+                                                  }}
+                                                />
+                                                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: isLinked ? '#c2410c' : '#78716c', letterSpacing: '0.03em' }}>
+                                                  {sponsor.name}
+                                                </span>
+                                              </label>
+                                            );
+                                          })}
+                                          {/* Overflow button */}
+                                          {!isExpanded && overflow > 0 && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }}
+                                              style={{ padding: '4px 8px', backgroundColor: '#f0efee', color: '#78716c', fontSize: 10, fontWeight: 700, borderRadius: 6, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+                                            >
+                                              +{overflow} mais
+                                            </button>
+                                          )}
+                                          {isExpanded && eventSponsors.length > SPONSOR_PILL_LIMIT && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }}
+                                              style={{ padding: '4px 8px', backgroundColor: '#f0efee', color: '#78716c', fontSize: 10, fontWeight: 700, borderRadius: 6, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+                                            >
+                                              ver menos
+                                            </button>
+                                          )}
+                                          {isEditable && (
+                                            <button onClick={(e) => { e.stopPropagation(); toggleItemSkipApproval(item); }} data-testid={`btn-skip-sponsor-${item.id}`} style={{ background: 'none', border: 'none', fontSize: 10, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline', alignSelf: 'center' }}>
+                                              sem pat.
+                                            </button>
+                                          )}
+                                        </div>
+                                      );
+                                    })()
                                   )}
                                 </div>
                               )}

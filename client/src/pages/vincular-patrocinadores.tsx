@@ -174,6 +174,16 @@ export default function VincularPatrocinadores() {
 
   // Estado para expandir a lista de patrocinadores por item (quando há muitos)
   const [expandedSponsorCells, setExpandedSponsorCells] = useState<Set<string>>(new Set());
+
+  // Estado para colapsar grupos de patrocinadores na view Por Patrocinador
+  const [collapsedSponsorGroups, setCollapsedSponsorGroups] = useState<Set<string>>(new Set());
+  const toggleSponsorGroupCollapse = (key: string) => {
+    setCollapsedSponsorGroups(prev => {
+      const n = new Set(prev);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
+  };
   const toggleSponsorExpand = (itemId: string) => {
     setExpandedSponsorCells(prev => {
       const n = new Set(prev);
@@ -1801,121 +1811,270 @@ export default function VincularPatrocinadores() {
       </div>
       )} {/* fim viewMode === 'por-item' */}
 
-      {/* ── VIEW: POR PATROCINADOR (nova) ── */}
+      {/* ── VIEW: POR PATROCINADOR ── */}
       {viewMode === 'por-patrocinador' && (
-        <div className="space-y-6">
-          {/* Barra de progresso de patrocinadores */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8 }}>
-            <div style={{ flex: 1, height: 6, backgroundColor: '#e7e5e4', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ height: '100%', backgroundColor: '#f97316', borderRadius: 3, width: `${sponsorLinkStats.total > 0 ? (sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100 : 0}%`, transition: 'width 0.4s' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* ── Header de progresso global ── */}
+          <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 10, padding: '18px 22px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>Progresso Global de Vinculação</span>
+              <span style={{ fontSize: 12, color: '#78716c' }}>
+                <strong style={{ color: '#f97316' }}>{sponsorLinkStats.fullyLinked}</strong>
+                <span style={{ margin: '0 4px' }}>/</span>
+                <strong style={{ color: '#1c1917' }}>{sponsorLinkStats.total}</strong>
+                <span style={{ marginLeft: 4 }}>patrocinadores totalmente vinculados</span>
+              </span>
             </div>
-            <span style={{ fontSize: 12, color: '#78716c', whiteSpace: 'nowrap' }}>
-              <strong style={{ color: '#1c1917' }}>{sponsorLinkStats.fullyLinked}</strong> de <strong style={{ color: '#1c1917' }}>{sponsorLinkStats.total}</strong> patrocinadores totalmente vinculados
-            </span>
+            <div style={{ width: '100%', height: 6, backgroundColor: '#e7e5e4', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 3, backgroundColor: '#f97316',
+                width: `${sponsorLinkStats.total > 0 ? Math.round((sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100) : 0}%`,
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+            {sponsorLinkStats.total > 0 && (
+              <div style={{ marginTop: 6, textAlign: 'right', fontSize: 11, fontWeight: 800, color: '#f97316', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                {Math.round((sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100)}% completo
+              </div>
+            )}
           </div>
 
-          {/* Bulk floating bar */}
+          {/* ── Barra de ações em lote ── */}
           {sponsorBulkSelected.size > 0 && (() => {
             const uniqueItemIds = selectedSponsorItemIds();
             const n = uniqueItemIds.length;
             return (
-            <div style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: '#1c1917', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.18)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#ffffff' }}>
-                  {n}
+              <div style={{
+                position: 'sticky', top: 0, zIndex: 50,
+                backgroundColor: '#1c1917', borderRadius: 8,
+                padding: '12px 18px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    backgroundColor: '#f97316',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 13, fontWeight: 800, color: '#ffffff',
+                  }}>{n}</div>
+                  <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>
+                    {n} item{n !== 1 ? 's' : ''} selecionado{n !== 1 ? 's' : ''}
+                  </span>
+                  <span style={{ width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.2)', display: 'inline-block' }} />
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Ações em lote aplicadas a todos os itens selecionados.</span>
                 </div>
-                <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 500 }}>
-                  {n} item{n !== 1 ? 's' : ''} selecionado{n !== 1 ? 's' : ''}
-                </span>
-                <button onClick={() => setSponsorBulkSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 12, cursor: 'pointer' }}>
-                  Limpar
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setSponsorBulkSelected(new Set())}
+                    style={{ background: 'none', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)', borderRadius: 6, height: 36, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer' }}
+                  >
+                    Desmarcar Tudo
+                  </button>
+                  <button
+                    onClick={openSendModalForBulk}
+                    disabled={sendToArteMutation.isPending}
+                    style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, height: 36, padding: '0 18px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
+                  >
+                    <Send style={{ width: 13, height: 13 }} />
+                    {sendToArteMutation.isPending ? 'Enviando...' : `Vincular e Enviar ${n} item${n !== 1 ? 's' : ''}`}
+                  </button>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={openSendModalForBulk}
-                  disabled={sendToArteMutation.isPending}
-                  style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, height: 38, padding: '0 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
-                >
-                  <Send style={{ width: 14, height: 14 }} />
-                  {sendToArteMutation.isPending ? 'Enviando...' : `Vincular e Enviar ${n} item${n !== 1 ? 's' : ''}`}
-                </button>
-              </div>
-            </div>
             );
           })()}
 
-          {/* Agrupamento Evento → Patrocinador → Itens */}
+          {/* ── Lista de eventos → patrocinadores → itens ── */}
           {sponsorGroupedData.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 48, color: '#a8a29e', fontSize: 14 }}>
+            <div style={{ textAlign: 'center', padding: '48px 0', color: '#a8a29e', fontSize: 14 }}>
               Nenhum evento com patrocinadores encontrado
             </div>
           ) : sponsorGroupedData.map(({ event, sponsorGroups, totalItems: evTotal, linkedCount }) => {
             const eventSponsorList = getEventSponsors(event.id);
+            const eventPct = evTotal > 0 ? Math.round((linkedCount / evTotal) * 100) : 0;
+            const visibleSponsors = eventSponsorList.slice(0, 5);
+            const overflowCount = Math.max(0, eventSponsorList.length - 5);
+
             return (
               <div key={event.id} style={{ border: '1px solid #e7e5e4', borderRadius: 10, overflow: 'hidden' }}>
-                {/* Nível 1 — Header do Evento */}
-                <div style={{ backgroundColor: '#1c1917', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {event.name}
-                    </span>
-                    <span style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: 20, padding: '1px 8px', fontSize: 10, fontWeight: 700 }}>
-                      {linkedCount}/{evTotal}
-                    </span>
+
+                {/* ── Nível 1: Header do Evento ── */}
+                <div style={{ backgroundColor: '#1c1917', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 8, backgroundColor: 'rgba(249,115,22,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Package style={{ width: 22, height: 22, color: '#f97316' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '-0.02em', fontFamily: "'Space Grotesk', sans-serif" }}>
+                        {event.name}
+                      </h2>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          backgroundColor: 'rgba(249,115,22,0.2)', color: '#f97316',
+                          border: '1px solid rgba(249,115,22,0.3)',
+                          borderRadius: 100, padding: '2px 10px',
+                          fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
+                        }}>
+                          <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }} />
+                          {eventSponsorList.length} Patrocinadores Ativos
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {eventPct}% vinculado
+                        </span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Avatar stack de patrocinadores */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {eventSponsorList.map(s => (
-                      <span key={s.id} title={s.name} style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color || '#3b82f6', display: 'inline-block' }} />
-                    ))}
-                    <span style={{ fontSize: 11, color: '#a8a29e' }}>
-                      {eventSponsorList.length} Pat.
-                    </span>
+                    <div style={{ display: 'flex' }}>
+                      {visibleSponsors.map((s, idx) => (
+                        <div
+                          key={s.id}
+                          title={s.name}
+                          style={{
+                            width: 32, height: 32, borderRadius: '50%',
+                            border: '2px solid #1c1917',
+                            marginLeft: idx === 0 ? 0 : -10,
+                            backgroundColor: s.color || '#3b82f6',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 10, fontWeight: 800, color: '#ffffff',
+                            zIndex: visibleSponsors.length - idx,
+                            position: 'relative',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {s.name.charAt(0).toUpperCase()}
+                        </div>
+                      ))}
+                      {overflowCount > 0 && (
+                        <div style={{
+                          width: 32, height: 32, borderRadius: '50%',
+                          border: '2px solid #1c1917',
+                          marginLeft: -10,
+                          backgroundColor: '#57534e',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 10, fontWeight: 800, color: '#ffffff',
+                          zIndex: 0, position: 'relative', flexShrink: 0,
+                        }}>
+                          +{overflowCount}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Nível 2+3 — Por Patrocinador */}
+                {/* ── Nível 2+3: Grupos de Patrocinador ── */}
                 {sponsorGroups.length === 0 ? (
-                  <div style={{ padding: '20px 16px', textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
-                    Adicione patrocinadores ao evento para vincular
+                  <div style={{ padding: '24px 22px', textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
+                    Adicione patrocinadores ao evento para poder vincular
                   </div>
                 ) : sponsorGroups.map(({ sponsor, items: linkedItems, pendingItems }) => {
                   const allItems = [...linkedItems, ...pendingItems];
                   const pendingIds = pendingItems.map(i => i.id);
                   const allPendingSelected = pendingIds.length > 0 && pendingIds.every(id => sponsorBulkSelected.has(sponsorKey(id, sponsor.id)));
+                  const groupKey = `${event.id}::${sponsor.id}`;
+                  const isCollapsed = collapsedSponsorGroups.has(groupKey);
+                  const allLinked = allItems.length > 0 && pendingItems.length === 0;
+                  const nearCompletion = allItems.length > 0 && linkedItems.length / allItems.length >= 0.6 && !allLinked;
+                  const linkPct = allItems.length > 0 ? Math.round((linkedItems.length / allItems.length) * 100) : 0;
+
                   return (
-                    <div key={sponsor.id}>
-                      {/* Nível 2 — Subgrupo do Patrocinador */}
-                      <div style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Checkbox
-                          checked={allPendingSelected}
-                          onCheckedChange={() => toggleSponsorGroup(pendingIds, sponsor.id)}
-                          disabled={pendingIds.length === 0}
-                          data-testid={`checkbox-sponsor-group-${event.id}-${sponsor.id}`}
-                        />
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>{sponsor.name}</span>
-                        <span style={{
-                          backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-                          color: '#78716c', fontSize: 11, borderRadius: 100,
-                          padding: '2px 8px', flexShrink: 0,
-                        }}>
-                          {linkedItems.length}/{allItems.length} itens vinculados
-                        </span>
+                    <div key={sponsor.id} style={{ borderTop: '1px solid #e7e5e4' }}>
+
+                      {/* Nível 2 — Linha do Patrocinador */}
+                      <div
+                        style={{ padding: '14px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: '#fafaf9', cursor: 'pointer' }}
+                        onClick={() => toggleSponsorGroupCollapse(groupKey)}
+                        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#f5f4f0')}
+                        onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9')}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {/* Checkbox só para itens pendentes */}
+                          <div onClick={e => e.stopPropagation()}>
+                            <Checkbox
+                              checked={allPendingSelected}
+                              onCheckedChange={() => toggleSponsorGroup(pendingIds, sponsor.id)}
+                              disabled={pendingIds.length === 0}
+                              data-testid={`checkbox-sponsor-group-${event.id}-${sponsor.id}`}
+                            />
+                          </div>
+                          {/* Ícone colorido do patrocinador */}
+                          <div style={{
+                            width: 32, height: 32, borderRadius: 6,
+                            backgroundColor: sponsor.color || '#3b82f6',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 13, fontWeight: 800, color: '#ffffff', flexShrink: 0,
+                          }}>
+                            {sponsor.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>
+                              {sponsor.name}
+                            </div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 1 }}>
+                              Patrocinador
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                          {/* Mini progress */}
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#1c1917', marginBottom: 4 }}>
+                              {linkedItems.length} / {allItems.length} itens vinculados
+                            </div>
+                            <div style={{ width: 120, height: 4, backgroundColor: '#e7e5e4', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{
+                                height: '100%', borderRadius: 2,
+                                backgroundColor: allLinked ? '#16a34a' : nearCompletion ? '#0284c7' : '#f97316',
+                                width: `${linkPct}%`, transition: 'width 0.4s',
+                              }} />
+                            </div>
+                          </div>
+
+                          {/* Status chip */}
+                          {allLinked ? (
+                            <span style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 4, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                              Completo
+                            </span>
+                          ) : nearCompletion ? (
+                            <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 4, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                              Quase Completo
+                            </span>
+                          ) : (
+                            <span style={{ backgroundColor: '#fafaf9', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 4, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                              Em Andamento
+                            </span>
+                          )}
+
+                          {/* Chevron */}
+                          <ChevronDown style={{
+                            width: 16, height: 16, color: '#a8a29e',
+                            transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                            flexShrink: 0,
+                          }} />
+                        </div>
                       </div>
 
-                      {/* Nível 3 — Tabela de itens */}
-                      {allItems.length > 0 && (
-                        <div style={{ backgroundColor: '#ffffff' }}>
+                      {/* Nível 3 — Tabela de itens (colapsável) */}
+                      {!isCollapsed && allItems.length > 0 && (
+                        <div style={{ backgroundColor: '#ffffff', margin: '0 16px 14px', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
-                              <tr style={{ backgroundColor: '#f9f9f8' }}>
-                                {['', 'ID', 'Peça', 'Detalhes', 'Vinculado', 'Ação'].map(col => (
-                                  <th key={col} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col}</th>
+                              <tr style={{ backgroundColor: 'rgba(231,229,228,0.4)', borderBottom: '1px solid #e7e5e4' }}>
+                                <th style={{ padding: '10px 16px', width: 40 }}>
+                                  <input type="checkbox" style={{ display: 'none' }} />
+                                </th>
+                                {['ID', 'Peça', 'Detalhes', 'Status de Vínculo', 'Ações'].map(col => (
+                                  <th key={col} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 9, fontWeight: 800, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{col}</th>
                                 ))}
                               </tr>
                             </thead>
-                            <tbody>
+                            <tbody style={{ borderTop: '1px solid #e7e5e4' }}>
                               {allItems.map(item => {
                                 const isLinked = linkedItems.some(i => i.id === item.id);
                                 const uiStatus = itemUIStates[item.id] || 'PENDENTE';
@@ -1923,13 +2082,14 @@ export default function VincularPatrocinadores() {
                                 return (
                                   <tr
                                     key={item.id}
-                                    style={{ borderBottom: '1px solid #f4f3f0', cursor: 'pointer' }}
+                                    style={{ borderBottom: '1px solid #f4f3f0', cursor: 'pointer', transition: 'background-color 0.1s' }}
                                     onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9')}
                                     onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '')}
                                     onClick={() => setSelectedItemForDetails(item)}
                                     data-testid={`sp-item-row-${item.id}`}
                                   >
-                                    <td style={{ padding: '10px 12px', width: 40 }} onClick={e => e.stopPropagation()}>
+                                    {/* Checkbox */}
+                                    <td style={{ padding: '12px 16px', width: 40 }} onClick={e => e.stopPropagation()}>
                                       <Checkbox
                                         checked={sponsorBulkSelected.has(sponsorKey(item.id, sponsor.id))}
                                         onCheckedChange={() => toggleSponsorBulkItem(item.id, sponsor.id)}
@@ -1937,77 +2097,91 @@ export default function VincularPatrocinadores() {
                                         data-testid={`sp-checkbox-${item.id}`}
                                       />
                                     </td>
-                                    <td style={{ padding: '10px 12px' }}>
-                                      <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#f97316', fontWeight: 600 }}>
+                                    {/* ID */}
+                                    <td style={{ padding: '12px 16px' }}>
+                                      <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#f97316', fontWeight: 700, letterSpacing: '0.04em' }}>
                                         {item.displayId}
                                       </span>
                                     </td>
-                                    <td style={{ padding: '10px 12px', minWidth: 180 }}>
-                                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>{item.type}</div>
+                                    {/* Peça */}
+                                    <td style={{ padding: '12px 16px', minWidth: 200 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{item.type}</div>
                                       {item.description && (
-                                        <div style={{ fontSize: 11, color: '#78716c', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
+                                        <div style={{ fontSize: 11, color: '#78716c', marginTop: 2, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                           {item.description}
                                         </div>
                                       )}
                                     </td>
-                                    <td style={{ padding: '10px 12px' }}>
-                                      <span style={{ fontSize: 12, color: '#78716c' }}>
-                                        {item.quantity} un · {parseFloat(item.calculatedM2 || 0).toFixed(2)} m²
-                                      </span>
+                                    {/* Detalhes / tags */}
+                                    <td style={{ padding: '12px 16px' }}>
+                                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                        {item.quantity && (
+                                          <span style={{ padding: '2px 6px', backgroundColor: '#f4f3f0', borderRadius: 3, fontSize: 9, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                            {item.quantity} un
+                                          </span>
+                                        )}
+                                        {item.calculatedM2 && parseFloat(item.calculatedM2) > 0 && (
+                                          <span style={{ padding: '2px 6px', backgroundColor: '#f4f3f0', borderRadius: 3, fontSize: 9, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                            {parseFloat(item.calculatedM2).toFixed(2)} m²
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
-                                    <td style={{ padding: '10px 12px' }}>
+                                    {/* Status badge */}
+                                    <td style={{ padding: '12px 16px' }}>
                                       {isLinked ? (
-                                        <span style={{ backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d', fontSize: 11, borderRadius: 100, padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                          <Check style={{ width: 10, height: 10 }} /> Vinculado
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                          <Check style={{ width: 9, height: 9 }} /> Vinculado
                                         </span>
                                       ) : isSent ? (
-                                        <span style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', fontSize: 11, borderRadius: 100, padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }} title="Item enviado sem este patrocinador vinculado">
-                                          <Send style={{ width: 10, height: 10 }} /> Enviado s/ vínculo
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }} title="Item enviado sem este patrocinador vinculado">
+                                          <Send style={{ width: 9, height: 9 }} /> Enviado s/ vínculo
                                         </span>
                                       ) : (
-                                        <span style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#a8a29e', fontSize: 11, borderRadius: 100, padding: '2px 10px' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#f5f5f4', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                           Pendente
                                         </span>
                                       )}
                                     </td>
-                                    <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+                                    {/* Ações */}
+                                    <td style={{ padding: '12px 16px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
                                       {isSent ? (
-                                        <span style={{ fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                          <Check style={{ width: 14, height: 14 }} /> Enviado
+                                        <span style={{ fontSize: 12, color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                                          <Check style={{ width: 13, height: 13 }} /> Enviado
                                         </span>
                                       ) : isLinked ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                                           <button
                                             onClick={() => openSendModalForItem(item)}
                                             disabled={sendToArteMutation.isPending}
-                                            style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 7, height: 32, padding: '0 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'background-color 0.2s' }}
+                                            style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 6, height: 30, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                                             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
                                             onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917')}
                                             data-testid={`sp-btn-send-${item.id}`}
                                           >
-                                            <ArrowRight style={{ width: 12, height: 12 }} /> Enviar
+                                            <Send style={{ width: 11, height: 11 }} /> Enviar
                                           </button>
                                           <button
                                             onClick={() => unlinkSponsorFromItem(item.id, sponsor.id)}
-                                            title="Desvincular este patrocinador"
-                                            style={{ backgroundColor: 'transparent', border: '1px solid #e7e5e4', color: '#a8a29e', borderRadius: 7, height: 32, padding: '0 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, transition: 'border-color 0.15s, color 0.15s' }}
-                                            onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#ba1a1a'; b.style.color = '#ba1a1a'; }}
-                                            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#a8a29e'; }}
+                                            title="Desvincular"
+                                            style={{ backgroundColor: 'transparent', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 6, height: 30, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                                            onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#fca5a5'; b.style.color = '#dc2626'; }}
+                                            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#78716c'; }}
                                             data-testid={`sp-btn-unlink-${item.id}-${sponsor.id}`}
                                           >
-                                            <X style={{ width: 12, height: 12 }} /> Desvincular
+                                            <X style={{ width: 11, height: 11 }} /> Desvincular
                                           </button>
                                         </div>
                                       ) : (
                                         <button
                                           onClick={() => linkSponsorToItem(item.id, sponsor.id)}
                                           disabled={saveLinkingMutation.isPending}
-                                          style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 7, height: 32, padding: '0 14px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'border-color 0.15s, color 0.15s' }}
-                                          onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#1c1917'; b.style.color = '#1c1917'; }}
-                                          onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#78716c'; }}
+                                          style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, height: 30, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                          onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ea580c')}
+                                          onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
                                           data-testid={`sp-btn-link-${item.id}`}
                                         >
-                                          <Plus style={{ width: 12, height: 12 }} /> Vincular
+                                          <Plus style={{ width: 11, height: 11 }} /> Vincular Peça
                                         </button>
                                       )}
                                     </td>

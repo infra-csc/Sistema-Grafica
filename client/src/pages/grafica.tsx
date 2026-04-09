@@ -244,22 +244,54 @@ export default function Grafica() {
       {/* ── KPI Strip ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
         {[
-          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", borderColor: "#0369a1", numColor: "#0369a1", testId: "stat-approved" },
-          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",             borderColor: "#f97316", numColor: "#ea580c", testId: "stat-production" },
-          { label: "Produzidos",   value: stats.produzidos, sub: "Não entregue",      borderColor: "#16a34a", numColor: "#15803d", testId: "stat-produced" },
-          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",         borderColor: "#0284c7", numColor: "#166534", testId: "stat-delivered" },
-        ].map(kpi => (
-          <div key={kpi.label} style={{ backgroundColor: TI.surface, borderLeft: `4px solid ${kpi.borderColor}`, borderRadius: 8, padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.muted, marginBottom: 6, fontFamily: "'Space Grotesk', sans-serif" }}>{kpi.label}</div>
-            <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: kpi.numColor, lineHeight: 1 }} data-testid={kpi.testId}>{kpi.value}</div>
-            <div style={{ fontSize: 11, color: TI.secondary, marginTop: 4 }}>{kpi.sub}</div>
-          </div>
-        ))}
-        {/* Total — dark card */}
-        <div style={{ backgroundColor: TI.text, borderLeft: `4px solid ${TI.accent}`, borderRadius: 8, padding: "16px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)" }}>
+          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", borderColor: "#0369a1", numColor: "#0369a1", testId: "stat-approved",    filterVal: "approved" },
+          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",             borderColor: "#f97316", numColor: "#ea580c", testId: "stat-production",  filterVal: "inProduction" },
+          { label: "Produzidos",   value: stats.produzidos, sub: "Não entregue",      borderColor: "#16a34a", numColor: "#15803d", testId: "stat-produced",    filterVal: "produced" },
+          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",         borderColor: "#0284c7", numColor: "#166534", testId: "stat-delivered",   filterVal: "delivered" },
+        ].map(kpi => {
+          const isActive = statusFilter === kpi.filterVal;
+          return (
+            <div
+              key={kpi.label}
+              onClick={() => setStatusFilter(isActive ? "all" : kpi.filterVal)}
+              data-testid={kpi.testId}
+              style={{
+                backgroundColor: isActive ? kpi.borderColor : TI.surface,
+                borderLeft: `4px solid ${kpi.borderColor}`,
+                borderRadius: 8,
+                padding: "16px 18px",
+                boxShadow: isActive ? `0 4px 16px ${kpi.borderColor}33` : "0 1px 4px rgba(0,0,0,0.06)",
+                cursor: "pointer",
+                transition: "all 0.15s",
+                outline: isActive ? `2px solid ${kpi.borderColor}` : "2px solid transparent",
+                outlineOffset: 2,
+              }}
+              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = `${kpi.borderColor}0f`; }}
+              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = TI.surface; }}
+            >
+              <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: isActive ? "rgba(255,255,255,0.7)" : TI.muted, marginBottom: 6, fontFamily: "'Space Grotesk', sans-serif" }}>{kpi.label}</div>
+              <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : kpi.numColor, lineHeight: 1 }}>{kpi.value}</div>
+              <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.6)" : TI.secondary, marginTop: 4 }}>{isActive ? "Clique para limpar" : kpi.sub}</div>
+            </div>
+          );
+        })}
+        {/* Total — dark card, clica para resetar */}
+        <div
+          onClick={() => setStatusFilter("all")}
+          data-testid="stat-total"
+          style={{
+            backgroundColor: TI.text, borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
+            padding: "16px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)",
+            cursor: "pointer", transition: "opacity 0.15s",
+            outline: statusFilter === "all" ? `2px solid ${TI.accent}` : "2px solid transparent",
+            outlineOffset: 2,
+          }}
+          onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.opacity = "0.85")}
+          onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.opacity = "1")}
+        >
           <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", marginBottom: 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total Geral</div>
-          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }} data-testid="stat-total">{stats.total}</div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>Peças no sistema</div>
+          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }}>{stats.total}</div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{statusFilter === "all" ? "Todos selecionados" : "Ver todos"}</div>
         </div>
       </div>
 

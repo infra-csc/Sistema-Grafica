@@ -703,17 +703,13 @@ export default function EventDetail() {
                 </div>
                 
                 {bulkMode && !editingItem ? (
-                  <div className="overflow-y-auto -mx-6 px-6">
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                   <BulkItemEntry
                     eventId={eventId!}
                     standardItems={standardItems}
                     sponsors={sponsors}
                     onSubmit={(items) => createBulkItemsMutation.mutate(items)}
-                    onCancel={() => {
-                      // Apenas fecha o dialog, sem resetar estados
-                      // Isso evita re-fetches múltiplos e tela branca
-                      setOpen(false);
-                    }}
+                    onCancel={() => setOpen(false)}
                     isPending={createBulkItemsMutation.isPending}
                   />
                   </div>

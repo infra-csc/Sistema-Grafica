@@ -133,7 +133,7 @@ export function ItemDetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 gap-0"
-        style={{ backgroundColor: "#f9f9f8", borderRadius: 6, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)", overflow: "hidden" }}
+        style={{ backgroundColor: "#f9f9f8", borderRadius: 6, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}
       >
         {/* ── Close button ── */}
         <button

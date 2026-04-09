@@ -455,39 +455,29 @@ export default function Solicitacao() {
                           </div>
 
                           {/* Card body */}
-                          <div style={{ padding: 14, display: "flex", gap: 14 }}>
-                            {/* Thumb */}
-                            <div style={{ width: 80, height: 80, borderRadius: 6, overflow: "hidden", flexShrink: 0, backgroundColor: "#f0efee", border: "1px solid #e7e5e4", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {isThumbImage ? (
-                                <img src={item.approvalThumbUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              ) : hasThumb ? (
-                                <FileText style={{ width: 24, height: 24, color: "#a8a29e" }} />
-                              ) : (
-                                <FileImage style={{ width: 24, height: 24, color: "#a8a29e" }} />
-                              )}
-                            </div>
-
-                            {/* Info */}
-                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" }}>
-                              <div style={{ borderLeft: `2px solid ${isSelected ? "#f97316" : "#e7e5e4"}`, paddingLeft: 10 }}>
+                          <div style={{ padding: 16 }}>
+                            <div style={{
+                              borderLeft: `2px solid ${isSelected ? "#f97316" : "#e7e5e4"}`,
+                              paddingLeft: 16,
+                              display: "flex", flexDirection: "column", gap: 12,
+                            }}>
+                              <div>
                                 <p style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", color: TI.secondary, margin: 0, letterSpacing: "0.04em" }}>
                                   {item.type}
                                 </p>
-                                {item.description && (
-                                  <p style={{ fontSize: 13, fontWeight: 700, color: TI.text, margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {item.description}
-                                  </p>
-                                )}
+                                <p style={{ fontSize: 15, fontWeight: 700, color: TI.text, margin: "3px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {item.description || item.type}
+                                </p>
                               </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                                 {[
                                   { label: "Qtd", value: `${item.quantity}x` },
                                   { label: "Dim", value: item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}` : "—" },
                                   { label: "m²", value: item.calculatedM2 || "—" },
                                 ].map(({ label, value }) => (
-                                  <div key={label} style={{ backgroundColor: "#f3f4f3", padding: "4px 6px", borderRadius: 4 }}>
-                                    <p style={{ fontSize: 8, color: "#78716c", textTransform: "uppercase", fontWeight: 700, margin: 0 }}>{label}</p>
-                                    <p style={{ fontSize: 10, fontWeight: 700, color: TI.text, margin: 0 }}>{value}</p>
+                                  <div key={label} style={{ backgroundColor: "#f3f4f3", padding: "6px 8px", borderRadius: 4 }}>
+                                    <p style={{ fontSize: 8, color: "#78716c", textTransform: "uppercase", fontWeight: 700, margin: 0, letterSpacing: "0.04em" }}>{label}</p>
+                                    <p style={{ fontSize: 12, fontWeight: 700, color: TI.text, margin: "2px 0 0" }}>{value}</p>
                                   </div>
                                 ))}
                               </div>

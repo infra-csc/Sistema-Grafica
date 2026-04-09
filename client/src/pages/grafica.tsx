@@ -122,7 +122,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setViewDetailsItem(null);
       toast({
-        title: "Item atualizado",
+        title: "Peça atualizada",
         description: "As especificações do item foram atualizadas com sucesso.",
       });
     },
@@ -343,7 +343,7 @@ export default function Grafica() {
         <CardHeader>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <CardTitle>Itens para Produção</CardTitle>
+              <CardTitle>Peças para Produção</CardTitle>
               <div className="flex flex-wrap gap-2">
                 <Select value={eventFilter} onValueChange={setEventFilter}>
                   <SelectTrigger className="w-[180px]" data-testid="select-event-filter">
@@ -716,7 +716,7 @@ export default function Grafica() {
             <form onSubmit={handleSubmitProduction} className="space-y-4">
               <div className="p-4 bg-muted/50 rounded-lg space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-sm font-medium">Item:</span>
+                  <span className="text-sm font-medium">Peça:</span>
                   <span className="text-sm">{selectedItem.type}</span>
                 </div>
                 <div className="flex justify-between">
@@ -780,7 +780,7 @@ export default function Grafica() {
             <form onSubmit={handleSubmitDelivery} className="space-y-4">
               <div className="p-4 bg-muted/50 rounded-lg space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-sm font-medium">Item:</span>
+                  <span className="text-sm font-medium">Peça:</span>
                   <span className="text-sm">{selectedItem.type}</span>
                 </div>
                 <div className="flex justify-between">

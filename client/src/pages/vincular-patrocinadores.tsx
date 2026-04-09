@@ -1337,7 +1337,7 @@ export default function VincularPatrocinadores() {
 
             {/* Filtro por Item (tipo) */}
             <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Item</label>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Peça</label>
               <Select value={itemFilter} onValueChange={setItemFilter}>
                 <SelectTrigger data-testid="select-item-filter">
                   <SelectValue placeholder="Selecione tipo" />
@@ -1483,7 +1483,7 @@ export default function VincularPatrocinadores() {
                           />
                         </th>
                         <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ID</th>
-                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Item</th>
+                        <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Peça</th>
                         <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Detalhes</th>
                         <th className="px-3 py-2 text-left" style={{ fontSize: '10px', fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           <div className="flex items-center gap-1">
@@ -1546,7 +1546,7 @@ export default function VincularPatrocinadores() {
                                 checked={selectedItemIds.has(item.id)}
                                 onCheckedChange={() => uiStatus === 'PENDENTE' && toggleItemSelection(item.id)}
                                 disabled={uiStatus !== 'PENDENTE'}
-                                title={uiStatus === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : uiStatus === 'RASCUNHO' ? 'Salve as alterações antes de selecionar' : uiStatus === 'ENVIADO' ? 'Item já enviado' : undefined}
+                                title={uiStatus === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : uiStatus === 'RASCUNHO' ? 'Salve as alterações antes de selecionar' : uiStatus === 'ENVIADO' ? 'Peça já enviada' : undefined}
                                 data-testid={`checkbox-item-${item.id}`}
                               />
                             </td>
@@ -1840,7 +1840,7 @@ export default function VincularPatrocinadores() {
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ backgroundColor: '#f9f9f8' }}>
-                                {['', 'ID', 'Item', 'Detalhes', 'Vinculado', 'Ação'].map(col => (
+                                {['', 'ID', 'Peça', 'Detalhes', 'Vinculado', 'Ação'].map(col => (
                                   <th key={col} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col}</th>
                                 ))}
                               </tr>

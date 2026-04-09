@@ -822,7 +822,7 @@ export default function Eventos() {
                     {/* Progresso */}
                     <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee', position: 'relative', zIndex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Itens</span>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Peças</span>
                         <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Finalizado</span>
                       </div>
                       <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '6px', overflow: 'hidden' }}>
@@ -932,7 +932,7 @@ export default function Eventos() {
           <div style={{ backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "8px", padding: "12px 14px", marginBottom: "24px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: "1px" }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
             <p style={{ fontSize: "12px", fontWeight: 600, color: "#ea580c", margin: 0, lineHeight: 1.5 }}>
-              Todos os itens associados a este evento também serão removidos permanentemente.
+              Todas as peças associadas a este evento também serão removidas permanentemente.
             </p>
           </div>
           <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>

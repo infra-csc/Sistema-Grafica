@@ -38,10 +38,10 @@ interface TimelineEvent {
 
 const ACTION_CONFIG: Record<string, { label: string; dot: string; icon: any; entityType: "Evento" | "Item" }> = {
   event_created:      { label: "Evento Criado",    dot: TI.accent,    icon: Calendar,  entityType: "Evento" },
-  item_created:       { label: "Item Adicionado",  dot: TI.graphite,  icon: Plus,      entityType: "Item" },
-  item_approved:      { label: "Item Liberado",    dot: "#16a34a",    icon: FileCheck, entityType: "Item" },
-  production_started: { label: "Em Produção",      dot: "#2563eb",    icon: Package,   entityType: "Item" },
-  item_delivered:     { label: "Item Entregue",    dot: "#7c3aed",    icon: Truck,     entityType: "Item" },
+  item_created:       { label: "Peça Adicionada",  dot: TI.graphite,  icon: Plus,      entityType: "Peça" },
+  item_approved:      { label: "Peça Liberada",    dot: "#16a34a",    icon: FileCheck, entityType: "Peça" },
+  production_started: { label: "Em Produção",      dot: "#2563eb",    icon: Package,   entityType: "Peça" },
+  item_delivered:     { label: "Peça Entregue",    dot: "#7c3aed",    icon: Truck,     entityType: "Peça" },
 };
 
 function getInitials(name: string): string {
@@ -338,7 +338,7 @@ export default function Historico() {
             <tbody>
               {filtered.map((entry, idx) => {
                 const cfg = ACTION_CONFIG[entry.type] ?? {
-                  label: "Atividade", dot: TI.muted, icon: Clock, entityType: "Item" as const,
+                  label: "Atividade", dot: TI.muted, icon: Clock, entityType: "Peça" as const,
                 };
                 const Icon = cfg.icon;
                 const isLast = idx === filtered.length - 1;

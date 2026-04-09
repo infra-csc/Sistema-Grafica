@@ -74,9 +74,9 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setDialogOpen(false); setSelectedItem(null);
-      toast({ title: "Item liberado para produção", description: "O item foi revisado e liberado para a gráfica!" });
+      toast({ title: "Peça liberada para produção", description: "A peça foi revisada e liberada para a gráfica!" });
     },
-    onError: (error: any) => toast({ title: "Erro ao liberar item", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao liberar peça", description: error.message, variant: "destructive" }),
   });
 
   const bulkReleaseMutation = useMutation({
@@ -85,9 +85,9 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set());
-      toast({ title: "Itens liberados para produção", description: `${itemIds.length} ${itemIds.length === 1 ? "item foi liberado" : "itens foram liberados"} para produção!` });
+      toast({ title: "Peças liberadas para produção", description: `${itemIds.length} ${itemIds.length === 1 ? "peça foi liberada" : "peças foram liberadas"} para produção!` });
     },
-    onError: (error: any) => toast({ title: "Erro ao liberar itens", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao liberar peças", description: error.message, variant: "destructive" }),
   });
 
   const editItemMutation = useMutation({
@@ -96,9 +96,9 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItem(null);
-      toast({ title: "Item atualizado", description: "As especificações do item foram atualizadas com sucesso." });
+      toast({ title: "Peça atualizada", description: "As especificações da peça foram atualizadas com sucesso." });
     },
-    onError: (error: any) => toast({ title: "Erro ao atualizar item", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao atualizar peça", description: error.message, variant: "destructive" }),
   });
 
   const returnToArteMutation = useMutation({
@@ -109,9 +109,9 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setDialogOpen(false); setSelectedItem(null);
       setReturnObservationOpen(false); setReturnObservations("");
-      toast({ title: "Item devolvido para Arte", description: "O item foi devolvido para a Arte com observações." });
+      toast({ title: "Peça devolvida para Arte", description: "A peça foi devolvida para a Arte com observações." });
     },
-    onError: (error: any) => toast({ title: "Erro ao devolver item", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" }),
   });
 
   const bulkCancelMutation = useMutation({
@@ -122,9 +122,9 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set()); setSelectedItem(null);
       setDialogOpen(false); setCancelConfirmOpen(false); setBulkCancelConfirmOpen(false);
-      toast({ title: "Itens cancelados", description: `${result.canceled} ${result.canceled === 1 ? "item foi cancelado" : "itens foram cancelados"}.` });
+      toast({ title: "Peças canceladas", description: `${result.canceled} ${result.canceled === 1 ? "peça foi cancelada" : "peças foram canceladas"}.` });
     },
-    onError: (error: any) => toast({ title: "Erro ao cancelar itens", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao cancelar peças", description: error.message, variant: "destructive" }),
   });
 
   const pendingItems = items.filter(item => item.status === "awaiting_final_review");
@@ -174,9 +174,9 @@ export default function Solicitacao() {
         .then(() => {
           queryClient.invalidateQueries({ queryKey: ["/api/items"] });
           setSelectedItemIds(new Set()); setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
-          toast({ title: "Itens devolvidos para Arte", description: `${itemIds.length} ${itemIds.length === 1 ? "item foi devolvido" : "itens foram devolvidos"} para a Arte.` });
+          toast({ title: "Peças devolvidas para Arte", description: `${itemIds.length} ${itemIds.length === 1 ? "peça foi devolvida" : "peças foram devolvidas"} para a Arte.` });
         })
-        .catch((error: any) => toast({ title: "Erro ao devolver itens", description: error.message, variant: "destructive" }));
+        .catch((error: any) => toast({ title: "Erro ao devolver peças", description: error.message, variant: "destructive" }));
     }
   };
   const handleBulkCancelConfirm = () => { setBulkCancelConfirmOpen(true); setBulkCancelObservations(""); };

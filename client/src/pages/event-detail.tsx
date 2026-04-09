@@ -200,13 +200,13 @@ export default function EventDetail() {
         skipApproval: false,
       });
       toast({
-        title: "Item adicionado",
-        description: "O item foi adicionado ao evento",
+        title: "Peça adicionada",
+        description: "A peça foi adicionada ao evento",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao adicionar item",
+        title: "Erro ao adicionar peça",
         description: error.message,
         variant: "destructive",
       });
@@ -242,8 +242,8 @@ export default function EventDetail() {
       const quantidade = Array.isArray(data) ? data.length : 0;
       
       toast({
-        title: "✅ Itens salvos com sucesso!",
-        description: `${quantidade} ${quantidade === 1 ? 'item adicionado' : 'itens adicionados'}`,
+        title: "✅ Peças salvas com sucesso!",
+        description: `${quantidade} ${quantidade === 1 ? 'peça adicionada' : 'peças adicionadas'}`,
       });
       
       // Atualizar com dados reais do servidor (substitui os temporários)
@@ -260,7 +260,7 @@ export default function EventDetail() {
       }
       
       toast({
-        title: "Erro ao adicionar itens",
+        title: "Erro ao adicionar peças",
         description: error.message,
         variant: "destructive",
       });
@@ -298,13 +298,13 @@ export default function EventDetail() {
       setOpen(false);
       setBulkMode(false);
       toast({
-        title: "Item atualizado",
-        description: "O item foi atualizado com sucesso",
+        title: "Peça atualizada",
+        description: "A peça foi atualizada com sucesso",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao atualizar item",
+        title: "Erro ao atualizar peça",
         description: error.message,
         variant: "destructive",
       });
@@ -319,13 +319,13 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       setDeletingItemId(null);
       toast({
-        title: "Item excluído",
-        description: "O item foi excluído com sucesso",
+        title: "Peça excluída",
+        description: "A peça foi excluída com sucesso",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao excluir item",
+        title: "Erro ao excluir peça",
         description: error.message,
         variant: "destructive",
       });
@@ -341,8 +341,8 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       toast({
-        title: "Itens enviados com sucesso",
-        description: `${data.count} ${data.count === 1 ? 'item foi enviado' : 'itens foram enviados'} para vinculação de patrocinadores`,
+        title: "Peças enviadas com sucesso",
+        description: `${data.count} ${data.count === 1 ? 'peça foi enviada' : 'peças foram enviadas'} para vinculação de patrocinadores`,
       });
     },
     onError: (error: any) => {
@@ -350,13 +350,13 @@ export default function EventDetail() {
       
       if (message.includes("Nenhum item em rascunho")) {
         toast({
-          title: "Nenhum item para enviar",
-          description: "Não há itens em rascunho neste evento",
+          title: "Nenhuma peça para enviar",
+          description: "Não há peças em rascunho neste evento",
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Erro ao enviar itens",
+          title: "Erro ao enviar peças",
           description: message,
           variant: "destructive",
         });
@@ -381,15 +381,15 @@ export default function EventDetail() {
       
       const isUnlinking = variables.sponsorId === "";
       toast({
-        title: isUnlinking ? "Itens desvinculados" : "Itens vinculados",
+        title: isUnlinking ? "Peças desvinculadas" : "Peças vinculadas",
         description: isUnlinking 
-          ? `${variables.itemIds.length} ${variables.itemIds.length === 1 ? 'item desvinculado' : 'itens desvinculados'} com sucesso`
-          : `${variables.itemIds.length} ${variables.itemIds.length === 1 ? 'item vinculado' : 'itens vinculados'} ao patrocinador com sucesso`,
+          ? `${variables.itemIds.length} ${variables.itemIds.length === 1 ? 'peça desvinculada' : 'peças desvinculadas'} com sucesso`
+          : `${variables.itemIds.length} ${variables.itemIds.length === 1 ? 'peça vinculada' : 'peças vinculadas'} ao patrocinador com sucesso`,
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao processar itens",
+        title: "Erro ao processar peças",
         description: error.message,
         variant: "destructive",
       });
@@ -654,7 +654,7 @@ export default function EventDetail() {
               onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
             >
               <Plus className="h-4 w-4" />
-              Adicionar Item
+              Adicionar Peça
             </button>
             
             <Dialog open={open} onOpenChange={(isOpen) => {
@@ -669,10 +669,10 @@ export default function EventDetail() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', backgroundColor: '#f9f9f8', borderBottom: '1px solid rgba(231,229,228,0.5)' }}>
                   <div>
                     <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
-                      {editingItem ? "Editar Item" : (bulkMode ? "Entrada Rápida" : "Novo Item")}
+                      {editingItem ? "Editar Peça" : (bulkMode ? "Entrada Rápida" : "Nova Peça")}
                     </DialogTitle>
                     <DialogDescription style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', marginTop: '2px' }}>
-                      {editingItem ? "Editar item de produção" : (bulkMode ? "Modo Lote — NORTE Apex" : "Item de Produção Gráfica")}
+                      {editingItem ? "Editar peça de produção" : (bulkMode ? "Modo Lote — NORTE Apex" : "Peça de Produção Gráfica")}
                     </DialogDescription>
                   </div>
                   {!editingItem && (
@@ -722,7 +722,7 @@ export default function EventDetail() {
                       <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
                         {/* Tipo de Item — flex-1 */}
                         <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Tipo de Item</label>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Tipo de Peça</label>
                           <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
                             <PopoverTrigger asChild>
                               <button
@@ -1007,14 +1007,14 @@ export default function EventDetail() {
         </div>
       </div>
 
-      {/* Card de Itens em Rascunho */}
+      {/* Card de Peças em Rascunho */}
       {items.filter(item => item.status === 'draft').length > 0 && (
         <Card className="border-2 border-dashed border-muted-foreground/30 bg-muted/20">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Package className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-lg">Itens em Rascunho</CardTitle>
+                <CardTitle className="text-lg">Peças em Rascunho</CardTitle>
                 <Badge variant="secondary" className="ml-2">
                   {items.filter(item => item.status === 'draft').length} {items.filter(item => item.status === 'draft').length === 1 ? 'item' : 'itens'}
                 </Badge>
@@ -1272,7 +1272,7 @@ export default function EventDetail() {
               Confirmar Exclusão
             </AlertDialogTitle>
             <AlertDialogDescription style={{ fontSize: "14px", color: "#78716c", lineHeight: 1.6, marginTop: "6px" }}>
-              Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir esta peça? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
@@ -1308,10 +1308,10 @@ export default function EventDetail() {
               </div>
               <div>
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "24px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c", lineHeight: 1.1 }}>
-                  Editar Item
+                  Editar Peça
                 </DialogTitle>
                 <DialogDescription style={{ fontSize: "14px", fontWeight: 500, color: "#78716c", marginTop: "2px" }}>
-                  {editingItem ? `#${editingItem.displayId} · ${editingItem.type}` : "Atualize as informações do item"}
+                  {editingItem ? `#${editingItem.displayId} · ${editingItem.type}` : "Atualize as informações da peça"}
                 </DialogDescription>
               </div>
             </div>
@@ -1331,7 +1331,7 @@ export default function EventDetail() {
               {/* Linha 1: Tipo (3fr) | Qtd. (1fr) | M2 Total (1fr) */}
               <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Tipo</label>
+                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Tipo de Peça</label>
                   <input
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
@@ -1592,7 +1592,7 @@ export default function EventDetail() {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="h-1 w-1 rounded-full bg-green-600"></div>
-                        <h4 className="text-sm font-semibold text-foreground">Itens Vinculados ({linkedItems.length})</h4>
+                        <h4 className="text-sm font-semibold text-foreground">Peças Vinculadas ({linkedItems.length})</h4>
                       </div>
                       <div className="space-y-2">
                         {linkedItems.map((item) => (
@@ -1656,7 +1656,7 @@ export default function EventDetail() {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="h-1 w-1 rounded-full bg-orange-600"></div>
-                        <h4 className="text-sm font-semibold text-foreground">Itens Disponíveis ({availableItems.length})</h4>
+                        <h4 className="text-sm font-semibold text-foreground">Peças Disponíveis ({availableItems.length})</h4>
                       </div>
                       {availableItems.length === 0 ? (
                         <div className="text-center py-8 px-4 border border-dashed rounded-lg bg-muted/20">
@@ -1727,10 +1727,10 @@ export default function EventDetail() {
             <div className="text-sm">
               {selectedItemsToLink.length > 0 ? (
                 <span className="font-medium text-foreground">
-                  {selectedItemsToLink.length} {selectedItemsToLink.length === 1 ? 'item selecionado' : 'itens selecionados'}
+                  {selectedItemsToLink.length} {selectedItemsToLink.length === 1 ? 'peça selecionada' : 'peças selecionadas'}
                 </span>
               ) : (
-                <span className="text-muted-foreground">Nenhum item selecionado</span>
+                <span className="text-muted-foreground">Nenhum peça selecionada</span>
               )}
             </div>
             <div className="flex gap-2">

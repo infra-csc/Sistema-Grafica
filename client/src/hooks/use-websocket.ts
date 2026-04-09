@@ -87,8 +87,8 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
             }
             toast({
-              title: 'Itens adicionados',
-              description: `${data.items?.length || 0} itens adicionados ao evento`,
+              title: 'Peças adicionadas',
+              description: `${data.items?.length || 0} peças adicionadas ao evento`,
             });
             break;
             
@@ -99,8 +99,8 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
             }
             toast({
-              title: 'Itens enviados para vinculação',
-              description: `${data.count || 0} itens aguardando vinculação de patrocinadores`,
+              title: 'Peças enviadas para vinculação',
+              description: `${data.count || 0} peças aguardando vinculação de patrocinadores`,
             });
             break;
             
@@ -114,8 +114,8 @@ export function useWebSocket() {
             }
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             toast({
-              title: 'Item liberado',
-              description: `${data.item?.type} aprovado para produção`,
+              title: 'Peça liberada',
+              description: `${data.item?.type} aprovada para produção`,
             });
             break;
             

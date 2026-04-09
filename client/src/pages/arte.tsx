@@ -78,13 +78,13 @@ export default function Arte() {
       setApprovalThumbUrl("");
       setApprovalThumbPreview("");
       toast({
-        title: "Item enviado para aprovação",
-        description: "O item foi enviado para aprovação do patrocinador",
+        title: "Peça enviada para aprovação",
+        description: "A peça foi enviada para aprovação do patrocinador",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao enviar item",
+        title: "Erro ao enviar peça",
         description: error.message,
         variant: "destructive",
       });

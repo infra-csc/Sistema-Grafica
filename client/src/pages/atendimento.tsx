@@ -196,7 +196,7 @@ export default function Atendimento() {
         setSelectedItem(null);
         toast({
           title: "Todos patrocinadores aprovaram",
-          description: "O item avançou para finalização do arquivo",
+          description: "A peça avançou para finalização do arquivo",
         });
       } else {
         // Refetch approvals to get updated server state
@@ -210,7 +210,7 @@ export default function Atendimento() {
         }
         toast({
           title: "Patrocinador aprovou",
-          description: `${data.approval?.sponsor?.name || 'Patrocinador'} aprovou o item`,
+          description: `${data.approval?.sponsor?.name || 'Patrocinador'} aprovou a peça`,
         });
       }
     },
@@ -252,7 +252,7 @@ export default function Atendimento() {
         // All sponsors decided — keep dialog open so user can see rejection reasons
         toast({
           title: "Todos patrocinadores decidiram",
-          description: "Item retornou para Arte refazer o thumb. Confira os motivos no diálogo.",
+          description: "Peça retornou para Arte refazer o thumb. Confira os motivos no diálogo.",
         });
       } else {
         toast({
@@ -281,14 +281,14 @@ export default function Atendimento() {
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
-        title: "Item aprovado",
-        description: "O item foi aprovado pelo patrocinador com sucesso!",
+        title: "Peça aprovada",
+        description: "A peça foi aprovada pelo patrocinador com sucesso!",
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao aprovar item",
-        description: error.message || "Ocorreu um erro ao aprovar o item",
+        title: "Erro ao aprovar peça",
+        description: error.message || "Ocorreu um erro ao aprovar a peça",
         variant: "destructive",
       });
     },
@@ -305,14 +305,14 @@ export default function Atendimento() {
       setDialogOpen(false);
       setSelectedItem(null);
       toast({
-        title: "Item reprovado",
-        description: "O item foi reprovado e retornou para a Arte refazer.",
+        title: "Peça reprovada",
+        description: "A peça foi reprovada e retornou para a Arte refazer.",
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao reprovar item",
-        description: error.message || "Ocorreu um erro ao reprovar o item",
+        title: "Erro ao reprovar peça",
+        description: error.message || "Ocorreu um erro ao reprovar a peça",
         variant: "destructive",
       });
     },
@@ -331,14 +331,14 @@ export default function Atendimento() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set());
       toast({
-        title: "Itens aprovados",
-        description: `${itemIds.length} ${itemIds.length === 1 ? 'item foi aprovado' : 'itens foram aprovados'} com sucesso!`,
+        title: "Peças aprovadas",
+        description: `${itemIds.length} ${itemIds.length === 1 ? 'peça foi aprovada' : 'peças foram aprovadas'} com sucesso!`,
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao aprovar itens",
-        description: error.message || "Ocorreu um erro ao aprovar os itens",
+        title: "Erro ao aprovar peças",
+        description: error.message || "Ocorreu um erro ao aprovar as peças",
         variant: "destructive",
       });
     },
@@ -357,14 +357,14 @@ export default function Atendimento() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set());
       toast({
-        title: "Itens reprovados",
-        description: `${itemIds.length} ${itemIds.length === 1 ? 'item foi reprovado' : 'itens foram reprovados'} e ${itemIds.length === 1 ? 'retornou' : 'retornaram'} para a Arte.`,
+        title: "Peças reprovadas",
+        description: `${itemIds.length} ${itemIds.length === 1 ? 'peça foi reprovada' : 'peças foram reprovadas'} e ${itemIds.length === 1 ? 'retornou' : 'retornaram'} para a Arte.`,
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Erro ao reprovar itens",
-        description: error.message || "Ocorreu um erro ao reprovar os itens",
+        title: "Erro ao reprovar peças",
+        description: error.message || "Ocorreu um erro ao reprovar as peças",
         variant: "destructive",
       });
     },
@@ -649,7 +649,7 @@ export default function Atendimento() {
                   data-testid="button-bulk-approve"
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  Aprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                  Aprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Peça' : 'Peças'}
                 </Button>
                 <Button
                   variant="destructive"
@@ -659,7 +659,7 @@ export default function Atendimento() {
                   data-testid="button-bulk-reject"
                 >
                   <XCircle className="h-4 w-4 mr-2" />
-                  Reprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Item' : 'Itens'}
+                  Reprovar {selectedItemIds.size} {selectedItemIds.size === 1 ? 'Peça' : 'Peças'}
                 </Button>
               </>
             )}
@@ -742,8 +742,8 @@ export default function Atendimento() {
                     const blockedTooltip = isMultiSponsor
                       ? "Use o botão Revisar para itens com múltiplos patrocinadores"
                       : hasArteBlock
-                      ? "Item aguardando reenvio da Arte"
-                      : eligible ? "" : "Item não disponível para seleção em lote";
+                      ? "Peça aguardando reenvio da Arte"
+                      : eligible ? "" : "Peça não disponível para seleção em lote";
 
                     return (
                       <Fragment key={item.id}>

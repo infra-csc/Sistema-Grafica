@@ -183,7 +183,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
       }));
 
     if (valid.length === 0) {
-      alert("Preencha pelo menos um item completo antes de salvar.");
+      alert("Preencha pelo menos uma peça completa antes de salvar.");
       return;
     }
     onSubmit(valid);
@@ -207,7 +207,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
         <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(249,249,248,0.85)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             <Loader2 className="h-10 w-10 animate-spin" style={{ color: '#fd761a' }} />
-            <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1c1c' }}>Salvando itens...</span>
+            <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1c1c' }}>Salvando peças...</span>
           </div>
         </div>
       )}
@@ -475,7 +475,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '99px', backgroundColor: '#d6d3d1' }} />
             <span style={{ fontSize: '11px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {validCount} {validCount === 1 ? 'Item Válido' : 'Itens Válidos'}
+              {validCount} {validCount === 1 ? 'Peça Válida' : 'Peças Válidas'}
             </span>
           </div>
         </div>

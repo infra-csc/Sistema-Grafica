@@ -751,9 +751,16 @@ export default function Atendimento() {
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
-                                  onChange={() => {}}
                                   data-testid={`checkbox-batch-item-${item.id}`}
-                                  onClick={e => e.stopPropagation()}
+                                  onChange={e => {
+                                    e.stopPropagation();
+                                    setBatchSelectedItemIds(prev => {
+                                      const next = new Set(prev);
+                                      if (next.has(item.id)) next.delete(item.id);
+                                      else next.add(item.id);
+                                      return next;
+                                    });
+                                  }}
                                   style={{ accentColor: '#fd761a', width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
                                 />
                                 {/* Thumbnail */}

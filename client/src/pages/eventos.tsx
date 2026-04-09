@@ -424,297 +424,279 @@ export default function Eventos() {
   };
 
   return (
-    <div style={{ backgroundColor: '#fafaf9', minHeight: '100%', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+    <div style={{ backgroundColor: '#fafaf9', minHeight: '100%', padding: '32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+
+      {/* ── HEADER ── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h1 style={{ color: '#1c1917', fontSize: '22px', fontWeight: '700', margin: 0 }} data-testid="title-eventos">
+          <h1
+            data-testid="title-eventos"
+            style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.03em', fontSize: '40px', fontWeight: '700', color: '#1c1917', margin: 0, lineHeight: 1.1 }}
+          >
             Eventos
           </h1>
-          <p style={{ color: '#78716c', fontSize: '13px', margin: '2px 0 0 0' }}>
+          <p style={{ color: '#78716c', fontSize: '14px', margin: '6px 0 0 0', fontWeight: '500' }}>
             Gerencie todos os eventos de produção gráfica
           </p>
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex items-center gap-3">
+          {/* Busca */}
           <div className="relative">
-            <Search style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#a8a29e', width: '14px', height: '14px' }} />
+            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a8a29e', width: '14px', height: '14px' }} />
             <Input
               placeholder="Buscar eventos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ paddingLeft: '32px', width: '220px', borderColor: '#e7e5e4' }}
+              style={{ paddingLeft: '36px', width: '220px', borderColor: '#e7e5e4', borderRadius: '99px', backgroundColor: '#ffffff', fontSize: '13px' }}
               data-testid="input-search-events"
             />
           </div>
-          <Dialog open={open} onOpenChange={(isOpen) => {
-            if (!isOpen) handleCloseDialog();
-            else setOpen(isOpen);
-          }}>
+
+          {/* Botão Novo Evento */}
+          <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(isOpen); }}>
             <DialogTrigger asChild>
-              <Button style={{ backgroundColor: '#1c1917', color: '#ffffff' }} data-testid="button-create-event">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button
+                data-testid="button-create-event"
+                style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: '10px', fontWeight: '700', fontSize: '14px', padding: '0 20px', height: '40px', gap: '8px', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}
+              >
+                <Plus className="h-4 w-4" />
                 Novo Evento
               </Button>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-lg rounded-2xl bg-white shadow-2xl p-0 gap-0">
-            {/* Cabeçalho */}
-            <div className="px-6 pt-6 pb-4 border-b border-[#e7e5e4]">
-              <h2 className="text-lg font-bold text-[#1c1917] leading-tight">
-                {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
-              </h2>
-              <p className="text-sm text-gray-400 mt-0.5">
-                {editingEvent ? "Atualize as informações do evento" : "Preencha as informações do evento"}
-              </p>
-            </div>
 
-            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-              {/* Nome do Evento */}
-              <div className="space-y-1.5">
-                <Label htmlFor="name" className="text-sm font-semibold text-[#1c1917]">
-                  Nome do Evento
-                </Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Circuitinho BSB 2024"
-                  required
-                  data-testid="input-event-name"
-                  className="bg-[#fafaf9] border-[#e7e5e4] rounded-lg text-[#1c1917] placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                />
-              </div>
-
-              {/* Datas — grid 2 colunas */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="startDate" className="text-sm font-semibold text-[#1c1917]">
-                    Data de Início
-                  </Label>
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    required
-                    data-testid="input-start-date"
-                    className="bg-[#fafaf9] border-[#e7e5e4] rounded-lg text-[#1c1917] focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                  />
-                  <p className="text-xs text-gray-400">Quando o evento começa</p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="truckDepartureDate" className="text-sm font-semibold text-[#1c1917]">
-                    Saída do Caminhão
-                  </Label>
-                  <Input
-                    id="truckDepartureDate"
-                    type="datetime-local"
-                    value={formData.truckDepartureDate}
-                    onChange={(e) => setFormData({ ...formData, truckDepartureDate: e.target.value })}
-                    required
-                    data-testid="input-truck-date"
-                    className="bg-[#fafaf9] border-[#e7e5e4] rounded-lg text-[#1c1917] focus-visible:ring-1 focus-visible:ring-[#f97316] focus-visible:border-[#f97316]"
-                  />
-                  <p className="text-xs text-gray-400">Prazo para entrega</p>
-                </div>
-              </div>
-
-              {/* Seleção de Patrocinadores */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2 text-sm font-semibold text-[#1c1917]">
-                  <Building2 className="h-4 w-4 text-[#f97316]" />
-                  Patrocinadores <span className="text-gray-400 font-normal">(opcional)</span>
-                </Label>
-                {sponsors.length === 0 ? (
-                  <p className="text-sm text-gray-400 bg-[#fafaf9] border border-[#e7e5e4] rounded-lg p-3">
-                    Nenhum patrocinador cadastrado.{" "}
-                    <Link href="/patrocinadores" className="text-[#f97316] hover:underline font-medium">
-                      Cadastre agora
-                    </Link>
+            {/* ── MODAL CRIAR / EDITAR ── */}
+            <DialogContent className="sm:max-w-lg p-0 gap-0" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+              {/* Cabeçalho do modal */}
+              <div style={{ padding: '24px 24px 20px', borderBottom: '1px solid #f0efee', backgroundColor: '#fafaf9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0 }}>
+                    {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
+                  </DialogTitle>
+                  <p style={{ color: '#a8a29e', fontSize: '12px', margin: '3px 0 0 0' }}>
+                    {editingEvent ? "Atualize as informações do evento" : "Preencha as informações do evento"}
                   </p>
-                ) : (
-                  <div className="bg-[#fafaf9] border border-[#e7e5e4] rounded-lg p-3 space-y-2.5 max-h-36 overflow-y-auto">
-                    {sponsors.map((sponsor) => (
-                      <div key={sponsor.id} className="flex items-center gap-2.5">
-                        <Checkbox
-                          id={`sponsor-${sponsor.id}`}
-                          checked={selectedSponsorIds.includes(sponsor.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
-                            } else {
-                              setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
-                            }
-                          }}
-                          data-testid={`checkbox-sponsor-${sponsor.id}`}
-                          className="border-[#e7e5e4] data-[state=checked]:bg-[#1c1917] data-[state=checked]:border-[#1c1917] rounded"
-                        />
-                        <label
-                          htmlFor={`sponsor-${sponsor.id}`}
-                          className="text-sm font-medium text-[#1c1917] cursor-pointer leading-none"
-                        >
-                          {sponsor.name}
-                          {sponsor.company && (
-                            <span className="text-gray-400 font-normal ml-1">({sponsor.company})</span>
-                          )}
-                        </label>
-                      </div>
-                    ))}
+                </div>
+              </div>
+
+              <form onSubmit={handleSubmit}>
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+                  {/* Nome */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      Nome do Evento
+                    </label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Ex: Circuitinho BSB 2024"
+                      required
+                      data-testid="input-event-name"
+                      style={{ backgroundColor: '#f0efee', border: 'none', borderRadius: '10px', padding: '10px 14px', fontSize: '14px', color: '#1c1917' }}
+                    />
                   </div>
-                )}
-              </div>
 
-              {/* Rodapé com botões */}
-              <div className="flex gap-2 justify-end pt-4 border-t border-[#e7e5e4]">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCloseDialog}
-                  className="border-[#e7e5e4] text-[#1c1917] bg-white hover:bg-gray-50"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createEventMutation.isPending || updateEventMutation.isPending}
-                  data-testid="button-submit-event"
-                  className="bg-[#1c1917] text-white border-0 hover:bg-black"
-                >
-                  {editingEvent
-                    ? (updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
-                    : (createEventMutation.isPending ? "Criando..." : "Criar Evento")
-                  }
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+                  {/* Datas */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Data Início
+                      </label>
+                      <Input
+                        id="startDate"
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                        required
+                        data-testid="input-start-date"
+                        style={{ backgroundColor: '#f0efee', border: 'none', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#1c1917' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Saída Caminhão
+                      </label>
+                      <Input
+                        id="truckDepartureDate"
+                        type="datetime-local"
+                        value={formData.truckDepartureDate}
+                        onChange={(e) => setFormData({ ...formData, truckDepartureDate: e.target.value })}
+                        required
+                        data-testid="input-truck-date"
+                        style={{ backgroundColor: '#f0efee', border: 'none', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#1c1917' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Patrocinadores */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Building2 style={{ width: '12px', height: '12px', color: '#f97316' }} />
+                      Patrocinadores <span style={{ color: '#c0bbb8', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+                    </label>
+                    {sponsors.length === 0 ? (
+                      <p style={{ fontSize: '13px', color: '#a8a29e', backgroundColor: '#f0efee', borderRadius: '10px', padding: '12px 14px' }}>
+                        Nenhum patrocinador cadastrado.{" "}
+                        <Link href="/patrocinadores" style={{ color: '#f97316', fontWeight: '600' }}>Cadastre agora</Link>
+                      </p>
+                    ) : (
+                      <div style={{ backgroundColor: '#f0efee', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '144px', overflowY: 'auto' }}>
+                        {sponsors.map((sponsor) => (
+                          <div key={sponsor.id} className="flex items-center gap-2.5">
+                            <Checkbox
+                              id={`sponsor-${sponsor.id}`}
+                              checked={selectedSponsorIds.includes(sponsor.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                                else setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                              }}
+                              data-testid={`checkbox-sponsor-${sponsor.id}`}
+                              className="border-[#d0cec9] data-[state=checked]:bg-[#1c1917] data-[state=checked]:border-[#1c1917] rounded"
+                            />
+                            <label htmlFor={`sponsor-${sponsor.id}`} style={{ fontSize: '13px', fontWeight: '500', color: '#1c1917', cursor: 'pointer', lineHeight: 1 }}>
+                              {sponsor.name}
+                              {sponsor.company && <span style={{ color: '#a8a29e', fontWeight: '400', marginLeft: '4px' }}>({sponsor.company})</span>}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rodapé do modal */}
+                <div style={{ padding: '16px 24px', backgroundColor: '#fafaf9', borderTop: '1px solid #f0efee', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={handleCloseDialog}
+                    style={{ fontSize: '13px', fontWeight: '600', color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', borderRadius: '8px' }}
+                  >
+                    Cancelar
+                  </button>
+                  <Button
+                    type="submit"
+                    disabled={createEventMutation.isPending || updateEventMutation.isPending}
+                    data-testid="button-submit-event"
+                    style={{ backgroundColor: '#1c1917', color: '#ffffff', borderRadius: '8px', fontWeight: '700', fontSize: '13px', padding: '0 20px' }}
+                  >
+                    {editingEvent
+                      ? (updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
+                      : (createEventMutation.isPending ? "Criando..." : "Salvar Evento")
+                    }
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px' }}>
-          <Filter style={{ width: '14px', height: '14px', color: '#a8a29e' }} />
-          <span style={{ color: '#78716c', fontSize: '12px', fontWeight: '600' }}>Prioridade:</span>
-        </div>
-        {(Object.entries(priorityFilterConfig) as [PriorityLevel, typeof priorityFilterConfig.urgente][]).map(([priority, config]) => {
-          const isSelected = selectedPriorities.includes(priority);
-          return (
-            <button
-              key={priority}
-              onClick={() => togglePriority(priority)}
-              data-testid={`filter-priority-${priority}`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 12px',
-                borderRadius: '99px',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                border: `1px solid ${isSelected ? config.hex : '#e7e5e4'}`,
-                backgroundColor: isSelected ? config.hex : '#ffffff',
-                color: isSelected ? '#ffffff' : '#1c1917',
-                transition: 'all 0.15s'
-              }}
-            >
-              {!isSelected && (
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: config.hex, flexShrink: 0, display: 'inline-block' }} />
-              )}
-              {config.label} <span style={{ opacity: isSelected ? 0.8 : 0.5 }}>({config.count})</span>
+      {/* ── FILTROS em painel contido ── */}
+      <div style={{ backgroundColor: '#f3f4f3', borderRadius: '14px', padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px' }}>
+        {/* Grupo prioridade */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.07em', marginRight: '4px' }}>Prioridade:</span>
+          {(Object.entries(priorityFilterConfig) as [PriorityLevel, typeof priorityFilterConfig.urgente][]).map(([priority, config]) => {
+            const isSelected = selectedPriorities.includes(priority);
+            return (
+              <button
+                key={priority}
+                onClick={() => togglePriority(priority)}
+                data-testid={`filter-priority-${priority}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '5px 13px', borderRadius: '99px',
+                  fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                  border: `1px solid ${isSelected ? config.hex : 'transparent'}`,
+                  backgroundColor: isSelected ? config.hex : '#e2e2e2',
+                  color: isSelected ? '#ffffff' : '#57534e',
+                  transition: 'all 0.15s'
+                }}
+              >
+                {!isSelected && <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: config.hex, flexShrink: 0 }} />}
+                {config.label}
+                <span style={{ opacity: 0.6 }}>({config.count})</span>
+              </button>
+            );
+          })}
+          {selectedPriorities.length > 0 && (
+            <button onClick={() => setSelectedPriorities([])} data-testid="button-clear-filters"
+              style={{ padding: '5px 10px', borderRadius: '99px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#a8a29e' }}>
+              Limpar
             </button>
-          );
-        })}
-        {selectedPriorities.length > 0 && (
-          <button
-            onClick={() => setSelectedPriorities([])}
-            data-testid="button-clear-filters"
-            style={{ padding: '4px 10px', borderRadius: '99px', fontSize: '11px', cursor: 'pointer', border: '1px solid transparent', backgroundColor: 'transparent', color: '#a8a29e' }}
-          >
-            Limpar
-          </button>
-        )}
-
-        <div style={{ width: '1px', height: '20px', backgroundColor: '#e7e5e4', margin: '0 4px' }} />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px' }}>
-          <Calendar style={{ width: '14px', height: '14px', color: '#a8a29e' }} />
-          <span style={{ color: '#78716c', fontSize: '12px', fontWeight: '600' }}>Mês:</span>
+          )}
         </div>
-        <Select value={monthFilter} onValueChange={setMonthFilter}>
-          <SelectTrigger style={{ width: '160px', borderColor: '#e7e5e4', fontSize: '12px' }} data-testid="select-month-filter">
-            <SelectValue placeholder="Mês de saída" />
-          </SelectTrigger>
-          <SelectContent>
-            {months.map((month) => (
-              <SelectItem key={month.value} value={month.value}>
-                {month.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
 
-        <button
-          onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-          data-testid="button-next-10-days-filter"
-          style={{
-            padding: '4px 12px',
-            borderRadius: '99px',
-            fontSize: '12px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            border: `1px solid ${next10DaysFilter ? '#1c1917' : '#e7e5e4'}`,
-            backgroundColor: next10DaysFilter ? '#1c1917' : '#ffffff',
-            color: next10DaysFilter ? '#ffffff' : '#1c1917',
-            transition: 'all 0.15s',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          <Truck style={{ width: '13px', height: '13px' }} />
-          Próximos 10 dias
-        </button>
+        {/* Divisor */}
+        <div style={{ width: '1px', height: '24px', backgroundColor: '#d4d4d0', flexShrink: 0 }} />
 
-        {(monthFilter !== "all" || next10DaysFilter) && (
+        {/* Grupo data */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <Select value={monthFilter} onValueChange={setMonthFilter}>
+            <SelectTrigger style={{ backgroundColor: '#e2e2e2', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '600', color: '#57534e', height: '32px', padding: '0 12px', width: '170px' }} data-testid="select-month-filter">
+              <SelectValue placeholder="Mês de saída" />
+            </SelectTrigger>
+            <SelectContent>
+              {months.map((month) => (
+                <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <button
-            onClick={() => { setMonthFilter("all"); setNext10DaysFilter(false); }}
-            data-testid="button-clear-date-filters"
-            style={{ padding: '4px 10px', borderRadius: '99px', fontSize: '11px', cursor: 'pointer', border: '1px solid transparent', backgroundColor: 'transparent', color: '#a8a29e' }}
+            onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+            data-testid="button-next-10-days-filter"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '5px 13px', borderRadius: '8px',
+              fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+              border: 'none',
+              backgroundColor: next10DaysFilter ? '#1c1917' : '#e2e2e2',
+              color: next10DaysFilter ? '#ffffff' : '#57534e',
+              transition: 'all 0.15s'
+            }}
           >
-            Limpar datas
+            <Truck style={{ width: '13px', height: '13px' }} />
+            Próximos 10 dias
           </button>
-        )}
+
+          {(monthFilter !== "all" || next10DaysFilter) && (
+            <button onClick={() => { setMonthFilter("all"); setNext10DaysFilter(false); }} data-testid="button-clear-date-filters"
+              style={{ padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#a8a29e' }}>
+              Limpar datas
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* ── CONTEÚDO ── */}
       {isLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
           <div style={{ width: '32px', height: '32px', border: '3px solid #e7e5e4', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
         </div>
       ) : events.length === 0 ? (
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '60px 24px', textAlign: 'center' }}>
-          <AlertCircle style={{ width: '40px', height: '40px', color: '#a8a29e', margin: '0 auto 16px' }} />
-          <h3 style={{ color: '#1c1917', fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>Nenhum evento criado</h3>
-          <p style={{ color: '#78716c', fontSize: '13px', marginBottom: '20px' }}>Comece criando seu primeiro evento</p>
-          <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#1c1917', color: '#ffffff' }}>
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '14px', padding: '72px 24px', textAlign: 'center' }}>
+          <Package style={{ width: '44px', height: '44px', color: '#d4d0cb', margin: '0 auto 16px' }} />
+          <h3 style={{ color: '#1c1917', fontSize: '17px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento criado</h3>
+          <p style={{ color: '#78716c', fontSize: '13px', marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
+          <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: '10px', fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}>
             <Plus className="h-4 w-4 mr-2" />
             Criar Primeiro Evento
           </Button>
         </div>
       ) : filteredEvents.length === 0 ? (
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '60px 24px', textAlign: 'center' }}>
-          <Search style={{ width: '40px', height: '40px', color: '#a8a29e', margin: '0 auto 16px' }} />
-          <h3 style={{ color: '#1c1917', fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>Nenhum evento encontrado</h3>
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '14px', padding: '72px 24px', textAlign: 'center' }}>
+          <Search style={{ width: '40px', height: '40px', color: '#d4d0cb', margin: '0 auto 16px' }} />
+          <h3 style={{ color: '#1c1917', fontSize: '17px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento encontrado</h3>
           <p style={{ color: '#78716c', fontSize: '13px' }}>Tente uma busca ou filtro diferente</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredEvents.map((event) => {
             const itemCount = event.items?.length || 0;
-            
-            // Status para SAÍDA DO CAMINHÃO (define urgência do card)
+
             const getTruckUrgency = () => {
               const now = new Date();
               const departure = new Date(event.truckDepartureDate);
@@ -724,141 +706,181 @@ export default function Eventos() {
               if (hoursUntilDeparture < 48) return 'warning';
               return 'normal';
             };
-
             const truckUrgency = getTruckUrgency();
-            
-            // Config de prioridade do evento
+
             const priorityConfig = getPriorityConfig(event.priority);
-
-            // Borda lateral: cor da prioridade — concluído usa verde, sem prioridade usa cinza
-            const cardBorderHex = event.status === 'completed'
-              ? '#10b981'
-              : priorityConfig.hex;
-
+            const isCompleted = event.status === 'completed';
+            const cardBorderHex = isCompleted ? '#10b981' : priorityConfig.hex;
             const deliveredCount = event.items?.filter((item: any) => item.status === 'delivered').length || 0;
             const progressPct = itemCount > 0 ? Math.round((deliveredCount / itemCount) * 100) : 0;
-            // Cor da barra de progresso: verde se concluído (100%), senão cor da prioridade
             const progressColor = progressPct === 100 ? '#10b981' : cardBorderHex;
 
-            return (
-              <Link key={event.id} href={`/eventos/${event.id}`}>
-                <div
-                  className="hover-elevate cursor-pointer bg-white rounded-xl"
-                  style={{ 
-                    border: '1px solid #e7e5e4', 
-                    borderLeft: `4px solid ${cardBorderHex}`,
-                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' 
-                  }}
-                  data-testid={`card-event-${event.id}`}
-                >
-                  {/* Card Header */}
-                  <div style={{ padding: '16px 16px 12px 16px' }}>
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <h3 style={{ color: '#1c1917', fontSize: '15px', fontWeight: '700', margin: 0, lineHeight: '1.3' }} title={event.name}>
+            const truckColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#6ee7b7' : '#78716c');
+            const truckTextColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#d1fae5' : '#1c1917');
+
+            // Card concluído: tema escuro
+            if (isCompleted) {
+              return (
+                <Link key={event.id} href={`/eventos/${event.id}`}>
+                  <div
+                    className="group relative cursor-pointer rounded-xl flex flex-col gap-4 overflow-hidden"
+                    style={{ backgroundColor: '#1c1917', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'box-shadow 0.3s, transform 0.2s' }}
+                    data-testid={`card-event-${event.id}`}
+                  >
+                    {/* Detalhe decorativo */}
+                    <div style={{ position: 'absolute', right: '-12px', bottom: '-12px', width: '100px', height: '100px', borderRadius: '50%', backgroundColor: '#10b981', opacity: 0.08 }} />
+                    <div style={{ position: 'absolute', right: '8px', bottom: '8px', width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#10b981', opacity: 0.05 }} />
+
+                    {/* Linha topo: badge + id */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6ee7b7', backgroundColor: 'rgba(16,185,129,0.12)', padding: '4px 10px', borderRadius: '6px' }}>
+                        Concluído
+                      </span>
+                      {event.displayId && (
+                        <span style={{ fontSize: '11px', fontWeight: '500', color: '#78716c' }}>#{String(event.displayId).padStart(4, '0')}</span>
+                      )}
+                    </div>
+
+                    {/* Nome */}
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                      <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#ffffff', lineHeight: 1.25, margin: 0 }}>
                         {event.name}
                       </h3>
-                      <div className="flex gap-1 flex-shrink-0 ml-auto">
-                        {event.status === 'completed' && (
-                          <Badge variant="outline" style={{ backgroundColor: '#10b981' + '1a', color: '#10b981', borderColor: '#10b981' + '40', fontSize: '11px', fontWeight: '600' }}>
-                            ✓ Concluído
-                          </Badge>
-                        )}
-                        {!event.priority && event.status !== 'completed' && (
-                          <Badge variant="outline" style={{ backgroundColor: '#fff7ed', color: '#f97316', borderColor: '#fed7aa', fontSize: '11px' }} className="animate-pulse">
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            Definir Prioridade
-                          </Badge>
-                        )}
-                        {event.priority && event.status !== 'completed' && priorityConfig && (
-                          <Badge variant="outline" style={{ backgroundColor: cardBorderHex + '1a', color: cardBorderHex, borderColor: cardBorderHex + '40', fontSize: '11px', fontWeight: '700' }}>
-                            {priorityConfig.label}
-                          </Badge>
-                        )}
+                    </div>
+
+                    {/* Progresso */}
+                    <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', position: 'relative', zIndex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '600', color: '#78716c' }}>{deliveredCount}/{itemCount} itens</span>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#6ee7b7' }}>Finalizado</span>
+                      </div>
+                      <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '99px', height: '4px' }}>
+                        <div style={{ height: '100%', backgroundColor: '#10b981', borderRadius: '99px', width: '100%' }} />
                       </div>
                     </div>
 
-                    {/* Boxes de data */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div style={{ backgroundColor: '#f5f5f4', borderRadius: '8px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Calendar style={{ color: cardBorderHex, width: '14px', height: '14px', flexShrink: 0 }} />
-                        <div>
-                          <div style={{ color: '#a8a29e', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Início</div>
-                          <div style={{ color: '#1c1917', fontSize: '12px', fontWeight: '700' }}>
-                            {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                          </div>
-                        </div>
+                    {/* Ações hover */}
+                    <div
+                      className="opacity-0 group-hover:opacity-100"
+                      style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '4px', transition: 'opacity 0.2s', zIndex: 10 }}
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      {hasPermission("admin") && (
+                        <>
+                          <button onClick={(e) => handleEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
+                            style={{ padding: '6px', backgroundColor: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#d4d0cb' }}>
+                            <Pencil style={{ width: '13px', height: '13px' }} />
+                          </button>
+                          <button onClick={(e) => handleDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
+                            style={{ padding: '6px', backgroundColor: 'rgba(239,68,68,0.15)', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#f87171' }}>
+                            <Trash2 style={{ width: '13px', height: '13px' }} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            }
+
+            // Card normal (prioridade)
+            return (
+              <Link key={event.id} href={`/eventos/${event.id}`}>
+                <div
+                  className="group relative cursor-pointer bg-white rounded-xl flex flex-col gap-4"
+                  style={{
+                    border: `1px solid #e7e5e4`,
+                    borderLeft: `4px solid ${cardBorderHex}`,
+                    padding: '24px',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    transition: 'box-shadow 0.3s',
+                  }}
+                  data-testid={`card-event-${event.id}`}
+                >
+                  {/* Ações — aparecem no hover */}
+                  <div
+                    className="opacity-0 group-hover:opacity-100"
+                    style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '4px', transition: 'opacity 0.2s', zIndex: 10 }}
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <button
+                      onClick={(e) => handleSetPriority(event, e)}
+                      title="Definir prioridade"
+                      data-testid={`button-priority-event-${event.id}`}
+                      style={{ padding: '6px', backgroundColor: '#f5f5f4', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: event.priority ? cardBorderHex : '#a8a29e' }}
+                    >
+                      <Flag style={{ width: '13px', height: '13px', fill: event.priority ? cardBorderHex : 'none' }} />
+                    </button>
+                    {hasPermission("admin") && (
+                      <>
+                        <button onClick={(e) => handleEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
+                          style={{ padding: '6px', backgroundColor: '#f5f5f4', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#78716c' }}>
+                          <Pencil style={{ width: '13px', height: '13px' }} />
+                        </button>
+                        <button onClick={(e) => handleDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
+                          style={{ padding: '6px', backgroundColor: '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: '#ef4444' }}>
+                          <Trash2 style={{ width: '13px', height: '13px' }} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Linha 1: badge prioridade + id */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    {!event.priority ? (
+                      <span className="animate-pulse" style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#f97316', backgroundColor: '#fff7ed', padding: '4px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertCircle style={{ width: '10px', height: '10px' }} />
+                        Sem prioridade
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: cardBorderHex, backgroundColor: cardBorderHex + '12', padding: '4px 10px', borderRadius: '6px' }}>
+                        {priorityConfig.label}
+                      </span>
+                    )}
+                    {event.displayId && (
+                      <span style={{ fontSize: '11px', fontWeight: '500', color: '#c0bbb8' }}>#{String(event.displayId).padStart(4, '0')}</span>
+                    )}
+                  </div>
+
+                  {/* Nome */}
+                  <div>
+                    <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', lineHeight: 1.25, margin: 0 }}>
+                      {event.name}
+                    </h3>
+                  </div>
+
+                  {/* Datas — estilo label + ícone + valor */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
+                        <Calendar style={{ width: '13px', height: '13px', color: cardBorderHex, flexShrink: 0 }} />
+                        <span style={{ fontSize: '12px', fontWeight: '700' }}>
+                          {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                        </span>
                       </div>
-                      <div style={{ 
-                        backgroundColor: truckUrgency === 'urgent' ? '#ef444415' : truckUrgency === 'warning' ? '#f59e0b15' : '#f5f5f4', 
-                        borderRadius: '8px', padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '8px',
-                        border: truckUrgency === 'urgent' ? '1px solid #ef444430' : truckUrgency === 'warning' ? '1px solid #f59e0b30' : '1px solid transparent'
-                      }}>
-                        <Truck style={{ color: truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : cardBorderHex, width: '14px', height: '14px', flexShrink: 0 }} />
-                        <div>
-                          <div style={{ color: '#a8a29e', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Saída</div>
-                          <div style={{ color: truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : '#1c1917', fontSize: '12px', fontWeight: '700' }}>
-                            {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className={truckUrgency === 'urgent' ? 'animate-pulse' : ''}>
+                        <Truck style={{ width: '13px', height: '13px', color: truckColor, flexShrink: 0 }} />
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: truckTextColor }}>
+                          {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                          {' · '}
+                          {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Card Footer */}
-                  <div style={{ borderTop: '1px solid #e7e5e4', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {/* Barra de progresso */}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <span style={{ color: '#a8a29e', fontSize: '11px' }}>{deliveredCount}/{itemCount} entregues</span>
-                        <span style={{ color: '#1c1917', fontSize: '11px', fontWeight: '700' }}>{progressPct}%</span>
-                      </div>
-                      <div style={{ width: '100%', backgroundColor: '#e7e5e4', borderRadius: '99px', height: '5px' }}>
-                        <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.3s' }} />
-                      </div>
+                  {/* Progresso */}
+                  <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: '600', color: '#78716c' }}>{deliveredCount}/{itemCount} entregues</span>
+                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#1c1917' }}>{progressPct}%</span>
                     </div>
-
-                    {/* Ações */}
-                    <div className="flex items-center gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        style={{ width: '28px', height: '28px' }}
-                        onClick={(e) => handleSetPriority(event, e)}
-                        title={event.status === 'completed' ? 'Evento concluído - prioridade bloqueada' : 'Definir prioridade'}
-                        disabled={event.status === 'completed'}
-                        data-testid={`button-priority-event-${event.id}`}
-                      >
-                        <Flag style={{ width: '13px', height: '13px', color: event.priority ? cardBorderHex : '#a8a29e', fill: event.priority ? cardBorderHex : 'none' }} />
-                      </Button>
-                      {hasPermission("admin") && (
-                        <>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            style={{ width: '28px', height: '28px' }}
-                            onClick={(e) => handleEdit(event, e)}
-                            data-testid={`button-edit-event-${event.id}`}
-                          >
-                            <Pencil style={{ width: '13px', height: '13px', color: '#78716c' }} />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            style={{ width: '28px', height: '28px' }}
-                            onClick={(e) => handleDelete(event.id, e)}
-                            data-testid={`button-delete-event-${event.id}`}
-                          >
-                            <Trash2 style={{ width: '13px', height: '13px', color: '#ef4444' }} />
-                          </Button>
-                        </>
-                      )}
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        style={{ height: '28px', fontSize: '11px', fontWeight: '600', borderColor: '#e7e5e4', color: '#1c1917' }}
-                      >
-                        Ver detalhes
-                      </Button>
+                    <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '4px' }}>
+                      <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.3s' }} />
                     </div>
                   </div>
                 </div>

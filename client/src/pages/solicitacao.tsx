@@ -334,10 +334,10 @@ export default function Solicitacao() {
         </div>
       </section>
 
-      {/* ── 3 & 4. EVENT GROUPS + CARDS ────────────────────────────────── */}
+      {/* ── 3 & 4. HIGH-DENSITY TABLE ──────────────────────────────────── */}
       <section style={{ padding: "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: 80 }}>
         {filteredItems.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 24px" }}>
+          <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, textAlign: "center", padding: "80px 24px" }}>
             <CheckCircle style={{ width: 48, height: 48, color: "#d1cfce", margin: "0 auto 16px" }} />
             <p style={{ fontSize: 16, fontWeight: 700, color: TI.secondary, margin: "0 0 8px" }}>
               {pendingItems.length === 0 ? "Tudo revisado!" : "Nenhum resultado encontrado"}
@@ -347,169 +347,233 @@ export default function Solicitacao() {
             </p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 48 }}>
-            {Array.from(itemsByEvent.entries()).map(([eventId, eventItems]) => {
-              const event = getEventInfo(eventId);
-              return (
-                <div key={eventId}>
-                  {/* Event group header */}
-                  <div style={{
-                    backgroundColor: "#1c1917", padding: "14px 20px", borderRadius: 8,
-                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-                    marginBottom: 20,
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <h2 style={{
-                        fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
-                        fontSize: 15, letterSpacing: "-0.01em", color: "#fff",
-                        textTransform: "uppercase", margin: 0,
-                      }}>
-                        {event?.name || "Sem Evento"}
-                      </h2>
-                      <span style={{
-                        backgroundColor: "#f97316", color: "#fff",
-                        fontSize: 9, fontWeight: 900, padding: "2px 8px",
-                        borderRadius: 999, letterSpacing: "0.04em", textTransform: "uppercase",
-                      }}>
-                        {eventItems.length} PENDENTE{eventItems.length !== 1 ? "S" : ""}
-                      </span>
-                    </div>
-                    {event && (
-                      <div style={{ display: "flex", gap: 20, fontSize: 10, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                        {event.startDate && (
-                          <span>Início: <span style={{ color: "#fff" }}>{new Date(event.startDate).toLocaleDateString("pt-BR")}</span></span>
-                        )}
-                        {event.truckDepartureDate && (
-                          <span>Saída: <span style={{ color: "#fff" }}>{new Date(event.truckDepartureDate).toLocaleDateString("pt-BR")} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+          <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+            <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
+                  {/* Select all */}
+                  <th style={{ padding: "14px 24px", width: 48, textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
+                      onChange={toggleAll}
+                      data-testid="checkbox-select-all"
+                      style={{ accentColor: "#f97316", width: 14, height: 14, cursor: "pointer" }}
+                    />
+                  </th>
+                  {[
+                    { label: "ID", w: 120 },
+                    { label: "Tipo", w: 160 },
+                    { label: "Descrição da Peça", w: undefined },
+                    { label: "Qtd", w: 64, center: true },
+                    { label: "Dim (LxA)", w: 128 },
+                    { label: "M²", w: 80 },
+                    { label: "Ações", w: 120, right: true },
+                  ].map(col => (
+                    <th
+                      key={col.label}
+                      style={{
+                        padding: "14px 16px",
+                        width: col.w,
+                        textAlign: col.right ? "right" : col.center ? "center" : "left",
+                        fontSize: 10, fontWeight: 900,
+                        textTransform: "uppercase", letterSpacing: "0.1em",
+                        color: "#78716c",
+                      }}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from(itemsByEvent.entries()).map(([eventId, eventItems]) => {
+                  const event = getEventInfo(eventId);
+                  const groupSelected = eventItems.every(i => selectedItemIds.has(i.id));
+                  const toggleGroup = () => {
+                    setSelectedItemIds(prev => {
+                      const next = new Set(prev);
+                      if (groupSelected) eventItems.forEach(i => next.delete(i.id));
+                      else eventItems.forEach(i => next.add(i.id));
+                      return next;
+                    });
+                  };
 
-                  {/* Cards grid */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-                    gap: 20,
-                  }}>
-                    {eventItems.map(item => {
-                      const isSelected = selectedItemIds.has(item.id);
-                      const hasThumb = !!item.approvalThumbUrl;
-                      const isThumbImage = hasThumb && /\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl);
+                  return (
+                    <>
+                      {/* ── Group header row ── */}
+                      <tr key={`group-${eventId}`} style={{ backgroundColor: "#1c1917", borderTop: "1px solid #292524", borderBottom: "1px solid #292524" }}>
+                        <td style={{ padding: "10px 24px", textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={groupSelected}
+                            onChange={toggleGroup}
+                            data-testid={`checkbox-group-${eventId}`}
+                            style={{ accentColor: "#f97316", width: 14, height: 14, cursor: "pointer", backgroundColor: "#292524" }}
+                          />
+                        </td>
+                        <td colSpan={7} style={{ padding: "10px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <span style={{
+                                fontFamily: "'Space Grotesk', sans-serif",
+                                fontSize: 11, fontWeight: 900,
+                                color: "#fff", textTransform: "uppercase", letterSpacing: "0.06em",
+                              }}>
+                                {event?.name || "Sem Evento"}
+                              </span>
+                              <span style={{
+                                backgroundColor: "#ea580c", color: "#fff",
+                                fontSize: 9, fontWeight: 900,
+                                padding: "1px 8px", borderRadius: 999,
+                                textTransform: "uppercase", letterSpacing: "0.04em",
+                              }}>
+                                {eventItems.length} PENDENTE{eventItems.length !== 1 ? "S" : ""}
+                              </span>
+                            </div>
+                            {event && (
+                              <div style={{ display: "flex", gap: 16, fontSize: 9, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                {event.startDate && (
+                                  <span>Início: <span style={{ color: "#d6d3d1" }}>{new Date(event.startDate).toLocaleDateString("pt-BR")}</span></span>
+                                )}
+                                {event.truckDepartureDate && (
+                                  <span>Saída: <span style={{ color: "#d6d3d1" }}>{new Date(event.truckDepartureDate).toLocaleDateString("pt-BR")} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
 
-                      return (
-                        <div
-                          key={item.id}
-                          data-testid={`card-item-${item.id}`}
-                          style={{
-                            backgroundColor: "#fff",
-                            border: isSelected ? "1.5px solid #f97316" : "1px solid #e7e5e4",
-                            borderRadius: 8, overflow: "hidden",
-                            boxShadow: isSelected ? "0 0 0 3px rgba(249,115,22,0.12)" : "none",
-                            transition: "border-color 0.15s, box-shadow 0.15s",
-                          }}
-                          onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = "#a8a29e"; }}
-                          onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = "#e7e5e4"; }}
-                        >
-                          {/* Card header */}
-                          <div style={{
-                            padding: "12px 14px", display: "flex",
-                            alignItems: "center", justifyContent: "space-between",
-                            backgroundColor: "#f3f4f3", borderBottom: "1px solid #e7e5e4",
-                          }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {/* ── Item rows ── */}
+                      {eventItems.map((item, idx) => {
+                        const isSelected = selectedItemIds.has(item.id);
+                        const isLast = idx === eventItems.length - 1;
+                        return (
+                          <tr
+                            key={item.id}
+                            data-testid={`row-item-${item.id}`}
+                            style={{
+                              borderBottom: isLast ? "none" : "1px solid #f0efee",
+                              backgroundColor: isSelected ? "#fff8f5" : "#fff",
+                              transition: "background-color 0.1s",
+                              cursor: "default",
+                            }}
+                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = "#fafaf9"; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? "#fff8f5" : "#fff"; }}
+                          >
+                            {/* Checkbox */}
+                            <td style={{ padding: "14px 24px", textAlign: "center" }}>
                               <input
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleItem(item.id)}
                                 data-testid={`checkbox-item-${item.id}`}
                                 style={{ accentColor: "#f97316", width: 14, height: 14, cursor: "pointer" }}
-                                onClick={e => e.stopPropagation()}
                               />
+                            </td>
+
+                            {/* ID */}
+                            <td style={{ padding: "14px 16px" }}>
                               <span
                                 data-testid={`text-display-id-${item.id}`}
-                                style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#c2410c" }}
+                                style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#c2410c", letterSpacing: "-0.02em" }}
                               >
                                 {item.displayId}
                               </span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{
-                                fontSize: 9, fontWeight: 700, padding: "3px 8px",
-                                backgroundColor: "#fff", border: "1px solid #e7e5e4",
-                                borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
-                                color: TI.secondary,
-                              }}>
-                                Aguard. Revisão
+                            </td>
+
+                            {/* Tipo */}
+                            <td style={{ padding: "14px 16px" }}>
+                              <span style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", color: TI.text, letterSpacing: "0.02em" }}>
+                                {item.type}
                               </span>
+                            </td>
+
+                            {/* Descrição */}
+                            <td style={{ padding: "14px 16px" }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: TI.secondary }}>
+                                {item.description || "—"}
+                              </span>
+                            </td>
+
+                            {/* Qtd */}
+                            <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: TI.text }}>
+                                {item.quantity}
+                              </span>
+                            </td>
+
+                            {/* Dimensões */}
+                            <td style={{ padding: "14px 16px" }}>
+                              <span style={{ fontFamily: "monospace", fontSize: 11, color: TI.secondary }}>
+                                {item.fileWidth && item.fileHeight ? `${item.fileWidth}x${item.fileHeight}` : "—"}
+                              </span>
+                            </td>
+
+                            {/* M² */}
+                            <td style={{ padding: "14px 16px" }}>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: item.calculatedM2 ? TI.text : TI.muted }}>
+                                {item.calculatedM2 || "—"}
+                              </span>
+                            </td>
+
+                            {/* Ação */}
+                            <td style={{ padding: "14px 16px", textAlign: "right" }}>
                               <button
                                 onClick={() => openModal(item)}
-                                data-testid={`button-open-modal-${item.id}`}
-                                style={{ background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 2, display: "flex" }}
-                                onMouseEnter={e => (e.currentTarget.style.color = TI.text)}
-                                onMouseLeave={e => (e.currentTarget.style.color = TI.muted)}
+                                data-testid={`button-review-${item.id}`}
+                                style={{
+                                  backgroundColor: "#1c1917", color: "#fff",
+                                  border: "none", borderRadius: 4,
+                                  fontSize: 9, fontWeight: 900,
+                                  textTransform: "uppercase", letterSpacing: "0.08em",
+                                  padding: "6px 16px", cursor: "pointer",
+                                  transition: "background-color 0.15s",
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#ea580c")}
+                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1c1917")}
                               >
-                                <Eye style={{ width: 15, height: 15 }} />
+                                Revisar
                               </button>
-                            </div>
-                          </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
 
-                          {/* Card body */}
-                          <div style={{ padding: 16 }}>
-                            <div style={{
-                              borderLeft: `2px solid ${isSelected ? "#f97316" : "#e7e5e4"}`,
-                              paddingLeft: 16,
-                              display: "flex", flexDirection: "column", gap: 12,
-                            }}>
-                              <div>
-                                <p style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", color: TI.secondary, margin: 0, letterSpacing: "0.04em" }}>
-                                  {item.type}
-                                </p>
-                                <p style={{ fontSize: 15, fontWeight: 700, color: TI.text, margin: "3px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                  {item.description || item.type}
-                                </p>
-                              </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                                {[
-                                  { label: "Qtd", value: `${item.quantity}x` },
-                                  { label: "Dim", value: item.fileWidth && item.fileHeight ? `${item.fileWidth}×${item.fileHeight}` : "—" },
-                                  { label: "m²", value: item.calculatedM2 || "—" },
-                                ].map(({ label, value }) => (
-                                  <div key={label} style={{ backgroundColor: "#f3f4f3", padding: "6px 8px", borderRadius: 4 }}>
-                                    <p style={{ fontSize: 8, color: "#78716c", textTransform: "uppercase", fontWeight: 700, margin: 0, letterSpacing: "0.04em" }}>{label}</p>
-                                    <p style={{ fontSize: 12, fontWeight: 700, color: TI.text, margin: "2px 0 0" }}>{value}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Card footer */}
-                          <div style={{ padding: "10px 12px", backgroundColor: "#fafaf9", borderTop: "1px solid #e7e5e4", display: "flex", gap: 8 }}>
-                            <button
-                              onClick={() => { setSelectedItem(item); setReturnObservations(""); setReturnConfirmOpen(true); }}
-                              disabled={returnToArteMutation.isPending}
-                              data-testid={`button-return-${item.id}`}
-                              style={{ flex: 1, border: "1px solid #b91c1c", color: "#b91c1c", backgroundColor: "transparent", fontSize: 10, fontWeight: 700, textTransform: "uppercase", padding: "8px 0", cursor: "pointer", borderRadius: 4, letterSpacing: "0.06em" }}
-                            >
-                              Devolver
-                            </button>
-                            <button
-                              onClick={() => { setSelectedItem(item); setReleaseConfirmOpen(true); }}
-                              disabled={creatorReviewMutation.isPending}
-                              data-testid={`button-release-${item.id}`}
-                              style={{ flex: 1, backgroundColor: "#1c1917", color: "#fff", border: "none", fontSize: 10, fontWeight: 700, textTransform: "uppercase", padding: "8px 0", cursor: "pointer", borderRadius: 4, letterSpacing: "0.06em" }}
-                            >
-                              Liberar
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+            {/* Table footer */}
+            <div style={{
+              backgroundColor: "#fafaf9", padding: "12px 24px",
+              borderTop: "1px solid #e7e5e4",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Mostrando {filteredItems.length} de {pendingItems.length} iten{pendingItems.length !== 1 ? "s" : ""} pendente{pendingItems.length !== 1 ? "s" : ""}
+              </span>
+              {selectedItemIds.size > 0 && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => setBulkReleaseConfirmOpen(true)}
+                    data-testid="button-bulk-release-table"
+                    style={{ fontSize: 10, fontWeight: 700, padding: "5px 14px", borderRadius: 4, backgroundColor: "#1c1917", color: "#fff", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                  >
+                    Liberar {selectedItemIds.size}
+                  </button>
+                  <button
+                    onClick={() => setBulkReturnConfirmOpen(true)}
+                    data-testid="button-bulk-return-table"
+                    style={{ fontSize: 10, fontWeight: 700, padding: "5px 14px", borderRadius: 4, backgroundColor: "transparent", color: "#b91c1c", border: "1px solid #b91c1c", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                  >
+                    Devolver {selectedItemIds.size}
+                  </button>
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
         )}
       </section>

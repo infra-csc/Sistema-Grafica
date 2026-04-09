@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2 } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -39,6 +39,7 @@ export default function Solicitacao() {
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [cancelObservations, setCancelObservations] = useState("");
   const [returnConfirmOpen, setReturnConfirmOpen] = useState(false);
+  const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [eventFilter, setEventFilter] = useState<string>("all");
@@ -96,6 +97,17 @@ export default function Solicitacao() {
       toast({ title: "Peças canceladas", description: `${result.canceled} peça(s) cancelada(s).` });
     },
     onError: (error: any) => toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" }),
+  });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: async (itemId: string) => await apiRequest("DELETE", `/api/items/${itemId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      setDeleteConfirmItemId(null);
+      toast({ title: "Peça excluída", description: "A peça foi removida com sucesso." });
+    },
+    onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
   });
 
   const pendingItems = useMemo(() => items.filter(item => item.status === "awaiting_final_review"), [items]);
@@ -520,22 +532,39 @@ export default function Solicitacao() {
 
                             {/* Ação */}
                             <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                              <button
-                                onClick={() => openModal(item)}
-                                data-testid={`button-review-${item.id}`}
-                                style={{
-                                  backgroundColor: "#1c1917", color: "#fff",
-                                  border: "none", borderRadius: 4,
-                                  fontSize: 9, fontWeight: 900,
-                                  textTransform: "uppercase", letterSpacing: "0.08em",
-                                  padding: "6px 16px", cursor: "pointer",
-                                  transition: "background-color 0.15s",
-                                }}
-                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#ea580c")}
-                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1c1917")}
-                              >
-                                Revisar
-                              </button>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                                <button
+                                  onClick={() => openModal(item)}
+                                  data-testid={`button-review-${item.id}`}
+                                  style={{
+                                    backgroundColor: "#1c1917", color: "#fff",
+                                    border: "none", borderRadius: 4,
+                                    fontSize: 9, fontWeight: 900,
+                                    textTransform: "uppercase", letterSpacing: "0.08em",
+                                    padding: "6px 16px", cursor: "pointer",
+                                    transition: "background-color 0.15s",
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#ea580c")}
+                                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1c1917")}
+                                >
+                                  Revisar
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirmItemId(item.id)}
+                                  data-testid={`button-delete-${item.id}`}
+                                  title="Excluir peça"
+                                  style={{
+                                    background: "none", border: "none", cursor: "pointer",
+                                    color: "#a8a29e", padding: "4px",
+                                    display: "flex", alignItems: "center",
+                                    borderRadius: 4, transition: "color 0.15s",
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+                                  onMouseLeave={e => (e.currentTarget.style.color = "#a8a29e")}
+                                >
+                                  <Trash2 style={{ width: 15, height: 15 }} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -951,6 +980,31 @@ export default function Solicitacao() {
               data-testid="button-cancel-confirm"
             >
               {bulkCancelMutation.isPending ? "Cancelando..." : "Confirmar Cancelamento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir peça</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirmItemId && (() => {
+                const item = pendingItems.find(i => i.id === deleteConfirmItemId);
+                return item ? <span>A peça <strong>{item.displayId}</strong> será permanentemente excluída. Esta ação não pode ser desfeita.</span> : "Esta peça será permanentemente excluída.";
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-delete-cancel">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmItemId && deleteItemMutation.mutate(deleteConfirmItemId)}
+              className="bg-destructive text-destructive-foreground"
+              data-testid="button-delete-confirm"
+            >
+              {deleteItemMutation.isPending ? "Excluindo..." : "Excluir Peça"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1375,7 +1375,10 @@ export default function VincularPatrocinadores() {
           const eventSponsors = getEventSponsors(eventId);
           
           // Usar a mesma função de filtro para garantir consistência
-          const displayedItems = filterItems(eventItems, event?.name);
+          // Ordenar por tipo para que o agrupador funcione corretamente
+          const displayedItems = filterItems(eventItems, event?.name)
+            .slice()
+            .sort((a, b) => a.type.localeCompare(b.type, 'pt-BR'));
 
           const progress = calculateProgress(displayedItems);
 

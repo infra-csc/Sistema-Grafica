@@ -158,6 +158,7 @@ export default function VincularPatrocinadores() {
 
   // Seleção em lote na aba "Por Patrocinador"
   const [sponsorBulkSelected, setSponsorBulkSelected] = useState<Set<string>>(new Set());
+  const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
 
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -612,7 +613,8 @@ export default function VincularPatrocinadores() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItemIds(new Set());
-      setSelectedForSending(new Set()); // Limpar seleção para envio
+      setSelectedForSending(new Set());
+      setOptimisticSentIds(new Set()); // Limpar otimistas — dados reais já chegaram
       
       if (data.errors && data.errors.length > 0) {
         toast({
@@ -1001,6 +1003,9 @@ export default function VincularPatrocinadores() {
         setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
         setItemSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
       }
+
+      // Marcar otimisticamente como enviados (antes da resposta do servidor)
+      setOptimisticSentIds(prev => new Set([...prev, ...itemIds]));
 
       // Enviar todos para Arte
       sendToArteMutation.mutate(itemIds);
@@ -1788,7 +1793,7 @@ export default function VincularPatrocinadores() {
                               {allItems.map(item => {
                                 const isLinked = linkedItems.some(i => i.id === item.id);
                                 const uiStatus = itemUIStates[item.id] || 'PENDENTE';
-                                const isSent = uiStatus === 'ENVIADO';
+                                const isSent = uiStatus === 'ENVIADO' || optimisticSentIds.has(item.id);
                                 return (
                                   <tr
                                     key={item.id}
@@ -1826,8 +1831,12 @@ export default function VincularPatrocinadores() {
                                     </td>
                                     <td style={{ padding: '10px 12px' }}>
                                       {isLinked ? (
-                                        <span style={{ backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d', fontSize: 11, borderRadius: 100, padding: '2px 10px' }}>
-                                          Vinculado
+                                        <span style={{ backgroundColor: '#f0fdf4', border: '1px solid #86efac', color: '#15803d', fontSize: 11, borderRadius: 100, padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                          <Check style={{ width: 10, height: 10 }} /> Vinculado
+                                        </span>
+                                      ) : isSent ? (
+                                        <span style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', fontSize: 11, borderRadius: 100, padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }} title="Item enviado sem este patrocinador vinculado">
+                                          <Send style={{ width: 10, height: 10 }} /> Enviado s/ vínculo
                                         </span>
                                       ) : (
                                         <span style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#a8a29e', fontSize: 11, borderRadius: 100, padding: '2px 10px' }}>

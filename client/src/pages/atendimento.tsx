@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle, Users, Clock, Loader2, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Calendar, Truck, Search, X, Package, MapPin, Ruler, FileText, Tag, XCircle, Users, Clock, Loader2, RotateCcw, ChevronDown, ChevronRight, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -69,6 +69,12 @@ export default function Atendimento() {
   // Seleção múltipla
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [approvedGroupExpanded, setApprovedGroupExpanded] = useState(false);
+
+  // Lote por Patrocinador + Evento
+  const [batchSponsorId, setBatchSponsorId]           = useState<string>("");
+  const [batchEventId, setBatchEventId]               = useState<string>("");
+  const [batchRejectReason, setBatchRejectReason]     = useState<string>("");
+  const [batchShowRejectForm, setBatchShowRejectForm] = useState<boolean>(false);
   
   // Map para rastrear patrocinadores de cada item
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
@@ -370,6 +376,50 @@ export default function Atendimento() {
     },
   });
 
+  // Mutation: aprovar/reprovar TODAS as peças de um patrocinador num evento
+  const batchSponsorMutation = useMutation({
+    mutationFn: async ({ sponsorId, eventId, action, reason }: {
+      sponsorId: string; eventId: string; action: "approve" | "reject"; reason?: string;
+    }) => {
+      const targetItems = awaitingItems.filter(item => item.eventId === eventId);
+      const promises = targetItems.flatMap(item => {
+        const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+        const approval = approvals.find(a => a.sponsorId === sponsorId);
+        const status = approval?.status || "pending";
+        if (!itemSponsorsMap[item.id]?.some((s: any) => s.id === sponsorId)) return [];
+        if (status !== "pending" && status !== "new_version_pending") return [];
+        if (action === "approve") {
+          return [apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/approve`, {})];
+        } else {
+          return [apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/reject`, { rejectionReason: reason || null })];
+        }
+      });
+      return await Promise.all(promises);
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      setBatchSponsorId("");
+      setBatchEventId("");
+      setBatchRejectReason("");
+      setBatchShowRejectForm(false);
+      toast({
+        title: vars.action === "approve" ? "Peças aprovadas em lote" : "Peças reprovadas em lote",
+        description: vars.action === "approve"
+          ? "Todas as peças pendentes do evento foram aprovadas para este patrocinador."
+          : "Todas as peças pendentes foram reprovadas e devolvidas para a Arte.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro na operação em lote",
+        description: error.message || "Ocorreu um erro ao processar as peças",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Filtrar itens aguardando aprovação de patrocinador
   const pendingItems = awaitingItems;
   
@@ -451,6 +501,51 @@ export default function Atendimento() {
       return approvals.some(a => a.status === 'rejected' || a.status === 'pending' || a.status === 'new_version_pending');
     }).length;
   }, [pendingGroup, itemApprovalsMap, loadingSponsors]);
+
+  // ── BATCH POR PATROCINADOR ─────────────────────────────────────
+
+  // Sponsors que têm ao menos 1 item com aprovação pendente (pending ou new_version_pending)
+  const batchEligibleSponsors = useMemo(() => {
+    if (loadingSponsors) return [];
+    const sponsorSet = new Set<string>();
+    awaitingItems.forEach(item => {
+      const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+      const itemSps = itemSponsorsMap[item.id] || [];
+      itemSps.forEach((s: any) => {
+        const approval = approvals.find(a => a.sponsorId === s.id);
+        const status = approval?.status || "pending";
+        if (status === "pending" || status === "new_version_pending") sponsorSet.add(s.id);
+      });
+    });
+    return (sponsors as any[]).filter((s: any) => sponsorSet.has(s.id));
+  }, [awaitingItems, itemApprovalsMap, itemSponsorsMap, loadingSponsors, sponsors]);
+
+  // Eventos que têm itens pendentes para o patrocinador selecionado no batch
+  const batchEligibleEvents = useMemo(() => {
+    if (!batchSponsorId || loadingSponsors) return [];
+    const eventSet = new Set<string>();
+    awaitingItems.forEach(item => {
+      if (!itemSponsorsMap[item.id]?.some((s: any) => s.id === batchSponsorId)) return;
+      const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+      const approval = approvals.find(a => a.sponsorId === batchSponsorId);
+      const status = approval?.status || "pending";
+      if (status === "pending" || status === "new_version_pending") eventSet.add(item.eventId);
+    });
+    return (events as any[]).filter((e: any) => eventSet.has(e.id));
+  }, [batchSponsorId, awaitingItems, itemApprovalsMap, itemSponsorsMap, loadingSponsors, events]);
+
+  // Contagem de itens afetados pela combinação selecionada
+  const batchItemCount = useMemo(() => {
+    if (!batchSponsorId || !batchEventId) return 0;
+    return awaitingItems.filter(item => {
+      if (item.eventId !== batchEventId) return false;
+      if (!itemSponsorsMap[item.id]?.some((s: any) => s.id === batchSponsorId)) return false;
+      const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+      const approval = approvals.find(a => a.sponsorId === batchSponsorId);
+      const status = approval?.status || "pending";
+      return status === "pending" || status === "new_version_pending";
+    }).length;
+  }, [batchSponsorId, batchEventId, awaitingItems, itemApprovalsMap, itemSponsorsMap]);
 
   const getEventInfo = (eventId: string) => {
     return events.find(e => e.id === eventId);
@@ -667,6 +762,214 @@ export default function Atendimento() {
         </CardHeader>
         
         <CardContent>
+          {/* ══ APROVAÇÃO EM LOTE POR PATROCINADOR + EVENTO ══ */}
+          {!loadingSponsors && batchEligibleSponsors.length > 0 && (
+            <div
+              data-testid="section-batch-sponsor"
+              style={{
+                marginBottom: 20,
+                border: "1px solid #e7e5e4",
+                borderRadius: 10,
+                overflow: "hidden",
+              }}
+            >
+              {/* Header do painel */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "12px 18px",
+                backgroundColor: "#fafaf9",
+                borderBottom: "1px solid #e7e5e4",
+              }}>
+                <Zap style={{ width: 15, height: 15, color: "#f97316", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#1c1917", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Aprovação em Lote por Patrocinador
+                </span>
+                <span style={{ fontSize: 11, color: "#78716c", fontWeight: 400 }}>
+                  — selecione um patrocinador e um evento para aprovar ou reprovar todas as peças de uma vez
+                </span>
+              </div>
+
+              {/* Controles */}
+              <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+
+                {/* Select patrocinador */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 200 }}>
+                  <label style={{ fontSize: 10, fontWeight: 600, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Patrocinador
+                  </label>
+                  <select
+                    value={batchSponsorId}
+                    onChange={e => { setBatchSponsorId(e.target.value); setBatchEventId(""); setBatchShowRejectForm(false); setBatchRejectReason(""); }}
+                    data-testid="select-batch-sponsor"
+                    style={{
+                      height: 36, padding: "0 10px", borderRadius: 6,
+                      border: "1px solid #e7e5e4", backgroundColor: "#ffffff",
+                      fontSize: 13, color: "#1c1917", cursor: "pointer", outline: "none",
+                    }}
+                  >
+                    <option value="">Selecionar patrocinador...</option>
+                    {batchEligibleSponsors.map((s: any) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Select evento (aparece após escolher patrocinador) */}
+                {batchSponsorId && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 220 }}>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Evento
+                    </label>
+                    <select
+                      value={batchEventId}
+                      onChange={e => { setBatchEventId(e.target.value); setBatchShowRejectForm(false); setBatchRejectReason(""); }}
+                      data-testid="select-batch-event"
+                      style={{
+                        height: 36, padding: "0 10px", borderRadius: 6,
+                        border: "1px solid #e7e5e4", backgroundColor: "#ffffff",
+                        fontSize: 13, color: "#1c1917", cursor: "pointer", outline: "none",
+                      }}
+                    >
+                      <option value="">Selecionar evento...</option>
+                      {batchEligibleEvents.map((ev: any) => (
+                        <option key={ev.id} value={ev.id}>{ev.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Chip de contagem + Botões (após escolher ambos) */}
+                {batchSponsorId && batchEventId && batchItemCount > 0 && !batchShowRejectForm && (
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
+                    {/* Chip contagem */}
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      backgroundColor: "#fff7ed", border: "1px solid #fed7aa",
+                      color: "#c2410c", borderRadius: 100,
+                      fontSize: 12, fontWeight: 700, padding: "4px 12px",
+                    }}>
+                      <Package style={{ width: 12, height: 12 }} />
+                      {batchItemCount} {batchItemCount === 1 ? "peça pendente" : "peças pendentes"}
+                    </span>
+
+                    {/* Reprovar tudo */}
+                    <button
+                      onClick={() => setBatchShowRejectForm(true)}
+                      disabled={batchSponsorMutation.isPending}
+                      data-testid="button-batch-reject"
+                      style={{
+                        height: 36, padding: "0 16px", borderRadius: 6,
+                        backgroundColor: "#fef2f2", border: "1px solid #fecaca",
+                        color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#dc2626"; e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.borderColor = "#dc2626"; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#dc2626"; e.currentTarget.style.borderColor = "#fecaca"; }}
+                    >
+                      <XCircle style={{ width: 14, height: 14 }} />
+                      Reprovar Todas
+                    </button>
+
+                    {/* Aprovar tudo */}
+                    <button
+                      onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "approve" })}
+                      disabled={batchSponsorMutation.isPending}
+                      data-testid="button-batch-approve"
+                      style={{
+                        height: 36, padding: "0 16px", borderRadius: 6,
+                        backgroundColor: "#f0fdf4", border: "1px solid #86efac",
+                        color: "#15803d", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                        display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#15803d"; e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.borderColor = "#15803d"; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#f0fdf4"; e.currentTarget.style.color = "#15803d"; e.currentTarget.style.borderColor = "#86efac"; }}
+                    >
+                      {batchSponsorMutation.isPending
+                        ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
+                        : <CheckCircle style={{ width: 14, height: 14 }} />}
+                      Aprovar Todas
+                    </button>
+                  </div>
+                )}
+
+                {/* Nenhuma peça elegível */}
+                {batchSponsorId && batchEventId && batchItemCount === 0 && !loadingSponsors && (
+                  <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 2, marginTop: 18 }}>
+                    <span style={{ fontSize: 13, color: "#a8a29e" }}>
+                      Nenhuma peça pendente para esta combinação.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Form de motivo de reprovação em lote */}
+              {batchShowRejectForm && (
+                <div style={{
+                  padding: "14px 18px",
+                  backgroundColor: "#fff7ed",
+                  borderTop: "1px solid #fed7aa",
+                }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+                    <AlertCircle style={{ width: 16, height: 16, color: "#f97316", flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#c2410c", margin: 0 }}>
+                        Reprovar {batchItemCount} {batchItemCount === 1 ? "peça" : "peças"} em lote
+                      </p>
+                      <p style={{ fontSize: 12, color: "#78716c", margin: "2px 0 0" }}>
+                        Todas as peças pendentes serão devolvidas para a Arte. Informe o motivo.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Textarea
+                    placeholder="Ex: Logotipo do patrocinador fora das proporções corretas..."
+                    value={batchRejectReason}
+                    onChange={e => setBatchRejectReason(e.target.value)}
+                    className="text-sm h-16 resize-none"
+                    data-testid="textarea-batch-reject-reason"
+                    style={{ borderColor: batchRejectReason.trim() === "" ? "#fca5a5" : "#e7e5e4" }}
+                  />
+                  {batchRejectReason.trim() === "" && (
+                    <p style={{ fontSize: 11, color: "#dc2626", margin: "4px 0 0" }}>
+                      Informe o motivo antes de confirmar.
+                    </p>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+                    <button
+                      onClick={() => { setBatchShowRejectForm(false); setBatchRejectReason(""); }}
+                      style={{
+                        height: 34, padding: "0 16px", borderRadius: 6,
+                        backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
+                        color: "#78716c", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "reject", reason: batchRejectReason })}
+                      disabled={batchSponsorMutation.isPending || batchRejectReason.trim() === ""}
+                      data-testid="button-batch-confirm-reject"
+                      style={{
+                        height: 34, padding: "0 16px", borderRadius: 6,
+                        backgroundColor: batchRejectReason.trim() === "" ? "#a8a29e" : "#1c1917",
+                        border: "none", color: "#ffffff",
+                        fontSize: 13, fontWeight: 600,
+                        cursor: batchRejectReason.trim() === "" ? "not-allowed" : "pointer",
+                        opacity: batchRejectReason.trim() === "" ? 0.6 : 1,
+                        display: "flex", alignItems: "center", gap: 6,
+                      }}
+                    >
+                      {batchSponsorMutation.isPending
+                        ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> Reprovando...</>
+                        : <><XCircle style={{ width: 13, height: 13 }} /> Confirmar Reprovação em Lote</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {itemsLoading || eventsLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

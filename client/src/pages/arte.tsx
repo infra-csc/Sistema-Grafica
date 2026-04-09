@@ -1049,137 +1049,152 @@ export default function Arte() {
       <Dialog open={!!correcaoItem} onOpenChange={(open) => {
         if (!open) { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }
       }}>
-        <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 560, borderRadius: 16, backgroundColor: '#ffffff' }}>
+        <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 448, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.1)' }}>
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
-          {/* Header */}
-          <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #e7e5e4', position: 'relative' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <RotateCcw style={{ width: 18, height: 18, color: '#f97316', flexShrink: 0 }} />
-              <span style={{ fontSize: 17, fontWeight: 700, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.03em' }}>Enviar Nova Arte</span>
+          <div style={{ padding: 24 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{
+                  display: 'inline-block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
+                  fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)',
+                  padding: '2px 8px', borderRadius: 4, width: 'fit-content'
+                }}>Action Required</span>
+                <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.05em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.15 }}>
+                  Enviar Nova Arte
+                </h2>
+              </div>
+              <button
+                onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, borderRadius: 4, lineHeight: 1, flexShrink: 0 }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
+                data-testid="button-close-correcao-dialog"
+              >
+                <X style={{ width: 20, height: 20 }} />
+              </button>
             </div>
-            {correcaoItem && (
-              <p style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>
-                {correcaoItem.displayId} — {correcaoItem.type}{correcaoItem.event?.name ? ` · ${correcaoItem.event.name}` : ''}
-              </p>
-            )}
-            <button
-              onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }}
-              style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 4, borderRadius: 6, lineHeight: 1 }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
-              data-testid="button-close-correcao-dialog"
-            >
-              <X style={{ width: 16, height: 16 }} />
-            </button>
-          </div>
 
-          {correcaoItem && (
-            <>
-              {/* Reprovações */}
-              <div style={{ padding: '16px 24px', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
-                <p style={{ fontSize: 10, fontWeight: 600, color: '#ba1a1a', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 10 }}>Reprovações</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {correcaoItem && (
+              <>
+                {/* Rejection alerts — one per sponsor */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
                   {correcaoItem.awaitingArteApprovals.map((approval: any) => (
-                    <div key={approval.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
-                      {approval.sponsor?.color && (
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0, marginTop: 3 }} />
-                      )}
-                      <div>
-                        <span style={{ fontWeight: 600, color: '#1c1917' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                        {approval.rejectionReason && (
-                          <span style={{ color: '#78716c', fontStyle: 'italic' }}> — "{approval.rejectionReason}"</span>
-                        )}
+                    <div key={approval.id} style={{
+                      backgroundColor: 'rgba(255,218,214,0.2)', borderRadius: 8, padding: '12px 14px',
+                      display: 'flex', gap: 10, borderLeft: '4px solid #dc2626'
+                    }}>
+                      <AlertTriangle style={{ width: 18, height: 18, color: '#dc2626', flexShrink: 0, marginTop: 1 }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: '#93000a', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                          Motivo da Rejeição: {approval.sponsor?.name || 'Patrocinador'}
+                        </p>
+                        <p style={{ fontSize: 13, color: '#93000a', margin: 0 }}>
+                          {approval.rejectionReason ? `"${approval.rejectionReason}"` : 'Sem motivo informado.'}
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
 
-              {/* Upload */}
-              <div style={{ padding: '16px 24px', borderBottom: '1px solid #e7e5e4' }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>Nova Arte (Upload)</p>
-                {correcaoThumbUrl ? (
-                  <div style={{ border: '2px dashed #86efac', borderRadius: 10, backgroundColor: '#f0fdf4', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                    {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl) ? (
-                      <img src={correcaoThumbUrl} alt="Nova arte" style={{ maxHeight: 120, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#166534' }}>
-                        <FileText style={{ width: 20, height: 20 }} />
-                        <span style={{ fontSize: 13, fontWeight: 500 }}>Arquivo enviado com sucesso</span>
+                {/* Upload zone */}
+                <div style={{ marginBottom: 24 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c7164', marginBottom: 8 }}>
+                    Upload da Nova Versão
+                  </label>
+                  {correcaoThumbUrl ? (
+                    <div style={{ border: '2px dashed #86efac', borderRadius: 10, backgroundColor: '#f0fdf4', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                      {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl) ? (
+                        <img src={correcaoThumbUrl} alt="Nova arte" style={{ maxHeight: 110, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#166534' }}>
+                          <FileText style={{ width: 20, height: 20 }} />
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>Arquivo enviado com sucesso</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setCorrecaoThumbUrl("")}
+                        data-testid="button-remove-correcao-thumb"
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: '1px solid #86efac', borderRadius: 6, color: '#166534', fontSize: 12, padding: '4px 10px', cursor: 'pointer' }}
+                      >
+                        <X style={{ width: 12, height: 12 }} /> Remover
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      height: 160, border: '2px dashed #e2e2e2', borderRadius: 12,
+                      backgroundColor: '#f0efee', display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background-color 0.15s'
+                    }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#e8e8e7'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#f0efee'; }}
+                    >
+                      <div style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                        <Upload style={{ width: 20, height: 20, color: '#9d4300' }} />
                       </div>
-                    )}
-                    <button
-                      onClick={() => setCorrecaoThumbUrl("")}
-                      data-testid="button-remove-correcao-thumb"
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: '1px solid #86efac', borderRadius: 6, color: '#166534', fontSize: 12, padding: '4px 10px', cursor: 'pointer' }}
-                    >
-                      <X style={{ width: 12, height: 12 }} /> Remover
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    style={{ border: '2px dashed #e7e5e4', borderRadius: 10, backgroundColor: '#fafaf9', padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'border-color 0.15s, background-color 0.15s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#f97316'; (e.currentTarget as HTMLElement).style.backgroundColor = '#fff7ed'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; }}
-                  >
-                    <Upload style={{ width: 24, height: 24, color: '#a8a29e' }} />
-                    <p style={{ fontSize: 13, color: '#78716c', margin: 0 }}>Arraste o arquivo ou clique para selecionar</p>
-                    <p style={{ fontSize: 11, color: '#a8a29e', margin: 0 }}>PDF, JPG, PNG — máx. 50MB</p>
-                    <FileUploader
-                      onGetUploadParameters={getUploadUrl}
-                      onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
-                      accept="image/*,application/pdf"
-                      data-testid="uploader-correcao-thumb"
-                    >
-                      <Upload style={{ width: 14, height: 14, marginRight: 6 }} />
-                      Fazer Upload da Nova Arte
-                    </FileUploader>
-                  </div>
-                )}
-              </div>
-
-              {/* Patrocinadores */}
-              <div style={{ padding: '16px 24px', borderBottom: '1px solid #e7e5e4' }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', marginBottom: 10 }}>Enviar para quais patrocinadores?</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {correcaoItem.awaitingArteApprovals.map((approval: any) => (
-                    <label
-                      key={approval.sponsorId}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '10px 14px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
-                        backgroundColor: correcaoSelectedSponsorIds.has(approval.sponsorId) ? '#f0fdf4' : '#fafaf9',
-                        border: `1px solid ${correcaoSelectedSponsorIds.has(approval.sponsorId) ? '#86efac' : '#e7e5e4'}`,
-                      }}
-                    >
-                      <Checkbox
-                        checked={correcaoSelectedSponsorIds.has(approval.sponsorId)}
-                        onCheckedChange={(checked) => {
-                          const next = new Set(correcaoSelectedSponsorIds);
-                          if (checked) next.add(approval.sponsorId); else next.delete(approval.sponsorId);
-                          setCorrecaoSelectedSponsorIds(next);
-                        }}
-                        data-testid={`checkbox-correcao-sponsor-${approval.sponsorId}`}
-                      />
-                      {approval.sponsor?.color && <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: approval.sponsor.color }} />}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                    </label>
-                  ))}
+                      <p style={{ fontSize: 13, fontWeight: 500, color: '#1c1917', margin: '0 0 2px' }}>Solte o arquivo aqui ou</p>
+                      <FileUploader
+                        onGetUploadParameters={getUploadUrl}
+                        onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
+                        accept="image/*,application/pdf"
+                        data-testid="uploader-correcao-thumb"
+                        buttonVariant="ghost"
+                        buttonClassName="h-auto py-0 px-0 text-sm font-medium underline decoration-2 underline-offset-2 text-orange-700 hover:bg-transparent"
+                      >
+                        procure
+                      </FileUploader>
+                      <p style={{ fontSize: 10, color: '#a8a29e', margin: '4px 0 0' }}>PDF, PNG ou SVG até 25MB</p>
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Footer */}
-              <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                <button
-                  onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }}
-                  style={{ backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 8, height: 40, padding: '0 20px', fontSize: 13, cursor: 'pointer' }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#1c1917'; e.currentTarget.style.color = '#ffffff'; }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; e.currentTarget.style.color = '#78716c'; }}
-                >
-                  Cancelar
-                </button>
+                {/* Sponsor checkboxes */}
+                <div style={{ marginBottom: 32 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c7164', marginBottom: 10 }}>
+                    Re-enviar para APROVAÇÃO:
+                  </label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {correcaoItem.awaitingArteApprovals.map((approval: any) => {
+                      const isSelected = correcaoSelectedSponsorIds.has(approval.sponsorId);
+                      const isPendente = true;
+                      return (
+                        <label
+                          key={approval.sponsorId}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 12px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
+                            backgroundColor: '#f0efee', transition: 'background-color 0.15s'
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#e8e8e7'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#f0efee'; }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const next = new Set(correcaoSelectedSponsorIds);
+                              if (e.target.checked) next.add(approval.sponsorId); else next.delete(approval.sponsorId);
+                              setCorrecaoSelectedSponsorIds(next);
+                            }}
+                            data-testid={`checkbox-correcao-sponsor-${approval.sponsorId}`}
+                            style={{ width: 18, height: 18, accentColor: '#dc2626', borderRadius: 4, cursor: 'pointer', flexShrink: 0 }}
+                          />
+                          {approval.sponsor?.color && (
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
+                          )}
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: isPendente ? '#dc2626' : '#78716c', backgroundColor: '#ffffff', padding: '3px 8px', borderRadius: 4 }}>
+                            {isPendente ? 'Pendente' : 'Opcional'}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Submit button */}
                 <button
                   disabled={!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending}
                   onClick={() => {
@@ -1189,24 +1204,28 @@ export default function Arte() {
                   }}
                   data-testid="button-submit-correcao"
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    backgroundColor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#fca5a5' : '#f97316',
-                    color: '#ffffff', border: 'none', borderRadius: 8, height: 40, padding: '0 20px',
-                    fontWeight: 700, fontSize: 14,
+                    width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
+                    backgroundColor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#fca5a5' : '#dc2626',
+                    color: '#ffffff', fontWeight: 700, fontSize: 17,
+                    fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.02em',
                     cursor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 16px rgba(185,28,28,0.2)', transition: 'filter 0.15s, transform 0.1s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
                   }}
-                  onMouseEnter={e => { if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return; e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                  onMouseEnter={e => { if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
                   onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                  onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
+                  onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
                 >
                   {resubmitMutation.isPending ? (
-                    <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+                    <><div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
                   ) : (
-                    <><RotateCcw style={{ width: 14, height: 14 }} />Enviar Nova Arte</>
+                    'Confirmar Re-envio'
                   )}
                 </button>
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1383,78 +1402,164 @@ export default function Arte() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL 3 — BULK PDF UPLOAD                                          */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={showBulkDialog} onOpenChange={setShowBulkDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Upload de PDF Compartilhado</DialogTitle>
-            <DialogDescription>
-              Faça upload de 1 PDF que contém artes de múltiplas peças. {selectedItemIds.size} peça(s) selecionada(s).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="border rounded-lg p-4 bg-muted/30">
-              <p className="text-sm font-medium mb-2">Peças Selecionadas:</p>
-              <div className="max-h-40 overflow-y-auto space-y-1">
-                {Array.from(selectedItemIds).map(itemId => {
-                  const item = allItems.find(i => i.id === itemId);
-                  return item ? (
-                    <div key={itemId} className="text-xs flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">{item.event?.name || 'Sem Evento'}</Badge>
-                      <span className="text-muted-foreground">•</span>
-                      <span>{item.type}</span>
-                      {item.description && <><span className="text-muted-foreground">•</span><span className="text-muted-foreground">{item.description}</span></>}
-                    </div>
-                  ) : null;
-                })}
+      <Dialog open={showBulkDialog} onOpenChange={(open) => { if (!open) { setShowBulkDialog(false); setSharedPdfUrl(""); } }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 600, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.1)' }}>
+          <DialogTitle className="sr-only">Upload PDF Compartilhado</DialogTitle>
+          <DialogDescription className="sr-only">Vincular um PDF a múltiplos itens</DialogDescription>
+
+          <div style={{ padding: 32 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <h2 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.05em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.1 }}>
+                  Upload PDF<br />Compartilhado
+                </h2>
+                <p style={{ fontSize: 13, color: '#78716c', margin: 0 }}>Vincular um único documento a múltiplos itens selecionados.</p>
+              </div>
+              <button
+                onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
+                style={{ padding: '6px', backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#78716c', lineHeight: 1, flexShrink: 0 }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
+              >
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            {/* 2-column grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+              {/* Left: items list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9d4300', margin: 0 }}>
+                  Itens Selecionados ({String(selectedItemIds.size).padStart(2, '0')})
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
+                  {Array.from(selectedItemIds).map((itemId, idx) => {
+                    const item = allItems.find(i => i.id === itemId);
+                    if (!item) return null;
+                    const isFirst = idx === 0;
+                    return (
+                      <div key={itemId} style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                        backgroundColor: '#f0efee', borderRadius: 8,
+                        borderLeft: isFirst ? '2px solid #9d4300' : '2px solid transparent'
+                      }}>
+                        <div style={{ width: 40, height: 40, backgroundColor: '#d6d3d1', borderRadius: 6, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {item.approvalThumbUrl ? (
+                            <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <FileImage style={{ width: 16, height: 16, color: '#a8a29e' }} />
+                          )}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.displayId} · {item.type}
+                          </p>
+                          <p style={{ fontSize: 10, color: '#78716c', margin: 0 }}>
+                            {item.event?.name || 'Sem evento'}{item.sponsors?.[0]?.name ? ` • ${item.sponsors[0].name}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right: upload zone */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9d4300', margin: '0 0 16px' }}>
+                  Arquivo Principal
+                </h3>
+                <div style={{
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: '#f0efee', borderRadius: 12, border: '2px dashed rgba(157,67,0,0.3)',
+                  padding: 24, textAlign: 'center', transition: 'border-color 0.15s', minHeight: 200
+                }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(157,67,0,0.6)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(157,67,0,0.3)'; }}
+                >
+                  {sharedPdfUrl ? (
+                    <>
+                      <div style={{ width: 56, height: 56, backgroundColor: '#ffffff', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: 12 }}>
+                        <FileText style={{ width: 28, height: 28, color: '#dc2626' }} />
+                      </div>
+                      <p style={{ fontSize: 13, fontWeight: 700, fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: '0 0 4px' }}>PDF Carregado</p>
+                      <a href={sharedPdfUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#9d4300', textDecoration: 'underline', display: 'block', marginBottom: 12 }}>
+                        Visualizar arquivo
+                      </a>
+                      <FileUploader
+                        onGetUploadParameters={getUploadUrl}
+                        onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
+                        onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
+                        accept=".pdf,application/pdf"
+                        buttonVariant="ghost"
+                        buttonClassName="h-8 text-xs font-bold uppercase tracking-wider bg-stone-900 text-white rounded-full px-4 hover:bg-stone-700 hover:text-white"
+                      >
+                        Alterar PDF
+                      </FileUploader>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ width: 64, height: 64, backgroundColor: '#ffffff', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', marginBottom: 14, transition: 'transform 0.2s' }}>
+                        <FileText style={{ width: 30, height: 30, color: '#9d4300' }} />
+                      </div>
+                      <p style={{ fontSize: 13, fontWeight: 700, fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: '0 0 4px' }}>Upload PDF</p>
+                      <p style={{ fontSize: 11, color: '#78716c', margin: '0 0 14px', padding: '0 8px' }}>Este arquivo será aplicado a todos os itens à esquerda.</p>
+                      <FileUploader
+                        onGetUploadParameters={getUploadUrl}
+                        onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
+                        onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
+                        accept=".pdf,application/pdf"
+                        buttonVariant="ghost"
+                        buttonClassName="h-8 text-[10px] font-bold uppercase tracking-wider bg-stone-900 text-white rounded-full px-4 hover:bg-stone-700 hover:text-white"
+                      >
+                        Selecionar Arquivo
+                      </FileUploader>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium flex items-center gap-2">
-                <File className="h-4 w-4" />
-                PDF Compartilhado <span className="text-destructive">*</span>
-              </p>
-              <p className="text-xs text-muted-foreground">Envie 1 PDF contendo todas as artes. Ele será usado por todas as peças marcadas.</p>
-              {sharedPdfUrl ? (
-                <div className="space-y-2">
-                  <a href={sharedPdfUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg hover-elevate text-red-700 dark:text-red-400 font-medium">
-                    <FileText className="h-5 w-5" />
-                    <div className="flex flex-col items-start"><span>Abrir PDF Compartilhado</span><span className="text-xs text-red-600 dark:text-red-500">Clique para visualizar</span></div>
-                  </a>
-                  <FileUploader
-                    onGetUploadParameters={getUploadUrl}
-                    onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
-                    onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
-                    accept=".pdf,application/pdf"
-                    buttonVariant="outline"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Alterar PDF
-                  </FileUploader>
-                </div>
-              ) : (
-                <FileUploader
-                  onGetUploadParameters={getUploadUrl}
-                  onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
-                  onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
-                  accept=".pdf,application/pdf"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Fazer Upload do PDF
-                </FileUploader>
-              )}
+            {/* Footer */}
+            <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
+              <button
+                onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
+                style={{
+                  flex: 1, padding: '14px 0', borderRadius: 8, border: 'none',
+                  backgroundColor: '#e8e8e7', color: '#1c1917', fontWeight: 700,
+                  fontFamily: '"Space Grotesk", sans-serif', fontSize: 15, cursor: 'pointer', transition: 'background-color 0.15s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e2e2e2'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={submitBulkForApprovalMutation.isPending || !sharedPdfUrl}
+                onClick={handleBulkSubmit}
+                data-testid="button-submit-bulk-pdf"
+                style={{
+                  flex: 2, padding: '14px 0', borderRadius: 8, border: 'none',
+                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#fcd9b7' : '#f97316',
+                  color: '#ffffff', fontWeight: 700, fontFamily: '"Space Grotesk", sans-serif', fontSize: 16,
+                  cursor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: '0 4px 16px rgba(234,88,12,0.2)', transition: 'filter 0.15s, transform 0.1s'
+                }}
+                onMouseEnter={e => { if (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
+                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
+                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+              >
+                {submitBulkForApprovalMutation.isPending ? (
+                  <><div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+                ) : (
+                  <>Processar Bulk Upload <Send style={{ width: 16, height: 16 }} /></>
+                )}
+              </button>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}>Cancelar</Button>
-            <Button onClick={handleBulkSubmit} disabled={submitBulkForApprovalMutation.isPending || !sharedPdfUrl}>
-              {submitBulkForApprovalMutation.isPending ? (
-                <><Upload className="h-4 w-4 mr-2 animate-spin" />Enviando...</>
-              ) : (
-                <><CheckCircle className="h-4 w-4 mr-2" />Enviar {selectedItemIds.size} Peças para Aprovação</>
-              )}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

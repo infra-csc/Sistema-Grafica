@@ -66,7 +66,7 @@ export default function TriagemRetorno() {
 
   const handleSingle = async (assetId: string) => {
     const entry = getEntry(assetId);
-    setSavingIds(prev => new Set([...prev, assetId]));
+    setSavingIds(prev => new Set(Array.from(prev).concat(assetId)));
     try {
       await triageMutation.mutateAsync({
         id: assetId,
@@ -74,12 +74,12 @@ export default function TriagemRetorno() {
         notes: entry.notes,
         trackingStatus: entry.result,
       });
-      setSavedIds(prev => new Set([...prev, assetId]));
+      setSavedIds(prev => new Set(Array.from(prev).concat(assetId)));
       toast({ title: "Triagem registrada com sucesso." });
     } catch {
       toast({ title: "Erro ao registrar triagem.", variant: "destructive" });
     } finally {
-      setSavingIds(prev => { const s = new Set(prev); s.delete(assetId); return s; });
+      setSavingIds(prev => { const s = new Set(Array.from(prev)); s.delete(assetId); return s; });
     }
   };
 
@@ -103,7 +103,7 @@ export default function TriagemRetorno() {
     );
     const succeeded = results.filter(r => r.status === "fulfilled").length;
     const failed = results.filter(r => r.status === "rejected").length;
-    setSavedIds(prev => new Set([...prev, ...selectedIds]));
+    setSavedIds(prev => new Set(Array.from(prev).concat(selectedIds)));
     setSavingIds(new Set());
     setEntries(prev => {
       const next = { ...prev };

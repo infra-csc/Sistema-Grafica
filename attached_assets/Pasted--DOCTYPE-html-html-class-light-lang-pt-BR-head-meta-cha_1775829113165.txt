@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus_Jakarta_Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#584237",
+                        "on-tertiary": "#ffffff",
+                        "primary-container": "#9f9996",
+                        "on-background": "#1a1c1c",
+                        "surface-dim": "#dadad9",
+                        "primary-fixed": "#e9e1dd",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "surface-tint": "#625d5b",
+                        "on-tertiary-container": "#003554",
+                        "on-surface": "#1a1c1c",
+                        "surface-container": "#eeeeed",
+                        "on-primary-fixed": "#1e1b19",
+                        "outline-variant": "#e0c0b1",
+                        "surface-bright": "#f9f9f8",
+                        "error": "#ba1a1a",
+                        "secondary-fixed-dim": "#ffb690",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "secondary": "#9d4300",
+                        "outline": "#8c7164",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed": "#001d32",
+                        "on-secondary-fixed": "#341100",
+                        "surface-container-low": "#f3f4f3",
+                        "surface": "#f9f9f8",
+                        "inverse-surface": "#2f3130",
+                        "background": "#f9f9f8",
+                        "inverse-primary": "#ccc5c2",
+                        "on-secondary-fixed-variant": "#783200",
+                        "tertiary-container": "#00a2f4",
+                        "secondary-container": "#fd761a",
+                        "on-secondary": "#ffffff",
+                        "inverse-on-surface": "#f1f1f0",
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-container-high": "#e8e8e7",
+                        "on-primary-container": "#35322f",
+                        "tertiary": "#006398",
+                        "primary": "#625d5b",
+                        "on-secondary-container": "#5c2400",
+                        "secondary-fixed": "#ffdbca",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed": "#cde5ff",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "surface-variant": "#e2e2e2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f9f9f8; }
+        .headline-tight { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.03em; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .cell-height { height: 90px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-stone-900/95 backdrop-blur-xl shadow-2xl shadow-black/20 flex justify-between items-center px-8 h-16 w-full">
+<div class="text-2xl font-bold tracking-tighter text-white font-headline">NORTE Production</div>
+<div class="hidden md:flex items-center gap-8">
+<a class="font-['Space_Grotesk'] tracking-tighter uppercase text-stone-400 hover:text-stone-100 transition-colors" href="#">Events</a>
+<a class="font-['Space_Grotesk'] tracking-tighter uppercase text-stone-400 hover:text-stone-100 transition-colors" href="#">Logistics</a>
+<a class="font-['Space_Grotesk'] tracking-tighter uppercase text-stone-400 hover:text-stone-100 transition-colors" href="#">Talent</a>
+<a class="font-['Space_Grotesk'] tracking-tighter uppercase text-stone-400 hover:text-stone-100 transition-colors" href="#">Archive</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-secondary text-on-secondary px-4 py-1.5 rounded-md text-sm font-bold uppercase tracking-wider hover:brightness-110 transition-all">Create Event</button>
+<div class="flex gap-2 text-stone-400">
+<span class="material-symbols-outlined p-2 hover:bg-stone-800/50 rounded-full cursor-pointer">notifications</span>
+<span class="material-symbols-outlined p-2 hover:bg-stone-800/50 rounded-full cursor-pointer">settings</span>
+</div>
+<img alt="User Profile" class="w-8 h-8 rounded-full border border-stone-700" data-alt="professional male portrait with neutral background and sharp focus" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQAD6rw6s0q6ORJWGv8xR6rZ69hbuIMysxFIdnU_Mi4Kvit6SZL56nl7rL6K04vFwuh7k6qryvnYvUVJNYAhwnm2tbU4i19RGDcSpKEPf7PMPSUSlsnZp5ld_vyFa0SDdvHA_pU2nJY0cUkJNbKks3X46PcZ5uPTMOT5ji8cDWbcDIGSyRg_kftvfFnQxx7Tngy8L_YMftcecVwCR7HNGeElPRyFK0djVmjRy6e5FP1ExgOcjMqlCAbp-ClTuCwDpmiI9LgABQCQvb"/>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-stone-900 flex flex-col py-6 h-full border-r border-stone-800/50 z-40 pt-20">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center text-white font-bold">SP</div>
+<div>
+<p class="text-white font-bold text-sm font-['Plus_Jakarta_Sans']">System Admin</p>
+<p class="text-stone-500 text-xs">Elite Sports Management</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1 px-3">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-400 hover:bg-stone-800/50 hover:text-stone-200 transition-all rounded font-['Plus_Jakarta_Sans'] text-sm font-medium" href="#">
+<span class="material-symbols-outlined">dashboard</span> Dashboard
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 bg-stone-800 text-orange-500 border-r-4 border-orange-500 transition-all font-['Plus_Jakarta_Sans'] text-sm font-medium" href="#">
+<span class="material-symbols-outlined">calendar_month</span> Calendar
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-400 hover:bg-stone-800/50 hover:text-stone-200 transition-all rounded font-['Plus_Jakarta_Sans'] text-sm font-medium" href="#">
+<span class="material-symbols-outlined">local_shipping</span> Fleet Status
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-400 hover:bg-stone-800/50 hover:text-stone-200 transition-all rounded font-['Plus_Jakarta_Sans'] text-sm font-medium" href="#">
+<span class="material-symbols-outlined">groups</span> Production Crew
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-400 hover:bg-stone-800/50 hover:text-stone-200 transition-all rounded font-['Plus_Jakarta_Sans'] text-sm font-medium" href="#">
+<span class="material-symbols-outlined">analytics</span> Reports
+            </a>
+</nav>
+<div class="px-6 mb-4">
+<button class="w-full bg-stone-800 text-orange-500 py-2 rounded-md text-xs font-bold uppercase tracking-widest hover:bg-stone-700 transition-colors">New Departure</button>
+</div>
+<footer class="px-3 space-y-1 border-t border-stone-800/50 pt-4">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-400 hover:text-stone-200 transition-all font-['Plus_Jakarta_Sans'] text-sm font-medium" href="#">
+<span class="material-symbols-outlined">help</span> Support
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-400 hover:text-stone-200 transition-all font-['Plus_Jakarta_Sans'] text-sm font-medium" href="#">
+<span class="material-symbols-outlined">logout</span> Logout
+            </a>
+</footer>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-24 px-8 pb-12 min-h-screen bg-background">
+<!-- Header -->
+<header class="mb-10 flex justify-between items-end">
+<div>
+<h1 class="text-5xl headline-tight font-bold text-on-surface uppercase mb-2">Calendário de Eventos</h1>
+<p class="text-on-surface-variant font-medium tracking-tight">Gestão tática e logística para o trimestre operacional NORTE.</p>
+</div>
+<div class="flex gap-4">
+<div class="flex bg-surface-container rounded-lg p-1">
+<button class="px-4 py-1.5 bg-white shadow-sm rounded-md text-sm font-bold">Mês</button>
+<button class="px-4 py-1.5 text-stone-500 text-sm font-bold">Semana</button>
+<button class="px-4 py-1.5 text-stone-500 text-sm font-bold">Lista</button>
+</div>
+</div>
+</header>
+<!-- Alert Strip -->
+<div class="mb-6 flex items-center justify-between bg-error-container text-on-error-container px-6 py-4 rounded-xl border-l-8 border-error shadow-sm">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-error">warning</span>
+<span class="font-bold tracking-tight">2 eventos com saída do caminhão nas próximas 48h</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="bg-error text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">Crítico</span>
+<button class="text-xs font-bold underline underline-offset-4">Ver Detalhes</button>
+</div>
+</div>
+<!-- Main Calendar Card -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl shadow-stone-200/50">
+<!-- Calendar Navigation -->
+<div class="flex items-center justify-between px-8 py-6 bg-surface-bright">
+<div class="flex items-center gap-6">
+<h2 class="text-3xl headline-tight font-bold text-on-surface uppercase">Abril 2026</h2>
+<div class="flex gap-1">
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors"><span class="material-symbols-outlined text-xl">chevron_left</span></button>
+<button class="p-2 hover:bg-surface-container rounded-full transition-colors"><span class="material-symbols-outlined text-xl">chevron_right</span></button>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-stone-400 text-sm">search</span>
+<input class="pl-9 pr-4 py-2 bg-surface-container-low border-none rounded-lg text-sm focus:ring-2 focus:ring-secondary/20" placeholder="Filtrar evento..." type="text"/>
+</div>
+<button class="px-6 py-2 bg-white border border-outline-variant/30 text-stone-900 font-bold text-sm rounded-lg hover:bg-stone-50 transition-colors">Hoje</button>
+</div>
+</div>
+<!-- Calendar Grid -->
+<div class="grid grid-cols-7 border-b border-surface-container">
+<div class="py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 bg-surface-bright border-r border-surface-container/50">Dom</div>
+<div class="py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 bg-surface-bright border-r border-surface-container/50">Seg</div>
+<div class="py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 bg-surface-bright border-r border-surface-container/50">Ter</div>
+<div class="py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 bg-surface-bright border-r border-surface-container/50">Qua</div>
+<div class="py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 bg-surface-bright border-r border-surface-container/50">Qui</div>
+<div class="py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 bg-surface-bright border-r border-surface-container/50">Sex</div>
+<div class="py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 bg-surface-bright">Sáb</div>
+</div>
+<div class="grid grid-cols-7 grid-rows-5 bg-surface-container/20">
+<!-- Row 1 (Partial) -->
+<div class="cell-height bg-stone-50/50 p-2 border-r border-b border-surface-container">
+<span class="text-xs font-bold text-stone-300">29</span>
+</div>
+<div class="cell-height bg-stone-50/50 p-2 border-r border-b border-surface-container">
+<span class="text-xs font-bold text-stone-300">30</span>
+</div>
+<div class="cell-height bg-stone-50/50 p-2 border-r border-b border-surface-container">
+<span class="text-xs font-bold text-stone-300">31</span>
+</div>
+<!-- Abril 1st -->
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative group hover:bg-stone-50/80 transition-colors">
+<span class="text-xs font-black text-stone-900">01</span>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">02</span>
+<div class="mt-1 space-y-1">
+<div class="flex items-center gap-1.5 px-2 py-0.5 bg-white border-l-4 border-yellow-500 rounded shadow-sm text-[10px] font-bold">
+<span class="material-symbols-outlined text-[12px]">local_shipping</span>
+<span>Saída: GP Interlagos</span>
+</div>
+</div>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">03</span>
+</div>
+<div class="cell-height bg-white p-2 border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">04</span>
+</div>
+<!-- Row 2 -->
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">05</span>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">06</span>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">07</span>
+<div class="mt-1 space-y-1">
+<div class="flex items-center justify-between px-2 py-0.5 bg-red-50 border-l-4 border-red-600 rounded shadow-sm text-[10px] font-bold">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">calendar_month</span>
+<span>Maratona Rio</span>
+</div>
+<span class="bg-red-600 text-white px-1 rounded text-[9px]">3h 20min</span>
+</div>
+</div>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative bg-stone-50/20">
+<span class="text-xs font-black text-stone-900">08</span>
+<div class="mt-1">
+<div class="flex items-center gap-1.5 px-2 py-0.5 bg-white border-l-4 border-orange-600 rounded shadow-sm text-[10px] font-bold">
+<span class="material-symbols-outlined text-[12px]">local_shipping</span>
+<span>Saída: Arena SP</span>
+</div>
+</div>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">09</span>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">10</span>
+<div class="mt-1">
+<div class="flex items-center gap-1.5 px-2 py-0.5 bg-white border-l-4 border-blue-500 rounded shadow-sm text-[10px] font-bold">
+<span class="material-symbols-outlined text-[12px]">calendar_month</span>
+<span>Treino Elite</span>
+</div>
+</div>
+</div>
+<div class="cell-height bg-white p-2 border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">11</span>
+</div>
+<!-- Row 3 (Current Week Focus) -->
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">12</span>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative ring-2 ring-inset ring-secondary/10">
+<span class="text-xs font-black text-white bg-secondary w-5 h-5 flex items-center justify-center rounded-full">13</span>
+<div class="mt-1 space-y-1">
+<div class="flex items-center gap-1.5 px-2 py-0.5 bg-white border-l-4 border-red-600 rounded shadow-sm text-[10px] font-bold">
+<span class="material-symbols-outlined text-[12px]">local_shipping</span>
+<span>Frota Alpha</span>
+</div>
+</div>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">14</span>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">15</span>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">16</span>
+<div class="mt-1">
+<div class="flex items-center gap-1.5 px-2 py-0.5 bg-white border-l-4 border-green-500 rounded shadow-sm text-[10px] font-bold">
+<span class="material-symbols-outlined text-[12px]">calendar_month</span>
+<span>Briefing VIP</span>
+</div>
+</div>
+</div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">17</span>
+</div>
+<div class="cell-height bg-white p-2 border-b border-surface-container relative">
+<span class="text-xs font-black text-stone-900">18</span>
+</div>
+<!-- Remaining cells filled automatically in logic, manually simulated for visual -->
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative"><span class="text-xs font-black text-stone-900">19</span></div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative"><span class="text-xs font-black text-stone-900">20</span></div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative"><span class="text-xs font-black text-stone-900">21</span></div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative"><span class="text-xs font-black text-stone-900">22</span></div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative"><span class="text-xs font-black text-stone-900">23</span></div>
+<div class="cell-height bg-white p-2 border-r border-b border-surface-container relative"><span class="text-xs font-black text-stone-900">24</span></div>
+<div class="cell-height bg-white p-2 border-b border-surface-container relative"><span class="text-xs font-black text-stone-900">25</span></div>
+<div class="cell-height bg-white p-2 border-r border-surface-container relative"><span class="text-xs font-black text-stone-900">26</span></div>
+<div class="cell-height bg-white p-2 border-r border-surface-container relative"><span class="text-xs font-black text-stone-900">27</span></div>
+<div class="cell-height bg-white p-2 border-r border-surface-container relative"><span class="text-xs font-black text-stone-900">28</span></div>
+<div class="cell-height bg-white p-2 border-r border-surface-container relative"><span class="text-xs font-black text-stone-900">29</span></div>
+<div class="cell-height bg-white p-2 border-r border-surface-container relative"><span class="text-xs font-black text-stone-900">30</span></div>
+<div class="cell-height bg-stone-50/50 p-2 border-r border-surface-container relative"><span class="text-xs font-bold text-stone-300">01</span></div>
+<div class="cell-height bg-stone-50/50 p-2 relative"><span class="text-xs font-bold text-stone-300">02</span></div>
+</div>
+<!-- Legend Footer -->
+<footer class="px-8 py-4 bg-surface-bright flex items-center gap-8 border-t border-surface-container">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-red-600"></div>
+<span class="text-[10px] font-black uppercase tracking-wider text-stone-500">Urgente</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-orange-500"></div>
+<span class="text-[10px] font-black uppercase tracking-wider text-stone-500">Alta Prioridade</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
+<span class="text-[10px] font-black uppercase tracking-wider text-stone-500">Média</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+<span class="text-[10px] font-black uppercase tracking-wider text-stone-500">Normal</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+<span class="text-[10px] font-black uppercase tracking-wider text-stone-500">Concluído</span>
+</div>
+<div class="ml-auto flex items-center gap-4 text-xs font-medium text-stone-400">
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">calendar_month</span> Início do Evento</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">local_shipping</span> Saída Logística</div>
+</div>
+</footer>
+</div>
+<!-- Secondary Context Grid -->
+<div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="md:col-span-2 bg-surface-container-high rounded-xl p-6 relative overflow-hidden">
+<div class="relative z-10">
+<h3 class="text-2xl headline-tight font-bold uppercase mb-4">Destaques Logísticos</h3>
+<div class="space-y-4">
+<div class="bg-white p-4 rounded-lg flex items-center justify-between border-l-4 border-secondary">
+<div>
+<p class="text-xs font-black uppercase text-stone-400 mb-1">Caminhão 04 - Rota Sul</p>
+<p class="font-bold">Carregamento finalizado para GP Interlagos</p>
+</div>
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+</div>
+<div class="bg-white p-4 rounded-lg flex items-center justify-between border-l-4 border-stone-200">
+<div>
+<p class="text-xs font-black uppercase text-stone-400 mb-1">Manutenção Fleet</p>
+<p class="font-bold">Revisão preventiva: Unidades 02 e 09</p>
+</div>
+<span class="material-symbols-outlined text-stone-300">build</span>
+</div>
+</div>
+</div>
+<div class="absolute -right-10 -bottom-10 opacity-5">
+<span class="material-symbols-outlined text-[200px]" style="font-variation-settings: 'FILL' 1;">local_shipping</span>
+</div>
+</div>
+<div class="bg-stone-900 text-white rounded-xl p-6 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-bold headline-tight uppercase">Resumo da Frota</h3>
+<span class="material-symbols-outlined text-orange-500">monitoring</span>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center border-b border-stone-800 pb-2">
+<span class="text-stone-400 text-sm">Em Trânsito</span>
+<span class="font-bold text-orange-500">12</span>
+</div>
+<div class="flex justify-between items-center border-b border-stone-800 pb-2">
+<span class="text-stone-400 text-sm">Em Preparação</span>
+<span class="font-bold">04</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-stone-400 text-sm">Disponível</span>
+<span class="font-bold text-green-500">08</span>
+</div>
+</div>
+</div>
+<button class="w-full bg-stone-800 hover:bg-stone-700 py-3 rounded text-xs font-black uppercase tracking-widest transition-colors">Relatório Completo</button>
+</div>
+</div>
+</main>
+<!-- Footer Component -->
+<footer class="ml-64 bg-stone-50 dark:bg-stone-900 w-full py-4 mt-auto flex justify-between items-center px-8 border-t border-stone-200 dark:border-stone-800 font-['Plus_Jakarta_Sans'] text-xs tracking-wide">
+<div class="text-stone-900 dark:text-white font-bold uppercase tracking-tighter">NORTE Kinetic</div>
+<div class="flex gap-6 text-stone-500">
+<a class="hover:text-stone-900 dark:hover:text-stone-100 transition-all opacity-80 hover:opacity-100" href="#">Privacy Policy</a>
+<a class="hover:text-stone-900 dark:hover:text-stone-100 transition-all opacity-80 hover:opacity-100" href="#">Terms of Service</a>
+<a class="hover:text-stone-900 dark:hover:text-stone-100 transition-all opacity-80 hover:opacity-100" href="#">Production Standards</a>
+</div>
+<div class="text-stone-500">© 2024 NORTE Kinetic. All rights reserved.</div>
+</footer>
+</body></html>

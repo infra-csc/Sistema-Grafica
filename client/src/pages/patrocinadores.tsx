@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2 } from "lucide-react";
+import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 
 /* ── Palette ── */
@@ -42,6 +42,8 @@ const PRESET_COLORS = [
   "#1c1917", "#b45309", "#06b6d4", "#65a30d",
 ];
 
+const PAGE_SIZE = 10;
+
 const sponsorSchema = z.object({
   name:          z.string().min(1, "Nome obrigatório"),
   email:         z.string().email("Email inválido").optional().or(z.literal("")),
@@ -58,6 +60,8 @@ export default function Patrocinadores() {
   const [editingSponsor, setEditingSponsor]   = useState<Sponsor | null>(null);
   const [deletingSponsor, setDeletingSponsor] = useState<Sponsor | null>(null);
   const [search, setSearch]                   = useState("");
+  const [page, setPage]                       = useState(1);
+  const [hoveredRow, setHoveredRow]           = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: sponsors = [], isLoading } = useQuery<Sponsor[]>({
@@ -132,176 +136,275 @@ export default function Patrocinadores() {
 
   const closeModal = () => { setModalOpen(false); setEditingSponsor(null); form.reset(); };
 
-  /* ── Filtered list ── */
+  /* ── Filtered + paginated ── */
   const filtered = sponsors.filter(s => {
     const q = search.toLowerCase();
-    return !q || s.name.toLowerCase().includes(q) || (s.company || "").toLowerCase().includes(q) || (s.contactPerson || "").toLowerCase().includes(q);
+    return !q || s.name.toLowerCase().includes(q) || (s.company || "").toLowerCase().includes(q)
+      || (s.email || "").toLowerCase().includes(q) || (s.contactPerson || "").toLowerCase().includes(q);
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const thStyle: React.CSSProperties = {
+    padding: "14px 20px", fontSize: 10, fontWeight: 900, color: T.muted,
+    textTransform: "uppercase", letterSpacing: "0.16em", textAlign: "left",
+    fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap",
+  };
 
   return (
     <div style={{ backgroundColor: T.bg, minHeight: "100%", padding: "36px 40px 80px" }}>
 
       {/* ── Page Header ── */}
-      <div style={{ marginBottom: 36 }}>
-        <h1 style={{ fontSize: 56, fontWeight: 900, color: T.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.05em", textTransform: "uppercase", lineHeight: 1 }}>
-          Patrocinadores
-        </h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <p style={{ fontSize: 11, color: T.second, margin: 0, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            Gerenciamento de parcerias estratégicas
-          </p>
-          <div style={{ height: 1, width: 60, backgroundColor: T.border }} />
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: T.muted, fontWeight: 600 }}>
-            {sponsors.length} parceiro{sponsors.length !== 1 ? "s" : ""}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36 }}>
+        <div>
+          <span style={{ fontSize: 10, fontWeight: 900, color: T.accent, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
+            Console de Gerenciamento
           </span>
+          <h1 style={{ fontSize: 42, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>
+            Gerenciamento de Patrocinadores
+          </h1>
         </div>
-      </div>
-
-      {/* ── Search bar ── */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 28, alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1, maxWidth: 400 }}>
-          <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por nome, empresa ou contato..."
-            data-testid="input-search-sponsors"
-            style={{ ...tiInput, paddingLeft: 36, paddingTop: 10, paddingBottom: 10, borderRadius: 8 }}
-            onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-            onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-          />
-        </div>
-        {search && (
-          <button onClick={() => setSearch("")}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase" }}>
-            <X style={{ width: 10, height: 10 }} /> Limpar
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Total Parceiros</p>
+            <p style={{ fontSize: 28, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>{sponsors.length}</p>
+          </div>
+          <div style={{ width: 1, height: 44, backgroundColor: T.border }} />
+          <div style={{ textAlign: "right" }}>
+            <p style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Com Contato</p>
+            <p style={{ fontSize: 28, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
+              {sponsors.filter(s => s.email || s.phone).length}
+            </p>
+          </div>
+          <button
+            onClick={openCreate}
+            data-testid="button-add-sponsor"
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 22px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif", transition: "background 0.15s" }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
+          >
+            <Plus style={{ width: 14, height: 14 }} />
+            Novo Patrocinador
           </button>
-        )}
-        {search && (
-          <span style={{ fontSize: 11, color: T.muted, fontWeight: 600 }}>
-            {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
-          </span>
-        )}
+        </div>
       </div>
 
-      {/* ── Card Grid ── */}
-      {isLoading ? (
-        <div style={{ padding: "80px 0", textAlign: "center", fontSize: 13, color: T.muted }}>Carregando patrocinadores...</div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 24 }}>
-          {filtered.map(sponsor => {
-            const color = sponsor.color || "#f97316";
-            const initials = sponsor.name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
-            return (
-              <div
-                key={sponsor.id}
-                data-testid={`sponsor-item-${sponsor.id}`}
-                style={{ backgroundColor: T.surface, borderRadius: 10, overflow: "hidden", boxShadow: "0 4px 20px rgba(26,28,28,0.06)", display: "flex", flexDirection: "column", transition: "transform 0.2s, box-shadow 0.2s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(-3px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 10px 32px rgba(26,28,28,0.1)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(26,28,28,0.06)"; }}
-              >
-                {/* Color stripe */}
-                <div style={{ height: 6, backgroundColor: color, flexShrink: 0 }} />
+      {/* ── Table Container ── */}
+      <div style={{ backgroundColor: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden", boxShadow: "0 2px 16px rgba(26,28,28,0.06)" }}>
 
-                {/* Card body */}
-                <div style={{ padding: "24px 24px 28px", flex: 1 }}>
-                  {/* Top row: logo + actions */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ fontSize: 18, fontWeight: 900, color, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>
-                        {initials}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button
-                        data-testid={`button-edit-${sponsor.id}`}
-                        onClick={() => openEdit(sponsor)}
-                        style={{ padding: 7, color: T.muted, backgroundColor: "transparent", border: "none", borderRadius: "50%", cursor: "pointer", display: "flex", transition: "all 0.12s" }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
-                      >
-                        <Pencil style={{ width: 16, height: 16 }} />
-                      </button>
-                      <button
-                        data-testid={`button-delete-${sponsor.id}`}
-                        onClick={() => setDeletingSponsor(sponsor)}
-                        style={{ padding: 7, color: T.muted, backgroundColor: "transparent", border: "none", borderRadius: "50%", cursor: "pointer", display: "flex", transition: "all 0.12s" }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#dc2626"; }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
-                      >
-                        <Trash2 style={{ width: 16, height: 16 }} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Name */}
-                  <h3 data-testid={`text-sponsor-name-${sponsor.id}`}
-                    style={{ fontSize: 20, fontWeight: 900, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1.1 }}>
-                    {sponsor.name}
-                  </h3>
-                  {sponsor.company && (
-                    <p style={{ fontSize: 10, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 20px" }}>
-                      {sponsor.company}
-                    </p>
-                  )}
-
-                  {/* Divider */}
-                  <div style={{ height: 1, backgroundColor: T.low, margin: sponsor.company ? "0 0 20px" : "20px 0" }} />
-
-                  {/* Info fields */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {[
-                      { label: "Contato Direto", value: sponsor.contactPerson },
-                      { label: "E-mail",          value: sponsor.email },
-                      { label: "Telefone",         value: sponsor.phone },
-                      { label: "Obs.",             value: sponsor.notes },
-                    ].filter(f => f.value).map(field => (
-                      <div key={field.label}>
-                        <p style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.14em", margin: "0 0 3px" }}>
-                          {field.label}
-                        </p>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: T.text, margin: 0 }}>
-                          {field.value}
-                        </p>
-                      </div>
-                    ))}
-                    {!sponsor.contactPerson && !sponsor.email && !sponsor.phone && (
-                      <p style={{ fontSize: 11, color: T.muted, fontStyle: "italic", margin: 0 }}>Sem informações de contato</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* ── Ghost card: Adicionar ── */}
-          {!search && (
-            <button
-              onClick={openCreate}
-              data-testid="button-add-sponsor"
-              style={{ minHeight: 360, border: `2px dashed ${T.border}`, borderRadius: 10, backgroundColor: "transparent", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, cursor: "pointer", transition: "all 0.2s", padding: 24 }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.borderColor = T.muted; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.borderColor = T.border; }}
-            >
-              <div style={{ width: 56, height: 56, borderRadius: "50%", backgroundColor: T.low, display: "flex", alignItems: "center", justifyContent: "center", transition: "transform 0.2s" }}>
-                <Plus style={{ width: 22, height: 22, color: T.second }} />
-              </div>
-              <p style={{ fontSize: 12, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
-                Adicionar Novo Patrocinador
-              </p>
+        {/* Controls bar */}
+        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface }}>
+          <div style={{ position: "relative", width: 380 }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Filtrar por nome, empresa ou e-mail..."
+              data-testid="input-search-sponsors"
+              style={{ ...tiInput, paddingLeft: 36, paddingTop: 10, paddingBottom: 10 }}
+              onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = `0 0 0 2px rgba(249,115,22,0.2)`; }}
+              onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+            />
+          </div>
+          {search && (
+            <button onClick={() => { setSearch(""); setPage(1); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 900, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              <X style={{ width: 10, height: 10 }} />
+              Limpar ({filtered.length})
             </button>
           )}
-
-          {/* Empty state when search active */}
-          {search && filtered.length === 0 && (
-            <div style={{ gridColumn: "1/-1", padding: "72px 0", textAlign: "center" }}>
-              <Building2 style={{ width: 48, height: 48, color: T.muted, margin: "0 auto 12px" }} />
-              <p style={{ fontSize: 14, fontWeight: 600, color: T.second, margin: 0 }}>Nenhum patrocinador encontrado</p>
-              <p style={{ fontSize: 12, color: T.muted, margin: "6px 0 0" }}>Tente buscar por outro termo</p>
-            </div>
-          )}
         </div>
-      )}
+
+        {/* Table */}
+        {isLoading ? (
+          <div style={{ padding: "72px 0", textAlign: "center", fontSize: 13, color: T.muted }}>Carregando patrocinadores...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: "72px 0", textAlign: "center" }}>
+            <Building2 style={{ width: 44, height: 44, color: T.muted, margin: "0 auto 12px" }} />
+            <p style={{ fontSize: 14, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>
+              {search ? "Nenhum patrocinador encontrado" : "Nenhum patrocinador cadastrado"}
+            </p>
+            <p style={{ fontSize: 12, color: T.muted, margin: 0 }}>
+              {search ? "Tente buscar por outro termo" : "Clique em \"Novo Patrocinador\" para começar"}
+            </p>
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
+                  <th style={thStyle}>Nome do Patrocinador</th>
+                  <th style={thStyle}>Empresa</th>
+                  <th style={thStyle}>Contato Responsável</th>
+                  <th style={thStyle}>E-mail</th>
+                  <th style={thStyle}>Telefone</th>
+                  <th style={{ ...thStyle, textAlign: "right" }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.map((sponsor, i) => {
+                  const color   = sponsor.color || "#f97316";
+                  const isHover = hoveredRow === sponsor.id;
+                  return (
+                    <tr
+                      key={sponsor.id}
+                      data-testid={`sponsor-item-${sponsor.id}`}
+                      onMouseEnter={() => setHoveredRow(sponsor.id)}
+                      onMouseLeave={() => setHoveredRow(null)}
+                      style={{ borderBottom: i < paginated.length - 1 ? `1px solid ${T.low}` : "none", backgroundColor: isHover ? "rgba(249,115,22,0.03)" : "transparent", transition: "background 0.1s" }}
+                    >
+                      {/* Nome */}
+                      <td style={{ padding: "16px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color, flexShrink: 0 }} />
+                          <span data-testid={`text-sponsor-name-${sponsor.id}`}
+                            style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "'Space Grotesk', sans-serif" }}>
+                            {sponsor.name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Empresa */}
+                      <td style={{ padding: "16px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.second }}>
+                          {sponsor.company || <span style={{ color: T.muted, fontStyle: "italic" }}>—</span>}
+                        </span>
+                      </td>
+
+                      {/* Contato */}
+                      <td style={{ padding: "16px 20px" }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: T.text }}>
+                          {sponsor.contactPerson || <span style={{ color: T.muted, fontStyle: "italic" }}>—</span>}
+                        </span>
+                      </td>
+
+                      {/* Email */}
+                      <td style={{ padding: "16px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                          {sponsor.email || <span style={{ color: T.muted, fontStyle: "italic", fontFamily: "inherit" }}>—</span>}
+                        </span>
+                      </td>
+
+                      {/* Telefone */}
+                      <td style={{ padding: "16px 20px" }}>
+                        <span style={{ fontSize: 12, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                          {sponsor.phone || <span style={{ color: T.muted, fontStyle: "italic", fontFamily: "inherit" }}>—</span>}
+                        </span>
+                      </td>
+
+                      {/* Ações */}
+                      <td style={{ padding: "16px 20px" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, opacity: isHover ? 1 : 0, transition: "opacity 0.15s" }}>
+                          <button
+                            data-testid={`button-edit-${sponsor.id}`}
+                            onClick={() => openEdit(sponsor)}
+                            style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.muted, display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.accent; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
+                          >
+                            <Pencil style={{ width: 15, height: 15 }} />
+                          </button>
+                          <button
+                            data-testid={`button-delete-${sponsor.id}`}
+                            onClick={() => setDeletingSponsor(sponsor)}
+                            style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.muted, display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#dc2626"; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
+                          >
+                            <Trash2 style={{ width: 15, height: 15 }} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {filtered.length > PAGE_SIZE && (
+          <div style={{ padding: "14px 20px", backgroundColor: T.low, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, color: T.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              Mostrando {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length} patrocinadores
+            </span>
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
+                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.border}`, backgroundColor: T.surface, borderRadius: 6, cursor: safePage === 1 ? "not-allowed" : "pointer", color: safePage === 1 ? T.muted : T.second, transition: "all 0.1s" }}>
+                <ChevronLeft style={{ width: 14, height: 14 }} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button key={p} onClick={() => setPage(p)}
+                  style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${p === safePage ? T.dark : T.border}`, backgroundColor: p === safePage ? T.dark : T.surface, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: p === safePage ? "#fff" : T.second, transition: "all 0.1s" }}>
+                  {p}
+                </button>
+              ))}
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.border}`, backgroundColor: T.surface, borderRadius: 6, cursor: safePage === totalPages ? "not-allowed" : "pointer", color: safePage === totalPages ? T.muted : T.second, transition: "all 0.1s" }}>
+                <ChevronRight style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Bottom insight cards ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, marginTop: 32 }}>
+        {/* Dark card */}
+        <div style={{ backgroundColor: T.dark, borderRadius: 12, padding: "36px 40px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <h3 style={{ fontSize: 28, fontWeight: 900, color: "#fff", margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>
+              Performance de Ativação
+            </h3>
+            <p style={{ fontSize: 12, color: "#a8a29e", margin: 0, maxWidth: 360 }}>
+              Métricas consolidadas de engajamento em todos os contratos ativos no período atual.
+            </p>
+            <div style={{ display: "flex", gap: 40, marginTop: 28 }}>
+              <div>
+                <p style={{ fontSize: 36, fontWeight: 900, color: T.accent, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
+                  {sponsors.length}
+                </p>
+                <p style={{ fontSize: 9, fontWeight: 900, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.18em", margin: 0 }}>
+                  Parceiros Ativos
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize: 36, fontWeight: 900, color: "#fff", margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
+                  {sponsors.filter(s => s.email || s.phone).length}
+                </p>
+                <p style={{ fontSize: 9, fontWeight: 900, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.18em", margin: 0 }}>
+                  Com Contato Vinculado
+                </p>
+              </div>
+            </div>
+          </div>
+          {/* Decorative gradient */}
+          <div style={{ position: "absolute", right: 0, top: 0, height: "100%", width: "33%", background: "linear-gradient(to left, rgba(249,115,22,0.08), transparent)" }} />
+        </div>
+
+        {/* Orange card */}
+        <div style={{ backgroundColor: T.accent, borderRadius: 12, padding: "36px 40px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            <h4 style={{ fontSize: 20, fontWeight: 900, color: T.dark, margin: "0 0 10px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+              Cadastrar Novo Parceiro
+            </h4>
+            <p style={{ fontSize: 11, color: "rgba(28,25,23,0.6)", margin: 0, fontWeight: 500 }}>
+              Adicione patrocinadores e vincule-os a eventos da plataforma.
+            </p>
+          </div>
+          <button
+            onClick={openCreate}
+            style={{ width: "100%", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, padding: "14px 0", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.14em", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", marginTop: 24, transition: "background 0.15s" }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
+          >
+            Novo Patrocinador
+          </button>
+        </div>
+      </div>
 
       {/* ══════════════════════════════
           MODAL: Criar / Editar
@@ -374,7 +477,6 @@ export default function Patrocinadores() {
                     <section>
                       {sectionLabel("02", "Identidade Visual")}
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
-                        {/* Color presets */}
                         <FormField control={form.control} name="color" render={({ field }) => (
                           <FormItem style={{ flexShrink: 0 }}>
                             <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 12 }}>Cor da Marca</label>
@@ -392,7 +494,6 @@ export default function Patrocinadores() {
                           </FormItem>
                         )} />
 
-                        {/* Color preview + hex input */}
                         <div style={{ flex: 1 }}>
                           <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 12 }}>Código Hex</label>
                           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -514,15 +615,13 @@ export default function Patrocinadores() {
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.65)", backdropFilter: "blur(5px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) setDeletingSponsor(null); }}
         >
-          <div data-testid="dialog-confirm-delete" style={{ backgroundColor: T.surface, width: "100%", maxWidth: 440, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)", border: `1px solid #fecaca` }}>
-            {/* Red banner */}
+          <div data-testid="dialog-confirm-delete" style={{ backgroundColor: T.surface, width: "100%", maxWidth: 440, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)" }}>
             <div style={{ backgroundColor: "#ef4444", padding: "14px 24px", display: "flex", alignItems: "center", gap: 10 }}>
               <AlertTriangle style={{ width: 18, height: 18, color: "#fff", flexShrink: 0 }} />
               <span style={{ fontSize: 10, fontWeight: 900, color: "#fff", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Atenção: Ação Irreversível
               </span>
             </div>
-            {/* Body */}
             <div style={{ padding: "28px 28px 20px" }}>
               <h3 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>
                 Excluir Patrocinador?
@@ -532,7 +631,6 @@ export default function Patrocinadores() {
                 <strong style={{ color: T.text }}>{deletingSponsor.name}</strong>. Esta ação removerá todos os vínculos com eventos ativos. Deseja continuar?
               </p>
             </div>
-            {/* Footer */}
             <div style={{ padding: "14px 28px 24px", display: "flex", justifyContent: "flex-end", gap: 20 }}>
               <button data-testid="button-cancel-delete" onClick={() => setDeletingSponsor(null)}
                 style={{ padding: "8px 0", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif" }}>

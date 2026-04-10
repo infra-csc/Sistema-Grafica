@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-tint": "#625d5b",
+                    "on-secondary-container": "#5c2400",
+                    "surface-bright": "#f9f9f8",
+                    "secondary-fixed": "#ffdbca",
+                    "surface-container": "#eeeeed",
+                    "on-primary-fixed-variant": "#4a4643",
+                    "primary-fixed": "#e9e1dd",
+                    "on-tertiary-fixed-variant": "#004b74",
+                    "on-secondary-fixed": "#341100",
+                    "on-primary-container": "#35322f",
+                    "on-error-container": "#93000a",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary-fixed-variant": "#783200",
+                    "tertiary-fixed-dim": "#93ccff",
+                    "tertiary-fixed": "#cde5ff",
+                    "surface-container-highest": "#e2e2e2",
+                    "inverse-primary": "#ccc5c2",
+                    "error": "#ba1a1a",
+                    "on-surface-variant": "#584237",
+                    "inverse-on-surface": "#f1f1f0",
+                    "on-secondary": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "on-background": "#1a1c1c",
+                    "surface": "#f9f9f8",
+                    "secondary-fixed-dim": "#ffb690",
+                    "on-primary": "#ffffff",
+                    "on-error": "#ffffff",
+                    "background": "#f9f9f8",
+                    "on-tertiary": "#ffffff",
+                    "surface-dim": "#dadad9",
+                    "primary": "#625d5b",
+                    "on-tertiary-container": "#003554",
+                    "outline": "#8c7164",
+                    "surface-variant": "#e2e2e2",
+                    "surface-container-high": "#e8e8e7",
+                    "on-primary-fixed": "#1e1b19",
+                    "secondary-container": "#fd761a",
+                    "tertiary": "#006398",
+                    "primary-fixed-dim": "#ccc5c2",
+                    "outline-variant": "#e0c0b1",
+                    "secondary": "#9d4300",
+                    "surface-container-low": "#f3f4f3",
+                    "on-surface": "#1a1c1c",
+                    "primary-container": "#9f9996",
+                    "inverse-surface": "#2f3130",
+                    "tertiary-container": "#00a2f4",
+                    "on-tertiary-fixed": "#001d32"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Space Grotesk"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #fafaf9; color: #1c1917; }
+        .font-headline { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.02em; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- TopNavBar Implementation -->
+<header class="fixed top-0 w-full z-50 border-b border-white/10 bg-stone-900/90 backdrop-blur-md flex justify-between items-center px-6 py-3">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-bold tracking-tighter text-white uppercase italic font-headline">NORTE SPONSORSHIP</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-stone-400 hover:text-white transition-colors duration-200 font-label text-sm uppercase tracking-wider" href="#">Dashboard</a>
+<a class="text-orange-500 border-b-2 border-orange-500 pb-1 font-label text-sm uppercase tracking-wider" href="#">Partners</a>
+<a class="text-stone-400 hover:text-white transition-colors duration-200 font-label text-sm uppercase tracking-wider" href="#">Analytics</a>
+<a class="text-stone-400 hover:text-white transition-colors duration-200 font-label text-sm uppercase tracking-wider" href="#">Inventory</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="bg-secondary text-on-secondary px-4 py-1.5 rounded-lg text-sm font-bold font-headline uppercase tracking-tight hover:brightness-110 transition-all active:scale-95">
+                New Sponsor
+            </button>
+<div class="flex gap-2 text-stone-400">
+<button class="p-2 hover:bg-white/5 rounded-full transition-all duration-200">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 hover:bg-white/5 rounded-full transition-all duration-200">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-white/20">
+<img class="w-full h-full object-cover" data-alt="Close-up professional headshot of a corporate executive in a dark suit against a neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAr1sTfZYfu16QfXOKcAyvYVkT2l8Z-m4VuDFwmkSm_vOn8obCEw5w_BmmuNzNfrk5Clnv9j9T0-lZ8Lavc_6IhAy6ril-cZYa_pTmeWJlBgkCHiDs9M9QuUr32v7aV7y3_YKeY7dtirgYigqhuvKmj0DI65gG_qfdBZyoQw4m1iWQyP-yGhZm6tRIoZnYho4KLYuYV0DBLt2j6oGn4bAKN0woXLYaJ1xCUhssl6AlC5zF_gMgL4-0tBnCS6gibW0dn7Pd9CxzKbtuj"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar Implementation -->
+<aside class="fixed left-0 h-full w-64 border-r border-stone-800 bg-stone-900 flex flex-col py-8 pt-20">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-weight="fill" style="font-variation-settings: 'FILL' 1;">radar</span>
+</div>
+<div>
+<h2 class="text-orange-500 font-black font-headline leading-none">NORTE</h2>
+<p class="text-[10px] text-stone-500 uppercase tracking-widest font-label">Elite Marketing</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1 px-4">
+<a class="flex items-center gap-3 text-stone-400 hover:bg-stone-800/50 px-4 py-3 rounded-md transition-all font-label text-sm group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:text-white">radar</span>
+<span>Strategic</span>
+</a>
+<a class="flex items-center gap-3 bg-stone-800 text-orange-500 rounded-md font-bold px-4 py-3 font-label text-sm" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">contract</span>
+<span>Contractual</span>
+</a>
+<a class="flex items-center gap-3 text-stone-400 hover:bg-stone-800/50 px-4 py-3 rounded-md transition-all font-label text-sm group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:text-white">payments</span>
+<span>Financial</span>
+</a>
+<a class="flex items-center gap-3 text-stone-400 hover:bg-stone-800/50 px-4 py-3 rounded-md transition-all font-label text-sm group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:text-white">leaderboard</span>
+<span>Media Value</span>
+</a>
+<a class="flex items-center gap-3 text-stone-400 hover:bg-stone-800/50 px-4 py-3 rounded-md transition-all font-label text-sm group" href="#">
+<span class="material-symbols-outlined text-xl group-hover:text-white">bolt</span>
+<span>Activation</span>
+</a>
+</nav>
+<div class="px-6 mb-6">
+<button class="w-full bg-stone-800 text-white text-xs font-bold py-3 rounded uppercase tracking-widest hover:bg-stone-700 transition-colors">
+                Generate Report
+            </button>
+</div>
+<footer class="px-4 space-y-1">
+<a class="flex items-center gap-3 text-stone-500 hover:text-white px-4 py-2 transition-all font-label text-xs" href="#">
+<span class="material-symbols-outlined text-lg">help</span>
+<span>Support</span>
+</a>
+<a class="flex items-center gap-3 text-stone-500 hover:text-white px-4 py-2 transition-all font-label text-xs" href="#">
+<span class="material-symbols-outlined text-lg">logout</span>
+<span>Sign Out</span>
+</a>
+</footer>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-64 pt-16 min-h-screen bg-surface">
+<div class="p-8 max-w-[1400px] mx-auto">
+<!-- Page Header -->
+<div class="flex justify-between items-end mb-10">
+<div>
+<span class="text-orange-600 font-bold text-xs uppercase tracking-[0.2em] font-label">Management Console</span>
+<h1 class="text-5xl font-headline font-bold text-stone-900 mt-2">Gerenciamento de Patrocinadores</h1>
+</div>
+<div class="flex gap-4">
+<div class="flex flex-col items-end">
+<span class="text-stone-400 text-[10px] uppercase font-bold tracking-widest">Active Contracts</span>
+<span class="text-2xl font-headline font-bold">42</span>
+</div>
+<div class="w-px h-10 bg-stone-200"></div>
+<div class="flex flex-col items-end">
+<span class="text-stone-400 text-[10px] uppercase font-bold tracking-widest">Global Reach</span>
+<span class="text-2xl font-headline font-bold">12.4M</span>
+</div>
+</div>
+</div>
+<!-- Technical Data Container -->
+<div class="bg-surface-container-lowest rounded-xl border border-stone-200/50 shadow-sm overflow-hidden">
+<!-- Table Controls -->
+<div class="px-6 py-4 flex items-center justify-between bg-white border-b border-stone-100">
+<div class="relative w-96">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-lg">search</span>
+<input class="w-full bg-stone-50 border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-orange-500/20 placeholder:text-stone-400 font-label" placeholder="Filtrar patrocinadores, empresas ou e-mail..." type="text"/>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-3 py-2 text-stone-500 hover:bg-stone-50 rounded-lg text-sm font-medium transition-colors">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+<span>Filtros Avançados</span>
+</button>
+<button class="flex items-center gap-2 px-3 py-2 text-stone-500 hover:bg-stone-50 rounded-lg text-sm font-medium transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+<span>Exportar CSV</span>
+</button>
+</div>
+</div>
+<!-- High Density Technical Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-stone-50/50 text-[10px] uppercase tracking-widest text-stone-400 font-bold border-b border-stone-100">
+<th class="px-6 py-4 font-headline">Nome do Patrocinador</th>
+<th class="px-6 py-4 font-headline">Empresa</th>
+<th class="px-6 py-4 font-headline">Contato Responsável</th>
+<th class="px-6 py-4 font-headline">E-mail</th>
+<th class="px-6 py-4 font-headline">Telefone</th>
+<th class="px-6 py-4 font-headline text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-50">
+<!-- Row 1 -->
+<tr class="hover:bg-orange-50/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-blue-600"></div>
+<span class="font-bold text-stone-900 text-sm">Red Bull Brazil</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-stone-600">Red Bull Energy Drink Ltda.</td>
+<td class="px-6 py-4 text-sm text-stone-800 font-medium">Marcello Giamponi</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label tracking-tight">m.giamponi@redbull.com</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label">+55 11 98234-1102</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-orange-600 transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-red-600 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-orange-50/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+<span class="font-bold text-stone-900 text-sm">Heineken Global</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-stone-600">Heineken N.V. South America</td>
+<td class="px-6 py-4 text-sm text-stone-800 font-medium">Sandra Meirelles</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label tracking-tight">sandrameirelles@heineken.nl</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label">+55 11 97721-0092</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-orange-600 transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-red-600 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-orange-50/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-purple-600"></div>
+<span class="font-bold text-stone-900 text-sm">Vivo Empresas</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-stone-600">Telefônica Brasil S.A.</td>
+<td class="px-6 py-4 text-sm text-stone-800 font-medium">Ricardo Alencar</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label tracking-tight">ricardo.alencar@vivo.com.br</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label">+55 11 99901-4432</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-orange-600 transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-red-600 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-orange-50/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-orange-600"></div>
+<span class="font-bold text-stone-900 text-sm">Mastercard Black</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-stone-600">Mastercard International Inc.</td>
+<td class="px-6 py-4 text-sm text-stone-800 font-medium">Beatriz Foster</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label tracking-tight">b.foster@mastercard.com</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label">+1 212 555-0198</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-orange-600 transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-red-600 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-orange-50/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-blue-400"></div>
+<span class="font-bold text-stone-900 text-sm">Itaú Personnalité</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-stone-600">Itaú Unibanco S.A.</td>
+<td class="px-6 py-4 text-sm text-stone-800 font-medium">Fernando Lima</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label tracking-tight">fernando.lima@itau.com.br</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label">+55 11 98872-5561</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-orange-600 transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-red-600 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 6 -->
+<tr class="hover:bg-orange-50/30 transition-colors group">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-red-600"></div>
+<span class="font-bold text-stone-900 text-sm">Nike SB</span>
+</div>
+</td>
+<td class="px-6 py-4 text-sm text-stone-600">Nike do Brasil Comércio e Participações</td>
+<td class="px-6 py-4 text-sm text-stone-800 font-medium">Thiago Santos</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label tracking-tight">thiago.santos@nike.com</td>
+<td class="px-6 py-4 text-sm text-stone-500 font-label">+55 11 96654-1120</td>
+<td class="px-6 py-4 text-right">
+<div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-orange-600 transition-colors">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-2 hover:bg-white rounded-md text-stone-400 hover:text-red-600 transition-colors">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 bg-stone-50/50 flex items-center justify-between border-t border-stone-100">
+<span class="text-xs text-stone-400 font-medium uppercase tracking-wider">Mostrando 6 de 128 patrocinadores</span>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded bg-white border border-stone-200 text-stone-400 hover:text-stone-900">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-stone-900 text-white text-xs font-bold">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-white border border-stone-200 text-stone-600 text-xs font-bold hover:bg-stone-50">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-white border border-stone-200 text-stone-600 text-xs font-bold hover:bg-stone-50">3</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-white border border-stone-200 text-stone-400 hover:text-stone-900">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Dashboard Technical Insights (Asymmetric Layout) -->
+<div class="mt-12 grid grid-cols-12 gap-8">
+<div class="col-span-8 bg-stone-900 p-8 rounded-xl relative overflow-hidden">
+<div class="relative z-10">
+<h3 class="text-white font-headline text-3xl font-bold mb-2">Performance de Ativação</h3>
+<p class="text-stone-400 text-sm max-w-md">Métricas consolidadas de engajamento em todos os contratos ativos no trimestre atual.</p>
+<div class="mt-8 flex gap-12">
+<div>
+<span class="block text-orange-500 text-4xl font-headline font-bold">+24%</span>
+<span class="text-[10px] text-stone-500 uppercase tracking-widest font-bold">ROI Estimado</span>
+</div>
+<div>
+<span class="block text-white text-4xl font-headline font-bold">R$ 4.2M</span>
+<span class="text-[10px] text-stone-500 uppercase tracking-widest font-bold">Capital Gerenciado</span>
+</div>
+</div>
+</div>
+<!-- Decorative Element -->
+<div class="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-orange-500/10 to-transparent opacity-50"></div>
+</div>
+<div class="col-span-4 bg-orange-500 p-8 rounded-xl flex flex-col justify-between">
+<div>
+<h4 class="text-stone-900 font-headline font-bold text-xl leading-tight">Relatórios Prontos para Revisão</h4>
+<p class="text-orange-950/70 text-xs mt-2 font-medium">3 novos dossiês de performance foram gerados automaticamente.</p>
+</div>
+<button class="w-full bg-stone-900 text-white py-3 rounded-lg text-sm font-bold uppercase tracking-tighter hover:bg-stone-800 transition-all flex items-center justify-center gap-2">
+<span>Acessar Portal</span>
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

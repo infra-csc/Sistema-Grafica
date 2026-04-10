@@ -478,7 +478,7 @@ export default function DashboardAnalises() {
           padding: "12px 28px", backgroundColor: TI.low,
           borderTop: `1px solid ${TI.border}`, borderBottom: `1px solid ${TI.border}`,
         }}>
-          {["Tipo", "Qty Total", "Em Produção", "Entregues", "Taxa"].map(h => (
+          {["Tipo", "Qtd. Total", "Em Produção", "Entregues", "Taxa"].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 900, color: TI.muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>{h}</div>
           ))}
         </div>

@@ -928,16 +928,14 @@ export class DatabaseStorage implements IStorage {
     if (itemIds.length === 0) return 0;
 
     let updated = 0;
-    // Catch assets in EM_USO or still in NO_GALPAO (in case truck departure was missed)
+    // Only move EM_USO assets to triage — assets already in NO_GALPAO stayed in the warehouse
+    // and do not need triage. Moving NO_GALPAO here would re-queue already-triaged assets.
     for (const itemId of itemIds) {
       const result = await db.update(inventoryAssets)
         .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
         .where(and(
           eq(inventoryAssets.originalItemId, itemId),
-          or(
-            eq(inventoryAssets.trackingStatus, 'EM_USO'),
-            eq(inventoryAssets.trackingStatus, 'NO_GALPAO')
-          )
+          eq(inventoryAssets.trackingStatus, 'EM_USO')
         ));
       updated += result.rowCount ?? 0;
     }
@@ -951,10 +949,7 @@ export class DatabaseStorage implements IStorage {
         .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
         .where(and(
           eq(inventoryAssets.id, alloc.assetId),
-          or(
-            eq(inventoryAssets.trackingStatus, 'EM_USO'),
-            eq(inventoryAssets.trackingStatus, 'NO_GALPAO')
-          )
+          eq(inventoryAssets.trackingStatus, 'EM_USO')
         ));
       updated += result.rowCount ?? 0;
     }

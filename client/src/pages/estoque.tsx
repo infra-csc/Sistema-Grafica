@@ -388,11 +388,12 @@ export default function Estoque() {
   });
 
   // Assets that have been triaged (not awaiting triage) — these belong to the acervo
-  const acervoAssets = assets.filter(a => a.trackingStatus !== "AGUARDANDO_TRIAGEM");
+  const acervoAssets = assets.filter(a => a.trackingStatus !== "AGUARDANDO_TRIAGEM" && a.trackingStatus !== "DESCARTADO");
   const triageCount = assets.filter(a => a.trackingStatus === "AGUARDANDO_TRIAGEM").length;
+  const descartadoCount = assets.filter(a => a.trackingStatus === "DESCARTADO").length;
 
   const total = acervoAssets.length;
-  const byStatus = (s: string) => acervoAssets.filter(a => a.trackingStatus === s).length;
+  const byStatus = (s: string) => assets.filter(a => a.trackingStatus === s).length;
   const sucata = acervoAssets.filter(a => a.condition === "SUCATA").length;
   const autoCount = acervoAssets.filter(a => a.autoAdded).length;
 
@@ -484,7 +485,7 @@ export default function Estoque() {
         <div style={{ width: 1, height: 32, background: "#f1f5f9" }} />
 
         {[
-          { val: filterStatus,    fn: setFilterStatus,    opts: [["all","STATUS: TODOS"], ...ALL_STATUSES.filter(s => s !== "AGUARDANDO_TRIAGEM").map(s => [s, STATUS_META[s].label])] },
+          { val: filterStatus,    fn: setFilterStatus,    opts: [["all","STATUS: TODOS"], ...ALL_STATUSES.filter(s => s !== "AGUARDANDO_TRIAGEM" && s !== "DESCARTADO").map(s => [s, STATUS_META[s].label])] },
           { val: filterCondition, fn: setFilterCondition, opts: [["all","CONDIÇÃO: TODA"], ...CONDITIONS.map(c => [c, CONDITION_META[c].label])] },
           { val: filterAutoAdded, fn: setFilterAutoAdded, opts: [["all","ORIGEM: TODAS"],["auto","Gráfica (Auto)"],["manual","Manual"]] },
         ].map(({ val, fn, opts }, i) => (

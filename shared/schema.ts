@@ -193,11 +193,13 @@ export const inventoryAssets = pgTable("inventory_assets", {
   originalItemId: varchar("original_item_id").references(() => items.id, { onDelete: "set null" }),
   displayId: text("display_id").notNull().unique(), // ex: #EST-0001
   name: text("name").notNull(),
+  quantity: integer("quantity").notNull().default(1), // quantidade de peças
   franchiseTags: text("franchise_tags").array().notNull().default(sql`ARRAY[]::text[]`),
   condition: text("condition").notNull().default("PERFEITO"), // PERFEITO, AVARIA_LEVE, SUCATA
   location: text("location"),
   available: boolean("available").notNull().default(true),
   notes: text("notes"),
+  autoAdded: boolean("auto_added").notNull().default(false), // true = adicionado automaticamente pela gráfica
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -442,6 +444,8 @@ export const insertInventoryAssetSchema = createInsertSchema(inventoryAssets).om
 }).extend({
   condition: z.enum(["PERFEITO", "AVARIA_LEVE", "SUCATA"]).default("PERFEITO"),
   franchiseTags: z.array(z.string()).default([]),
+  quantity: z.number().min(1).default(1),
+  autoAdded: z.boolean().default(false),
 });
 
 export const insertEventInventoryAllocationSchema = createInsertSchema(eventInventoryAllocations).omit({

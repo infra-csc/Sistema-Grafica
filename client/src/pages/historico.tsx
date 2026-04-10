@@ -25,11 +25,11 @@ const TYPE_CONFIG: Record<string, {
   icon: any;
 }> = {
   event_created: {
-    label: "Evento Criado", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#f97316",
+    label: "Evento Criado", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
     icon: Calendar,
   },
   item_created: {
-    label: "Peça Adicionada", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
+    label: "Peça Adicionada", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#f97316",
     icon: Plus,
   },
   item_approved: {

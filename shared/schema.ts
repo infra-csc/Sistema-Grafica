@@ -191,13 +191,15 @@ export const auditLogs = pgTable("audit_logs", {
 export const inventoryAssets = pgTable("inventory_assets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   originalItemId: varchar("original_item_id").references(() => items.id, { onDelete: "set null" }),
-  displayId: text("display_id").notNull().unique(), // ex: #EST-0001
+  displayId: text("display_id").notNull().unique(), // ex: #EST-0062-1
   name: text("name").notNull(),
-  quantity: integer("quantity").notNull().default(1), // quantidade de peças
+  quantity: integer("quantity").notNull().default(1), // unidades (1 para registros individuais)
   franchiseTags: text("franchise_tags").array().notNull().default(sql`ARRAY[]::text[]`),
+  sponsorIds: text("sponsor_ids").array().notNull().default(sql`ARRAY[]::text[]`), // patrocinadores impressos
+  approvalThumbUrl: text("approval_thumb_url"), // thumbnail da arte aprovada
   condition: text("condition").notNull().default("PERFEITO"), // PERFEITO, AVARIA_LEVE, SUCATA
   location: text("location"),
-  available: boolean("available").notNull().default(true),
+  trackingStatus: text("tracking_status").notNull().default("NO_GALPAO"), // NO_GALPAO, EM_USO, AGUARDANDO_TRIAGEM, DESCARTADO
   notes: text("notes"),
   autoAdded: boolean("auto_added").notNull().default(false), // true = adicionado automaticamente pela gráfica
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
@@ -444,8 +446,10 @@ export const insertInventoryAssetSchema = createInsertSchema(inventoryAssets).om
 }).extend({
   condition: z.enum(["PERFEITO", "AVARIA_LEVE", "SUCATA"]).default("PERFEITO"),
   franchiseTags: z.array(z.string()).default([]),
+  sponsorIds: z.array(z.string()).default([]),
   quantity: z.number().min(1).default(1),
   autoAdded: z.boolean().default(false),
+  trackingStatus: z.enum(["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "DESCARTADO"]).default("NO_GALPAO"),
 });
 
 export const insertEventInventoryAllocationSchema = createInsertSchema(eventInventoryAllocations).omit({

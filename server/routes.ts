@@ -2577,30 +2577,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const event = await storage.getEvent(item.eventId);
 
-      // Auto-add to inventory when fully produced
+      // Auto-add to inventory when fully produced — N individual records
       if (item.status === 'produced') {
-        const existing = (await storage.getAllInventoryAssets()).find(a => a.originalItemId === item.id);
-        if (!existing) {
-          const itemName = item.description
-            ? `${item.type} — ${item.description}`
-            : item.type;
-          const franchiseTags = event?.franchise
-            ? [event.franchise.toLowerCase().replace(/\s+/g, '_')]
-            : [];
-          await storage.createInventoryAsset({
+        const existingAssets = await storage.getAssetsByOriginalItemId(item.id);
+        const itemName = item.description
+          ? `${item.type} — ${item.description}`
+          : item.type;
+        const franchiseTags = event?.franchise
+          ? [event.franchise.toLowerCase().replace(/\s+/g, '_')]
+          : [];
+        // Get sponsors linked to this item
+        const itemSponsorLinks = await storage.getItemSponsors(item.id);
+        const linkedSponsorIds = itemSponsorLinks.map(s => s.sponsorId);
+        // Get approvalThumbUrl from item
+        const approvalThumbUrl = item.approvalThumbUrl ?? null;
+        // Extract numeric part from item displayId (e.g. "#0062" → "0062")
+        const itemNum = item.displayId.replace(/[^0-9]/g, '').padStart(4, '0');
+
+        if (existingAssets.length === 0) {
+          // Create N individual records (1 per unit)
+          const records = Array.from({ length: quantityProduced }, (_, i) => ({
+            displayId: `#EST-${itemNum}-${i + 1}`,
             name: itemName,
-            quantity: quantityProduced,
+            quantity: 1,
             originalItemId: item.id,
-            condition: "PERFEITO",
+            condition: "PERFEITO" as const,
             location: null,
             franchiseTags,
-            available: true,
-            notes: `Produzido automaticamente pela Gráfica — Evento: ${event?.name ?? '—'}`,
+            sponsorIds: linkedSponsorIds,
+            approvalThumbUrl,
+            trackingStatus: "NO_GALPAO" as const,
+            notes: `Gráfica — Evento: ${event?.name ?? '—'}`,
             autoAdded: true,
-          });
-        } else {
-          // Update quantity if re-produced
-          await storage.updateInventoryAsset(existing.id, { quantity: quantityProduced });
+          }));
+          await storage.createInventoryAssets(records);
+        } else if (existingAssets.length < quantityProduced) {
+          // Add missing units
+          const currentMax = existingAssets.length;
+          const additional = Array.from({ length: quantityProduced - currentMax }, (_, i) => ({
+            displayId: `#EST-${itemNum}-${currentMax + i + 1}`,
+            name: itemName,
+            quantity: 1,
+            originalItemId: item.id,
+            condition: "PERFEITO" as const,
+            location: null,
+            franchiseTags,
+            sponsorIds: linkedSponsorIds,
+            approvalThumbUrl,
+            trackingStatus: "NO_GALPAO" as const,
+            notes: `Gráfica — Evento: ${event?.name ?? '—'}`,
+            autoAdded: true,
+          }));
+          await storage.createInventoryAssets(additional);
         }
       }
       
@@ -3049,6 +3077,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }, 30 * 60 * 1000); // Check every 30 minutes
 
+  // ============ INVENTORY LIFECYCLE CRON ============
+  // Runs every minute: check truckDepartureDate → EM_USO; startDate+24h → AGUARDANDO_TRIAGEM
+  setInterval(async () => {
+    try {
+      const now = new Date();
+      const allEvents = await storage.getAllEvents();
+      for (const event of allEvents) {
+        if (!event.truckDepartureDate) continue;
+
+        const departure = new Date(event.truckDepartureDate);
+        // Window: within last 2 minutes from departure
+        const depDiff = now.getTime() - departure.getTime();
+        if (depDiff >= 0 && depDiff < 2 * 60 * 1000) {
+          const count = await storage.markAssetsInUseForEvent(event.id);
+          if (count > 0) {
+            broadcast({ type: 'inventory_in_use', eventId: event.id, eventName: event.name, count });
+            console.log(`[inventory-cron] ${count} asset(s) → EM_USO for event "${event.name}"`);
+          }
+        }
+
+        // Return: 24h after startDate (or event status completed)
+        const startDate = event.startDate ? new Date(event.startDate) : null;
+        if (startDate) {
+          const returnTime = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+          const retDiff = now.getTime() - returnTime.getTime();
+          if (retDiff >= 0 && retDiff < 2 * 60 * 1000) {
+            const count = await storage.markAssetsAwaitingTriageForEvent(event.id);
+            if (count > 0) {
+              broadcast({
+                type: 'inventory_awaiting_triage',
+                eventId: event.id,
+                eventName: event.name,
+                count,
+                message: `Os materiais do evento "${event.name}" retornaram e aguardam triagem.`,
+              });
+              console.log(`[inventory-cron] ${count} asset(s) → AGUARDANDO_TRIAGEM for event "${event.name}"`);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[inventory-cron] error:', err);
+    }
+  }, 60 * 1000); // Every minute
+
   // ============ INVENTORY ASSETS (ACERVO) ============
 
   app.get("/api/inventory", requireAuth, async (req, res) => {
@@ -3068,6 +3141,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching available assets:", error);
       res.status(500).json({ error: "Erro ao buscar peças disponíveis" });
+    }
+  });
+
+  // Must be before /:id to avoid being swallowed by that route
+  app.get("/api/inventory/awaiting-triage", requireAuth, async (req, res) => {
+    try {
+      const assets = await storage.getAssetsAwaitingTriage();
+      res.json(assets);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar ativos" });
     }
   });
 
@@ -3110,6 +3193,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Erro ao excluir peça" });
+    }
+  });
+
+  // Triage endpoint: update condition + set back to NO_GALPAO (or DESCARTADO)
+  app.patch("/api/inventory/:id/triage", requireAuth, async (req, res) => {
+    try {
+      const { condition, notes, trackingStatus } = req.body;
+      const asset = await storage.getInventoryAsset(req.params.id);
+      if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
+      const newStatus = trackingStatus === 'DESCARTADO' ? 'DESCARTADO' : 'NO_GALPAO';
+      const updated = await storage.updateInventoryAsset(req.params.id, {
+        condition: condition ?? asset.condition,
+        notes: notes ?? asset.notes,
+        trackingStatus: newStatus,
+      } as any);
+      broadcast({ type: 'inventory_triaged', assetId: req.params.id, trackingStatus: newStatus });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao registrar triagem" });
+    }
+  });
+
+  // Manual trigger: mark event assets EM_USO
+  app.post("/api/events/:id/dispatch-inventory", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.markAssetsInUseForEvent(req.params.id);
+      res.json({ count });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao processar despacho" });
+    }
+  });
+
+  // Manual trigger: mark event assets AGUARDANDO_TRIAGEM
+  app.post("/api/events/:id/return-inventory", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.markAssetsAwaitingTriageForEvent(req.params.id);
+      if (count > 0) {
+        const event = await storage.getEvent(req.params.id);
+        broadcast({
+          type: 'inventory_awaiting_triage',
+          eventId: req.params.id,
+          eventName: event?.name ?? '—',
+          count,
+          message: `Os materiais do evento "${event?.name ?? '—'}" retornaram e aguardam triagem.`,
+        });
+      }
+      res.json({ count });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao processar retorno" });
     }
   });
 

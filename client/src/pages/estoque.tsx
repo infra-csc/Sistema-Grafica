@@ -2,19 +2,29 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { InventoryAsset } from "@shared/schema";
+import type { InventoryAsset, Sponsor } from "@shared/schema";
 import {
-  Archive, Plus, Search, Filter, RefreshCw, Pencil, Trash2,
-  CheckCircle2, AlertTriangle, XCircle, MapPin, Tag, X,
+  Archive, Plus, Search, Filter, Pencil, Trash2,
+  CheckCircle2, AlertTriangle, XCircle, MapPin, Tag,
+  X, Eye, Package, Warehouse, Truck, ScanSearch, Flame,
 } from "lucide-react";
 
-// ── helpers ────────────────────────────────────────────────────────────────────
-const CONDITION_META: Record<string, { label: string; color: string; bg: string; Icon: React.ElementType }> = {
-  PERFEITO:    { label: "Perfeito",     color: "#16a34a", bg: "#f0fdf4", Icon: CheckCircle2 },
-  AVARIA_LEVE: { label: "Avaria Leve",  color: "#d97706", bg: "#fffbeb", Icon: AlertTriangle },
-  SUCATA:      { label: "Sucata",       color: "#dc2626", bg: "#fef2f2", Icon: XCircle },
+// ── Tracking Status ────────────────────────────────────────────────────────────
+const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string; Icon: React.ElementType }> = {
+  NO_GALPAO:         { label: "No Galpão",         color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", Icon: Warehouse },
+  EM_USO:            { label: "Em Uso",             color: "#ea580c", bg: "#fff7ed", border: "#fed7aa", Icon: Truck },
+  AGUARDANDO_TRIAGEM:{ label: "Aguard. Triagem",    color: "#b45309", bg: "#fffbeb", border: "#fde68a", Icon: ScanSearch },
+  DESCARTADO:        { label: "Descartado",         color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb", Icon: XCircle },
 };
+const ALL_STATUSES = ["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "DESCARTADO"] as const;
+type TrackingStatus = typeof ALL_STATUSES[number];
 
+// ── Condition ─────────────────────────────────────────────────────────────────
+const CONDITION_META: Record<string, { label: string; color: string; bg: string; border: string; Icon: React.ElementType }> = {
+  PERFEITO:    { label: "Perfeito",     color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", Icon: CheckCircle2 },
+  AVARIA_LEVE: { label: "Avaria Leve",  color: "#d97706", bg: "#fffbeb", border: "#fde68a", Icon: AlertTriangle },
+  SUCATA:      { label: "Sucata",       color: "#dc2626", bg: "#fef2f2", border: "#fecaca", Icon: XCircle },
+};
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 type Condition = typeof CONDITIONS[number];
 
@@ -24,22 +34,127 @@ const EMPTY_FORM = {
   location: "",
   condition: "PERFEITO" as Condition,
   franchiseTags: [] as string[],
-  available: true,
+  trackingStatus: "NO_GALPAO" as TrackingStatus,
   notes: "",
-  originalItemId: null as string | null,
 };
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
+// ── Thumb Popover ─────────────────────────────────────────────────────────────
+function ThumbPopover({ url }: { url: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div
+      style={{ position: "relative", display: "inline-block" }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <button
+        data-testid="button-thumb-preview"
+        style={{
+          width: 28, height: 28, borderRadius: 4, overflow: "hidden",
+          border: "1px solid #e8e8e7", cursor: "pointer", padding: 0,
+        }}
+      >
+        <img src={url} alt="thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      </button>
+      {show && (
+        <div style={{
+          position: "absolute", top: 34, left: "50%", transform: "translateX(-50%)",
+          background: "#fff", border: "1px solid #e8e8e7", borderRadius: 8,
+          padding: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 9999,
+          width: 180,
+        }}>
+          <img src={url} alt="aprovação" style={{ width: "100%", borderRadius: 4 }} />
+          <p style={{ fontSize: 10, color: "#78716c", textAlign: "center", marginTop: 4, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+            Arte aprovada
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sponsor Chips ─────────────────────────────────────────────────────────────
+function SponsorChips({ sponsorIds, sponsors }: { sponsorIds: string[]; sponsors: Sponsor[] }) {
+  if (!sponsorIds || sponsorIds.length === 0) return <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+      {sponsorIds.map(sid => {
+        const sp = sponsors.find(s => s.id === sid);
+        if (!sp) return null;
+        return (
+          <span key={sid} style={{
+            fontSize: 11, padding: "2px 6px", borderRadius: 4,
+            background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a",
+            fontFamily: "Plus Jakarta Sans, sans-serif", whiteSpace: "nowrap",
+          }}>
+            {sp.name}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Delete Modal ──────────────────────────────────────────────────────────────
+function DeleteModal({ asset, onClose, onConfirm }: {
+  asset: InventoryAsset;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(28,25,23,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{
+        background: "#fff", borderRadius: 12, width: 420, overflow: "hidden",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+      }}>
+        <div style={{ background: "#ef4444", padding: "16px 20px" }}>
+          <p style={{ color: "#fff", fontWeight: 700, fontSize: 14, fontFamily: "Space Grotesk, sans-serif", margin: 0 }}>
+            ATENÇÃO: AÇÃO IRREVERSÍVEL
+          </p>
+        </div>
+        <div style={{ padding: 24 }}>
+          <p style={{ fontSize: 14, color: "#1c1917", margin: "0 0 8px", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+            Tem certeza que deseja excluir o ativo abaixo permanentemente?
+          </p>
+          <p style={{ fontSize: 13, color: "#78716c", fontFamily: "DM Mono, monospace", margin: "0 0 20px" }}>
+            {asset.displayId} — {asset.name}
+          </p>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button onClick={onClose} data-testid="button-cancel-delete" style={{
+              padding: "8px 18px", borderRadius: 6, border: "1px solid #e8e8e7",
+              background: "#fafaf9", color: "#1c1917", fontSize: 13, cursor: "pointer",
+              fontFamily: "Plus Jakarta Sans, sans-serif",
+            }}>
+              Manter
+            </button>
+            <button onClick={onConfirm} data-testid="button-confirm-delete" style={{
+              padding: "8px 18px", borderRadius: 6, border: "none",
+              background: "#ef4444", color: "#fff", fontSize: 13, cursor: "pointer",
+              fontFamily: "Plus Jakarta Sans, sans-serif",
+            }}>
+              Sim, Excluir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Asset Modal (Create / Edit) ────────────────────────────────────────────────
 function AssetModal({
-  asset,
-  onClose,
-  onSaved,
+  asset, onClose, onSaved,
 }: {
   asset: InventoryAsset | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const isEdit = !!asset;
+
   const [form, setForm] = useState(
     asset
       ? {
@@ -48,408 +163,213 @@ function AssetModal({
           location: asset.location ?? "",
           condition: (asset.condition as Condition) ?? "PERFEITO",
           franchiseTags: asset.franchiseTags ?? [],
-          available: asset.available ?? true,
+          trackingStatus: (asset.trackingStatus as TrackingStatus) ?? "NO_GALPAO",
           notes: asset.notes ?? "",
-          originalItemId: asset.originalItemId,
         }
       : { ...EMPTY_FORM }
   );
   const [tagInput, setTagInput] = useState("");
-  const [hoverId, setHoverId] = useState<string | null>(null);
 
-  const createMut = useMutation({
-    mutationFn: (data: typeof form) => apiRequest("POST", "/api/inventory", data),
-    onSuccess: () => { onSaved(); toast({ title: "Peça adicionada ao acervo." }); },
-    onError: () => toast({ title: "Erro ao salvar", variant: "destructive" }),
+  const mutation = useMutation({
+    mutationFn: (data: typeof form) =>
+      isEdit
+        ? apiRequest("PATCH", `/api/inventory/${asset!.id}`, data)
+        : apiRequest("POST", "/api/inventory", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      toast({ title: isEdit ? "Ativo atualizado." : "Ativo criado." });
+      onSaved();
+    },
+    onError: () => toast({ title: "Erro ao salvar.", variant: "destructive" }),
   });
 
-  const updateMut = useMutation({
-    mutationFn: (data: typeof form) => apiRequest("PATCH", `/api/inventory/${asset!.id}`, data),
-    onSuccess: () => { onSaved(); toast({ title: "Peça atualizada." }); },
-    onError: () => toast({ title: "Erro ao salvar", variant: "destructive" }),
-  });
-
-  function addTag() {
+  const addTag = () => {
     const t = tagInput.trim();
     if (t && !form.franchiseTags.includes(t)) {
       setForm(f => ({ ...f, franchiseTags: [...f.franchiseTags, t] }));
     }
     setTagInput("");
-  }
-
-  function removeTag(t: string) {
-    setForm(f => ({ ...f, franchiseTags: f.franchiseTags.filter(x => x !== t) }));
-  }
-
-  function handleSubmit() {
-    if (!form.name.trim()) {
-      toast({ title: "Nome é obrigatório", variant: "destructive" });
-      return;
-    }
-    asset ? updateMut.mutate(form) : createMut.mutate(form);
-  }
-
-  const isPending = createMut.isPending || updateMut.isPending;
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    border: "1.5px solid #e8e8e7",
-    borderRadius: 8,
-    padding: "9px 12px",
-    fontSize: 13.5,
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    color: "#1c1917",
-    backgroundColor: "#fff",
-    outline: "none",
-    boxSizing: "border-box",
   };
+  const removeTag = (t: string) =>
+    setForm(f => ({ ...f, franchiseTags: f.franchiseTags.filter(x => x !== t) }));
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#78716c",
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-    display: "block",
-    marginBottom: 6,
-    fontFamily: "'Space Grotesk', sans-serif",
+  const INP: React.CSSProperties = {
+    width: "100%", padding: "8px 10px", borderRadius: 6,
+    border: "1px solid #e8e8e7", fontSize: 13, fontFamily: "Plus Jakarta Sans, sans-serif",
+    background: "#fafaf9", color: "#1c1917", outline: "none", boxSizing: "border-box",
+  };
+  const LBL: React.CSSProperties = {
+    fontSize: 11, fontWeight: 600, color: "#78716c", fontFamily: "Space Grotesk, sans-serif",
+    textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 6,
   };
 
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0,
-        backgroundColor: "rgba(28,25,23,0.45)",
-        backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 100, padding: 24,
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(28,25,23,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
       <div style={{
-        background: "#fff", borderRadius: 16,
-        width: "100%", maxWidth: 520,
-        boxShadow: "0 24px 64px -12px rgba(28,25,23,0.22)",
-        overflow: "hidden",
+        background: "#fff", borderRadius: 12, width: 480, maxHeight: "90vh",
+        overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
       }}>
         {/* Header */}
         <div style={{
-          padding: "20px 24px 16px",
-          borderBottom: "1px solid #f3f4f3",
+          padding: "16px 20px", borderBottom: "1px solid #e8e8e7",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 34, height: 34,
-              backgroundColor: "#fff7ed",
-              borderRadius: 8,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <Archive style={{ width: 17, height: 17, color: "#f97316" }} />
-            </div>
-            <div>
-              <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, color: "#1c1917", margin: 0 }}>
-                {asset ? "Editar Peça" : "Nova Peça de Acervo"}
-              </p>
-              <p style={{ fontSize: 12, color: "#a8a29e", margin: 0 }}>
-                {asset ? asset.displayId : "Preencha os dados abaixo"}
-              </p>
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Archive size={16} color="#f97316" />
+            <span style={{ fontWeight: 700, fontSize: 14, fontFamily: "Space Grotesk, sans-serif", color: "#1c1917" }}>
+              {isEdit ? "Editar Ativo" : "Novo Ativo"}
+            </span>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#a8a29e", padding: 4, borderRadius: 6 }}>
-            <X style={{ width: 18, height: 18 }} />
+          <button onClick={onClose} data-testid="button-close-modal" style={{
+            background: "none", border: "none", cursor: "pointer", color: "#78716c",
+          }}>
+            <X size={18} />
           </button>
         </div>
-
         {/* Body */}
-        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16, maxHeight: "70vh", overflowY: "auto" }}>
-          {/* Nome */}
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Name */}
           <div>
-            <label style={labelStyle}>Nome da Peça *</label>
+            <label style={LBL}>Nome / Descrição *</label>
             <input
-              style={inputStyle}
-              placeholder="Ex: Banner 3x2m — Sponser A"
+              data-testid="input-asset-name"
+              style={INP}
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              data-testid="input-asset-name"
+              placeholder="Ex: Banner 3x1m — Sponsor A"
             />
           </div>
-
-          {/* Quantidade + Localização */}
-          <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12 }}>
+          {/* Quantity + Location */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={labelStyle}>Quantidade</label>
+              <label style={LBL}>Quantidade</label>
               <input
-                type="number"
-                min={1}
-                style={inputStyle}
+                data-testid="input-asset-quantity"
+                type="number" min={1} style={INP}
                 value={form.quantity}
                 onChange={e => setForm(f => ({ ...f, quantity: Math.max(1, parseInt(e.target.value) || 1) }))}
-                data-testid="input-asset-quantity"
               />
             </div>
             <div>
-              <label style={labelStyle}>Localização</label>
+              <label style={LBL}>Localização</label>
               <input
-                style={inputStyle}
-                placeholder="Ex: Galpão A — Prateleira 3"
+                data-testid="input-asset-location"
+                style={INP}
                 value={form.location}
                 onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                data-testid="input-asset-location"
+                placeholder="Ex: Prateleira A3"
               />
             </div>
           </div>
-
-          {/* Condição */}
-          <div>
-            <label style={labelStyle}>Condição</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              {CONDITIONS.map(c => {
-                const meta = CONDITION_META[c];
-                const active = form.condition === c;
-                return (
-                  <button
-                    key={c}
-                    onClick={() => setForm(f => ({ ...f, condition: c }))}
-                    data-testid={`button-condition-${c.toLowerCase()}`}
-                    style={{
-                      flex: 1,
-                      padding: "8px 4px",
-                      borderRadius: 8,
-                      border: `2px solid ${active ? meta.color : "#e8e8e7"}`,
-                      backgroundColor: active ? meta.bg : "#fafaf9",
-                      cursor: "pointer",
-                      display: "flex", flexDirection: "column",
-                      alignItems: "center", gap: 4,
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <meta.Icon style={{ width: 16, height: 16, color: active ? meta.color : "#a8a29e" }} />
-                    <span style={{ fontSize: 11, fontWeight: 600, color: active ? meta.color : "#78716c", fontFamily: "'Space Grotesk', sans-serif" }}>
-                      {meta.label}
-                    </span>
-                  </button>
-                );
-              })}
+          {/* Condition + Status */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={LBL}>Condição</label>
+              <select
+                data-testid="select-asset-condition"
+                style={{ ...INP, cursor: "pointer" }}
+                value={form.condition}
+                onChange={e => setForm(f => ({ ...f, condition: e.target.value as Condition }))}
+              >
+                {CONDITIONS.map(c => (
+                  <option key={c} value={c}>{CONDITION_META[c].label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={LBL}>Status</label>
+              <select
+                data-testid="select-asset-status"
+                style={{ ...INP, cursor: "pointer" }}
+                value={form.trackingStatus}
+                onChange={e => setForm(f => ({ ...f, trackingStatus: e.target.value as TrackingStatus }))}
+              >
+                {ALL_STATUSES.map(s => (
+                  <option key={s} value={s}>{STATUS_META[s].label}</option>
+                ))}
+              </select>
             </div>
           </div>
-
-          {/* Franquia tags */}
+          {/* Franchise Tags */}
           <div>
-            <label style={labelStyle}>Tags de Franquia</label>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <label style={LBL}>Tags de Franquia</label>
+            <div style={{ display: "flex", gap: 6 }}>
               <input
-                style={{ ...inputStyle, flex: 1 }}
-                placeholder="Ex: fla, corinthians, nba…"
+                data-testid="input-asset-tag"
+                style={{ ...INP, flex: 1 }}
                 value={tagInput}
                 onChange={e => setTagInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
-                data-testid="input-franchise-tag"
+                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())}
+                placeholder="Ex: flamengo, vasco"
               />
-              <button
-                onClick={addTag}
-                data-testid="button-add-tag"
-                style={{
-                  padding: "9px 14px",
-                  backgroundColor: "#f97316",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Adicionar
+              <button onClick={addTag} data-testid="button-add-tag" style={{
+                padding: "8px 12px", borderRadius: 6, border: "1px solid #e8e8e7",
+                background: "#fafaf9", cursor: "pointer", color: "#1c1917", fontSize: 13,
+              }}>
+                <Plus size={14} />
               </button>
             </div>
             {form.franchiseTags.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
                 {form.franchiseTags.map(t => (
                   <span key={t} style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    padding: "3px 10px",
-                    backgroundColor: "#fff7ed",
-                    border: "1px solid #fed7aa",
-                    borderRadius: 20,
-                    fontSize: 12,
-                    color: "#c2410c",
-                    fontWeight: 500,
+                    display: "flex", alignItems: "center", gap: 4,
+                    fontSize: 11, padding: "3px 8px", borderRadius: 4,
+                    background: "#fff7ed", border: "1px solid #fed7aa", color: "#ea580c",
                   }}>
+                    <Tag size={10} />
                     {t}
-                    <button onClick={() => removeTag(t)} style={{ background: "none", border: "none", cursor: "pointer", color: "#c2410c", padding: 0, lineHeight: 1 }}>
-                      <X style={{ width: 10, height: 10 }} />
+                    <button onClick={() => removeTag(t)} style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      color: "#ea580c", padding: 0, lineHeight: 1,
+                    }}>
+                      <X size={10} />
                     </button>
                   </span>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Disponível */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button
-              onClick={() => setForm(f => ({ ...f, available: !f.available }))}
-              data-testid="button-toggle-available"
-              style={{
-                width: 38, height: 22,
-                borderRadius: 11,
-                backgroundColor: form.available ? "#f97316" : "#e8e8e7",
-                border: "none",
-                cursor: "pointer",
-                position: "relative",
-                transition: "background-color 0.2s",
-                flexShrink: 0,
-              }}
-            >
-              <span style={{
-                position: "absolute",
-                top: 3,
-                left: form.available ? 18 : 3,
-                width: 16, height: 16,
-                borderRadius: "50%",
-                backgroundColor: "white",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                transition: "left 0.2s",
-              }} />
-            </button>
-            <span style={{ fontSize: 13, color: "#78716c", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              {form.available ? "Disponível para alocação" : "Indisponível (em uso ou reservado)"}
-            </span>
-          </div>
-
-          {/* Observações */}
+          {/* Notes */}
           <div>
-            <label style={labelStyle}>Observações</label>
+            <label style={LBL}>Observações</label>
             <textarea
-              style={{ ...inputStyle, resize: "vertical", minHeight: 72 } as React.CSSProperties}
-              placeholder="Notas adicionais sobre a peça…"
+              data-testid="input-asset-notes"
+              style={{ ...INP, minHeight: 72, resize: "vertical" }}
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              data-testid="input-asset-notes"
+              placeholder="Informações adicionais..."
             />
           </div>
         </div>
-
         {/* Footer */}
         <div style={{
-          padding: "14px 24px",
-          borderTop: "1px solid #f3f4f3",
-          display: "flex", gap: 10, justifyContent: "flex-end",
+          padding: "14px 20px", borderTop: "1px solid #e8e8e7",
+          display: "flex", justifyContent: "flex-end", gap: 8,
         }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: "9px 20px",
-              border: "1.5px solid #e8e8e7",
-              borderRadius: 8,
-              backgroundColor: "#fff",
-              fontSize: 13.5,
-              fontWeight: 600,
-              color: "#78716c",
-              cursor: "pointer",
-              fontFamily: "'Space Grotesk', sans-serif",
-            }}
-          >
+          <button onClick={onClose} style={{
+            padding: "8px 18px", borderRadius: 6, border: "1px solid #e8e8e7",
+            background: "#fafaf9", color: "#1c1917", fontSize: 13, cursor: "pointer",
+            fontFamily: "Plus Jakarta Sans, sans-serif",
+          }}>
             Cancelar
           </button>
           <button
-            onClick={handleSubmit}
-            disabled={isPending}
             data-testid="button-save-asset"
+            disabled={!form.name.trim() || mutation.isPending}
+            onClick={() => mutation.mutate(form)}
             style={{
-              padding: "9px 24px",
-              border: "none",
-              borderRadius: 8,
-              backgroundColor: isPending ? "#fed7aa" : "#f97316",
-              color: "white",
-              fontSize: 13.5,
-              fontWeight: 600,
-              cursor: isPending ? "not-allowed" : "pointer",
-              fontFamily: "'Space Grotesk', sans-serif",
+              padding: "8px 20px", borderRadius: 6, border: "none",
+              background: !form.name.trim() ? "#e8e8e7" : "#f97316",
+              color: !form.name.trim() ? "#a8a29e" : "#fff",
+              fontSize: 13, cursor: !form.name.trim() ? "not-allowed" : "pointer",
+              fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600,
             }}
           >
-            {isPending ? "Salvando…" : asset ? "Salvar Alterações" : "Adicionar ao Acervo"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Delete Confirm ────────────────────────────────────────────────────────────
-function DeleteModal({
-  asset,
-  onClose,
-  onDeleted,
-}: {
-  asset: InventoryAsset;
-  onClose: () => void;
-  onDeleted: () => void;
-}) {
-  const { toast } = useToast();
-  const deleteMut = useMutation({
-    mutationFn: () => apiRequest("DELETE", `/api/inventory/${asset.id}`, undefined),
-    onSuccess: () => { onDeleted(); toast({ title: "Peça removida do acervo." }); },
-    onError: () => toast({ title: "Erro ao excluir", variant: "destructive" }),
-  });
-
-  return (
-    <div
-      style={{
-        position: "fixed", inset: 0,
-        backgroundColor: "rgba(28,25,23,0.5)",
-        backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        zIndex: 200, padding: 24,
-      }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={{
-        background: "#fff", borderRadius: 16,
-        width: "100%", maxWidth: 420,
-        boxShadow: "0 24px 64px -12px rgba(28,25,23,0.22)",
-        overflow: "hidden",
-      }}>
-        <div style={{ backgroundColor: "#ef4444", padding: "14px 20px" }}>
-          <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, color: "white", margin: 0 }}>
-            Atenção: Ação Irreversível
-          </p>
-        </div>
-        <div style={{ padding: 24 }}>
-          <p style={{ fontSize: 14, color: "#1c1917", margin: "0 0 8px" }}>
-            Tem certeza que deseja remover <strong>{asset.name}</strong> do acervo?
-          </p>
-          <p style={{ fontSize: 12.5, color: "#a8a29e", margin: 0 }}>
-            {asset.displayId} · Esta ação não pode ser desfeita.
-          </p>
-        </div>
-        <div style={{ padding: "0 24px 20px", display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: "9px 20px", border: "1.5px solid #e8e8e7", borderRadius: 8,
-              backgroundColor: "#fff", fontSize: 13.5, fontWeight: 600, color: "#78716c",
-              cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
-            }}
-          >
-            Manter
-          </button>
-          <button
-            onClick={() => deleteMut.mutate()}
-            disabled={deleteMut.isPending}
-            data-testid="button-confirm-delete-asset"
-            style={{
-              padding: "9px 20px", border: "none", borderRadius: 8,
-              backgroundColor: deleteMut.isPending ? "#fca5a5" : "#ef4444",
-              color: "white", fontSize: 13.5, fontWeight: 600,
-              cursor: deleteMut.isPending ? "not-allowed" : "pointer",
-              fontFamily: "'Space Grotesk', sans-serif",
-            }}
-          >
-            {deleteMut.isPending ? "Excluindo…" : "Sim, Excluir"}
+            {mutation.isPending ? "Salvando..." : "Salvar"}
           </button>
         </div>
       </div>
@@ -461,495 +381,425 @@ function DeleteModal({
 export default function Estoque() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [filterCondition, setFilterCondition] = useState<string>("ALL");
-  const [filterAvailable, setFilterAvailable] = useState<string>("ALL");
-  const [filterFranchise, setFilterFranchise] = useState("");
-  const [editAsset, setEditAsset] = useState<InventoryAsset | null | "new">(null);
-  const [deleteAsset, setDeleteAsset] = useState<InventoryAsset | null>(null);
+  const [filterCondition, setFilterCondition] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterAutoAdded, setFilterAutoAdded] = useState<boolean | null>(null);
+  const [editing, setEditing] = useState<InventoryAsset | null | false>(false); // false=closed, null=new
+  const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
 
   const { data: assets = [], isLoading } = useQuery<InventoryAsset[]>({
     queryKey: ["/api/inventory"],
   });
 
-  function invalidate() {
-    queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
-  }
-
-  // Derived stats
-  const total = assets.length;
-  const available = assets.filter(a => a.available).length;
-  const inUse = assets.filter(a => !a.available).length;
-  const condCounts = CONDITIONS.reduce((acc, c) => {
-    acc[c] = assets.filter(a => a.condition === c).length;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Filter
-  const filtered = assets.filter(a => {
-    if (filterCondition !== "ALL" && a.condition !== filterCondition) return false;
-    if (filterAvailable === "available" && !a.available) return false;
-    if (filterAvailable === "inUse" && a.available) return false;
-    if (filterFranchise && !a.franchiseTags.some(t => t.toLowerCase().includes(filterFranchise.toLowerCase()))) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!a.name.toLowerCase().includes(q) && !a.displayId.toLowerCase().includes(q) && !(a.location ?? "").toLowerCase().includes(q)) return false;
-    }
-    return true;
+  const { data: sponsors = [] } = useQuery<Sponsor[]>({
+    queryKey: ["/api/sponsors"],
   });
 
-  const statCard = (label: string, value: number | string, color: string) => (
-    <div style={{
-      background: "#fff",
-      border: "1px solid #e8e8e7",
-      borderRadius: 10,
-      padding: "14px 18px",
-      minWidth: 120,
-    }}>
-      <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color, margin: 0, lineHeight: 1 }}>
-        {value}
-      </p>
-      <p style={{ fontSize: 11.5, color: "#a8a29e", margin: "4px 0 0", textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Space Grotesk', sans-serif" }}>
-        {label}
-      </p>
-    </div>
-  );
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      toast({ title: "Ativo excluído." });
+      setDeleting(null);
+    },
+    onError: () => toast({ title: "Erro ao excluir.", variant: "destructive" }),
+  });
 
-  const inputStyle: React.CSSProperties = {
-    border: "1.5px solid #e8e8e7",
-    borderRadius: 8,
-    padding: "8px 12px",
-    fontSize: 13,
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    color: "#1c1917",
-    backgroundColor: "#fff",
-    outline: "none",
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  const total = assets.length;
+  const noGalpao = assets.filter(a => a.trackingStatus === "NO_GALPAO").length;
+  const emUso = assets.filter(a => a.trackingStatus === "EM_USO").length;
+  const aguardando = assets.filter(a => a.trackingStatus === "AGUARDANDO_TRIAGEM").length;
+  const descartados = assets.filter(a => a.trackingStatus === "DESCARTADO").length;
+  const sucata = assets.filter(a => a.condition === "SUCATA").length;
+  const autoAdded = assets.filter(a => a.autoAdded).length;
+
+  // ── Filter ─────────────────────────────────────────────────────────────────
+  const filtered = assets.filter(a => {
+    const q = search.toLowerCase();
+    const matchSearch = !q ||
+      a.name.toLowerCase().includes(q) ||
+      a.displayId.toLowerCase().includes(q) ||
+      (a.location ?? "").toLowerCase().includes(q) ||
+      a.franchiseTags.some(t => t.toLowerCase().includes(q));
+    const matchCondition = filterCondition === "all" || a.condition === filterCondition;
+    const matchStatus = filterStatus === "all" || a.trackingStatus === filterStatus;
+    const matchAuto =
+      filterAutoAdded === null ||
+      (filterAutoAdded ? a.autoAdded : !a.autoAdded);
+    return matchSearch && matchCondition && matchStatus && matchAuto;
+  });
+
+  const HEADER: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em",
+    color: "#a8a29e", fontFamily: "Space Grotesk, sans-serif", padding: "10px 12px",
+    textAlign: "left", borderBottom: "1px solid #f0efed", whiteSpace: "nowrap",
+  };
+  const CELL: React.CSSProperties = {
+    padding: "10px 12px", fontSize: 13, color: "#1c1917",
+    fontFamily: "Plus Jakarta Sans, sans-serif", verticalAlign: "middle",
   };
 
   return (
-    <div style={{ padding: "28px 32px", fontFamily: "'Plus Jakarta Sans', sans-serif", minHeight: "100%", backgroundColor: "#fafaf9" }}>
-
-      {/* Modais */}
-      {(editAsset === "new" || (editAsset && editAsset !== "new")) && (
-        <AssetModal
-          asset={editAsset === "new" ? null : editAsset}
-          onClose={() => setEditAsset(null)}
-          onSaved={() => { setEditAsset(null); invalidate(); }}
-        />
-      )}
-      {deleteAsset && (
-        <DeleteModal
-          asset={deleteAsset}
-          onClose={() => setDeleteAsset(null)}
-          onDeleted={() => { setDeleteAsset(null); invalidate(); }}
-        />
-      )}
-
-      {/* Page header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#1c1917", margin: 0, letterSpacing: "-0.02em" }}>
-            Acervo de Peças
-          </h1>
-          <p style={{ fontSize: 13.5, color: "#78716c", margin: "4px 0 0" }}>
-            Inventário de materiais gráficos e sua disponibilidade para eventos.
-          </p>
+    <div style={{ padding: "24px 32px", background: "#fafaf9", minHeight: "100vh" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 8, background: "#fff7ed",
+            border: "1px solid #fed7aa", display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Archive size={18} color="#f97316" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", color: "#1c1917", margin: 0 }}>
+              Acervo
+            </h1>
+            <p style={{ fontSize: 12, color: "#78716c", margin: 0, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+              Módulo de Estoque & Logística Reversa
+            </p>
+          </div>
         </div>
         <button
-          onClick={() => setEditAsset("new")}
-          data-testid="button-add-asset"
+          data-testid="button-new-asset"
+          onClick={() => setEditing(null)}
           style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "9px 18px",
-            backgroundColor: "#f97316",
-            color: "white",
-            border: "none",
-            borderRadius: 8,
-            cursor: "pointer",
-            fontSize: 13.5,
-            fontWeight: 600,
-            fontFamily: "'Space Grotesk', sans-serif",
-            flexShrink: 0,
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "8px 16px", borderRadius: 8, border: "none",
+            background: "#f97316", color: "#fff", fontSize: 13,
+            cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 600,
           }}
         >
-          <Plus style={{ width: 16, height: 16 }} />
-          Nova Peça
+          <Plus size={15} />
+          Novo Ativo
         </button>
       </div>
 
-      {/* Stats row */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
-        {statCard("Total de Peças", total, "#1c1917")}
-        {statCard("Disponíveis", available, "#16a34a")}
-        {statCard("Em Uso", inUse, "#f97316")}
-        {statCard("Perfeito", condCounts.PERFEITO, "#16a34a")}
-        {statCard("Avaria Leve", condCounts.AVARIA_LEVE, "#d97706")}
-        {statCard("Sucata", condCounts.SUCATA, "#dc2626")}
+      {/* Stats cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { label: "Total", value: total, Icon: Package, color: "#1c1917", bg: "#f0efed", border: "#e8e8e7" },
+          { label: "No Galpão", value: noGalpao, Icon: Warehouse, color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
+          { label: "Em Uso", value: emUso, Icon: Truck, color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
+          { label: "Aguard. Triagem", value: aguardando, Icon: ScanSearch, color: "#b45309", bg: "#fffbeb", border: "#fde68a" },
+          { label: "Descartado", value: descartados, Icon: XCircle, color: "#6b7280", bg: "#f9fafb", border: "#e5e7eb" },
+          { label: "Sucata", value: sucata, Icon: Flame, color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+        ].map(({ label, value, Icon, color, bg, border }) => (
+          <div key={label} style={{
+            background: "#fff", border: "1px solid #e8e8e7", borderRadius: 10,
+            padding: "14px 16px", display: "flex", flexDirection: "column", gap: 4,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 11, color: "#78716c", fontFamily: "Space Grotesk, sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {label}
+              </span>
+              <div style={{ width: 24, height: 24, borderRadius: 6, background: bg, border: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon size={12} color={color} />
+              </div>
+            </div>
+            <span style={{ fontSize: 22, fontWeight: 700, color: "#1c1917", fontFamily: "Space Grotesk, sans-serif" }}>
+              {value}
+            </span>
+          </div>
+        ))}
       </div>
 
       {/* Filters */}
       <div style={{
-        background: "#fff",
-        border: "1px solid #e8e8e7",
-        borderRadius: 12,
-        padding: "14px 16px",
-        marginBottom: 16,
-        display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
+        background: "#fff", border: "1px solid #e8e8e7", borderRadius: 10,
+        padding: "12px 16px", marginBottom: 16,
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
       }}>
         {/* Search */}
-        <div style={{ position: "relative", flex: "1 1 220px" }}>
-          <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, color: "#a8a29e" }} />
+        <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
+          <Search size={14} color="#a8a29e" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
           <input
-            style={{ ...inputStyle, width: "100%", paddingLeft: 34, boxSizing: "border-box" }}
-            placeholder="Buscar por nome, ID ou localização…"
+            data-testid="input-search-assets"
+            style={{
+              width: "100%", paddingLeft: 30, paddingRight: 10, height: 36,
+              border: "1px solid #e8e8e7", borderRadius: 8, fontSize: 13,
+              background: "#fafaf9", color: "#1c1917", outline: "none", boxSizing: "border-box",
+              fontFamily: "Plus Jakarta Sans, sans-serif",
+            }}
+            placeholder="Buscar por nome, ID, local ou tag..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            data-testid="input-search-assets"
           />
         </div>
+
+        <Filter size={14} color="#a8a29e" style={{ flexShrink: 0 }} />
+
+        {/* Status filter */}
+        <select
+          data-testid="select-filter-status"
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          style={{
+            height: 36, padding: "0 10px", borderRadius: 8, border: "1px solid #e8e8e7",
+            fontSize: 13, background: "#fafaf9", color: "#1c1917", cursor: "pointer",
+            fontFamily: "Plus Jakarta Sans, sans-serif",
+          }}
+        >
+          <option value="all">Todos os status</option>
+          {ALL_STATUSES.map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+        </select>
 
         {/* Condition filter */}
         <select
-          style={{ ...inputStyle, minWidth: 160 }}
+          data-testid="select-filter-condition"
           value={filterCondition}
           onChange={e => setFilterCondition(e.target.value)}
-          data-testid="select-filter-condition"
+          style={{
+            height: 36, padding: "0 10px", borderRadius: 8, border: "1px solid #e8e8e7",
+            fontSize: 13, background: "#fafaf9", color: "#1c1917", cursor: "pointer",
+            fontFamily: "Plus Jakarta Sans, sans-serif",
+          }}
         >
-          <option value="ALL">Todas as condições</option>
-          <option value="PERFEITO">Perfeito</option>
-          <option value="AVARIA_LEVE">Avaria Leve</option>
-          <option value="SUCATA">Sucata</option>
+          <option value="all">Todas as condições</option>
+          {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_META[c].label}</option>)}
         </select>
 
-        {/* Availability filter */}
+        {/* Auto-added filter */}
         <select
-          style={{ ...inputStyle, minWidth: 160 }}
-          value={filterAvailable}
-          onChange={e => setFilterAvailable(e.target.value)}
-          data-testid="select-filter-availability"
+          data-testid="select-filter-auto"
+          value={filterAutoAdded === null ? "all" : filterAutoAdded ? "auto" : "manual"}
+          onChange={e => {
+            const v = e.target.value;
+            setFilterAutoAdded(v === "all" ? null : v === "auto");
+          }}
+          style={{
+            height: 36, padding: "0 10px", borderRadius: 8, border: "1px solid #e8e8e7",
+            fontSize: 13, background: "#fafaf9", color: "#1c1917", cursor: "pointer",
+            fontFamily: "Plus Jakarta Sans, sans-serif",
+          }}
         >
-          <option value="ALL">Todos os status</option>
-          <option value="available">Disponível</option>
-          <option value="inUse">Em uso</option>
+          <option value="all">Origem: Todos</option>
+          <option value="auto">Adicionado pela Gráfica</option>
+          <option value="manual">Cadastro manual</option>
         </select>
 
-        {/* Franchise tag filter */}
-        <div style={{ position: "relative", flex: "0 1 180px" }}>
-          <Tag style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#a8a29e" }} />
-          <input
-            style={{ ...inputStyle, width: "100%", paddingLeft: 32, boxSizing: "border-box" }}
-            placeholder="Filtrar por franquia…"
-            value={filterFranchise}
-            onChange={e => setFilterFranchise(e.target.value)}
-            data-testid="input-filter-franchise"
-          />
-        </div>
+        {(search || filterCondition !== "all" || filterStatus !== "all" || filterAutoAdded !== null) && (
+          <button
+            data-testid="button-clear-filters"
+            onClick={() => { setSearch(""); setFilterCondition("all"); setFilterStatus("all"); setFilterAutoAdded(null); }}
+            style={{
+              height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid #e8e8e7",
+              background: "#fafaf9", color: "#78716c", fontSize: 12, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 4,
+            }}
+          >
+            <X size={12} />
+            Limpar
+          </button>
+        )}
+
+        <span style={{ fontSize: 12, color: "#a8a29e", marginLeft: "auto", whiteSpace: "nowrap" }}>
+          {filtered.length} de {total} itens
+        </span>
       </div>
 
       {/* Table */}
       <div style={{
-        background: "#fff",
-        border: "1px solid #e8e8e7",
-        borderRadius: 12,
-        overflow: "hidden",
+        background: "#fff", border: "1px solid #e8e8e7", borderRadius: 10, overflow: "hidden",
       }}>
-        {/* Table header */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "100px 1fr 60px 140px 150px 120px 110px 90px",
-          gap: 0,
-          backgroundColor: "#fafaf9",
-          borderBottom: "1px solid #e8e8e7",
-          padding: "0 16px",
-        }}>
-          {["ID", "Nome / Localização", "Qtd", "Condição", "Franquias", "Disponível", "Status", "Ações"].map((h, i) => (
-            <div key={h} style={{
-              padding: "11px 8px",
-              fontSize: 11,
-              fontWeight: 700,
-              color: "#a8a29e",
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              fontFamily: "'Space Grotesk', sans-serif",
-              textAlign: i >= 6 ? "center" : i === 2 ? "center" : "left",
-            }}>
-              {h}
-            </div>
-          ))}
-        </div>
-
-        {/* Rows */}
         {isLoading ? (
-          <div style={{ padding: 48, textAlign: "center", color: "#a8a29e", fontSize: 14 }}>
-            Carregando acervo…
+          <div style={{ padding: 40, textAlign: "center", color: "#a8a29e", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+            Carregando acervo...
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: 64, textAlign: "center" }}>
-            <Archive style={{ width: 40, height: 40, color: "#d6d3d1", margin: "0 auto 12px", display: "block" }} />
-            <p style={{ color: "#78716c", fontWeight: 600, fontSize: 14, margin: "0 0 4px" }}>Nenhuma peça encontrada</p>
-            <p style={{ color: "#a8a29e", fontSize: 13, margin: 0 }}>
-              {search || filterCondition !== "ALL" || filterAvailable !== "ALL" || filterFranchise
-                ? "Tente ajustar os filtros"
-                : "Clique em \"Nova Peça\" para adicionar ao acervo"}
+          <div style={{ padding: 48, textAlign: "center" }}>
+            <Archive size={32} color="#e8e8e7" style={{ marginBottom: 8, display: "block", margin: "0 auto 8px" }} />
+            <p style={{ fontSize: 14, color: "#a8a29e", fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>
+              Nenhum ativo encontrado.
             </p>
           </div>
         ) : (
-          filtered.map((asset, idx) => {
-            const meta = CONDITION_META[asset.condition ?? "PERFEITO"];
-            const CondIcon = meta.Icon;
-            return (
-              <div
-                key={asset.id}
-                data-testid={`row-asset-${asset.id}`}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "100px 1fr 60px 140px 150px 120px 110px 90px",
-                  gap: 0,
-                  padding: "0 16px",
-                  borderBottom: idx < filtered.length - 1 ? "1px solid #f3f4f3" : "none",
-                  alignItems: "center",
-                  backgroundColor: "#fff",
-                  transition: "background-color 0.1s",
-                }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#fafaf9")}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#fff")}
-              >
-                {/* ID */}
-                <div style={{ padding: "13px 8px" }}>
-                  <span style={{
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: "#f97316",
-                    backgroundColor: "#fff7ed",
-                    padding: "2px 7px",
-                    borderRadius: 5,
-                  }}>
-                    {asset.displayId}
-                  </span>
-                </div>
-
-                {/* Nome + localização */}
-                <div style={{ padding: "13px 8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <p style={{ fontSize: 13.5, fontWeight: 600, color: "#1c1917", margin: 0, lineHeight: 1.3 }}>
-                      {asset.name}
-                    </p>
-                    {(asset as any).autoAdded && (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#fafaf9" }}>
+                <th style={HEADER}>ID</th>
+                <th style={HEADER}>Nome</th>
+                <th style={HEADER}>Status</th>
+                <th style={HEADER}>Condição</th>
+                <th style={HEADER}>Patrocinadores</th>
+                <th style={HEADER}>Local</th>
+                <th style={HEADER}>Tags</th>
+                <th style={HEADER}>Arte</th>
+                <th style={HEADER}>Origem</th>
+                <th style={{ ...HEADER, textAlign: "right" }}>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((asset, idx) => {
+                const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
+                const cm = CONDITION_META[asset.condition ?? "PERFEITO"];
+                const StatusIcon = sm.Icon;
+                const CondIcon = cm.Icon;
+                const isHover = hoverId === asset.id;
+                return (
+                  <tr
+                    key={asset.id}
+                    data-testid={`row-asset-${asset.id}`}
+                    onMouseEnter={() => setHoverId(asset.id)}
+                    onMouseLeave={() => setHoverId(null)}
+                    style={{
+                      background: isHover ? "#fafaf9" : (idx % 2 === 0 ? "#fff" : "#fefefe"),
+                      borderBottom: "1px solid #f0efed", transition: "background 0.1s",
+                    }}
+                  >
+                    {/* ID */}
+                    <td style={{ ...CELL }}>
                       <span style={{
-                        fontSize: 9.5,
-                        fontWeight: 700,
-                        color: "#7c3aed",
-                        backgroundColor: "#f5f3ff",
-                        border: "1px solid #ddd6fe",
-                        borderRadius: 4,
-                        padding: "1px 5px",
-                        letterSpacing: "0.04em",
-                        textTransform: "uppercase",
-                        fontFamily: "'Space Grotesk', sans-serif",
-                        flexShrink: 0,
+                        fontFamily: "DM Mono, monospace", fontSize: 12,
+                        color: "#78716c", letterSpacing: "0.03em",
                       }}>
-                        Auto
+                        {asset.displayId}
                       </span>
-                    )}
-                  </div>
-                  {asset.location && (
-                    <p style={{ fontSize: 11.5, color: "#a8a29e", margin: "2px 0 0", display: "flex", alignItems: "center", gap: 3 }}>
-                      <MapPin style={{ width: 10, height: 10 }} />
-                      {asset.location}
-                    </p>
-                  )}
-                </div>
-
-                {/* Quantidade */}
-                <div style={{ padding: "13px 8px", textAlign: "center" }}>
-                  <span style={{
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: "#1c1917",
-                  }}>
-                    {(asset as any).quantity ?? 1}
-                  </span>
-                </div>
-
-                {/* Condição */}
-                <div style={{ padding: "13px 8px" }}>
-                  <span style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 10px",
-                    backgroundColor: meta.bg,
-                    border: `1px solid ${meta.color}30`,
-                    borderRadius: 20,
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: meta.color,
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}>
-                    <CondIcon style={{ width: 11, height: 11 }} />
-                    {meta.label}
-                  </span>
-                </div>
-
-                {/* Franquias */}
-                <div style={{ padding: "13px 8px" }}>
-                  {asset.franchiseTags?.length > 0 ? (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {asset.franchiseTags.slice(0, 3).map(t => (
-                        <span key={t} style={{
-                          padding: "2px 8px",
-                          backgroundColor: "#fff7ed",
-                          border: "1px solid #fed7aa",
-                          borderRadius: 20,
-                          fontSize: 10.5,
-                          color: "#c2410c",
-                          fontWeight: 600,
-                        }}>
-                          {t}
-                        </span>
-                      ))}
-                      {asset.franchiseTags.length > 3 && (
-                        <span style={{ fontSize: 10.5, color: "#a8a29e", alignSelf: "center" }}>
-                          +{asset.franchiseTags.length - 3}
-                        </span>
+                    </td>
+                    {/* Name */}
+                    <td style={{ ...CELL, maxWidth: 200 }}>
+                      <span style={{ fontWeight: 600, color: "#1c1917" }}>{asset.name}</span>
+                      {asset.notes && (
+                        <p style={{ fontSize: 11, color: "#a8a29e", margin: "2px 0 0", lineHeight: 1.3 }}>
+                          {asset.notes}
+                        </p>
                       )}
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 12, color: "#d6d3d1" }}>—</span>
-                  )}
-                </div>
-
-                {/* Disponível toggle */}
-                <div style={{ padding: "13px 8px" }}>
-                  <ToggleAvailable asset={asset} onToggled={invalidate} />
-                </div>
-
-                {/* Status */}
-                <div style={{ padding: "13px 8px", textAlign: "center" }}>
-                  <span style={{
-                    display: "inline-block",
-                    padding: "3px 10px",
-                    borderRadius: 20,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    backgroundColor: asset.available ? "#f0fdf4" : "#fff7ed",
-                    color: asset.available ? "#16a34a" : "#f97316",
-                  }}>
-                    {asset.available ? "Livre" : "Em Uso"}
-                  </span>
-                </div>
-
-                {/* Ações */}
-                <div style={{ padding: "13px 8px", display: "flex", gap: 6, justifyContent: "center" }}>
-                  <ActionButton
-                    icon={Pencil}
-                    title="Editar"
-                    color="#2563eb"
-                    hoverBg="#eff6ff"
-                    onClick={() => setEditAsset(asset)}
-                    testId={`button-edit-asset-${asset.id}`}
-                  />
-                  <ActionButton
-                    icon={Trash2}
-                    title="Excluir"
-                    color="#dc2626"
-                    hoverBg="#fef2f2"
-                    onClick={() => setDeleteAsset(asset)}
-                    testId={`button-delete-asset-${asset.id}`}
-                  />
-                </div>
-              </div>
-            );
-          })
-        )}
-
-        {/* Footer */}
-        {filtered.length > 0 && (
-          <div style={{
-            padding: "10px 24px",
-            borderTop: "1px solid #f3f4f3",
-            backgroundColor: "#fafaf9",
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-          }}>
-            <span style={{ fontSize: 12, color: "#a8a29e" }}>
-              {filtered.length} de {total} {total === 1 ? "peça" : "peças"}
-            </span>
-          </div>
+                    </td>
+                    {/* Tracking Status */}
+                    <td style={CELL}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        fontSize: 11, padding: "3px 8px", borderRadius: 5,
+                        background: sm.bg, border: `1px solid ${sm.border}`, color: sm.color,
+                        fontFamily: "Space Grotesk, sans-serif", fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}>
+                        <StatusIcon size={10} />
+                        {sm.label}
+                      </span>
+                    </td>
+                    {/* Condition */}
+                    <td style={CELL}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        fontSize: 11, padding: "3px 8px", borderRadius: 5,
+                        background: cm.bg, border: `1px solid ${cm.border}`, color: cm.color,
+                        fontFamily: "Space Grotesk, sans-serif", fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}>
+                        <CondIcon size={10} />
+                        {cm.label}
+                      </span>
+                    </td>
+                    {/* Sponsors */}
+                    <td style={{ ...CELL, maxWidth: 160 }}>
+                      <SponsorChips sponsorIds={asset.sponsorIds ?? []} sponsors={sponsors} />
+                    </td>
+                    {/* Location */}
+                    <td style={CELL}>
+                      {asset.location ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "#78716c" }}>
+                          <MapPin size={11} color="#a8a29e" />
+                          {asset.location}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#e8e8e7", fontSize: 12 }}>—</span>
+                      )}
+                    </td>
+                    {/* Franchise Tags */}
+                    <td style={{ ...CELL, maxWidth: 160 }}>
+                      {asset.franchiseTags && asset.franchiseTags.length > 0 ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                          {asset.franchiseTags.map(t => (
+                            <span key={t} style={{
+                              fontSize: 10, padding: "2px 6px", borderRadius: 4,
+                              background: "#fff7ed", border: "1px solid #fed7aa", color: "#ea580c",
+                              fontFamily: "Plus Jakarta Sans, sans-serif", whiteSpace: "nowrap",
+                            }}>
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span style={{ color: "#e8e8e7", fontSize: 12 }}>—</span>
+                      )}
+                    </td>
+                    {/* Approval thumb */}
+                    <td style={CELL}>
+                      {asset.approvalThumbUrl ? (
+                        <ThumbPopover url={asset.approvalThumbUrl} />
+                      ) : (
+                        <span style={{ color: "#e8e8e7", fontSize: 12 }}>—</span>
+                      )}
+                    </td>
+                    {/* Origin */}
+                    <td style={CELL}>
+                      {asset.autoAdded ? (
+                        <span style={{
+                          fontSize: 10, padding: "2px 6px", borderRadius: 4,
+                          background: "#eff6ff", border: "1px solid #bfdbfe", color: "#2563eb",
+                          fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+                          letterSpacing: "0.05em", textTransform: "uppercase",
+                        }}>
+                          Auto
+                        </span>
+                      ) : (
+                        <span style={{ color: "#a8a29e", fontSize: 11 }}>Manual</span>
+                      )}
+                    </td>
+                    {/* Actions */}
+                    <td style={{ ...CELL, textAlign: "right" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+                        <button
+                          data-testid={`button-edit-asset-${asset.id}`}
+                          onClick={() => setEditing(asset)}
+                          style={{
+                            width: 30, height: 30, borderRadius: 6, display: "flex",
+                            alignItems: "center", justifyContent: "center",
+                            border: "1px solid #e8e8e7", background: "#fafaf9", cursor: "pointer",
+                            color: "#78716c", visibility: isHover ? "visible" : "hidden",
+                          }}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          data-testid={`button-delete-asset-${asset.id}`}
+                          onClick={() => setDeleting(asset)}
+                          style={{
+                            width: 30, height: 30, borderRadius: 6, display: "flex",
+                            alignItems: "center", justifyContent: "center",
+                            border: "1px solid #fecaca", background: "#fef2f2", cursor: "pointer",
+                            color: "#dc2626", visibility: isHover ? "visible" : "hidden",
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
+
+      {/* Modals */}
+      {editing !== false && (
+        <AssetModal
+          asset={editing}
+          onClose={() => setEditing(false)}
+          onSaved={() => setEditing(false)}
+        />
+      )}
+      {deleting && (
+        <DeleteModal
+          asset={deleting}
+          onClose={() => setDeleting(null)}
+          onConfirm={() => deleteMutation.mutate(deleting.id)}
+        />
+      )}
     </div>
-  );
-}
-
-// ── Inline toggle button ──────────────────────────────────────────────────────
-function ToggleAvailable({ asset, onToggled }: { asset: InventoryAsset; onToggled: () => void }) {
-  const { toast } = useToast();
-  const mut = useMutation({
-    mutationFn: () => apiRequest("PATCH", `/api/inventory/${asset.id}`, { available: !asset.available }),
-    onSuccess: onToggled,
-    onError: () => toast({ title: "Erro ao alterar disponibilidade", variant: "destructive" }),
-  });
-
-  return (
-    <button
-      onClick={() => mut.mutate()}
-      disabled={mut.isPending}
-      data-testid={`button-toggle-available-${asset.id}`}
-      style={{
-        width: 36, height: 21,
-        borderRadius: 10,
-        backgroundColor: asset.available ? "#f97316" : "#e8e8e7",
-        border: "none",
-        cursor: mut.isPending ? "not-allowed" : "pointer",
-        position: "relative",
-        transition: "background-color 0.2s",
-        opacity: mut.isPending ? 0.6 : 1,
-      }}
-    >
-      <span style={{
-        position: "absolute",
-        top: 2,
-        left: asset.available ? 17 : 2,
-        width: 17, height: 17,
-        borderRadius: "50%",
-        backgroundColor: "white",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.18)",
-        transition: "left 0.2s",
-      }} />
-    </button>
-  );
-}
-
-// ── Small action button ───────────────────────────────────────────────────────
-function ActionButton({
-  icon: Icon, title, color, hoverBg, onClick, testId,
-}: {
-  icon: React.ElementType;
-  title: string;
-  color: string;
-  hoverBg: string;
-  onClick: () => void;
-  testId?: string;
-}) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      data-testid={testId}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: 30, height: 30,
-        border: "1.5px solid #e8e8e7",
-        borderRadius: 7,
-        backgroundColor: hovered ? hoverBg : "#fff",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: "pointer",
-        transition: "all 0.15s",
-      }}
-    >
-      <Icon style={{ width: 14, height: 14, color }} />
-    </button>
   );
 }

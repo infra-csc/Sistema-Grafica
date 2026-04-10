@@ -138,9 +138,14 @@ export interface IStorage {
   getAllInventoryAssets(): Promise<InventoryAsset[]>;
   getInventoryAsset(id: string): Promise<InventoryAsset | undefined>;
   getAvailableAssetsByFranchise(franchise: string): Promise<InventoryAsset[]>;
-  createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'>): Promise<InventoryAsset>;
+  getAssetsAwaitingTriage(): Promise<InventoryAsset[]>;
+  getAssetsByOriginalItemId(originalItemId: string): Promise<InventoryAsset[]>;
+  createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'> & { displayId?: string }): Promise<InventoryAsset>;
+  createInventoryAssets(assets: Array<Omit<InsertInventoryAsset, 'displayId'> & { displayId: string }>): Promise<InventoryAsset[]>;
   updateInventoryAsset(id: string, data: Partial<InsertInventoryAsset>): Promise<InventoryAsset | undefined>;
   deleteInventoryAsset(id: string): Promise<boolean>;
+  markAssetsInUseForEvent(eventId: string): Promise<number>;
+  markAssetsAwaitingTriageForEvent(eventId: string): Promise<number>;
 
   // Event Inventory Allocations
   getEventAllocations(eventId: string): Promise<EventInventoryAllocation[]>;
@@ -833,27 +838,48 @@ export class DatabaseStorage implements IStorage {
     return asset;
   }
 
+  async getAssetsAwaitingTriage(): Promise<InventoryAsset[]> {
+    return await db.select().from(inventoryAssets)
+      .where(eq(inventoryAssets.trackingStatus, 'AGUARDANDO_TRIAGEM'))
+      .orderBy(desc(inventoryAssets.updatedAt));
+  }
+
+  async getAssetsByOriginalItemId(originalItemId: string): Promise<InventoryAsset[]> {
+    return await db.select().from(inventoryAssets)
+      .where(eq(inventoryAssets.originalItemId, originalItemId));
+  }
+
   async getAvailableAssetsByFranchise(franchise: string): Promise<InventoryAsset[]> {
     const tag = franchise.toLowerCase().replace(/\s+/g, '_');
     const all = await db.select().from(inventoryAssets)
-      .where(eq(inventoryAssets.available, true));
+      .where(eq(inventoryAssets.trackingStatus, 'NO_GALPAO'));
     return all.filter(a =>
       a.condition !== 'SUCATA' &&
       a.franchiseTags.some(t => t.toLowerCase().includes(tag) || tag.includes(t.toLowerCase()))
     );
   }
 
-  async createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'>): Promise<InventoryAsset> {
-    const countResult = await db.select({ count: sql<number>`count(*)` }).from(inventoryAssets);
-    const count = Number(countResult[0]?.count ?? 0);
-    const displayId = `#EST-${String(count + 1).padStart(4, '0')}`;
-    const [created] = await db.insert(inventoryAssets).values({ ...asset, displayId }).returning();
+  async createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'> & { displayId?: string }): Promise<InventoryAsset> {
+    let displayId = asset.displayId;
+    if (!displayId) {
+      const countResult = await db.select({ count: sql<number>`count(*)` }).from(inventoryAssets);
+      const count = Number(countResult[0]?.count ?? 0);
+      displayId = `#EST-${String(count + 1).padStart(4, '0')}`;
+    }
+    const { displayId: _omit, ...rest } = asset as any;
+    const [created] = await db.insert(inventoryAssets).values({ ...rest, displayId }).returning();
+    return created;
+  }
+
+  async createInventoryAssets(assets: Array<Omit<InsertInventoryAsset, 'displayId'> & { displayId: string }>): Promise<InventoryAsset[]> {
+    if (assets.length === 0) return [];
+    const created = await db.insert(inventoryAssets).values(assets as any[]).returning();
     return created;
   }
 
   async updateInventoryAsset(id: string, data: Partial<InsertInventoryAsset>): Promise<InventoryAsset | undefined> {
     const [updated] = await db.update(inventoryAssets)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date() } as any)
       .where(eq(inventoryAssets.id, id))
       .returning();
     return updated;
@@ -862,6 +888,66 @@ export class DatabaseStorage implements IStorage {
   async deleteInventoryAsset(id: string): Promise<boolean> {
     const result = await db.delete(inventoryAssets).where(eq(inventoryAssets.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async markAssetsInUseForEvent(eventId: string): Promise<number> {
+    // Find all items for this event that are produced/delivered
+    const eventItems = await db.select({ id: items.id }).from(items)
+      .where(eq(items.eventId, eventId));
+    const itemIds = eventItems.map(i => i.id);
+    if (itemIds.length === 0) return 0;
+
+    let updated = 0;
+    for (const itemId of itemIds) {
+      const result = await db.update(inventoryAssets)
+        .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
+        .where(and(
+          eq(inventoryAssets.originalItemId, itemId),
+          eq(inventoryAssets.trackingStatus, 'NO_GALPAO')
+        ));
+      updated += result.rowCount ?? 0;
+    }
+
+    // Also update manually allocated assets
+    const allocs = await db.select({ assetId: eventInventoryAllocations.assetId })
+      .from(eventInventoryAllocations)
+      .where(eq(eventInventoryAllocations.eventId, eventId));
+    for (const alloc of allocs) {
+      const result = await db.update(inventoryAssets)
+        .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
+        .where(eq(inventoryAssets.id, alloc.assetId));
+      updated += result.rowCount ?? 0;
+    }
+    return updated;
+  }
+
+  async markAssetsAwaitingTriageForEvent(eventId: string): Promise<number> {
+    const eventItems = await db.select({ id: items.id }).from(items)
+      .where(eq(items.eventId, eventId));
+    const itemIds = eventItems.map(i => i.id);
+    if (itemIds.length === 0) return 0;
+
+    let updated = 0;
+    for (const itemId of itemIds) {
+      const result = await db.update(inventoryAssets)
+        .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
+        .where(and(
+          eq(inventoryAssets.originalItemId, itemId),
+          eq(inventoryAssets.trackingStatus, 'EM_USO')
+        ));
+      updated += result.rowCount ?? 0;
+    }
+
+    const allocs = await db.select({ assetId: eventInventoryAllocations.assetId })
+      .from(eventInventoryAllocations)
+      .where(eq(eventInventoryAllocations.eventId, eventId));
+    for (const alloc of allocs) {
+      const result = await db.update(inventoryAssets)
+        .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
+        .where(eq(inventoryAssets.id, alloc.assetId));
+      updated += result.rowCount ?? 0;
+    }
+    return updated;
   }
 
   // ── Event Inventory Allocations ──────────────────────────
@@ -875,8 +961,8 @@ export class DatabaseStorage implements IStorage {
     const [alloc] = await db.insert(eventInventoryAllocations)
       .values({ eventId, assetId })
       .returning();
-    // Mark asset as unavailable
-    await db.update(inventoryAssets).set({ available: false, updatedAt: new Date() })
+    await db.update(inventoryAssets)
+      .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
       .where(eq(inventoryAssets.id, assetId));
     return alloc;
   }
@@ -886,7 +972,8 @@ export class DatabaseStorage implements IStorage {
       .where(eq(eventInventoryAllocations.id, allocationId));
     if (!alloc) return false;
     await db.delete(eventInventoryAllocations).where(eq(eventInventoryAllocations.id, allocationId));
-    await db.update(inventoryAssets).set({ available: true, updatedAt: new Date() })
+    await db.update(inventoryAssets)
+      .set({ trackingStatus: 'NO_GALPAO', updatedAt: new Date() } as any)
       .where(eq(inventoryAssets.id, alloc.assetId));
     return true;
   }

@@ -1,0 +1,28 @@
+ADENDO AO ESCOPO: VÍNCULO DE PATROCINADORES NO ESTOQUE
+VISÃO GERAL
+Cada ativo no estoque (`inventory_assets`) deve carregar consigo a lista de patrocinadores cujas marcas estão impressas na peça. Isso é crucial para que o sistema impeça a reutilização de um material que contenha logotipos de parceiros antigos ou não condizentes com o novo evento.
+
+ALTERAÇÕES NO BANCO DE DADOS (Drizzle ORM)
+Tabela `inventory_assets`:
+- sponsorIds (uuid[] - array de referências para a tabela `sponsors`)
+- approvalThumbUrl (string - URL da imagem da arte aprovada para conferência visual rápida)
+
+REGRAS DE NEGÓCIO E UI
+1. Herança na Criação:
+   - No momento em que a Gráfica marca o item como `produzido`, o registro gerado no estoque herda automaticamente os `sponsorIds` que estavam vinculados ao item original.
+
+2. Visualização no Acervo (/estoque):
+   - Na listagem de itens do estoque, cada linha deve exibir os "Chips" dos patrocinadores (usando a cor da marca definida no cadastro do patrocinador).
+   - Ao passar o mouse (onMouseEnter) na linha, deve aparecer o thumbnail da arte (`approvalThumbUrl`) em um pequeno popover para conferência visual de onde as logos estão posicionadas.
+
+3. Filtro de Inteligência na Reutilização:
+   - Ao tentar alocar um item do estoque para um novo evento:
+     - O sistema deve comparar os `sponsorIds` do ativo com os `sponsorIds` do novo evento.
+     - ALERTA CRÍTICO: Se o ativo de estoque contiver um patrocinador que NÃO está no novo evento, o sistema deve exibir um aviso: "Atenção: Este material possui a logo de [Patrocinador], que não consta neste evento. Requer cobertura ou nova impressão."
+     - Se o novo evento tiver patrocinadores novos que não estão na peça, o sistema avisa: "Material incompleto: Faltam as logos de [Patrocinador Novo]."
+
+4. Triagem e Avarias por Logo:
+   - Na tela `/triagem-retorno`, o usuário pode marcar avarias específicas em uma logo (ex: "Logo do Spotify está arranhada"). Isso é salvo nas `notes` do ativo.
+
+ESTILIZAÇÃO (TEMA TITANIUM)
+- Os chips de patrocinadores no estoque devem seguir o padrão: `borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: "bold"`, com a cor de fundo sendo a `color` do patrocinador e o texto em contraste (branco/preto).

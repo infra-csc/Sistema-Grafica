@@ -971,7 +971,11 @@ export default function VincularPatrocinadores() {
 
   // Extrai item IDs únicos a partir das chaves compostas selecionadas
   const selectedSponsorItemIds = () =>
-    Array.from(new Set(Array.from(sponsorBulkSelected).map(k => k.split('::')[0])));
+    Array.from(new Set(Array.from(sponsorBulkSelected).map(k => k.split('::')[0])))
+      .filter(itemId => {
+        const uiSt = itemUIStates[itemId] || 'PENDENTE';
+        return uiSt !== 'ENVIADO' && !optimisticSentIds.has(itemId);
+      });
 
   // Agrupa as chaves compostas por itemId → lista de sponsorIds selecionados
   const groupSelectedBySponsor = () => {
@@ -1973,13 +1977,22 @@ export default function VincularPatrocinadores() {
                   </div>
                 ) : sponsorGroups.map(({ sponsor, items: linkedItems, pendingItems }) => {
                   const allItems = [...linkedItems, ...pendingItems];
-                  const pendingIds = pendingItems.map(i => i.id);
+                  // Itens pendentes que já foram enviados (sem este patrocinador) — não podem mais ser vinculados
+                  const sentWithoutLinkItems = pendingItems.filter(pi =>
+                    (itemUIStates[pi.id] || 'PENDENTE') === 'ENVIADO' || optimisticSentIds.has(pi.id)
+                  );
+                  const truelyPendingItems = pendingItems.filter(pi =>
+                    !sentWithoutLinkItems.some(s => s.id === pi.id)
+                  );
+                  // O denominador do progresso exclui itens que já foram enviados sem vínculo
+                  const effectiveTotal = linkedItems.length + truelyPendingItems.length;
+                  const pendingIds = truelyPendingItems.map(i => i.id);
                   const allPendingSelected = pendingIds.length > 0 && pendingIds.every(id => sponsorBulkSelected.has(sponsorKey(id, sponsor.id)));
                   const groupKey = `${event.id}::${sponsor.id}`;
                   const isCollapsed = collapsedSponsorGroups.has(groupKey);
-                  const allLinked = allItems.length > 0 && pendingItems.length === 0;
-                  const nearCompletion = allItems.length > 0 && linkedItems.length / allItems.length >= 0.6 && !allLinked;
-                  const linkPct = allItems.length > 0 ? Math.round((linkedItems.length / allItems.length) * 100) : 0;
+                  const allLinked = effectiveTotal > 0 && truelyPendingItems.length === 0;
+                  const nearCompletion = effectiveTotal > 0 && linkedItems.length / effectiveTotal >= 0.6 && !allLinked;
+                  const linkPct = effectiveTotal > 0 ? Math.round((linkedItems.length / effectiveTotal) * 100) : 100;
 
                   return (
                     <div key={sponsor.id} style={{ borderTop: '1px solid #e7e5e4' }}>
@@ -2023,9 +2036,15 @@ export default function VincularPatrocinadores() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
                           {/* Mini progress */}
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#1c1917', marginBottom: 4 }}>
-                              {linkedItems.length} / {allItems.length} itens vinculados
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#1c1917', marginBottom: 2 }}>
+                              {linkedItems.length} / {effectiveTotal} itens vinculados
                             </div>
+                            {sentWithoutLinkItems.length > 0 && (
+                              <div style={{ fontSize: 9, fontWeight: 700, color: '#c2410c', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                {sentWithoutLinkItems.length} enviado{sentWithoutLinkItems.length !== 1 ? 's' : ''} s/ vínculo
+                              </div>
+                            )}
+                            {sentWithoutLinkItems.length === 0 && <div style={{ marginBottom: 4 }} />}
                             <div style={{ width: 120, height: 4, backgroundColor: '#e7e5e4', borderRadius: 2, overflow: 'hidden' }}>
                               <div style={{
                                 height: '100%', borderRadius: 2,

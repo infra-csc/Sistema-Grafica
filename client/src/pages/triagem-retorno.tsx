@@ -253,8 +253,7 @@ export default function TriagemRetorno() {
                     { label: "Material / Quantidade", align: "left" },
                     { label: "Evento", align: "left" },
                     { label: "Patrocinadores", align: "left" },
-                    { label: "Condição", align: "left" },
-                    { label: "Destino", align: "left" },
+                    { label: "Condição / Destino", align: "left" },
                     { label: "Observação", align: "left" },
                     { label: "Ação", align: "right" },
                   ].map(h => (
@@ -356,45 +355,51 @@ export default function TriagemRetorno() {
                         <SponsorChips sponsors={asset.sponsors ?? []} />
                       </td>
 
-                      {/* Condição select */}
-                      <td style={{ padding: "18px 20px", verticalAlign: "middle", minWidth: 140 }}>
-                        <select data-testid={`select-condition-${asset.id}`}
-                          value={entry.condition} disabled={isSaved}
-                          onChange={e => updateEntry(asset.id, { condition: e.target.value as Condition })}
-                          style={{ ...SEL, opacity: isSaved ? 0.5 : 1, cursor: isSaved ? "not-allowed" : "pointer" }}
-                        >
-                          {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_LABELS[c]}</option>)}
-                        </select>
-                        {/* Condition color hint */}
-                        {!isSaved && (
-                          <div style={{
-                            display: "flex", alignItems: "center", gap: 4, marginTop: 4,
-                          }}>
-                            <span style={{
-                              display: "inline-block", width: 6, height: 6, borderRadius: "50%",
-                              background: CONDITION_COLORS[entry.condition]?.color ?? "#64748b",
-                            }} />
-                            <span style={{ fontSize: 10, color: CONDITION_COLORS[entry.condition]?.color ?? "#64748b", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-                              {CONDITION_LABELS[entry.condition]}
-                            </span>
+                      {/* Condição + Destino — coluna unificada */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle", minWidth: 240 }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          {/* Condição */}
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: "0 0 4px", fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                              Condição
+                            </p>
+                            <select data-testid={`select-condition-${asset.id}`}
+                              value={entry.condition} disabled={isSaved}
+                              onChange={e => updateEntry(asset.id, { condition: e.target.value as Condition })}
+                              style={{ ...SEL, opacity: isSaved ? 0.5 : 1, cursor: isSaved ? "not-allowed" : "pointer" }}
+                            >
+                              {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_LABELS[c]}</option>)}
+                            </select>
+                            {!isSaved && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                                <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: CONDITION_COLORS[entry.condition]?.color ?? "#64748b" }} />
+                                <span style={{ fontSize: 9, color: CONDITION_COLORS[entry.condition]?.color ?? "#64748b", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+                                  {CONDITION_LABELS[entry.condition]}
+                                </span>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </td>
-
-                      {/* Destino select */}
-                      <td style={{ padding: "18px 20px", verticalAlign: "middle", minWidth: 130 }}>
-                        <select data-testid={`select-result-${asset.id}`}
-                          value={entry.result} disabled={isSaved}
-                          onChange={e => updateEntry(asset.id, { result: e.target.value as TriagemResult })}
-                          style={{
-                            ...SEL,
-                            opacity: isSaved ? 0.5 : 1,
-                            cursor: isSaved ? "not-allowed" : "pointer",
-                            color: entry.result === "DESCARTADO" ? "#dc2626" : "#0f172a",
-                          }}
-                        >
-                          {RESULT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                        </select>
+                          {/* Divisor */}
+                          <div style={{ width: 1, background: "#e2e8f0", alignSelf: "stretch", marginTop: 16 }} />
+                          {/* Destino */}
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: "0 0 4px", fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                              Destino
+                            </p>
+                            <select data-testid={`select-result-${asset.id}`}
+                              value={entry.result} disabled={isSaved}
+                              onChange={e => updateEntry(asset.id, { result: e.target.value as TriagemResult })}
+                              style={{
+                                ...SEL,
+                                opacity: isSaved ? 0.5 : 1,
+                                cursor: isSaved ? "not-allowed" : "pointer",
+                                color: entry.result === "DESCARTADO" ? "#dc2626" : "#0f172a",
+                              }}
+                            >
+                              {RESULT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                            </select>
+                          </div>
+                        </div>
                       </td>
 
                       {/* Observação */}

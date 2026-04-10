@@ -3216,8 +3216,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Must be before /:id to avoid being swallowed by that route
   app.get("/api/inventory/awaiting-triage", requireAuth, async (req, res) => {
     try {
-      const assets = await storage.getAssetsAwaitingTriage();
-      res.json(assets);
+      const [assets, allItems, allEvents, allSponsors] = await Promise.all([
+        storage.getAssetsAwaitingTriage(),
+        storage.getAllItems(),
+        storage.getAllEvents(),
+        storage.getAllSponsors(),
+      ]);
+      const itemMap = Object.fromEntries(allItems.map(i => [i.id, i]));
+      const eventMap = Object.fromEntries(allEvents.map(e => [e.id, e]));
+      const sponsorMap = Object.fromEntries(allSponsors.map(s => [s.id, s]));
+      const enriched = assets.map(asset => {
+        const item = asset.originalItemId ? itemMap[asset.originalItemId] : null;
+        const event = item ? eventMap[item.eventId] : null;
+        const sponsors = (asset.sponsorIds ?? [])
+          .map(sid => sponsorMap[sid])
+          .filter(Boolean)
+          .map(s => ({ id: s.id, name: s.name }));
+        return {
+          ...asset,
+          eventName: event?.name ?? null,
+          eventDate: event?.startDate ?? null,
+          sponsors,
+        };
+      });
+      res.json(enriched);
     } catch (error) {
       res.status(500).json({ error: "Erro ao buscar ativos" });
     }

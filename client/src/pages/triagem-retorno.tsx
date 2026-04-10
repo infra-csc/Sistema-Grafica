@@ -4,21 +4,36 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset } from "@shared/schema";
 import {
-  ScanSearch, CheckCircle2, Warehouse, Archive, ArrowRight, Package,
+  ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save, CalendarDays, Tag,
 } from "lucide-react";
 
-// ─── Meta ─────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 type Condition = typeof CONDITIONS[number];
-const CONDITION_LABELS: Record<string, string> = { PERFEITO: "Perfeito", AVARIA_LEVE: "Avaria Leve", SUCATA: "Sucata" };
+const CONDITION_LABELS: Record<string, string> = {
+  PERFEITO: "Perfeito",
+  AVARIA_LEVE: "Avaria Leve",
+  SUCATA: "Sucata",
+};
+const CONDITION_COLORS: Record<string, { bg: string; color: string }> = {
+  PERFEITO: { bg: "#dcfce7", color: "#16a34a" },
+  AVARIA_LEVE: { bg: "#fef9c3", color: "#854d0e" },
+  SUCATA: { bg: "#fee2e2", color: "#dc2626" },
+};
 
 const RESULT_OPTIONS = [
-  { value: "NO_GALPAO",  label: "Galpão" },
+  { value: "NO_GALPAO", label: "Galpão" },
   { value: "DESCARTADO", label: "Descartar" },
 ] as const;
 type TriagemResult = "NO_GALPAO" | "DESCARTADO";
 
 interface TriagemEntry { condition: Condition; result: TriagemResult; notes: string; selected: boolean; }
+
+type EnrichedAsset = InventoryAsset & {
+  eventName: string | null;
+  eventDate: string | null;
+  sponsors: { id: string; name: string }[];
+};
 
 // ─── Horizontal stat card ─────────────────────────────────────────────────────
 function StatCard({ label, value, Icon, color, iconBg }: {
@@ -29,7 +44,7 @@ function StatCard({ label, value, Icon, color, iconBg }: {
     <div
       style={{
         background: hov ? "#e9edff" : "#f1f3ff",
-        padding: "24px", borderRadius: 16,
+        padding: "20px 24px", borderRadius: 16,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         transition: "background 0.2s", cursor: "default",
       }}
@@ -40,13 +55,39 @@ function StatCard({ label, value, Icon, color, iconBg }: {
         <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em" }}>
           {label}
         </p>
-        <h3 style={{ margin: 0, fontSize: 40, fontWeight: 900, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
+        <h3 style={{ margin: 0, fontSize: 38, fontWeight: 900, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
           {value}
         </h3>
       </div>
-      <div style={{ width: 48, height: 48, borderRadius: "50%", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon size={22} color={color} />
+      <div style={{ width: 44, height: 44, borderRadius: "50%", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon size={20} color={color} />
       </div>
+    </div>
+  );
+}
+
+// ─── Sponsor chips ─────────────────────────────────────────────────────────────
+function SponsorChips({ sponsors }: { sponsors: { id: string; name: string }[] }) {
+  if (!sponsors || sponsors.length === 0) return (
+    <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontStyle: "italic" }}>
+      sem patrocinador
+    </span>
+  );
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+      {sponsors.map(s => (
+        <span key={s.id} style={{
+          display: "inline-flex", alignItems: "center", gap: 3,
+          padding: "3px 8px", borderRadius: 6,
+          background: "#f0f4ff", border: "1px solid #c7d2fe",
+          fontSize: 10, fontWeight: 700, color: "#4338ca",
+          fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
+          textTransform: "uppercase", whiteSpace: "nowrap",
+        }}>
+          <Tag size={9} />
+          {s.name}
+        </span>
+      ))}
     </div>
   );
 }
@@ -58,7 +99,7 @@ export default function TriagemRetorno() {
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
-  const { data: awaitingAssets = [], isLoading, refetch } = useQuery<InventoryAsset[]>({
+  const { data: awaitingAssets = [], isLoading, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
   });
 
@@ -172,20 +213,11 @@ export default function TriagemRetorno() {
         </button>
       </div>
 
-      {/* ── Stats (horizontal layout: text left, icon circle right) ── */}
+      {/* ── Stats ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, marginBottom: 40 }}>
-        <StatCard
-          label="Aguardando Triagem" value={pendingAssets.length}
-          Icon={ScanSearch} color="#b45309" iconBg="#fde68a"
-        />
-        <StatCard
-          label="Selecionados" value={selectedIds.length}
-          Icon={CheckCircle2} color="#16a34a" iconBg="#bbf7d0"
-        />
-        <StatCard
-          label="Triados Hoje" value={savedIds.size}
-          Icon={Warehouse} color="#2563eb" iconBg="#bfdbfe"
-        />
+        <StatCard label="Aguardando Triagem" value={pendingAssets.length} Icon={ScanSearch} color="#b45309" iconBg="#fde68a" />
+        <StatCard label="Selecionados" value={selectedIds.length} Icon={CheckCircle2} color="#16a34a" iconBg="#bbf7d0" />
+        <StatCard label="Triados Hoje" value={savedIds.size} Icon={Warehouse} color="#2563eb" iconBg="#bfdbfe" />
       </div>
 
       {/* ── Main card ── */}
@@ -202,24 +234,36 @@ export default function TriagemRetorno() {
             Nenhum material aguardando triagem
           </p>
           <p style={{ fontSize: 13, color: "#64748b", margin: 0, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-            Os materiais são automaticamente movidos para triagem 24h após o evento.
+            Os materiais são automaticamente movidos para triagem na data do evento.
           </p>
         </div>
       ) : (
         <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 20px 40px rgba(20,27,43,0.06)", position: "relative" }}>
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
               <thead>
                 <tr style={{ background: "#e9edff" }}>
-                  <th style={{ width: 48, padding: "16px 24px", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "#434655", fontFamily: "Plus Jakarta Sans, sans-serif", textAlign: "left" }}>
+                  <th style={{ width: 48, padding: "14px 20px", textAlign: "left" }}>
                     <input type="checkbox" data-testid="checkbox-select-all"
                       checked={allSelected} onChange={e => toggleAll(e.target.checked)}
                       style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#2563eb" }}
                     />
                   </th>
-                  {["Identificação", "Condição Atual", "Destino", "Observação", "Ação"].map(h => (
-                    <th key={h} style={{ padding: "16px 24px", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "#434655", fontFamily: "Plus Jakarta Sans, sans-serif", textAlign: h === "Ação" ? "right" : "left" }}>
-                      {h}
+                  {[
+                    { label: "Material / Quantidade", align: "left" },
+                    { label: "Evento", align: "left" },
+                    { label: "Patrocinadores", align: "left" },
+                    { label: "Condição", align: "left" },
+                    { label: "Destino", align: "left" },
+                    { label: "Observação", align: "left" },
+                    { label: "Ação", align: "right" },
+                  ].map(h => (
+                    <th key={h.label} style={{
+                      padding: "14px 20px", fontWeight: 700, fontSize: 11,
+                      textTransform: "uppercase", letterSpacing: "0.08em", color: "#434655",
+                      fontFamily: "Space Grotesk, sans-serif", textAlign: h.align as any,
+                    }}>
+                      {h.label}
                     </th>
                   ))}
                 </tr>
@@ -229,21 +273,23 @@ export default function TriagemRetorno() {
                   const entry = getEntry(asset.id);
                   const isSaved = savedIds.has(asset.id);
                   const isSaving = savingIds.has(asset.id);
+                  const qty = asset.quantity ?? 1;
 
                   return (
                     <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
                       style={{
-                        opacity: isSaved ? 0.6 : 1,
+                        opacity: isSaved ? 0.55 : 1,
                         background: isSaved ? "#f9fdf9" : "#fff",
                         transition: "background 0.1s",
+                        borderBottom: "1px solid #f1f5f9",
                       }}
-                      onMouseEnter={e => { if (!isSaved) (e.currentTarget as HTMLTableRowElement).style.background = "#f1f3ff"; }}
+                      onMouseEnter={e => { if (!isSaved) (e.currentTarget as HTMLTableRowElement).style.background = "#f8f9ff"; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = isSaved ? "#f9fdf9" : "#fff"; }}
                     >
-                      {/* Checkbox / done */}
-                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                      {/* Checkbox */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle" }}>
                         {isSaved
-                          ? <CheckCircle2 size={18} color="#16a34a" style={{ fontVariationSettings: "'FILL' 1" }} />
+                          ? <CheckCircle2 size={17} color="#16a34a" />
                           : <input type="checkbox" data-testid={`checkbox-asset-${asset.id}`}
                               checked={entry.selected}
                               onChange={e => updateEntry(asset.id, { selected: e.target.checked })}
@@ -252,25 +298,66 @@ export default function TriagemRetorno() {
                         }
                       </td>
 
-                      {/* Identification */}
-                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{ width: 40, height: 40, borderRadius: 10, background: "#e9edff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <Package size={18} color="#64748b" />
+                      {/* Material + Qty */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: "#e9edff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <Package size={17} color="#64748b" />
                           </div>
                           <div>
-                            <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                                {asset.name}
+                              </p>
+                              {/* Quantity badge */}
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                minWidth: 22, height: 20, borderRadius: 6,
+                                background: qty > 1 ? "#e0f2fe" : "#f1f5f9",
+                                color: qty > 1 ? "#0369a1" : "#64748b",
+                                fontSize: 10, fontWeight: 800,
+                                fontFamily: "DM Mono, monospace",
+                                padding: "0 6px",
+                                border: qty > 1 ? "1px solid #bae6fd" : "1px solid #e2e8f0",
+                              }}>
+                                ×{qty}
+                              </span>
+                            </div>
+                            <p style={{ margin: "2px 0 0", fontSize: 11, color: "#94a3b8", fontFamily: "DM Mono, monospace", letterSpacing: "0.04em" }}>
                               {asset.displayId}
-                            </p>
-                            <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                              {asset.name}
                             </p>
                           </div>
                         </div>
                       </td>
 
-                      {/* Condition select */}
-                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                      {/* Evento */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle" }}>
+                        {asset.eventName ? (
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+                              <CalendarDays size={12} color="#6366f1" />
+                              <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                                {asset.eventName}
+                              </span>
+                            </div>
+                            {asset.eventDate && (
+                              <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "DM Mono, monospace" }}>
+                                {new Date(asset.eventDate).toLocaleDateString("pt-BR")}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Patrocinadores */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle", maxWidth: 180 }}>
+                        <SponsorChips sponsors={asset.sponsors ?? []} />
+                      </td>
+
+                      {/* Condição select */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle", minWidth: 140 }}>
                         <select data-testid={`select-condition-${asset.id}`}
                           value={entry.condition} disabled={isSaved}
                           onChange={e => updateEntry(asset.id, { condition: e.target.value as Condition })}
@@ -278,25 +365,44 @@ export default function TriagemRetorno() {
                         >
                           {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_LABELS[c]}</option>)}
                         </select>
+                        {/* Condition color hint */}
+                        {!isSaved && (
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: 4, marginTop: 4,
+                          }}>
+                            <span style={{
+                              display: "inline-block", width: 6, height: 6, borderRadius: "50%",
+                              background: CONDITION_COLORS[entry.condition]?.color ?? "#64748b",
+                            }} />
+                            <span style={{ fontSize: 10, color: CONDITION_COLORS[entry.condition]?.color ?? "#64748b", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+                              {CONDITION_LABELS[entry.condition]}
+                            </span>
+                          </div>
+                        )}
                       </td>
 
-                      {/* Result select */}
-                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                      {/* Destino select */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle", minWidth: 130 }}>
                         <select data-testid={`select-result-${asset.id}`}
                           value={entry.result} disabled={isSaved}
                           onChange={e => updateEntry(asset.id, { result: e.target.value as TriagemResult })}
-                          style={{ ...SEL, opacity: isSaved ? 0.5 : 1, cursor: isSaved ? "not-allowed" : "pointer" }}
+                          style={{
+                            ...SEL,
+                            opacity: isSaved ? 0.5 : 1,
+                            cursor: isSaved ? "not-allowed" : "pointer",
+                            color: entry.result === "DESCARTADO" ? "#dc2626" : "#0f172a",
+                          }}
                         >
                           {RESULT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                         </select>
                       </td>
 
-                      {/* Notes */}
-                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                      {/* Observação */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle" }}>
                         {isSaved ? (
                           <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "#dcfce7", color: "#16a34a" }}>
                             <CheckCircle2 size={12} />
-                            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>✓ Triado</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Triado</span>
                           </div>
                         ) : (
                           <input data-testid={`input-notes-${asset.id}`}
@@ -309,22 +415,37 @@ export default function TriagemRetorno() {
                         )}
                       </td>
 
-                      {/* Action */}
-                      <td style={{ padding: "20px 24px", verticalAlign: "middle", textAlign: "right" }}>
+                      {/* Ação — botão Salvar melhorado */}
+                      <td style={{ padding: "18px 20px", verticalAlign: "middle", textAlign: "right" }}>
                         {isSaved ? (
-                          <CheckCircle2 size={18} color="#16a34a" />
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontSize: 12, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+                            <CheckCircle2 size={15} />
+                            Salvo
+                          </span>
                         ) : (
                           <button data-testid={`button-save-triage-${asset.id}`}
                             disabled={isSaving}
                             onClick={() => handleSingle(asset.id)}
                             style={{
-                              background: "none", border: "none", cursor: isSaving ? "not-allowed" : "pointer",
-                              color: isSaving ? "#94a3b8" : "#2563eb",
-                              fontWeight: 700, fontSize: 13, fontFamily: "Plus Jakarta Sans, sans-serif",
-                              textDecoration: "underline", padding: 0,
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              padding: "8px 16px", borderRadius: 9,
+                              border: "none",
+                              background: isSaving ? "#e2e8f0" : "#2563eb",
+                              color: isSaving ? "#94a3b8" : "#fff",
+                              fontSize: 12, fontWeight: 700,
+                              fontFamily: "Space Grotesk, sans-serif",
+                              cursor: isSaving ? "not-allowed" : "pointer",
+                              boxShadow: isSaving ? "none" : "0 2px 8px rgba(37,99,235,0.28)",
+                              transition: "all 0.15s",
+                              whiteSpace: "nowrap",
                             }}
+                            onMouseEnter={e => { if (!isSaving) (e.currentTarget as HTMLButtonElement).style.background = "#1d4ed8"; }}
+                            onMouseLeave={e => { if (!isSaving) (e.currentTarget as HTMLButtonElement).style.background = "#2563eb"; }}
                           >
-                            {isSaving ? "..." : "Salvar"}
+                            {isSaving
+                              ? <span style={{ fontSize: 12 }}>...</span>
+                              : <><Save size={13} /> Salvar</>
+                            }
                           </button>
                         )}
                       </td>
@@ -340,7 +461,7 @@ export default function TriagemRetorno() {
             <div style={{
               position: "sticky", bottom: 0, zIndex: 10,
               background: "#fff7ed", borderTop: "1px solid rgba(253,215,170,0.5)",
-              padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#fde68a", display: "flex", alignItems: "center", justifyContent: "center" }}>

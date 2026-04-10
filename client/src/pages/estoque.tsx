@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor, Item, Event } from "@shared/schema";
@@ -343,6 +344,7 @@ function AssetModal({ asset, onClose, onSaved }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Estoque() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCondition, setFilterCondition] = useState("all");
@@ -385,12 +387,16 @@ export default function Estoque() {
     onError: () => toast({ title: "Erro ao excluir.", variant: "destructive" }),
   });
 
-  const total = assets.length;
-  const byStatus = (s: string) => assets.filter(a => a.trackingStatus === s).length;
-  const sucata = assets.filter(a => a.condition === "SUCATA").length;
-  const autoCount = assets.filter(a => a.autoAdded).length;
+  // Assets that have been triaged (not awaiting triage) — these belong to the acervo
+  const acervoAssets = assets.filter(a => a.trackingStatus !== "AGUARDANDO_TRIAGEM");
+  const triageCount = assets.filter(a => a.trackingStatus === "AGUARDANDO_TRIAGEM").length;
 
-  const filtered = assets.filter(a => {
+  const total = acervoAssets.length;
+  const byStatus = (s: string) => acervoAssets.filter(a => a.trackingStatus === s).length;
+  const sucata = acervoAssets.filter(a => a.condition === "SUCATA").length;
+  const autoCount = acervoAssets.filter(a => a.autoAdded).length;
+
+  const filtered = acervoAssets.filter(a => {
     const q = search.toLowerCase();
     const ms = !q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q));
     const mst = filterStatus === "all" || a.trackingStatus === filterStatus;
@@ -447,12 +453,15 @@ export default function Estoque() {
 
       {/* ── Stat cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 28 }}>
-        <StatCard label="Total"        value={total}                     Icon={Package}   color="#2563eb" subtext={`${autoCount} automáticos`} />
-        <StatCard label="Galpão"       value={byStatus("NO_GALPAO")}     Icon={Warehouse} color="#16a34a" subtext={total ? `${Math.round(byStatus("NO_GALPAO")/total*100)}% disponível` : "0% disponível"} subColor="#16a34a" />
-        <StatCard label="Em Uso"       value={byStatus("EM_USO")}        Icon={Truck}     color="#ea580c" subtext="Frota ativa" />
-        <StatCard label="Ag. Triagem"  value={byStatus("AGUARDANDO_TRIAGEM")} Icon={ScanSearch} color="#b45309" subtext="Prioridade alta" subColor="#b45309" />
-        <StatCard label="Descartado"   value={byStatus("DESCARTADO")}    Icon={XCircle}   color="#6b7280" subtext="Logística reversa" />
-        <StatCard label="Sucata"       value={sucata}                     Icon={Flame}     color="#dc2626" subtext="Perda total" subColor="#dc2626" />
+        <StatCard label="Total"       value={total}                 Icon={Package}   color="#2563eb" subtext={`${autoCount} via gráfica`} />
+        <StatCard label="Galpão"      value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#16a34a" subtext={total ? `${Math.round(byStatus("NO_GALPAO")/total*100)}% disponível` : "0% disponível"} subColor="#16a34a" />
+        <StatCard label="Em Uso"      value={byStatus("EM_USO")}    Icon={Truck}     color="#ea580c" subtext="Frota ativa" />
+        {/* Card clicável → navega para Triagem */}
+        <div onClick={() => navigate("/triagem-retorno")} style={{ cursor: triageCount > 0 ? "pointer" : "default" }}>
+          <StatCard label="Ag. Triagem" value={triageCount} Icon={ScanSearch} color="#b45309" subtext={triageCount > 0 ? "Ir para triagem →" : "Nenhum pendente"} subColor={triageCount > 0 ? "#b45309" : "#94a3b8"} />
+        </div>
+        <StatCard label="Descartado"  value={byStatus("DESCARTADO")} Icon={XCircle}  color="#6b7280" subtext="Logística reversa" />
+        <StatCard label="Sucata"      value={sucata}                  Icon={Flame}    color="#dc2626" subtext="Perda total" subColor="#dc2626" />
       </div>
 
       {/* ── Filter bar ── */}
@@ -475,7 +484,7 @@ export default function Estoque() {
         <div style={{ width: 1, height: 32, background: "#f1f5f9" }} />
 
         {[
-          { val: filterStatus,    fn: setFilterStatus,    opts: [["all","STATUS: TODOS"], ...ALL_STATUSES.map(s => [s, STATUS_META[s].label])] },
+          { val: filterStatus,    fn: setFilterStatus,    opts: [["all","STATUS: TODOS"], ...ALL_STATUSES.filter(s => s !== "AGUARDANDO_TRIAGEM").map(s => [s, STATUS_META[s].label])] },
           { val: filterCondition, fn: setFilterCondition, opts: [["all","CONDIÇÃO: TODA"], ...CONDITIONS.map(c => [c, CONDITION_META[c].label])] },
           { val: filterAutoAdded, fn: setFilterAutoAdded, opts: [["all","ORIGEM: TODAS"],["auto","Gráfica (Auto)"],["manual","Manual"]] },
         ].map(({ val, fn, opts }, i) => (

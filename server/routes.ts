@@ -3078,9 +3078,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }, 30 * 60 * 1000); // Check every 30 minutes
 
   // ============ INVENTORY LIFECYCLE CRON ============
-  // Runs every minute: check truckDepartureDate → EM_USO; next day after startDate → AGUARDANDO_TRIAGEM
-  // Uses continuous (catch-up) logic — no narrow window — so missed ticks are recovered automatically.
-  setInterval(async () => {
+  // ── Inventory lifecycle: extracted to function so it runs on startup AND every minute ──
+  // Trigger 1: truckDepartureDate passed → EM_USO
+  // Trigger 2: midnight of event startDate (when the event day begins) → AGUARDANDO_TRIAGEM
+  // Continuous (catch-up) logic — no narrow window — missed ticks are recovered automatically.
+  async function runInventoryCron() {
     try {
       const now = new Date();
       const allEvents = await storage.getAllEvents();
@@ -3097,16 +3099,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // ── Return: start of the day AFTER the event → AGUARDANDO_TRIAGEM ───
-        // Uses next calendar day midnight (not strictly +24h) so assets appear
-        // in triage from the first minute of the day after the event.
-        const startDate = event.startDate ? new Date(event.startDate) : null;
-        if (startDate) {
-          const nextDayMidnight = new Date(startDate);
-          nextDayMidnight.setDate(nextDayMidnight.getDate() + 1);
-          nextDayMidnight.setHours(0, 0, 0, 0);
+        // ── Triage: at midnight of the event's startDate → AGUARDANDO_TRIAGEM ─
+        // "meia-noite quando virar o dia do evento" = 00:00:00 of startDate.
+        // Assets created by gráfica (entregue/produzido) are caught here,
+        // including those still in NO_GALPAO if EM_USO transition was missed.
+        if (event.startDate) {
+          const eventMidnight = new Date(event.startDate);
+          eventMidnight.setHours(0, 0, 0, 0);
 
-          if (now >= nextDayMidnight) {
+          if (now >= eventMidnight) {
             const count = await storage.markAssetsAwaitingTriageForEvent(event.id);
             if (count > 0) {
               broadcast({
@@ -3124,7 +3125,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error('[inventory-cron] error:', err);
     }
-  }, 60 * 1000); // Every minute
+  }
+
+  // Run immediately on startup to catch up any missed transitions (e.g. entregue items in dev)
+  runInventoryCron();
+  // Then run every minute
+  setInterval(runInventoryCron, 60 * 1000);
 
   // ============ INVENTORY ASSETS (ACERVO) ============
 

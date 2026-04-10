@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "outline": "#8c7164",
+                    "inverse-on-surface": "#f1f1f0",
+                    "on-primary": "#ffffff",
+                    "secondary-fixed-dim": "#ffb690",
+                    "on-secondary-fixed": "#341100",
+                    "on-tertiary-fixed-variant": "#004b74",
+                    "on-error-container": "#93000a",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-container": "#fd761a",
+                    "inverse-primary": "#ccc5c2",
+                    "surface-tint": "#625d5b",
+                    "primary-fixed-dim": "#ccc5c2",
+                    "error": "#ba1a1a",
+                    "primary": "#625d5b",
+                    "on-surface": "#1a1c1c",
+                    "surface-dim": "#dadad9",
+                    "background": "#f9f9f8",
+                    "tertiary": "#006398",
+                    "primary-fixed": "#e9e1dd",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-fixed": "#001d32",
+                    "tertiary-container": "#00a2f4",
+                    "surface-container-highest": "#e2e2e2",
+                    "surface-bright": "#f9f9f8",
+                    "tertiary-fixed": "#cde5ff",
+                    "secondary": "#9d4300",
+                    "outline-variant": "#e0c0b1",
+                    "surface-variant": "#e2e2e2",
+                    "surface-container": "#eeeeed",
+                    "surface-container-high": "#e8e8e7",
+                    "on-surface-variant": "#584237",
+                    "tertiary-fixed-dim": "#93ccff",
+                    "secondary-fixed": "#ffdbca",
+                    "primary-container": "#9f9996",
+                    "inverse-surface": "#2f3130",
+                    "on-primary-fixed": "#1e1b19",
+                    "on-tertiary-container": "#003554",
+                    "on-secondary": "#ffffff",
+                    "on-primary-container": "#35322f",
+                    "on-background": "#1a1c1c",
+                    "error-container": "#ffdad6",
+                    "on-secondary-fixed-variant": "#783200",
+                    "surface-container-low": "#f3f4f3",
+                    "surface": "#f9f9f8",
+                    "on-primary-fixed-variant": "#4a4643",
+                    "on-error": "#ffffff",
+                    "on-secondary-container": "#5c2400"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Space Grotesk"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .font-space-grotesk { font-family: 'Space Grotesk', sans-serif; }
+        .font-plus-jakarta { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .negative-kerning { letter-spacing: -0.03em; }
+        .glass-brand { background: rgba(226, 226, 222, 0.6); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-background text-on-background font-plus-jakarta overflow-x-hidden">
+<!-- TopNavBar -->
+<header class="bg-stone-50 dark:bg-stone-950 flex justify-between items-center w-full px-8 py-4 h-16 max-w-[1920px] mx-auto fixed top-0 z-50">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black tracking-tighter text-stone-900 dark:text-stone-50 uppercase font-space-grotesk">NORTE APEX</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 transition-colors duration-200" href="#">Dashboard</a>
+<a class="text-orange-600 dark:text-orange-500 font-bold border-b-2 border-orange-600" href="#">Patrocinadores</a>
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 transition-colors duration-200" href="#">Eventos</a>
+<a class="text-stone-500 dark:text-stone-400 font-medium hover:text-stone-900 dark:hover:text-stone-100 transition-colors duration-200" href="#">Aprovações</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-stone-600 hover:bg-stone-100 p-2 rounded-full transition-all">notifications</button>
+<button class="material-symbols-outlined text-stone-600 hover:bg-stone-100 p-2 rounded-full transition-all">settings</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-stone-200">
+<img alt="Avatar do Gestor" data-alt="professional portrait of a manager in a modern business setting with warm lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBc8PYcCFk7YVWHCT_jLnweok32RAdOUNCWS7xh_Jb29d2Uek8bDAZ2GbL1nVTQk4-CFgnaJhcixZ08_dgjDNvxMaqS8EkLkJpG5wlvOOuRVqQ-3qoos-RUYR6bEr9SunLiU8npCSxONr3JkMDPkVyrzZRyWNaj1QS_y92yjM-qjoAuQZxFw6NeiItWtoM0gVp2WygLPpapWpIUwl8zWhKjUxCoblsZ4ocmHmt2c4Xm8QITgCXXKp8GtGL0wmopDZMVPzWPorYZgC2a"/>
+</div>
+</div>
+</header>
+<!-- Separation Line -->
+<div class="fixed top-16 w-full h-[1px] bg-stone-200/50 dark:bg-stone-800/50 z-40"></div>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-64 bg-stone-100 dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 hidden lg:flex flex-col p-4 gap-2">
+<div class="mb-6 px-2">
+<h2 class="text-stone-900 font-bold font-space-grotesk tracking-tight">Gestão Apex</h2>
+<p class="text-xs text-stone-500">Temporada 2024</p>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 transition-transform duration-200 hover:translate-x-1 rounded-md" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-semibold tracking-tight">Visão Geral</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 transition-transform duration-200 hover:translate-x-1 rounded-md" href="#">
+<span class="material-symbols-outlined">pending_actions</span>
+<span class="text-sm font-semibold tracking-tight">Pendentes</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-stone-200 dark:bg-stone-800 text-orange-600 dark:text-orange-500 rounded-md shadow-sm transition-transform duration-200 hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">verified</span>
+<span class="text-sm font-semibold tracking-tight">Patrocinadores</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 transition-transform duration-200 hover:translate-x-1 rounded-md" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="text-sm font-semibold tracking-tight">Histórico</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 transition-transform duration-200 hover:translate-x-1 rounded-md" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-sm font-semibold tracking-tight">Relatórios</span>
+</a>
+</nav>
+<div class="mt-auto flex flex-col gap-1 pt-4 border-t border-stone-200">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 transition-transform duration-200 hover:translate-x-1 rounded-md" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="text-sm font-semibold tracking-tight">Suporte</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 transition-transform duration-200 hover:translate-x-1 rounded-md" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="text-sm font-semibold tracking-tight">Sair</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 mt-16 p-8 min-h-[calc(100vh-64px)]">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
+<div>
+<h1 class="text-4xl font-bold font-space-grotesk negative-kerning text-on-background uppercase tracking-tight">Patrocinadores</h1>
+<p class="text-stone-500 text-lg">Gerencie os patrocinadores dos eventos</p>
+</div>
+<button class="bg-secondary text-on-secondary px-6 py-3 rounded-md flex items-center gap-2 font-bold tracking-tight hover:brightness-105 transition-all duration-200 active:scale-95 shadow-sm">
+<span class="material-symbols-outlined">add</span>
+                NOVO PATROCINADOR
+            </button>
+</div>
+<!-- Sponsors Table Container -->
+<div class="bg-surface-container-low rounded-xl overflow-hidden border-none shadow-sm">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high text-on-surface-variant text-xs uppercase font-bold tracking-widest">
+<th class="px-6 py-4">COR</th>
+<th class="px-6 py-4">NOME</th>
+<th class="px-6 py-4">EMPRESA</th>
+<th class="px-6 py-4">CONTATO</th>
+<th class="px-6 py-4">EMAIL</th>
+<th class="px-6 py-4">TELEFONE</th>
+<th class="px-6 py-4 text-right">AÇÕES</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-200 bg-surface">
+<!-- Table Row 1 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-5">
+<div class="w-6 h-6 rounded-full bg-orange-500 shadow-sm ring-2 ring-orange-500/20"></div>
+</td>
+<td class="px-6 py-5 font-space-grotesk font-bold text-lg text-on-surface">ENERGY PLUS</td>
+<td class="px-6 py-5 text-stone-600 font-medium">EP Logistics Ltda</td>
+<td class="px-6 py-5 text-stone-600">Ricardo Almeida</td>
+<td class="px-6 py-5 text-stone-500">ricardo@energyplus.com</td>
+<td class="px-6 py-5 text-stone-500 whitespace-nowrap">(11) 98765-4321</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 text-stone-400 hover:text-secondary hover:bg-secondary/10 rounded-md transition-all material-symbols-outlined">edit</button>
+<button class="p-2 text-stone-400 hover:text-error hover:bg-error/10 rounded-md transition-all material-symbols-outlined">delete</button>
+</div>
+</td>
+</tr>
+<!-- Table Row 2 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-5">
+<div class="w-6 h-6 rounded-full bg-blue-600 shadow-sm ring-2 ring-blue-600/20"></div>
+</td>
+<td class="px-6 py-5 font-space-grotesk font-bold text-lg text-on-surface">TECH FLOW</td>
+<td class="px-6 py-5 text-stone-600 font-medium">TF Digital Solutions</td>
+<td class="px-6 py-5 text-stone-600">Mariana Costa</td>
+<td class="px-6 py-5 text-stone-500">mariana@techflow.io</td>
+<td class="px-6 py-5 text-stone-500 whitespace-nowrap">(21) 99122-3344</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 text-stone-400 hover:text-secondary hover:bg-secondary/10 rounded-md transition-all material-symbols-outlined">edit</button>
+<button class="p-2 text-stone-400 hover:text-error hover:bg-error/10 rounded-md transition-all material-symbols-outlined">delete</button>
+</div>
+</td>
+</tr>
+<!-- Table Row 3 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-5">
+<div class="w-6 h-6 rounded-full bg-emerald-500 shadow-sm ring-2 ring-emerald-500/20"></div>
+</td>
+<td class="px-6 py-5 font-space-grotesk font-bold text-lg text-on-surface">PEAK PEAK</td>
+<td class="px-6 py-5 text-stone-600 font-medium">Mountain Peak Gear</td>
+<td class="px-6 py-5 text-stone-600">Bruno Neves</td>
+<td class="px-6 py-5 text-stone-500">bruno@peakpeak.com.br</td>
+<td class="px-6 py-5 text-stone-500 whitespace-nowrap">(31) 97766-5544</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 text-stone-400 hover:text-secondary hover:bg-secondary/10 rounded-md transition-all material-symbols-outlined">edit</button>
+<button class="p-2 text-stone-400 hover:text-error hover:bg-error/10 rounded-md transition-all material-symbols-outlined">delete</button>
+</div>
+</td>
+</tr>
+<!-- Table Row 4 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-6 py-5">
+<div class="w-6 h-6 rounded-full bg-purple-600 shadow-sm ring-2 ring-purple-600/20"></div>
+</td>
+<td class="px-6 py-5 font-space-grotesk font-bold text-lg text-on-surface">VELOCITY</td>
+<td class="px-6 py-5 text-stone-600 font-medium">Velocity Sports Group</td>
+<td class="px-6 py-5 text-stone-600">Alice Mendes</td>
+<td class="px-6 py-5 text-stone-500">alice@velocity.com</td>
+<td class="px-6 py-5 text-stone-500 whitespace-nowrap">(11) 95544-3322</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end gap-2">
+<button class="p-2 text-stone-400 hover:text-secondary hover:bg-secondary/10 rounded-md transition-all material-symbols-outlined">edit</button>
+<button class="p-2 text-stone-400 hover:text-error hover:bg-error/10 rounded-md transition-all material-symbols-outlined">delete</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination-like Footer (Tonal shift, no border) -->
+<div class="bg-surface-container-low px-6 py-4 flex justify-between items-center text-xs font-bold text-stone-400">
+<span>EXIBINDO 4 DE 4 PATROCINADORES</span>
+<div class="flex gap-2">
+<button class="p-1 hover:text-stone-900 transition-colors material-symbols-outlined">chevron_left</button>
+<button class="p-1 hover:text-stone-900 transition-colors material-symbols-outlined">chevron_right</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Modal Overlay (Creation/Editing) - Visible state for demonstration -->
+<div class="fixed inset-0 bg-stone-950/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+<div class="bg-surface w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[921px]">
+<!-- Modal Header -->
+<div class="p-6 bg-surface-container-high flex justify-between items-center">
+<h2 class="font-space-grotesk font-bold text-2xl uppercase tracking-tight text-on-surface">Novo Patrocinador</h2>
+<button class="material-symbols-outlined text-stone-400 hover:text-stone-900 transition-colors">close</button>
+</div>
+<!-- Modal Content -->
+<div class="p-8 overflow-y-auto space-y-8">
+<!-- Main Info Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="text-xs font-bold text-stone-400 uppercase tracking-widest">Nome do Patrocinador*</label>
+<input class="w-full bg-surface-container-high border-none rounded-md p-3 text-on-surface focus:ring-2 focus:ring-secondary/20 transition-all font-space-grotesk font-bold" placeholder="Ex: ENERGY PLUS" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-xs font-bold text-stone-400 uppercase tracking-widest">Empresa</label>
+<input class="w-full bg-surface-container-high border-none rounded-md p-3 text-on-surface focus:ring-2 focus:ring-secondary/20 transition-all" placeholder="Ex: EP Logistics Ltda" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-xs font-bold text-stone-400 uppercase tracking-widest">Contato Responsável</label>
+<input class="w-full bg-surface-container-high border-none rounded-md p-3 text-on-surface focus:ring-2 focus:ring-secondary/20 transition-all" placeholder="Ex: Ricardo Almeida" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-xs font-bold text-stone-400 uppercase tracking-widest">Email</label>
+<input class="w-full bg-surface-container-high border-none rounded-md p-3 text-on-surface focus:ring-2 focus:ring-secondary/20 transition-all" placeholder="ricardo@email.com" type="email"/>
+</div>
+<div class="space-y-1">
+<label class="text-xs font-bold text-stone-400 uppercase tracking-widest">Telefone</label>
+<input class="w-full bg-surface-container-high border-none rounded-md p-3 text-on-surface focus:ring-2 focus:ring-secondary/20 transition-all" placeholder="(00) 00000-0000" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="text-xs font-bold text-stone-400 uppercase tracking-widest">Código Hex</label>
+<div class="flex gap-2">
+<span class="bg-surface-container-high px-3 py-3 rounded-md text-stone-400 font-mono">#</span>
+<input class="w-full bg-surface-container-high border-none rounded-md p-3 text-on-surface focus:ring-2 focus:ring-secondary/20 transition-all font-mono" placeholder="F97316" type="text"/>
+</div>
+</div>
+</div>
+<!-- Color Presets Section -->
+<div class="space-y-3">
+<label class="text-xs font-bold text-stone-400 uppercase tracking-widest">Cor do Patrocinador</label>
+<div class="flex flex-wrap gap-4">
+<button class="w-10 h-10 rounded-full bg-red-600 ring-offset-2 ring-2 ring-red-600/30"></button>
+<button class="w-10 h-10 rounded-full bg-orange-500 ring-offset-2 ring-4 ring-orange-500 active:scale-95"></button>
+<button class="w-10 h-10 rounded-full bg-yellow-500"></button>
+<button class="w-10 h-10 rounded-full bg-emerald-500"></button>
+<button class="w-10 h-10 rounded-full bg-blue-600"></button>
+<button class="w-10 h-10 rounded-full bg-indigo-600"></button>
+<button class="w-10 h-10 rounded-full bg-purple-600"></button>
+<button class="w-10 h-10 rounded-full bg-pink-600"></button>
+<button class="w-10 h-10 rounded-full bg-stone-900"></button>
+<button class="w-10 h-10 rounded-full bg-amber-700"></button>
+<button class="w-10 h-10 rounded-full bg-cyan-500"></button>
+<button class="w-10 h-10 rounded-full bg-lime-500"></button>
+</div>
+</div>
+<!-- Observations -->
+<div class="space-y-1">
+<label class="text-xs font-bold text-stone-400 uppercase tracking-widest">Observações</label>
+<textarea class="w-full bg-surface-container-high border-none rounded-md p-3 text-on-surface focus:ring-2 focus:ring-secondary/20 transition-all resize-none" placeholder="Informações adicionais sobre o contrato ou parceria..." rows="3"></textarea>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="p-6 bg-surface-container-low flex justify-end gap-4">
+<button class="px-6 py-2 text-stone-500 font-bold hover:text-stone-900 transition-colors uppercase tracking-tight">Cancelar</button>
+<button class="px-8 py-3 bg-secondary text-on-secondary font-bold rounded-md hover:brightness-105 active:scale-95 transition-all shadow-sm uppercase tracking-tight">Salvar Patrocinador</button>
+</div>
+</div>
+</div>
+<!-- Delete Confirmation Modal (Lower Z-index/Hidden behind creation for now) -->
+<div class="hidden fixed inset-0 bg-stone-950/60 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+<div class="bg-surface w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-error/10">
+<!-- Alert Banner -->
+<div class="bg-error px-6 py-4 flex items-center gap-3 text-white">
+<span class="material-symbols-outlined">warning</span>
+<span class="font-bold tracking-tight uppercase">Atenção: Ação Irreversível</span>
+</div>
+<div class="p-8 space-y-4">
+<h3 class="text-2xl font-bold font-space-grotesk text-stone-900">Excluir Patrocinador?</h3>
+<p class="text-stone-500 leading-relaxed">Você está prestes a excluir o patrocinador <span class="font-bold text-stone-900">ENERGY PLUS</span>. Esta ação removerá todos os vínculos com eventos ativos. Deseja continuar?</p>
+</div>
+<div class="p-6 bg-surface-container-low flex justify-end gap-3">
+<button class="px-6 py-2 text-stone-500 font-bold hover:text-stone-900 transition-colors uppercase">Manter</button>
+<button class="px-6 py-3 bg-error text-on-error font-bold rounded-md hover:brightness-110 active:scale-95 transition-all shadow-sm uppercase">Sim, Excluir</button>
+</div>
+</div>
+</div>
+</body></html>

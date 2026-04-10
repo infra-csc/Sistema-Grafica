@@ -12,6 +12,7 @@ interface Notification {
 interface NotificationBellProps {
   notifications: Notification[];
   onMarkAsRead: (id: string) => void;
+  onViewAll?: () => void;
 }
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ function fmtTime(raw: Date | string): string {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function NotificationBell({ notifications, onMarkAsRead }: NotificationBellProps) {
+export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const unread = notifications.filter((n) => !n.isRead);
@@ -266,7 +267,8 @@ export function NotificationBell({ notifications, onMarkAsRead }: NotificationBe
             textAlign: "center",
           }}>
             <button
-              onClick={() => setOpen(false)}
+              data-testid="button-view-all-activities"
+              onClick={() => { setOpen(false); onViewAll?.(); }}
               style={{
                 background: "none", border: "none", cursor: "pointer",
                 fontFamily: "'Space Grotesk', sans-serif",

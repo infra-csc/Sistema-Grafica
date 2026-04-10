@@ -166,6 +166,7 @@ const ROLE_LABELS: Record<string, string> = {
 function AuthenticatedLayout() {
   useWebSocket();
 
+  const [, setLocation] = useLocation();
   const { user } = useAuth();
 
   const { data: notifications = [] } = useQuery<any[]>({
@@ -212,6 +213,7 @@ function AuthenticatedLayout() {
             <NotificationBell
               notifications={notifications}
               onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+              onViewAll={() => setLocation("/historico")}
             />
             {/* User avatar chip */}
             <div

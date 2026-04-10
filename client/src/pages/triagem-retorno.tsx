@@ -4,79 +4,49 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset } from "@shared/schema";
 import {
-  ScanSearch, CheckCircle2, AlertTriangle, XCircle,
-  Archive, Warehouse, ArrowRight, Package,
+  ScanSearch, CheckCircle2, Warehouse, Archive, ArrowRight, Package,
 } from "lucide-react";
 
-// ─── Meta ────────────────────────────────────────────────────────────────────
-const CONDITION_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  PERFEITO:    { label: "Perfeito",    color: "#16a34a", bg: "rgba(22,163,74,0.08)",  border: "rgba(22,163,74,0.2)"  },
-  AVARIA_LEVE: { label: "Avaria Leve", color: "#d97706", bg: "rgba(217,119,6,0.08)",  border: "rgba(217,119,6,0.2)"  },
-  SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "rgba(220,38,38,0.08)",  border: "rgba(220,38,38,0.2)"  },
-};
+// ─── Meta ─────────────────────────────────────────────────────────────────────
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 type Condition = typeof CONDITIONS[number];
+const CONDITION_LABELS: Record<string, string> = { PERFEITO: "Perfeito", AVARIA_LEVE: "Avaria Leve", SUCATA: "Sucata" };
 
 const RESULT_OPTIONS = [
-  { value: "NO_GALPAO",  label: "Retornar ao Galpão", color: "#16a34a" },
-  { value: "DESCARTADO", label: "Descartar",           color: "#dc2626" },
+  { value: "NO_GALPAO",  label: "Galpão" },
+  { value: "DESCARTADO", label: "Descartar" },
 ] as const;
 type TriagemResult = "NO_GALPAO" | "DESCARTADO";
 
 interface TriagemEntry { condition: Condition; result: TriagemResult; notes: string; selected: boolean; }
 
-// ─── Badge rounded-lg ────────────────────────────────────────────────────────
-function Badge({ color, bg, border, label }: { color: string; bg: string; border: string; label: string }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center",
-      padding: "4px 10px", borderRadius: 8,
-      fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-      fontFamily: "Space Grotesk, sans-serif",
-      color, background: bg, border: `1px solid ${border}`,
-    }}>
-      {label}
-    </span>
-  );
-}
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-function StatCard({ label, value, Icon, color, subtext, subColor }: {
-  label: string; value: number; Icon: React.ElementType;
-  color: string; subtext: string; subColor?: string;
+// ─── Horizontal stat card ─────────────────────────────────────────────────────
+function StatCard({ label, value, Icon, color, iconBg }: {
+  label: string; value: number; Icon: React.ElementType; color: string; iconBg: string;
 }) {
-  const [hovered, setHovered] = useState(false);
+  const [hov, setHov] = useState(false);
   return (
     <div
       style={{
-        background: "linear-gradient(135deg, #fff 0%, #f8fafc 100%)",
-        padding: 24, borderRadius: 20,
-        border: `1px solid ${hovered ? color + "40" : "rgba(226,232,240,0.6)"}`,
-        boxShadow: hovered ? `0 8px 24px ${color}14` : "0 1px 3px rgba(0,0,0,0.05)",
-        transition: "border-color 0.2s, box-shadow 0.2s",
+        background: hov ? "#e9edff" : "#f1f3ff",
+        padding: "24px", borderRadius: 16,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        transition: "background 0.2s", cursor: "default",
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-        <div style={{
-          padding: 10, borderRadius: 12,
-          background: hovered ? color : color + "18",
-          transition: "background 0.2s",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <Icon size={18} color={hovered ? "#fff" : color} />
-        </div>
-        <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em" }}>
+      <div>
+        <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em" }}>
           {label}
-        </span>
+        </p>
+        <h3 style={{ margin: 0, fontSize: 40, fontWeight: 900, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          {String(value).padStart(2, "0")}
+        </h3>
       </div>
-      <p style={{ margin: "0 0 8px", fontSize: 30, fontWeight: 700, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.02em" }}>
-        {value.toLocaleString("pt-BR")}
-      </p>
-      <p style={{ margin: 0, fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em", color: subColor ?? "#94a3b8" }}>
-        {subtext}
-      </p>
+      <div style={{ width: 48, height: 48, borderRadius: "50%", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon size={22} color={color} />
+      </div>
     </div>
   );
 }
@@ -113,7 +83,7 @@ export default function TriagemRetorno() {
     try {
       await triageMutation.mutateAsync({ id: assetId, condition: entry.condition, notes: entry.notes, trackingStatus: entry.result });
       setSavedIds(prev => new Set(Array.from(prev).concat(assetId)));
-      toast({ title: "Triagem registrada com sucesso." });
+      toast({ title: "Triagem registrada." });
     } catch {
       toast({ title: "Erro ao registrar triagem.", variant: "destructive" });
     } finally {
@@ -151,84 +121,84 @@ export default function TriagemRetorno() {
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
   const SEL: React.CSSProperties = {
-    padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0",
-    fontSize: 12, fontFamily: "Space Grotesk, sans-serif", fontWeight: 600,
-    background: "#f8fafc", color: "#0f172a", outline: "none",
+    padding: "8px 10px", borderRadius: 8, border: "none",
+    fontSize: 13, fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500,
+    background: "#f1f3ff", color: "#0f172a", outline: "none",
     cursor: "pointer", width: "100%", boxSizing: "border-box",
   };
   const INP: React.CSSProperties = {
-    padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0",
-    fontSize: 12, fontFamily: "Plus Jakarta Sans, sans-serif",
-    background: "#f8fafc", color: "#0f172a", outline: "none",
+    padding: "8px 12px", borderRadius: 8, border: "none",
+    fontSize: 13, fontFamily: "Plus Jakarta Sans, sans-serif",
+    background: "#f1f3ff", color: "#0f172a", outline: "none",
     width: "100%", boxSizing: "border-box",
   };
 
   return (
-    <div style={{ padding: "32px 36px", background: "#f8fafc", minHeight: "100vh" }}>
+    <div style={{ padding: "32px 36px", background: "#f9f9ff", minHeight: "100vh" }}>
 
-      {/* ── Page header ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      {/* ── Header ── */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
           <div style={{
-            width: 56, height: 56, borderRadius: 18, background: "#b45309",
+            width: 48, height: 48, borderRadius: 14, background: "#fffbeb",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 16px 40px rgba(180,83,9,0.25)",
+            boxShadow: "0 2px 8px rgba(180,83,9,0.12)",
           }}>
-            <ScanSearch size={24} color="#fff" />
+            <ScanSearch size={28} color="#b45309" />
           </div>
           <div>
-            <h1 style={{ margin: "0 0 4px", fontSize: 30, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1 }}>
+            <h1 style={{ margin: "0 0 4px", fontSize: 30, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1 }}>
               Triagem de Retorno
             </h1>
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em" }}>
-              Avaliação de Condição &amp; Destino
+            <p style={{ margin: 0, fontSize: 14, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500 }}>
+              Avalie a condição dos materiais retornados e envie ao galpão
             </p>
           </div>
         </div>
-        {selectedIds.length > 0 && (
-          <button data-testid="button-bulk-triage" onClick={handleBulk} style={{
+        <button data-testid="button-bulk-triage-header" onClick={handleBulk}
+          disabled={selectedIds.length === 0}
+          style={{
             display: "flex", alignItems: "center", gap: 8,
-            padding: "14px 28px", borderRadius: 16, border: "none",
-            background: "#f97316", color: "#fff", fontSize: 13,
-            cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-            letterSpacing: "0.05em", boxShadow: "0 8px 24px rgba(249,115,22,0.35)",
+            padding: "14px 24px", borderRadius: 14, border: "none",
+            background: selectedIds.length === 0 ? "#e2e8f0" : "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+            color: selectedIds.length === 0 ? "#94a3b8" : "#fff", fontSize: 13,
+            cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
+            fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+            boxShadow: selectedIds.length > 0 ? "0 8px 24px rgba(37,99,235,0.35)" : "none",
+            transition: "all 0.2s",
           }}>
-            <Archive size={16} />
-            CONFIRMAR TRIAGEM ({selectedIds.length})
-          </button>
-        )}
+          <span>Confirmar Triagem ({selectedIds.length})</span>
+          <CheckCircle2 size={16} />
+        </button>
       </div>
 
-      {/* ── Stats ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 28 }}>
+      {/* ── Stats (horizontal layout: text left, icon circle right) ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, marginBottom: 40 }}>
         <StatCard
           label="Aguardando Triagem" value={pendingAssets.length}
-          Icon={ScanSearch} color="#b45309"
-          subtext="Prioridade alta" subColor="#b45309"
+          Icon={ScanSearch} color="#b45309" iconBg="#fde68a"
         />
         <StatCard
           label="Selecionados" value={selectedIds.length}
-          Icon={CheckCircle2} color="#16a34a"
-          subtext={selectedIds.length > 0 ? "Prontos para confirmar" : "Nenhum selecionado"}
+          Icon={CheckCircle2} color="#16a34a" iconBg="#bbf7d0"
         />
         <StatCard
           label="Triados Hoje" value={savedIds.size}
-          Icon={Warehouse} color="#2563eb"
-          subtext="Processados nesta sessão"
+          Icon={Warehouse} color="#2563eb" iconBg="#bfdbfe"
         />
       </div>
 
-      {/* ── Main queue card ── */}
+      {/* ── Main card ── */}
       {isLoading ? (
-        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", padding: 60, textAlign: "center", color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 14 }}>
+        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", padding: 60, textAlign: "center", color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 14, boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
           Carregando materiais para triagem...
         </div>
       ) : pendingAssets.length === 0 && savedIds.size === 0 ? (
-        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", padding: 80, textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.04)" }}>
-          <div style={{ width: 64, height: 64, borderRadius: 20, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <ScanSearch size={28} color="#cbd5e1" />
+        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", padding: 80, textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
+          <div style={{ width: 64, height: 64, borderRadius: 20, background: "#f1f3ff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <ScanSearch size={28} color="#94a3b8" />
           </div>
-          <p style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 8px", fontFamily: "Space Grotesk, sans-serif" }}>
             Nenhum material aguardando triagem
           </p>
           <p style={{ fontSize: 13, color: "#64748b", margin: 0, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
@@ -236,222 +206,171 @@ export default function TriagemRetorno() {
           </p>
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
+        <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 20px 40px rgba(20,27,43,0.06)", position: "relative" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
+              <thead>
+                <tr style={{ background: "#e9edff" }}>
+                  <th style={{ width: 48, padding: "16px 24px", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "#434655", fontFamily: "Plus Jakarta Sans, sans-serif", textAlign: "left" }}>
+                    <input type="checkbox" data-testid="checkbox-select-all"
+                      checked={allSelected} onChange={e => toggleAll(e.target.checked)}
+                      style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#2563eb" }}
+                    />
+                  </th>
+                  {["Identificação", "Condição Atual", "Destino", "Observação", "Ação"].map(h => (
+                    <th key={h} style={{ padding: "16px 24px", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: "#434655", fontFamily: "Plus Jakarta Sans, sans-serif", textAlign: h === "Ação" ? "right" : "left" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...pendingAssets, ...awaitingAssets.filter(a => savedIds.has(a.id))].map(asset => {
+                  const entry = getEntry(asset.id);
+                  const isSaved = savedIds.has(asset.id);
+                  const isSaving = savingIds.has(asset.id);
 
-          {/* Table header */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "44px 160px 1fr 160px 160px 1fr 140px",
-            gap: 0, padding: "14px 24px",
-            background: "rgba(248,250,252,0.8)", borderBottom: "1px solid #e2e8f0",
-            alignItems: "center",
-          }}>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <input type="checkbox" data-testid="checkbox-select-all"
-                checked={allSelected} onChange={e => toggleAll(e.target.checked)}
-                style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#f97316" }}
-              />
-            </div>
-            {["Identificador", "Equipamento", "Condição Atual", "Destino", "Observação", ""].map(h => (
-              <span key={h} style={{
-                fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em",
-                color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif",
-              }}>
-                {h}
-              </span>
-            ))}
+                  return (
+                    <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
+                      style={{
+                        opacity: isSaved ? 0.6 : 1,
+                        background: isSaved ? "#f9fdf9" : "#fff",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={e => { if (!isSaved) (e.currentTarget as HTMLTableRowElement).style.background = "#f1f3ff"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = isSaved ? "#f9fdf9" : "#fff"; }}
+                    >
+                      {/* Checkbox / done */}
+                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                        {isSaved
+                          ? <CheckCircle2 size={18} color="#16a34a" style={{ fontVariationSettings: "'FILL' 1" }} />
+                          : <input type="checkbox" data-testid={`checkbox-asset-${asset.id}`}
+                              checked={entry.selected}
+                              onChange={e => updateEntry(asset.id, { selected: e.target.checked })}
+                              style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#2563eb" }}
+                            />
+                        }
+                      </td>
+
+                      {/* Identification */}
+                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 10, background: "#e9edff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <Package size={18} color="#64748b" />
+                          </div>
+                          <div>
+                            <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                              {asset.displayId}
+                            </p>
+                            <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                              {asset.name}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Condition select */}
+                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                        <select data-testid={`select-condition-${asset.id}`}
+                          value={entry.condition} disabled={isSaved}
+                          onChange={e => updateEntry(asset.id, { condition: e.target.value as Condition })}
+                          style={{ ...SEL, opacity: isSaved ? 0.5 : 1, cursor: isSaved ? "not-allowed" : "pointer" }}
+                        >
+                          {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_LABELS[c]}</option>)}
+                        </select>
+                      </td>
+
+                      {/* Result select */}
+                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                        <select data-testid={`select-result-${asset.id}`}
+                          value={entry.result} disabled={isSaved}
+                          onChange={e => updateEntry(asset.id, { result: e.target.value as TriagemResult })}
+                          style={{ ...SEL, opacity: isSaved ? 0.5 : 1, cursor: isSaved ? "not-allowed" : "pointer" }}
+                        >
+                          {RESULT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                        </select>
+                      </td>
+
+                      {/* Notes */}
+                      <td style={{ padding: "20px 24px", verticalAlign: "middle" }}>
+                        {isSaved ? (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "#dcfce7", color: "#16a34a" }}>
+                            <CheckCircle2 size={12} />
+                            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>✓ Triado</span>
+                          </div>
+                        ) : (
+                          <input data-testid={`input-notes-${asset.id}`}
+                            type="text" placeholder="Adicionar nota..."
+                            value={entry.notes}
+                            onChange={e => updateEntry(asset.id, { notes: e.target.value })}
+                            onKeyDown={e => e.key === "Enter" && handleSingle(asset.id)}
+                            style={INP}
+                          />
+                        )}
+                      </td>
+
+                      {/* Action */}
+                      <td style={{ padding: "20px 24px", verticalAlign: "middle", textAlign: "right" }}>
+                        {isSaved ? (
+                          <CheckCircle2 size={18} color="#16a34a" />
+                        ) : (
+                          <button data-testid={`button-save-triage-${asset.id}`}
+                            disabled={isSaving}
+                            onClick={() => handleSingle(asset.id)}
+                            style={{
+                              background: "none", border: "none", cursor: isSaving ? "not-allowed" : "pointer",
+                              color: isSaving ? "#94a3b8" : "#2563eb",
+                              fontWeight: 700, fontSize: 13, fontFamily: "Plus Jakarta Sans, sans-serif",
+                              textDecoration: "underline", padding: 0,
+                            }}
+                          >
+                            {isSaving ? "..." : "Salvar"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          {/* Rows */}
-          {[...pendingAssets, ...awaitingAssets.filter(a => savedIds.has(a.id))].map(asset => {
-            const entry = getEntry(asset.id);
-            const isSaved = savedIds.has(asset.id);
-            const isSaving = savingIds.has(asset.id);
-            const condMeta = CONDITION_META[entry.condition];
-            const resultMeta = RESULT_OPTIONS.find(r => r.value === entry.result) ?? RESULT_OPTIONS[0];
-
-            return (
-              <div key={asset.id} data-testid={`row-triage-${asset.id}`}
-                style={{
-                  borderBottom: "1px solid rgba(241,245,249,0.8)",
-                  opacity: isSaved ? 0.55 : 1,
-                  background: isSaved ? "rgba(240,253,244,0.5)" : "#fff",
-                  transition: "background 0.15s",
-                }}
-              >
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "44px 160px 1fr 160px 160px 1fr 140px",
-                  gap: 0, padding: "16px 24px", alignItems: "center",
-                }}>
-
-                  {/* Checkbox / done icon */}
-                  <div>
-                    {isSaved
-                      ? <CheckCircle2 size={16} color="#16a34a" />
-                      : <input type="checkbox" data-testid={`checkbox-asset-${asset.id}`}
-                          checked={entry.selected}
-                          onChange={e => updateEntry(asset.id, { selected: e.target.checked })}
-                          style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#f97316" }}
-                        />
-                    }
-                  </div>
-
-                  {/* ID */}
-                  <div>
-                    <span style={{
-                      fontFamily: "DM Mono, monospace", fontSize: 11, fontWeight: 700,
-                      color: "#475569", background: "rgba(241,245,249,0.8)",
-                      padding: "3px 8px", borderRadius: 6, display: "inline-block",
-                    }}>
-                      {asset.displayId}
-                    </span>
-                  </div>
-
-                  {/* Name */}
-                  <div style={{ paddingRight: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{
-                        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                        background: asset.autoAdded ? "rgba(37,99,235,0.08)" : "#f1f5f9",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        border: `1px solid ${asset.autoAdded ? "rgba(37,99,235,0.2)" : "#e2e8f0"}`,
-                      }}>
-                        <span style={{ fontSize: 8, fontWeight: 800, color: asset.autoAdded ? "#2563eb" : "#94a3b8", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.03em" }}>
-                          {asset.autoAdded ? "AUTO" : "MAN"}
-                        </span>
-                      </div>
-                      <div>
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                          {asset.name}
-                        </p>
-                        {asset.notes && (
-                          <p style={{ margin: "1px 0 0", fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                            {asset.notes.length > 40 ? asset.notes.slice(0, 40) + "…" : asset.notes}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Condition select */}
-                  <div style={{ paddingRight: 12 }}>
-                    <select data-testid={`select-condition-${asset.id}`}
-                      value={entry.condition} disabled={isSaved}
-                      onChange={e => updateEntry(asset.id, { condition: e.target.value as Condition })}
-                      style={{ ...SEL, color: condMeta.color, cursor: isSaved ? "default" : "pointer" }}
-                    >
-                      {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_META[c].label}</option>)}
-                    </select>
-                  </div>
-
-                  {/* Result select */}
-                  <div style={{ paddingRight: 12 }}>
-                    <select data-testid={`select-result-${asset.id}`}
-                      value={entry.result} disabled={isSaved}
-                      onChange={e => updateEntry(asset.id, { result: e.target.value as TriagemResult })}
-                      style={{ ...SEL, color: resultMeta.color, cursor: isSaved ? "default" : "pointer" }}
-                    >
-                      {RESULT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                    </select>
-                  </div>
-
-                  {/* Notes input */}
-                  <div style={{ paddingRight: 12 }}>
-                    <input data-testid={`input-notes-${asset.id}`}
-                      type="text" placeholder="Observação opcional..."
-                      value={entry.notes} disabled={isSaved}
-                      onChange={e => updateEntry(asset.id, { notes: e.target.value })}
-                      style={{ ...INP, cursor: isSaved ? "default" : "text" }}
-                    />
-                  </div>
-
-                  {/* Action */}
-                  <div>
-                    {isSaved ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 8, background: "rgba(22,163,74,0.08)", color: "#16a34a", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}>
-                        <CheckCircle2 size={13} />
-                        Triado
-                      </span>
-                    ) : (
-                      <button data-testid={`button-save-triage-${asset.id}`}
-                        disabled={isSaving}
-                        onClick={() => handleSingle(asset.id)}
-                        style={{
-                          display: "inline-flex", alignItems: "center", gap: 6,
-                          padding: "8px 16px", borderRadius: 8, border: "none",
-                          background: isSaving ? "#e2e8f0" : "#0f172a",
-                          color: isSaving ? "#94a3b8" : "#fff",
-                          fontSize: 11, cursor: isSaving ? "not-allowed" : "pointer",
-                          fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                          letterSpacing: "0.05em", whiteSpace: "nowrap",
-                          boxShadow: isSaving ? "none" : "0 2px 8px rgba(0,0,0,0.15)",
-                        }}
-                      >
-                        {isSaving ? "..." : <><ArrowRight size={12} /> SALVAR</>}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Bulk action footer */}
+          {/* Sticky batch action bar */}
           {selectedIds.length > 0 && (
             <div style={{
-              padding: "16px 24px",
-              background: "rgba(255,247,237,0.8)",
-              borderTop: "1px solid rgba(253,215,170,0.6)",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
+              position: "sticky", bottom: 0, zIndex: 10,
+              background: "#fff7ed", borderTop: "1px solid rgba(253,215,170,0.5)",
+              padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f97316" }} />
-                <span style={{ fontSize: 13, color: "#ea580c", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600 }}>
-                  {selectedIds.length} item(ns) selecionado(s) — pronto para triagem em lote
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#fde68a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Archive size={16} color="#b45309" />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                  {selectedIds.length} item(ns) selecionado(s)
                 </span>
               </div>
               <button data-testid="button-bulk-confirm" onClick={handleBulk} style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "9px 20px", borderRadius: 10, border: "none",
-                background: "#f97316", color: "#fff", fontSize: 12,
+                padding: "10px 22px", borderRadius: 10, border: "none",
+                background: "#b45309", color: "#fff", fontSize: 13,
                 cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                letterSpacing: "0.05em", boxShadow: "0 4px 14px rgba(249,115,22,0.3)",
+                boxShadow: "0 2px 8px rgba(180,83,9,0.3)",
               }}>
-                <Archive size={14} />
-                CONFIRMAR TRIAGEM EM LOTE
+                Confirmar Triagem em Lote
               </button>
             </div>
           )}
-
-          {/* Footer count */}
-          <div style={{
-            padding: "14px 24px",
-            background: "rgba(248,250,252,0.8)",
-            borderTop: "1px solid #e2e8f0",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-          }}>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", color: "#94a3b8" }}>
-              Exibindo <span style={{ color: "#0f172a" }}>{awaitingAssets.length}</span> materiais na fila
-            </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#b45309" }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  {pendingAssets.length} pendentes
-                </span>
-              </div>
-              <div style={{ width: 1, height: 14, background: "#e2e8f0" }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a" }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  {savedIds.size} triados
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       )}
+
+      {/* Footer tip */}
+      <footer style={{ marginTop: 40, display: "flex", alignItems: "center", gap: 6 }}>
+        <ScanSearch size={14} color="#94a3b8" />
+        <span style={{ fontSize: 12, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+          Atalho: Pressione <kbd style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 4, padding: "1px 6px", fontSize: 11, fontFamily: "DM Mono, monospace" }}>Enter</kbd> no campo de observação para salvar rapidamente a linha.
+        </span>
+      </footer>
     </div>
   );
 }

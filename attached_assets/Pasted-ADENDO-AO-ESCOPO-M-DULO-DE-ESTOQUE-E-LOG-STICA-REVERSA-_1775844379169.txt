@@ -1,0 +1,63 @@
+ADENDO AO ESCOPO: MÓDULO DE ESTOQUE E LOGÍSTICA REVERSA (ACERVO)
+VISÃO GERAL DO MÓDULO
+O novo Módulo de Estoque gerencia a "logística reversa" dos materiais após a conclusão de um evento. Ele permite o retorno de itens (ex: estruturas, pórticos, lonas de franquias recorrentes como "Night Run" e "Circuito Estações"), avaliação do estado de conservação (triagem), armazenamento e reutilização em eventos futuros. O objetivo é evitar impressões duplicadas, reaproveitando materiais de provas similares.
+
+NOVOS FLUXOS DE TRABALHO
+1. Triagem Pós-Evento: Quando um evento passa para o status "completed", os itens físicos retornam para a base. A equipe de Atendimento/Produção acessa a tela de Triagem para dar entrada no material.
+2. Avaliação de Condição (Status de Retorno): Cada item é avaliado com uma de três condições:
+   - PERFEITO: Pronto para uso imediato.
+   - AVARIA_LEVE: Precisa de limpeza/reparo leve (ex: ilhós rasgado, sujeira), mas é reaproveitável.
+   - SUCATA: Inutilizado/Descartado (ex: lona rasgada ao meio).
+3. Reutilização (Check-out): No Módulo de Solicitação, ao criar um novo evento de uma franquia (ex: Night Run - Etapa Inverno), o sistema cruza as "tags" do evento e sugere itens que já existem no estoque, permitindo alocá-los em vez de enviar para a gráfica.
+
+ALTERAÇÕES NO BANCO DE DADOS (Drizzle ORM)
+Nova Tabela: `inventory_assets`
+- id (uuid)
+- originalItemId (uuid - referência de qual item gerou este ativo original)
+- displayId (ex: #EST-0012)
+- name (ex: Pórtico de Largada)
+- franchiseTags (array de strings, ex: ["night_run", "padrao"])
+- condition (enum: 'PERFEITO', 'AVARIA_LEVE', 'SUCATA')
+- location (string - ex: "Prateleira A2")
+- available (boolean - true se estiver no galpão, false se já estiver alocado para um evento futuro)
+- notes (text - observações sobre avarias)
+- createdAt, updatedAt
+
+Nova Tabela: `event_inventory_allocations` (Tabela pivô)
+- id (uuid)
+- eventId (uuid)
+- assetId (uuid)
+- allocatedAt (timestamp)
+
+Alteração na Tabela `events`:
+- Adicionar coluna `franchise` (string, nullable) para agrupar eventos (ex: "Night Run", "Circuito Estações").
+
+ARQUITETURA DE UI/UX — NOVAS PÁGINAS (TEMA TITANIUM)
+client/src/
+  pages/
+    triagem-retorno.tsx    → Tela para dar entrada nos itens que voltaram de um evento
+    estoque.tsx            → Gestão geral do acervo, listagem e manutenção
+
+REGRAS DE INTERFACE (ESTOQUE E TRIAGEM)
+1. Tela de Triagem (/triagem-retorno):
+   - Layout dividido: Sidebar esquerda listando "Eventos Concluídos Recentes". Ao clicar, a área principal mostra os itens daquele evento aguardando triagem.
+   - Cada item possui um Card de Entrada.
+   - Botões de condição (Radio Buttons estilizados): 
+     - Verde (#16a34a) para PERFEITO.
+     - Laranja/Accent (#f97316) para AVARIA_LEVE.
+     - Vermelho (#dc2626) para SUCATA.
+   - Se AVARIA_LEVE for selecionado, um campo "Notas de Reparo" (`backgroundColor: "#f0efee"`) se torna obrigatório.
+
+2. Tela de Acervo/Estoque (/estoque):
+   - Tabela de alta densidade listando todo o inventário ativo (`available: true`).
+   - Filtros no header: Por Franquia (Night Run, etc.), Por Condição, Por Localização.
+   - Coluna de "Ações" (aparece no hover da linha, conforme padrão): "Editar Condição", "Enviar para Descarte", "Gerar Etiqueta".
+   - Tipografia: Tags de franquia usam fonte DM Mono com fundo `low` (#f3f4f3) e texto `second` (#78716c).
+
+INTEGRAÇÃO COM O MÓDULO DE SOLICITAÇÃO
+- Na tela `solicitacao.tsx`, ao adicionar um novo item a um evento associado a uma `franchise`, exibir um banner superior sutil (fundo `low` #f3f4f3, borda `border` #e8e8e7): "Existem [X] itens similares disponíveis no acervo para esta franquia."
+- Adicionar um botão "Buscar no Estoque" ao lado de "Criar Novo Item". Abre um modal lateral listando os `inventory_assets` disponíveis e compatíveis para alocação direta, pulando a etapa da gráfica.
+
+PADRÕES TÉCNICOS OBRIGATÓRIOS
+- WebSockets: Disparar evento de notificação quando um item for alocado do estoque para um novo evento (notificando a Produção de que precisam separar o item, não imprimi-lo).
+- Interações: Manter rigorosamente o padrão de `onMouseEnter`/`onMouseLeave` inline com estados do React. Zero uso de `hover:bg-xyz` do Tailwind.

@@ -1,7 +1,7 @@
 import {
   Calendar, CheckCircle, Factory, Home, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, ScrollText,
+  Link2, LogOut, ScrollText, Archive, ScanSearch,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
@@ -41,6 +41,11 @@ const productionItems: MenuItem[] = [
   { title: "Calendário",               url: "/calendario",              icon: Calendar },
   { title: "Histórico",                url: "/historico",               icon: Activity },
   { title: "Análises",                 url: "/analises",                icon: BarChart3 },
+];
+
+const stockItems: MenuItem[] = [
+  { title: "Acervo",           url: "/estoque",          icon: Archive },
+  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch },
 ];
 
 const adminItems: MenuItem[] = [
@@ -178,6 +183,18 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu style={{ gap: 2 }}>
               {filteredProduction.map((item) => (
+                <NavItem key={item.title} item={item} isActive={location === item.url} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Estoque group */}
+        <SidebarGroup style={{ padding: 0 }}>
+          <span style={sectionLabel}>Estoque &amp; Logística</span>
+          <SidebarGroupContent>
+            <SidebarMenu style={{ gap: 2 }}>
+              {stockItems.map((item) => (
                 <NavItem key={item.title} item={item} isActive={location === item.url} />
               ))}
             </SidebarMenu>

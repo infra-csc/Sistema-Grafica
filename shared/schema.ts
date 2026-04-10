@@ -12,6 +12,7 @@ export const events = pgTable("events", {
   truckDepartureDate: timestamp("truck_departure_date").notNull(),
   status: text("status").notNull().default("created"), // created, completed
   priority: text("priority"), // baixa, media, alta, urgente
+  franchise: text("franchise"), // Franquia (ex: "Night Run", "Circuito Estações")
   approvalBookUrl: text("approval_book_url"), // URL do PDF com book de aprovação
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
@@ -186,6 +187,29 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Inventory Assets table (Acervo)
+export const inventoryAssets = pgTable("inventory_assets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  originalItemId: varchar("original_item_id").references(() => items.id, { onDelete: "set null" }),
+  displayId: text("display_id").notNull().unique(), // ex: #EST-0001
+  name: text("name").notNull(),
+  franchiseTags: text("franchise_tags").array().notNull().default(sql`ARRAY[]::text[]`),
+  condition: text("condition").notNull().default("PERFEITO"), // PERFEITO, AVARIA_LEVE, SUCATA
+  location: text("location"),
+  available: boolean("available").notNull().default(true),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Event-Inventory Allocations (pivot)
+export const eventInventoryAllocations = pgTable("event_inventory_allocations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  assetId: varchar("asset_id").notNull().references(() => inventoryAssets.id, { onDelete: "cascade" }),
+  allocatedAt: timestamp("allocated_at").notNull().default(sql`now()`),
+});
+
 // Relations
 export const eventsRelations = relations(events, ({ many }) => ({
   items: many(items),
@@ -281,6 +305,25 @@ export const deliveryPhotosRelations = relations(deliveryPhotos, ({ one }) => ({
   item: one(items, {
     fields: [deliveryPhotos.itemId],
     references: [items.id],
+  }),
+}));
+
+export const inventoryAssetsRelations = relations(inventoryAssets, ({ one, many }) => ({
+  originalItem: one(items, {
+    fields: [inventoryAssets.originalItemId],
+    references: [items.id],
+  }),
+  allocations: many(eventInventoryAllocations),
+}));
+
+export const eventInventoryAllocationsRelations = relations(eventInventoryAllocations, ({ one }) => ({
+  event: one(events, {
+    fields: [eventInventoryAllocations.eventId],
+    references: [events.id],
+  }),
+  asset: one(inventoryAssets, {
+    fields: [eventInventoryAllocations.assetId],
+    references: [inventoryAssets.id],
   }),
 }));
 
@@ -391,6 +434,21 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   createdAt: true,
 });
 
+export const insertInventoryAssetSchema = createInsertSchema(inventoryAssets).omit({
+  id: true,
+  displayId: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  condition: z.enum(["PERFEITO", "AVARIA_LEVE", "SUCATA"]).default("PERFEITO"),
+  franchiseTags: z.array(z.string()).default([]),
+});
+
+export const insertEventInventoryAllocationSchema = createInsertSchema(eventInventoryAllocations).omit({
+  id: true,
+  allocatedAt: true,
+});
+
 // Types
 export type Event = typeof events.$inferSelect;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
@@ -430,3 +488,9 @@ export type InsertItemSponsor = z.infer<typeof insertItemSponsorSchema>;
 
 export type ItemSponsorApproval = typeof itemSponsorApprovals.$inferSelect;
 export type InsertItemSponsorApproval = z.infer<typeof insertItemSponsorApprovalSchema>;
+
+export type InventoryAsset = typeof inventoryAssets.$inferSelect;
+export type InsertInventoryAsset = z.infer<typeof insertInventoryAssetSchema>;
+
+export type EventInventoryAllocation = typeof eventInventoryAllocations.$inferSelect;
+export type InsertEventInventoryAllocation = z.infer<typeof insertEventInventoryAllocationSchema>;

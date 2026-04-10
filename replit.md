@@ -36,6 +36,7 @@ The system features a professional light mode theme with a clean white backgroun
 - **Event Priority System**: Events can have priorities (Low, Medium, High, Urgent), displayed visually and influencing calendar coloring.
 - **Automatic Event Status**: Events marked "completed" when all items delivered; status reverts if new items added.
 - **Approval Assets**: Items track approval thumbnail URLs (for sponsor review) and final file URLs (required before production). Shared PDF upload for batch processing.
+- **Inventory Module (Acervo)**: Full inventory management for graphic production assets. `inventory_assets` table with displayId (#EST-XXXX), name, condition (PERFEITO/AVARIA_LEVE/SUCATA), location, franchise tags, availability toggle. `event_inventory_allocations` pivot links assets to events and toggles availability. Pages: `/estoque` (CRUD table with filter/search) and `/triagem-retorno` (post-event return triage — select delivered items, assess condition, bulk-send to inventory). API: GET/POST/PATCH/DELETE `/api/inventory`, GET `/api/inventory/available/:franchise`, GET/POST `/api/events/:id/allocations`, DELETE `/api/allocations/:id`.
 
 ### System Design Choices
 - **Folder Structure**: Client, server, and shared directories.

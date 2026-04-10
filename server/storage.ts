@@ -13,6 +13,8 @@ import {
   eventSponsors,
   itemSponsors,
   itemSponsorApprovals,
+  inventoryAssets,
+  eventInventoryAllocations,
   type Event, 
   type InsertEvent,
   type Item,
@@ -37,7 +39,10 @@ import {
   type ItemSponsor,
   type InsertItemSponsor,
   type ItemSponsorApproval,
-  type InsertItemSponsorApproval
+  type InsertItemSponsorApproval,
+  type InventoryAsset,
+  type InsertInventoryAsset,
+  type EventInventoryAllocation,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -128,6 +133,19 @@ export interface IStorage {
   updateItemSponsorApproval(id: string, data: Partial<InsertItemSponsorApproval>): Promise<ItemSponsorApproval | undefined>;
   deleteItemSponsorApprovals(itemId: string): Promise<boolean>;
   initializeItemSponsorApprovals(itemId: string, sponsorIds: string[]): Promise<void>;
+
+  // Inventory Assets (Acervo)
+  getAllInventoryAssets(): Promise<InventoryAsset[]>;
+  getInventoryAsset(id: string): Promise<InventoryAsset | undefined>;
+  getAvailableAssetsByFranchise(franchise: string): Promise<InventoryAsset[]>;
+  createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'>): Promise<InventoryAsset>;
+  updateInventoryAsset(id: string, data: Partial<InsertInventoryAsset>): Promise<InventoryAsset | undefined>;
+  deleteInventoryAsset(id: string): Promise<boolean>;
+
+  // Event Inventory Allocations
+  getEventAllocations(eventId: string): Promise<EventInventoryAllocation[]>;
+  allocateAssetToEvent(eventId: string, assetId: string): Promise<EventInventoryAllocation>;
+  deallocateAsset(allocationId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -802,6 +820,75 @@ export class DatabaseStorage implements IStorage {
         }))
       );
     }
+  }
+
+  // ── Inventory Assets ─────────────────────────────────────
+
+  async getAllInventoryAssets(): Promise<InventoryAsset[]> {
+    return await db.select().from(inventoryAssets).orderBy(desc(inventoryAssets.createdAt));
+  }
+
+  async getInventoryAsset(id: string): Promise<InventoryAsset | undefined> {
+    const [asset] = await db.select().from(inventoryAssets).where(eq(inventoryAssets.id, id));
+    return asset;
+  }
+
+  async getAvailableAssetsByFranchise(franchise: string): Promise<InventoryAsset[]> {
+    const tag = franchise.toLowerCase().replace(/\s+/g, '_');
+    const all = await db.select().from(inventoryAssets)
+      .where(eq(inventoryAssets.available, true));
+    return all.filter(a =>
+      a.condition !== 'SUCATA' &&
+      a.franchiseTags.some(t => t.toLowerCase().includes(tag) || tag.includes(t.toLowerCase()))
+    );
+  }
+
+  async createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'>): Promise<InventoryAsset> {
+    const countResult = await db.select({ count: sql<number>`count(*)` }).from(inventoryAssets);
+    const count = Number(countResult[0]?.count ?? 0);
+    const displayId = `#EST-${String(count + 1).padStart(4, '0')}`;
+    const [created] = await db.insert(inventoryAssets).values({ ...asset, displayId }).returning();
+    return created;
+  }
+
+  async updateInventoryAsset(id: string, data: Partial<InsertInventoryAsset>): Promise<InventoryAsset | undefined> {
+    const [updated] = await db.update(inventoryAssets)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(inventoryAssets.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteInventoryAsset(id: string): Promise<boolean> {
+    const result = await db.delete(inventoryAssets).where(eq(inventoryAssets.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // ── Event Inventory Allocations ──────────────────────────
+
+  async getEventAllocations(eventId: string): Promise<EventInventoryAllocation[]> {
+    return await db.select().from(eventInventoryAllocations)
+      .where(eq(eventInventoryAllocations.eventId, eventId));
+  }
+
+  async allocateAssetToEvent(eventId: string, assetId: string): Promise<EventInventoryAllocation> {
+    const [alloc] = await db.insert(eventInventoryAllocations)
+      .values({ eventId, assetId })
+      .returning();
+    // Mark asset as unavailable
+    await db.update(inventoryAssets).set({ available: false, updatedAt: new Date() })
+      .where(eq(inventoryAssets.id, assetId));
+    return alloc;
+  }
+
+  async deallocateAsset(allocationId: string): Promise<boolean> {
+    const [alloc] = await db.select().from(eventInventoryAllocations)
+      .where(eq(eventInventoryAllocations.id, allocationId));
+    if (!alloc) return false;
+    await db.delete(eventInventoryAllocations).where(eq(eventInventoryAllocations.id, allocationId));
+    await db.update(inventoryAssets).set({ available: true, updatedAt: new Date() })
+      .where(eq(inventoryAssets.id, alloc.assetId));
+    return true;
   }
 }
 

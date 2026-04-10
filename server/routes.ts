@@ -3022,6 +3022,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }, 30 * 60 * 1000); // Check every 30 minutes
 
+  // ============ INVENTORY ASSETS (ACERVO) ============
+
+  app.get("/api/inventory", requireAuth, async (req, res) => {
+    try {
+      const assets = await storage.getAllInventoryAssets();
+      res.json(assets);
+    } catch (error) {
+      console.error("Error fetching inventory:", error);
+      res.status(500).json({ error: "Erro ao buscar acervo" });
+    }
+  });
+
+  app.get("/api/inventory/available/:franchise", requireAuth, async (req, res) => {
+    try {
+      const assets = await storage.getAvailableAssetsByFranchise(req.params.franchise);
+      res.json(assets);
+    } catch (error) {
+      console.error("Error fetching available assets:", error);
+      res.status(500).json({ error: "Erro ao buscar peças disponíveis" });
+    }
+  });
+
+  app.get("/api/inventory/:id", requireAuth, async (req, res) => {
+    try {
+      const asset = await storage.getInventoryAsset(req.params.id);
+      if (!asset) return res.status(404).json({ error: "Peça não encontrada" });
+      res.json(asset);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar peça" });
+    }
+  });
+
+  app.post("/api/inventory", requireAuth, async (req, res) => {
+    try {
+      const data = req.body;
+      const asset = await storage.createInventoryAsset(data);
+      res.status(201).json(asset);
+    } catch (error) {
+      console.error("Error creating inventory asset:", error);
+      res.status(500).json({ error: "Erro ao criar peça no acervo" });
+    }
+  });
+
+  app.patch("/api/inventory/:id", requireAuth, async (req, res) => {
+    try {
+      const asset = await storage.updateInventoryAsset(req.params.id, req.body);
+      if (!asset) return res.status(404).json({ error: "Peça não encontrada" });
+      res.json(asset);
+    } catch (error) {
+      console.error("Error updating inventory asset:", error);
+      res.status(500).json({ error: "Erro ao atualizar peça" });
+    }
+  });
+
+  app.delete("/api/inventory/:id", requireAuth, async (req, res) => {
+    try {
+      const success = await storage.deleteInventoryAsset(req.params.id);
+      if (!success) return res.status(404).json({ error: "Peça não encontrada" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao excluir peça" });
+    }
+  });
+
+  // Event Allocations
+  app.get("/api/events/:id/allocations", requireAuth, async (req, res) => {
+    try {
+      const allocations = await storage.getEventAllocations(req.params.id);
+      res.json(allocations);
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar alocações" });
+    }
+  });
+
+  app.post("/api/events/:id/allocations", requireAuth, async (req, res) => {
+    try {
+      const { assetId } = req.body;
+      if (!assetId) return res.status(400).json({ error: "assetId é obrigatório" });
+      const alloc = await storage.allocateAssetToEvent(req.params.id, assetId);
+      res.status(201).json(alloc);
+    } catch (error) {
+      console.error("Error allocating asset:", error);
+      res.status(500).json({ error: "Erro ao alocar peça" });
+    }
+  });
+
+  app.delete("/api/allocations/:id", requireAuth, async (req, res) => {
+    try {
+      const success = await storage.deallocateAsset(req.params.id);
+      if (!success) return res.status(404).json({ error: "Alocação não encontrada" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao desalocar peça" });
+    }
+  });
+
   // ============ WEBSOCKET SETUP ============
   const httpServer = createServer(app);
   

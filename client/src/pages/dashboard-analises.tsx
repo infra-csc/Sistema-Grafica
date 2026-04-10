@@ -238,43 +238,120 @@ export default function DashboardAnalises() {
         </div>
       </div>
 
-      {/* ── Global filters — 5 cols ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 24, marginBottom: 36, paddingBottom: 24, borderBottom: `1px solid ${T.bdark}` }}>
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Período</div>
-          <select value={period} onChange={e => setPeriod(e.target.value)} data-testid="select-period" style={selStyle}>
-            {PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Evento</div>
-          <select value={eventFilter} onChange={e => setEventFilter(e.target.value)} data-testid="select-event" style={selStyle}>
-            <option value="all">Todos ({events.length})</option>
-            {events.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Status</div>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} data-testid="select-status" style={selStyle}>
-            <option value="all">Todos os Status</option>
-            {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Patrocinador</div>
-          <select value={sponsorFilter} onChange={e => setSponsorFilter(e.target.value)} data-testid="select-sponsor" style={selStyle}>
-            <option value="all">Todos os Patrocinadores</option>
-            {sponsors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Tipo de Material</div>
-          <select style={selStyle}>
-            <option>Toda a Produção</option>
-            {[...new Set(items.map(i => i.type).filter(Boolean))].map(t => <option key={t as string}>{t}</option>)}
-          </select>
-        </div>
-      </div>
+      {/* ── Global filters — card branco Titanium ── */}
+      {(() => {
+        const hasActive = period !== "all" || eventFilter !== "all" || statusFilter !== "all" || sponsorFilter !== "all";
+        const activeCount = [period !== "all", eventFilter !== "all", statusFilter !== "all", sponsorFilter !== "all"].filter(Boolean).length;
+
+        const FilterSelect = ({ label, value, onChange, testId, children }: {
+          label: string; value: string; onChange: (v: string) => void; testId?: string; children: React.ReactNode;
+        }) => {
+          const active = value !== "all";
+          return (
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+                <span style={{ fontSize: 9, fontWeight: 900, color: active ? T.accent : T.muted, textTransform: "uppercase", letterSpacing: "0.16em", transition: "color 0.15s" }}>
+                  {label}
+                </span>
+                {active && (
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: T.accent, flexShrink: 0 }} />
+                )}
+              </div>
+              <div style={{ position: "relative" }}>
+                <select
+                  value={value}
+                  onChange={e => onChange(e.target.value)}
+                  data-testid={testId}
+                  style={{
+                    width: "100%",
+                    padding: "9px 28px 9px 10px",
+                    backgroundColor: active ? "#fff7ed" : T.low,
+                    border: `1px solid ${active ? "#fed7aa" : T.border}`,
+                    borderRadius: 6,
+                    fontSize: 11, fontWeight: active ? 700 : 600,
+                    color: active ? T.accent : T.text,
+                    cursor: "pointer", outline: "none",
+                    appearance: "none", WebkitAppearance: "none",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {children}
+                </select>
+                {/* chevron */}
+                <svg style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 3.5L5 6.5L8 3.5" stroke={active ? T.accent : T.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <div style={{
+            backgroundColor: T.surface,
+            border: `1px solid ${T.bdark}`,
+            borderRadius: 10,
+            padding: "18px 20px",
+            marginBottom: 24,
+            display: "flex", alignItems: "flex-end", gap: 16,
+          }}>
+            <FilterSelect label="Período" value={period} onChange={setPeriod} testId="select-period">
+              {PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </FilterSelect>
+
+            {/* divider */}
+            <div style={{ width: 1, height: 40, backgroundColor: T.border, flexShrink: 0 }} />
+
+            <FilterSelect label="Evento" value={eventFilter} onChange={setEventFilter} testId="select-event">
+              <option value="all">Todos os eventos ({events.length})</option>
+              {events.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </FilterSelect>
+
+            <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} testId="select-status">
+              <option value="all">Todos os status</option>
+              {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </FilterSelect>
+
+            <FilterSelect label="Patrocinador" value={sponsorFilter} onChange={setSponsorFilter} testId="select-sponsor">
+              <option value="all">Todos os patrocinadores</option>
+              {sponsors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </FilterSelect>
+
+            {/* divider */}
+            <div style={{ width: 1, height: 40, backgroundColor: T.border, flexShrink: 0 }} />
+
+            {/* Clear button — só aparece quando há filtro ativo */}
+            <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", paddingBottom: 2 }}>
+              {hasActive ? (
+                <button
+                  data-testid="btn-clear-filters"
+                  onClick={() => { setPeriod("all"); setEventFilter("all"); setStatusFilter("all"); setSponsorFilter("all"); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 5,
+                    padding: "8px 14px",
+                    backgroundColor: "#fef2f2", border: "1px solid #fecaca",
+                    borderRadius: 6, cursor: "pointer",
+                    fontSize: 10, fontWeight: 800, color: "#dc2626",
+                    textTransform: "uppercase", letterSpacing: "0.1em",
+                    whiteSpace: "nowrap", transition: "all 0.15s",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fee2e2"; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 2L8 8M8 2L2 8" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  Limpar ({activeCount})
+                </button>
+              ) : (
+                <div style={{ padding: "8px 14px", fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                  Sem filtros
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── KPI cards — border-l-4 editorial ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 24 }}>

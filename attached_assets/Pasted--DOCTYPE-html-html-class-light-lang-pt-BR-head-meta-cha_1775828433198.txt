@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE - Modelos de Itens</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus_Jakarta_Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-tint": "#625d5b",
+                        "tertiary-container": "#00a2f4",
+                        "secondary-container": "#fd761a",
+                        "background": "#f9f9f8",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#e2e2e2",
+                        "primary-fixed": "#e9e1dd",
+                        "on-secondary-container": "#5c2400",
+                        "outline-variant": "#e0c0b1",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "secondary": "#9d4300",
+                        "on-background": "#1a1c1c",
+                        "tertiary": "#006398",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "primary": "#625d5b",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed": "#341100",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-surface": "#2f3130",
+                        "error": "#ba1a1a",
+                        "on-surface-variant": "#584237",
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-container-low": "#f3f4f3",
+                        "on-primary-fixed": "#1e1b19",
+                        "surface": "#f9f9f8",
+                        "inverse-primary": "#ccc5c2",
+                        "on-tertiary-fixed": "#001d32",
+                        "surface-container-high": "#e8e8e7",
+                        "tertiary-fixed": "#cde5ff",
+                        "error-container": "#ffdad6",
+                        "primary-container": "#9f9996",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#35322f",
+                        "surface-container": "#eeeeed",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed": "#ffdbca",
+                        "inverse-on-surface": "#f1f1f0",
+                        "outline": "#8c7164",
+                        "on-tertiary": "#ffffff",
+                        "on-surface": "#1a1c1c",
+                        "surface-dim": "#dadad9",
+                        "surface-bright": "#f9f9f8",
+                        "secondary-fixed-dim": "#ffb690",
+                        "on-tertiary-container": "#003554",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "on-secondary-fixed-variant": "#783200"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f9f9f8; color: #1a1c1c; }
+        .font-headline { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.03em; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-card { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(12px); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="flex min-h-screen">
+<!-- SideNavBar (Shared Component) -->
+<aside class="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-stone-100 dark:bg-stone-900 flex flex-col gap-4 p-4 border-r border-stone-200/20 dark:border-stone-800/20 z-40">
+<div class="flex items-center gap-3 px-2 mb-8">
+<div class="w-10 h-10 bg-orange-600 rounded flex items-center justify-center text-white font-black text-xl">N</div>
+<div>
+<h2 class="font-['Space_Grotesk'] font-bold text-stone-900 dark:text-white leading-tight">Gestão Editorial</h2>
+<p class="text-xs text-stone-500 font-['Plus_Jakarta_Sans']">Marketing Pro</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 hover:translate-x-1 transition-transform duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">explore</span> Explorar
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 hover:translate-x-1 transition-transform duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">star</span> Favoritos
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 hover:translate-x-1 transition-transform duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">history</span> Recentes
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 hover:translate-x-1 transition-transform duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">archive</span> Arquivados
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 hover:bg-stone-200/50 dark:hover:bg-stone-800/50 hover:translate-x-1 transition-transform duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined text-[20px]">delete</span> Lixeira
+            </a>
+</nav>
+<div class="mt-auto pt-4 border-t border-stone-200/20">
+<button class="w-full bg-orange-600 text-white py-2 rounded-md font-semibold text-sm mb-4 hover:bg-orange-700 transition-colors">Upgrade Plano</button>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 text-sm" href="#"><span class="material-symbols-outlined text-[20px]">help</span> Ajuda</a>
+<a class="flex items-center gap-3 px-3 py-2 text-stone-600 dark:text-stone-400 text-sm" href="#"><span class="material-symbols-outlined text-[20px]">logout</span> Sair</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 lg:ml-64 min-h-screen flex flex-col">
+<!-- TopNavBar (Shared Component) -->
+<header class="bg-stone-50 dark:bg-stone-950 flex justify-between items-center w-full px-6 py-3 max-w-[1920px] mx-auto docked full-width top-0 z-50">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black tracking-tighter text-stone-900 dark:text-stone-50 font-['Space_Grotesk']">NORTE</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors font-['Space_Grotesk'] tracking-tight font-bold text-sm" href="#">Dashboard</a>
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors font-['Space_Grotesk'] tracking-tight font-bold text-sm" href="#">Campanhas</a>
+<a class="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors font-['Space_Grotesk'] tracking-tight font-bold text-sm" href="#">Atletas</a>
+<a class="text-orange-600 dark:text-orange-500 border-b-2 border-orange-600 pb-1 font-['Space_Grotesk'] tracking-tight font-bold text-sm" href="#">Templates</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<button class="p-2 text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-900 rounded-full transition-all duration-200">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-900 rounded-full transition-all duration-200">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="h-8 w-px bg-stone-200 dark:bg-stone-800"></div>
+<div class="flex items-center gap-3 pl-2">
+<img alt="Avatar do Gestor" class="w-8 h-8 rounded-full bg-stone-200" src="https://lh3.googleusercontent.com/aida-public/AB6AXuArQkPuinYAQdffjnh1jWRE79H6q8HhEthqv-yrv-t4IqDLcfob7m1ipZQqSg3BW_2yC99aeDDxRZB-2r6DSdj3GmpHDpvHHbuUDgSy4deG4-J5_9kfWVxyT8FLgNeD2vZaPfUTaOBcfLL7VeCjhjkX4x1BWKVqlIu8MHgZLmpqNo1oz4QQvPaptOsJXeDA5Kh0hL4fQmFcVXhWAclksW_-C5YBZW5YYwhuI2SbWFBTZnMKXZA0nzajppcmv6xDGJzeD9TCVX97Wl7q"/>
+<button class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded text-sm font-bold transition-all scale-95 active:scale-90">Novo Template</button>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<div class="p-8 flex-1">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10">
+<div>
+<h1 class="text-[22px] font-bold font-headline text-on-background">Modelos de Itens</h1>
+<p class="text-sm text-stone-500 font-body mt-1">Catálogo de modelos reutilizáveis</p>
+</div>
+<div class="flex items-center gap-3 w-full md:w-auto">
+<div class="relative flex-1 md:w-72">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-orange-600 text-[20px]">search</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-surface-container-high border-none rounded-xl focus:ring-2 focus:ring-secondary/20 transition-all text-sm font-body" placeholder="Buscar modelos..." type="text"/>
+</div>
+<button class="bg-on-background text-on-primary px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-stone-800 transition-all scale-95 active:scale-90">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                        Novo Modelo
+                    </button>
+</div>
+</div>
+<!-- Table Container -->
+<div class="bg-white rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] overflow-hidden">
+<!-- Table Header Tool -->
+<div class="px-6 py-4 flex items-center justify-between bg-surface-container-low/30">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-orange-600">layers</span>
+</div>
+<div>
+<span class="text-sm font-bold text-on-background block">12 modelos</span>
+<span class="text-[10px] uppercase tracking-wider text-stone-400 font-bold">Total no Catálogo</span>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-stone-100 rounded-lg transition-colors"><span class="material-symbols-outlined text-stone-400">filter_list</span></button>
+<button class="p-2 hover:bg-stone-100 rounded-lg transition-colors"><span class="material-symbols-outlined text-stone-400">more_vert</span></button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-6 py-4 text-[11px] font-bold text-stone-400 uppercase tracking-widest">Nome</th>
+<th class="px-6 py-4 text-[11px] font-bold text-stone-400 uppercase tracking-widest">Tipo</th>
+<th class="px-6 py-4 text-[11px] font-bold text-stone-400 uppercase tracking-widest">Medidas</th>
+<th class="px-6 py-4 text-[11px] font-bold text-stone-400 uppercase tracking-widest">Material</th>
+<th class="px-6 py-4 text-[11px] font-bold text-stone-400 uppercase tracking-widest">Acabamento</th>
+<th class="px-6 py-4 text-[11px] font-bold text-stone-400 uppercase tracking-widest text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-100">
+<!-- Item 1 -->
+<tr class="hover:bg-stone-50/50 transition-colors group">
+<td class="px-6 py-5">
+<span class="font-bold text-on-background block">Banner 2x1</span>
+<span class="text-xs text-stone-400">Ref: BNR-200100</span>
+</td>
+<td class="px-6 py-5">
+<span class="px-2.5 py-1 rounded-full bg-stone-100 text-stone-600 text-[10px] font-bold uppercase tracking-wider">2x1</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-stone-600 font-medium">
+<span class="material-symbols-outlined text-[16px] text-stone-400">straighten</span>
+<span class="text-sm">2.00x1.00m</span>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-stone-600">Lona Fosca 440g</td>
+<td class="px-6 py-5 text-sm text-stone-600">Ilhós perimetral</td>
+<td class="px-6 py-5 text-right">
+<div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all" title="Editar"><span class="material-symbols-outlined text-[20px]">edit</span></button>
+<button class="p-2 hover:text-error hover:bg-error-container/20 rounded-lg transition-all" title="Excluir"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Item 2 -->
+<tr class="hover:bg-stone-50/50 transition-colors group">
+<td class="px-6 py-5">
+<span class="font-bold text-on-background block">Palco Padrão</span>
+<span class="text-xs text-stone-400">Ref: PLC-MOD-V</span>
+</td>
+<td class="px-6 py-5">
+<span class="px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider">Palco</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-1 rounded-full bg-tertiary/10 text-tertiary text-[10px] font-bold uppercase tracking-wider">Medida Variável</span>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-stone-600">Praticável Alumínio</td>
+<td class="px-6 py-5 text-sm text-stone-600">Carpete Grafite</td>
+<td class="px-6 py-5 text-right">
+<div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all" title="Editar"><span class="material-symbols-outlined text-[20px]">edit</span></button>
+<button class="p-2 hover:text-error hover:bg-error-container/20 rounded-lg transition-all" title="Excluir"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Item 3 -->
+<tr class="hover:bg-stone-50/50 transition-colors group">
+<td class="px-6 py-5">
+<span class="font-bold text-on-background block">Totem Sinalização</span>
+<span class="text-xs text-stone-400">Ref: TTM-060180</span>
+</td>
+<td class="px-6 py-5">
+<span class="px-2.5 py-1 rounded-full bg-stone-100 text-stone-600 text-[10px] font-bold uppercase tracking-wider">Estrutura</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2 text-stone-600 font-medium">
+<span class="material-symbols-outlined text-[16px] text-stone-400">straighten</span>
+<span class="text-sm">0.60x1.80m</span>
+</div>
+</td>
+<td class="px-6 py-5 text-sm text-stone-600">PS 2mm + Adesivo</td>
+<td class="px-6 py-5 text-sm text-stone-600">Corte Especial</td>
+<td class="px-6 py-5 text-right">
+<div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all" title="Editar"><span class="material-symbols-outlined text-[20px]">edit</span></button>
+<button class="p-2 hover:text-error hover:bg-error-container/20 rounded-lg transition-all" title="Excluir"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Modal Preview (Floating Overlay for Visualization) -->
+<div class="fixed inset-0 bg-on-background/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+<div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
+<!-- Modal Header -->
+<div class="px-8 py-6 flex justify-between items-center border-b border-stone-100">
+<div>
+<h3 class="text-xl font-bold font-headline text-on-background">Novo Modelo de Item</h3>
+<p class="text-xs text-stone-400 uppercase tracking-widest font-bold mt-1">Definição Técnica do Template</p>
+</div>
+<button class="p-2 hover:bg-stone-100 rounded-full transition-colors"><span class="material-symbols-outlined">close</span></button>
+</div>
+<!-- Modal Form -->
+<div class="p-8 space-y-6">
+<div class="grid grid-cols-2 gap-6">
+<div class="col-span-2">
+<label class="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2 ml-1">Nome do Modelo</label>
+<input class="w-full px-4 py-3 bg-[#f0efee] border-none rounded-xl focus:ring-2 focus:ring-secondary/20 transition-all font-body text-sm" placeholder="Ex: Backdrop Premium v2" type="text"/>
+</div>
+<div class="col-span-1">
+<label class="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2 ml-1">Tipo de Item</label>
+<select class="w-full px-4 py-3 bg-[#f0efee] border-none rounded-xl focus:ring-2 focus:ring-secondary/20 transition-all font-body text-sm appearance-none">
+<option>Selecione o Tipo...</option>
+<option>Banner</option>
+<option>Palco</option>
+<option>Estrutura</option>
+<option>Mobiliário</option>
+</select>
+</div>
+<div class="col-span-1 flex items-end pb-3">
+<label class="flex items-center gap-3 cursor-pointer group">
+<div class="relative">
+<input class="peer sr-only" type="checkbox"/>
+<div class="w-10 h-6 bg-stone-300 rounded-full peer-checked:bg-orange-600 transition-colors"></div>
+<div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform"></div>
+</div>
+<span class="text-xs font-bold text-stone-600 uppercase tracking-tight">Medida Variável</span>
+</label>
+</div>
+<div class="col-span-1">
+<label class="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2 ml-1">Largura (m)</label>
+<input class="w-full px-4 py-3 bg-[#f0efee] border-none rounded-xl focus:ring-2 focus:ring-secondary/20 transition-all font-body text-sm" placeholder="0,00" type="text"/>
+</div>
+<div class="col-span-1">
+<label class="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2 ml-1">Altura (m)</label>
+<input class="w-full px-4 py-3 bg-[#f0efee] border-none rounded-xl focus:ring-2 focus:ring-secondary/20 transition-all font-body text-sm" placeholder="0,00" type="text"/>
+</div>
+<div class="col-span-1">
+<label class="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2 ml-1">Material Base</label>
+<input class="w-full px-4 py-3 bg-[#f0efee] border-none rounded-xl focus:ring-2 focus:ring-secondary/20 transition-all font-body text-sm" placeholder="Ex: Aço Inox" type="text"/>
+</div>
+<div class="col-span-1">
+<label class="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2 ml-1">Acabamento</label>
+<input class="w-full px-4 py-3 bg-[#f0efee] border-none rounded-xl focus:ring-2 focus:ring-secondary/20 transition-all font-body text-sm" placeholder="Ex: Pintura Eletrostática" type="text"/>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<div class="px-8 py-6 bg-surface-container-low/50 flex justify-end gap-3">
+<button class="px-6 py-2.5 rounded-xl text-stone-500 font-bold text-sm hover:bg-stone-200 transition-colors">Cancelar</button>
+<button class="px-8 py-2.5 rounded-xl bg-secondary text-white font-bold text-sm shadow-lg shadow-secondary/20 hover:brightness-110 transition-all scale-95 active:scale-90">Salvar Modelo</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

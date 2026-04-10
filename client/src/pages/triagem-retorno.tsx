@@ -123,14 +123,19 @@ export default function TriagemRetorno() {
     try {
       for (const item of toSend) {
         const entry = entries[item.id];
+        const itemName = (item as any).description
+          ? `${item.type} — ${(item as any).description}`
+          : item.type;
         await apiRequest("POST", "/api/inventory", {
-          name: item.name,
+          name: itemName,
+          quantity: (item as any).quantityProduced || (item as any).quantity || 1,
           originalItemId: item.id,
           condition: entry.condition,
           location: entry.location,
           franchiseTags: entry.franchiseTags,
           notes: entry.notes,
           available: true,
+          autoAdded: false,
         });
       }
       queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
@@ -387,10 +392,12 @@ function TriagemCard({
           </button>
           <div style={{ minWidth: 0 }}>
             <p style={{ fontSize: 13.5, fontWeight: 600, color: "#1c1917", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {entry.item.name}
+              {(entry.item as any).description
+                ? `${entry.item.type} — ${(entry.item as any).description}`
+                : entry.item.type}
             </p>
             <p style={{ fontSize: 11.5, color: "#a8a29e", margin: "1px 0 0", fontFamily: "'DM Mono', monospace" }}>
-              {entry.item.displayId}
+              {entry.item.displayId} · {(entry.item as any).quantityProduced ?? (entry.item as any).quantity} un.
             </p>
           </div>
         </div>

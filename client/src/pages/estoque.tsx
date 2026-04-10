@@ -20,6 +20,7 @@ type Condition = typeof CONDITIONS[number];
 
 const EMPTY_FORM = {
   name: "",
+  quantity: 1,
   location: "",
   condition: "PERFEITO" as Condition,
   franchiseTags: [] as string[],
@@ -43,6 +44,7 @@ function AssetModal({
     asset
       ? {
           name: asset.name,
+          quantity: asset.quantity ?? 1,
           location: asset.location ?? "",
           condition: (asset.condition as Condition) ?? "PERFEITO",
           franchiseTags: asset.franchiseTags ?? [],
@@ -173,16 +175,29 @@ function AssetModal({
             />
           </div>
 
-          {/* Localização */}
-          <div>
-            <label style={labelStyle}>Localização</label>
-            <input
-              style={inputStyle}
-              placeholder="Ex: Galpão A — Prateleira 3"
-              value={form.location}
-              onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-              data-testid="input-asset-location"
-            />
+          {/* Quantidade + Localização */}
+          <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Quantidade</label>
+              <input
+                type="number"
+                min={1}
+                style={inputStyle}
+                value={form.quantity}
+                onChange={e => setForm(f => ({ ...f, quantity: Math.max(1, parseInt(e.target.value) || 1) }))}
+                data-testid="input-asset-quantity"
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Localização</label>
+              <input
+                style={inputStyle}
+                placeholder="Ex: Galpão A — Prateleira 3"
+                value={form.location}
+                onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                data-testid="input-asset-location"
+              />
+            </div>
           </div>
 
           {/* Condição */}
@@ -640,13 +655,13 @@ export default function Estoque() {
         {/* Table header */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: "100px 1fr 140px 160px 130px 110px 90px",
+          gridTemplateColumns: "100px 1fr 60px 140px 150px 120px 110px 90px",
           gap: 0,
           backgroundColor: "#fafaf9",
           borderBottom: "1px solid #e8e8e7",
           padding: "0 16px",
         }}>
-          {["ID", "Nome / Localização", "Condição", "Franquias", "Disponível", "Status", "Ações"].map((h, i) => (
+          {["ID", "Nome / Localização", "Qtd", "Condição", "Franquias", "Disponível", "Status", "Ações"].map((h, i) => (
             <div key={h} style={{
               padding: "11px 8px",
               fontSize: 11,
@@ -655,7 +670,7 @@ export default function Estoque() {
               letterSpacing: "0.06em",
               textTransform: "uppercase",
               fontFamily: "'Space Grotesk', sans-serif",
-              textAlign: i >= 5 ? "center" : "left",
+              textAlign: i >= 6 ? "center" : i === 2 ? "center" : "left",
             }}>
               {h}
             </div>
@@ -687,7 +702,7 @@ export default function Estoque() {
                 data-testid={`row-asset-${asset.id}`}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "100px 1fr 140px 160px 130px 110px 90px",
+                  gridTemplateColumns: "100px 1fr 60px 140px 150px 120px 110px 90px",
                   gap: 0,
                   padding: "0 16px",
                   borderBottom: idx < filtered.length - 1 ? "1px solid #f3f4f3" : "none",
@@ -715,15 +730,46 @@ export default function Estoque() {
 
                 {/* Nome + localização */}
                 <div style={{ padding: "13px 8px" }}>
-                  <p style={{ fontSize: 13.5, fontWeight: 600, color: "#1c1917", margin: 0, lineHeight: 1.3 }}>
-                    {asset.name}
-                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <p style={{ fontSize: 13.5, fontWeight: 600, color: "#1c1917", margin: 0, lineHeight: 1.3 }}>
+                      {asset.name}
+                    </p>
+                    {(asset as any).autoAdded && (
+                      <span style={{
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                        color: "#7c3aed",
+                        backgroundColor: "#f5f3ff",
+                        border: "1px solid #ddd6fe",
+                        borderRadius: 4,
+                        padding: "1px 5px",
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                        fontFamily: "'Space Grotesk', sans-serif",
+                        flexShrink: 0,
+                      }}>
+                        Auto
+                      </span>
+                    )}
+                  </div>
                   {asset.location && (
                     <p style={{ fontSize: 11.5, color: "#a8a29e", margin: "2px 0 0", display: "flex", alignItems: "center", gap: 3 }}>
                       <MapPin style={{ width: 10, height: 10 }} />
                       {asset.location}
                     </p>
                   )}
+                </div>
+
+                {/* Quantidade */}
+                <div style={{ padding: "13px 8px", textAlign: "center" }}>
+                  <span style={{
+                    fontFamily: "'DM Mono', monospace",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: "#1c1917",
+                  }}>
+                    {(asset as any).quantity ?? 1}
+                  </span>
                 </div>
 
                 {/* Condição */}

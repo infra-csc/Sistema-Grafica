@@ -2576,6 +2576,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const event = await storage.getEvent(item.eventId);
+
+      // Auto-add to inventory when fully produced
+      if (item.status === 'produced') {
+        const existing = (await storage.getAllInventoryAssets()).find(a => a.originalItemId === item.id);
+        if (!existing) {
+          const itemName = item.description
+            ? `${item.type} — ${item.description}`
+            : item.type;
+          const franchiseTags = event?.franchise
+            ? [event.franchise.toLowerCase().replace(/\s+/g, '_')]
+            : [];
+          await storage.createInventoryAsset({
+            name: itemName,
+            quantity: quantityProduced,
+            originalItemId: item.id,
+            condition: "PERFEITO",
+            location: null,
+            franchiseTags,
+            available: true,
+            notes: `Produzido automaticamente pela Gráfica — Evento: ${event?.name ?? '—'}`,
+            autoAdded: true,
+          });
+        } else {
+          // Update quantity if re-produced
+          await storage.updateInventoryAsset(existing.id, { quantity: quantityProduced });
+        }
+      }
       
       // Não notificar sobre início de produção
       

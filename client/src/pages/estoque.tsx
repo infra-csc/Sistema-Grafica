@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor, Item, Event } from "@shared/schema";
 import {
   Archive, Plus, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
-  XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame,
+  XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame, CalendarDays,
 } from "lucide-react";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
@@ -574,8 +574,8 @@ export default function Estoque() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead>
                 <tr>
-                  {["Identificador","Equipamento","Status","Condição","Sponsors","Localização","Arte / Tags","Ações"].map((h, i) => (
-                    <th key={h} style={{ ...TH, textAlign: i === 7 ? "center" : "left" }}>{h}</th>
+                  {["Identificador","Equipamento","Status","Condição","Localização","Arte / Tags","Ações"].map((h, i) => (
+                    <th key={h} style={{ ...TH, textAlign: i === 6 ? "center" : "left" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -597,32 +597,40 @@ export default function Estoque() {
                         </span>
                       </td>
 
-                      {/* Name + origem badge */}
+                      {/* Name + evento + patrocinadores */}
                       <td style={TD}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div
-                            title={asset.autoAdded ? "Criado automaticamente pela gráfica ao marcar item como produzido" : "Adicionado manualmente"}
-                            style={{
-                              height: 32, borderRadius: 8, flexShrink: 0, padding: "0 8px",
-                              background: asset.autoAdded ? "rgba(37,99,235,0.08)" : "#f1f5f9",
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              border: `1px solid ${asset.autoAdded ? "rgba(37,99,235,0.18)" : "#e2e8f0"}`,
-                            }}>
-                            <span style={{ fontSize: 8, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", color: asset.autoAdded ? "#2563eb" : "#94a3b8", whiteSpace: "nowrap" }}>
-                              {asset.autoAdded ? "GRÁFICA" : "MANUAL"}
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                          {asset.name}
+                        </p>
+                        {/* Evento */}
+                        {assetEventMap[asset.id] && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                            <CalendarDays size={10} color="#6366f1" />
+                            <span style={{ fontSize: 10, color: "#6366f1", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600 }}>
+                              {assetEventMap[asset.id].name}
                             </span>
                           </div>
-                          <div>
-                            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                              {asset.name}
-                            </p>
-                            {asset.notes && (
-                              <p style={{ margin: "2px 0 0", fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                                {asset.notes.length > 45 ? asset.notes.slice(0, 45) + "…" : asset.notes}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                        )}
+                        {/* Patrocinadores */}
+                        {(asset.sponsorIds ?? []).length > 0 && (() => {
+                          const matched = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean);
+                          return matched.length > 0 ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                              {matched.map(sp => (
+                                <span key={sp!.id} style={{
+                                  display: "inline-flex", alignItems: "center", gap: 3,
+                                  padding: "2px 7px", borderRadius: 5,
+                                  background: "#f5f3ff", border: "1px solid #ddd6fe",
+                                  fontSize: 9, fontWeight: 700, color: "#7c3aed",
+                                  fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
+                                  textTransform: "uppercase", whiteSpace: "nowrap",
+                                }}>
+                                  {sp!.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
                       </td>
 
                       {/* Status */}
@@ -630,9 +638,6 @@ export default function Estoque() {
 
                       {/* Condition */}
                       <td style={TD}><Badge color={cm.color} bg={cm.bg} label={cm.label} /></td>
-
-                      {/* Sponsors */}
-                      <td style={TD}><SponsorStack sponsorIds={asset.sponsorIds ?? []} sponsors={sponsors} /></td>
 
                       {/* Location */}
                       <td style={TD}>

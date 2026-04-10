@@ -45,7 +45,7 @@ import {
   type EventInventoryAllocation,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, or } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -928,23 +928,34 @@ export class DatabaseStorage implements IStorage {
     if (itemIds.length === 0) return 0;
 
     let updated = 0;
+    // Catch assets in EM_USO or still in NO_GALPAO (in case truck departure was missed)
     for (const itemId of itemIds) {
       const result = await db.update(inventoryAssets)
         .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
         .where(and(
           eq(inventoryAssets.originalItemId, itemId),
-          eq(inventoryAssets.trackingStatus, 'EM_USO')
+          or(
+            eq(inventoryAssets.trackingStatus, 'EM_USO'),
+            eq(inventoryAssets.trackingStatus, 'NO_GALPAO')
+          )
         ));
       updated += result.rowCount ?? 0;
     }
 
+    // Also handle manually allocated assets
     const allocs = await db.select({ assetId: eventInventoryAllocations.assetId })
       .from(eventInventoryAllocations)
       .where(eq(eventInventoryAllocations.eventId, eventId));
     for (const alloc of allocs) {
       const result = await db.update(inventoryAssets)
         .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
-        .where(eq(inventoryAssets.id, alloc.assetId));
+        .where(and(
+          eq(inventoryAssets.id, alloc.assetId),
+          or(
+            eq(inventoryAssets.trackingStatus, 'EM_USO'),
+            eq(inventoryAssets.trackingStatus, 'NO_GALPAO')
+          )
+        ));
       updated += result.rowCount ?? 0;
     }
     return updated;

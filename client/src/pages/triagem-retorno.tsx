@@ -41,7 +41,7 @@ function StatCard({ label, value, Icon, color, iconBg }: {
           {label}
         </p>
         <h3 style={{ margin: 0, fontSize: 40, fontWeight: 900, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
-          {String(value).padStart(2, "0")}
+          {value}
         </h3>
       </div>
       <div style={{ width: 48, height: 48, borderRadius: "50%", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>

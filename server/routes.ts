@@ -3078,7 +3078,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }, 30 * 60 * 1000); // Check every 30 minutes
 
   // ============ INVENTORY LIFECYCLE CRON ============
-  // Runs every minute: check truckDepartureDate → EM_USO; startDate+24h → AGUARDANDO_TRIAGEM
+  // Runs every minute: check truckDepartureDate → EM_USO; next day after startDate → AGUARDANDO_TRIAGEM
+  // Uses continuous (catch-up) logic — no narrow window — so missed ticks are recovered automatically.
   setInterval(async () => {
     try {
       const now = new Date();
@@ -3086,10 +3087,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const event of allEvents) {
         if (!event.truckDepartureDate) continue;
 
+        // ── Departure: truck left → mark assets EM_USO ──────────────────────
         const departure = new Date(event.truckDepartureDate);
-        // Window: within last 2 minutes from departure
-        const depDiff = now.getTime() - departure.getTime();
-        if (depDiff >= 0 && depDiff < 2 * 60 * 1000) {
+        if (now >= departure) {
           const count = await storage.markAssetsInUseForEvent(event.id);
           if (count > 0) {
             broadcast({ type: 'inventory_in_use', eventId: event.id, eventName: event.name, count });
@@ -3097,12 +3097,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Return: 24h after startDate (or event status completed)
+        // ── Return: start of the day AFTER the event → AGUARDANDO_TRIAGEM ───
+        // Uses next calendar day midnight (not strictly +24h) so assets appear
+        // in triage from the first minute of the day after the event.
         const startDate = event.startDate ? new Date(event.startDate) : null;
         if (startDate) {
-          const returnTime = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
-          const retDiff = now.getTime() - returnTime.getTime();
-          if (retDiff >= 0 && retDiff < 2 * 60 * 1000) {
+          const nextDayMidnight = new Date(startDate);
+          nextDayMidnight.setDate(nextDayMidnight.getDate() + 1);
+          nextDayMidnight.setHours(0, 0, 0, 0);
+
+          if (now >= nextDayMidnight) {
             const count = await storage.markAssetsAwaitingTriageForEvent(event.id);
             if (count > 0) {
               broadcast({

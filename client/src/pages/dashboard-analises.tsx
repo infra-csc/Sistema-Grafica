@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import {
-  AlertTriangle, Clock, TrendingUp, ChevronRight, Download, Share2,
+  TrendingUp, ChevronRight, Download, Share2,
 } from "lucide-react";
 import { format, subDays, subMonths, isAfter, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -45,8 +45,19 @@ const WF_GROUPS = [
   { label: "Entregue",     keys: ["delivered"],                                     color: "#6b7280" },
 ];
 
-/* ── Tabs ── */
-const TABS = ["Visão Geral", "Produção", "Logística", "Patrocinadores", "Financeiro"];
+/* ── Status labels ── */
+const STATUS_LABELS: Record<string, string> = {
+  requested:             "Solicitado",
+  awaiting_linking:      "Aguard. Vinculação",
+  awaiting_submission:   "Aguard. Envio",
+  awaiting_approval:     "Aguard. Aprovação",
+  awaiting_final_review: "Aguard. Finalização",
+  ready_for_production:  "Pronto p/ Prod.",
+  approved:              "Liberado",
+  inProduction:          "Em Produção",
+  produced:              "Produzido",
+  delivered:             "Entregue",
+};
 
 /* ── Select style — editorial border-bottom only ── */
 const selStyle: React.CSSProperties = {
@@ -93,9 +104,10 @@ const ChartTip = ({ active, payload, label }: any) => {
 
 export default function DashboardAnalises() {
   const [, setLocation] = useLocation();
-  const [period, setPeriod]     = useState("all");
-  const [activeTab, setActiveTab] = useState(0);
-  const [eventFilter, setEventFilter] = useState("all");
+  const [period, setPeriod]       = useState("all");
+  const [eventFilter, setEventFilter]   = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sponsorFilter, setSponsorFilter] = useState("all");
 
   const { data: events   = [] } = useQuery<any[]>({ queryKey: ["/api/events"]   });
   const { data: items    = [] } = useQuery<any[]>({ queryKey: ["/api/items"]    });
@@ -109,9 +121,11 @@ export default function DashboardAnalises() {
 
   const fItems = useMemo(() => {
     let base = cut ? items.filter(i => isAfter(new Date(i.createdAt), cut)) : items;
-    if (eventFilter !== "all") base = base.filter(i => i.eventId === eventFilter);
+    if (eventFilter  !== "all") base = base.filter(i => i.eventId === eventFilter);
+    if (statusFilter !== "all") base = base.filter(i => i.status  === statusFilter);
+    if (sponsorFilter !== "all") base = base.filter(i => (i.sponsorIds || []).includes(sponsorFilter));
     return base;
-  }, [items, cut, eventFilter]);
+  }, [items, cut, eventFilter, statusFilter, sponsorFilter]);
 
   /* ── KPIs ── */
   const totalEvents  = fEvents.length;
@@ -209,30 +223,12 @@ export default function DashboardAnalises() {
   return (
     <div style={{ backgroundColor: T.bg, minHeight: "100%", padding: "28px 32px 64px" }}>
 
-      {/* ── Tab navigation — underline style ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", borderBottom: `1px solid ${T.bdark}`, marginBottom: 28 }}>
-        <div style={{ display: "flex", gap: 36 }}>
-          {TABS.map((tab, i) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(i)}
-              data-testid={`tab-${i}`}
-              style={{
-                paddingBottom: 14,
-                background: "none", border: "none", cursor: "pointer",
-                fontSize: 10, fontWeight: 900,
-                textTransform: "uppercase", letterSpacing: "0.16em",
-                color: activeTab === i ? T.text : T.muted,
-                borderBottom: `2px solid ${activeTab === i ? T.accent : "transparent"}`,
-                marginBottom: -1,
-                transition: "all 0.15s",
-              }}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 8, paddingBottom: 14 }}>
+      {/* ── Header row: title + export buttons ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", fontStyle: "italic" }}>
+          Análises &amp; Performance
+        </h2>
+        <div style={{ display: "flex", gap: 8 }}>
           <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: T.surface, border: `1px solid ${T.bdark}`, cursor: "pointer", fontSize: 9, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em" }}>
             <Download style={{ width: 13, height: 13 }} /> Exportar
           </button>
@@ -242,8 +238,8 @@ export default function DashboardAnalises() {
         </div>
       </div>
 
-      {/* ── Global filters — editorial border-bottom only ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, marginBottom: 36 }}>
+      {/* ── Global filters — 5 cols ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 24, marginBottom: 36, paddingBottom: 24, borderBottom: `1px solid ${T.bdark}` }}>
         <div>
           <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Período</div>
           <select value={period} onChange={e => setPeriod(e.target.value)} data-testid="select-period" style={selStyle}>
@@ -251,17 +247,31 @@ export default function DashboardAnalises() {
           </select>
         </div>
         <div>
-          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Eventos</div>
+          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Evento</div>
           <select value={eventFilter} onChange={e => setEventFilter(e.target.value)} data-testid="select-event" style={selStyle}>
-            <option value="all">Todos os Eventos ({events.length})</option>
+            <option value="all">Todos ({events.length})</option>
             {events.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Status</div>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} data-testid="select-status" style={selStyle}>
+            <option value="all">Todos os Status</option>
+            {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Patrocinador</div>
+          <select value={sponsorFilter} onChange={e => setSponsorFilter(e.target.value)} data-testid="select-sponsor" style={selStyle}>
+            <option value="all">Todos os Patrocinadores</option>
+            {sponsors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
         <div>
           <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Tipo de Material</div>
           <select style={selStyle}>
             <option>Toda a Produção</option>
-            {[...new Set(items.map(i => i.type).filter(Boolean))].map(t => <option key={t}>{t}</option>)}
+            {[...new Set(items.map(i => i.type).filter(Boolean))].map(t => <option key={t as string}>{t}</option>)}
           </select>
         </div>
       </div>

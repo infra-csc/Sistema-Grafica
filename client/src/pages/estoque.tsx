@@ -44,19 +44,25 @@ function Badge({ color, bg, label }: { color: string; bg: string; label: string 
 }
 
 // ─── Stat card with icon-fill-on-hover ───────────────────────────────────────
-function StatCard({ label, value, Icon, color, subtext, subColor }: {
+function StatCard({ label, value, Icon, color, subtext, subColor, onClick, active }: {
   label: string; value: number; Icon: React.ElementType;
   color: string; subtext: string; subColor?: string;
+  onClick?: () => void; active?: boolean;
 }) {
   const [hov, setHov] = useState(false);
+  const on = active || hov;
   return (
     <div
+      onClick={onClick}
       style={{
-        background: "linear-gradient(135deg, #fff 0%, #f8fafc 100%)",
+        background: active ? `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)` : "linear-gradient(135deg, #fff 0%, #f8fafc 100%)",
         padding: 24, borderRadius: 20,
-        border: `1px solid ${hov ? color + "44" : "rgba(226,232,240,0.7)"}`,
-        boxShadow: hov ? `0 8px 24px ${color}18` : "0 1px 4px rgba(0,0,0,0.04)",
-        transition: "border-color 0.2s, box-shadow 0.2s",
+        border: `1px solid ${on ? color + "55" : "rgba(226,232,240,0.7)"}`,
+        boxShadow: on ? `0 8px 24px ${color}22` : "0 1px 4px rgba(0,0,0,0.04)",
+        transition: "border-color 0.2s, box-shadow 0.2s, background 0.2s",
+        cursor: onClick ? "pointer" : "default",
+        outline: active ? `2px solid ${color}44` : "none",
+        outlineOffset: 2,
       }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
@@ -64,13 +70,13 @@ function StatCard({ label, value, Icon, color, subtext, subColor }: {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div style={{
           padding: 10, borderRadius: 12,
-          background: hov ? color : color + "18",
+          background: on ? color : color + "18",
           transition: "background 0.2s",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <Icon size={18} color={hov ? "#fff" : color} />
+          <Icon size={18} color={on ? "#fff" : color} />
         </div>
-        <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em" }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: active ? color : "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", transition: "color 0.2s" }}>
           {label}
         </span>
       </div>
@@ -455,15 +461,42 @@ export default function Estoque() {
 
       {/* ── Stat cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 28 }}>
-        <StatCard label="Total"       value={total}                 Icon={Package}   color="#2563eb" subtext={`${autoCount} via gráfica`} />
-        <StatCard label="Galpão"      value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#16a34a" subtext={total ? `${Math.round(byStatus("NO_GALPAO")/total*100)}% disponível` : "0% disponível"} subColor="#16a34a" />
-        <StatCard label="Em Uso"      value={byStatus("EM_USO")}    Icon={Truck}     color="#ea580c" subtext="Frota ativa" />
-        {/* Card clicável → navega para Triagem */}
-        <div onClick={() => navigate("/triagem-retorno")} style={{ cursor: triageCount > 0 ? "pointer" : "default" }}>
-          <StatCard label="Ag. Triagem" value={triageCount} Icon={ScanSearch} color="#b45309" subtext={triageCount > 0 ? "Ir para triagem →" : "Nenhum pendente"} subColor={triageCount > 0 ? "#b45309" : "#94a3b8"} />
-        </div>
-        <StatCard label="Descartado"  value={byStatus("DESCARTADO")} Icon={XCircle}  color="#6b7280" subtext="Logística reversa" />
-        <StatCard label="Sucata"      value={sucata}                  Icon={Flame}    color="#dc2626" subtext="Perda total" subColor="#dc2626" />
+        <StatCard
+          label="Total" value={total} Icon={Package} color="#2563eb"
+          subtext={`${autoCount} via gráfica`}
+          active={filterStatus === "all" && filterCondition === "all"}
+          onClick={() => { setFilterStatus("all"); setFilterCondition("all"); }}
+        />
+        <StatCard
+          label="Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#16a34a"
+          subtext={total ? `${Math.round(byStatus("NO_GALPAO")/total*100)}% disponível` : "0% disponível"} subColor="#16a34a"
+          active={filterStatus === "NO_GALPAO"}
+          onClick={() => setFilterStatus(filterStatus === "NO_GALPAO" ? "all" : "NO_GALPAO")}
+        />
+        <StatCard
+          label="Em Uso" value={byStatus("EM_USO")} Icon={Truck} color="#ea580c"
+          subtext="Frota ativa"
+          active={filterStatus === "EM_USO"}
+          onClick={() => setFilterStatus(filterStatus === "EM_USO" ? "all" : "EM_USO")}
+        />
+        <StatCard
+          label="Ag. Triagem" value={triageCount} Icon={ScanSearch} color="#b45309"
+          subtext={triageCount > 0 ? "Ir para triagem →" : "Nenhum pendente"}
+          subColor={triageCount > 0 ? "#b45309" : "#94a3b8"}
+          onClick={() => navigate("/triagem-retorno")}
+        />
+        <StatCard
+          label="Descartado" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
+          subtext="Logística reversa"
+          active={filterStatus === "DESCARTADO"}
+          onClick={() => setFilterStatus(filterStatus === "DESCARTADO" ? "all" : "DESCARTADO")}
+        />
+        <StatCard
+          label="Sucata" value={sucata} Icon={Flame} color="#dc2626"
+          subtext="Perda total" subColor="#dc2626"
+          active={filterCondition === "SUCATA"}
+          onClick={() => setFilterCondition(filterCondition === "SUCATA" ? "all" : "SUCATA")}
+        />
       </div>
 
       {/* ── Filter bar ── */}

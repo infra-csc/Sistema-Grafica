@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -70,6 +71,7 @@ const filterSel: React.CSSProperties = {
 };
 
 export default function Usuarios() {
+  const [, navigate] = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
@@ -440,7 +442,13 @@ export default function Usuarios() {
                 </div>
               )}
             </div>
-            <button style={{ padding: "9px 20px", backgroundColor: T.accent, color: "#fff", border: "none", borderRadius: 6, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", cursor: "pointer" }}>
+            <button
+              onClick={() => navigate("/logs-sistema")}
+              data-testid="button-ver-logs"
+              style={{ padding: "9px 20px", backgroundColor: T.accent, color: "#fff", border: "none", borderRadius: 6, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", cursor: "pointer", transition: "opacity 0.15s" }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+            >
               Ver Logs
             </button>
           </div>

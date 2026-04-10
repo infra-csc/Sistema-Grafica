@@ -1,7 +1,7 @@
 import {
   Calendar, CheckCircle, Factory, Home, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut,
+  Link2, LogOut, ScrollText,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
@@ -44,7 +44,8 @@ const productionItems: MenuItem[] = [
 ];
 
 const adminItems: MenuItem[] = [
-  { title: "Usuários",       url: "/usuarios",      icon: Users },
+  { title: "Usuários",       url: "/usuarios",       icon: Users },
+  { title: "Logs do Sistema", url: "/logs-sistema",  icon: ScrollText, roles: ["admin"] },
   { title: "Patrocinadores", url: "/patrocinadores", icon: Building2 },
 ];
 

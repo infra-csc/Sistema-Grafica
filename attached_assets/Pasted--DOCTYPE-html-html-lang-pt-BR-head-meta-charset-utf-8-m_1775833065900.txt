@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NORTE APEX - Logs do Sistema</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-container": "#fd761a",
+                        "on-tertiary-container": "#003554",
+                        "inverse-surface": "#2f3130",
+                        "on-surface": "#1a1c1c",
+                        "tertiary": "#006398",
+                        "on-secondary-container": "#5c2400",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#001d32",
+                        "primary": "#625d5b",
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-variant": "#e2e2e2",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#9d4300",
+                        "background": "#f9f9f8",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed": "#cde5ff",
+                        "surface-tint": "#625d5b",
+                        "tertiary-container": "#00a2f4",
+                        "primary-container": "#9f9996",
+                        "on-secondary-fixed": "#341100",
+                        "on-primary": "#ffffff",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "surface": "#f9f9f8",
+                        "on-background": "#1a1c1c",
+                        "outline-variant": "#e0c0b1",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "on-primary-fixed": "#1e1b19",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "surface-bright": "#f9f9f8",
+                        "inverse-on-surface": "#f1f1f0",
+                        "secondary-fixed-dim": "#ffb690",
+                        "on-secondary": "#ffffff",
+                        "surface-container-low": "#f3f4f3",
+                        "secondary-fixed": "#ffdbca",
+                        "on-secondary-fixed-variant": "#783200",
+                        "inverse-primary": "#ccc5c2",
+                        "surface-dim": "#dadad9",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#584237",
+                        "primary-fixed": "#e9e1dd",
+                        "on-error-container": "#93000a",
+                        "surface-container-high": "#e8e8e7",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "on-primary-container": "#35322f",
+                        "surface-container": "#eeeeed",
+                        "outline": "#8c7164"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"],
+                        "mono": ["DM Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .negative-kerning { letter-spacing: -0.03em; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-secondary-container selection:text-white">
+<!-- TopNavBar Implementation -->
+<header class="w-full sticky top-0 z-40 bg-[#f9f9f8] dark:bg-[#1c1917] flex justify-between items-center px-8 py-4 max-w-[1920px] mx-auto">
+<div class="flex items-center gap-12">
+<span class="text-2xl font-black text-[#1c1917] dark:text-[#f9f9f8] tracking-tighter font-headline">NORTE APEX</span>
+<nav class="hidden md:flex gap-8 font-headline tracking-tight font-bold text-sm">
+<a class="text-[#625d5b] dark:text-[#a8a29e] hover:text-[#f97316] transition-colors duration-200" href="#">Dashboard</a>
+<a class="text-[#625d5b] dark:text-[#a8a29e] hover:text-[#f97316] transition-colors duration-200" href="#">Analytics</a>
+<a class="text-[#f97316] border-b-2 border-[#f97316] pb-1" href="#">Auditory</a>
+<a class="text-[#625d5b] dark:text-[#a8a29e] hover:text-[#f97316] transition-colors duration-200" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-[#f97316]/10 transition-colors duration-200 rounded-full">
+<span class="material-symbols-outlined text-primary">notifications</span>
+</button>
+<button class="p-2 hover:bg-[#f97316]/10 transition-colors duration-200 rounded-full">
+<span class="material-symbols-outlined text-primary">help</span>
+</button>
+</div>
+<img alt="Administrator Profile" class="w-10 h-10 rounded-full border-2 border-outline-variant/20" data-alt="close up professional headshot of a senior system administrator in a high-tech office environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDWhxYWfoa3ZoVkebx5iyI5bTkowlvKXEguoCUOhIapLv2shnVOCougMVEveYPTrIuqX9XA47oaM53vnRZaJ4227XrHkfZJkY0hv3CgCONvfZP5TY1LehXRGINFNUHgfYtsebvyPmz6Fp-O4vZPV3QqejVggKs3kApK4HP_c9NLSABRiR66KU53m47gppkV_1_kgck-m5jOcVY_EPMaT7qsIfYnUeAL121hfv4ZVOd1lDXgiGNieSCL5d-C_Bd8ihsOgd6bYx2TCmKI"/>
+</div>
+</header>
+<div class="flex">
+<!-- SideNavBar Implementation -->
+<aside class="h-screen w-64 fixed left-0 top-0 pt-20 flex flex-col bg-[#f9f9f8] dark:bg-[#1c1917] border-r border-[#1c1917]/10 dark:border-[#f9f9f8]/10">
+<div class="px-6 mb-8 mt-4">
+<h2 class="font-headline font-bold text-lg text-primary tracking-tight">Admin Console</h2>
+<p class="text-xs text-primary/60 font-medium">V 4.2.0</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-6 py-3 text-[#f97316] font-bold bg-[#f97316]/5 border-r-4 border-[#f97316] font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined">list_alt</span>
+                    System Logs
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#625d5b] dark:text-[#a8a29e] hover:bg-[#f97316]/5 hover:text-[#f97316] transition-all duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined">group</span>
+                    User Access
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#625d5b] dark:text-[#a8a29e] hover:bg-[#f97316]/5 hover:text-[#f97316] transition-all duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined">api</span>
+                    API Traffic
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#625d5b] dark:text-[#a8a29e] hover:bg-[#f97316]/5 hover:text-[#f97316] transition-all duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined">security</span>
+                    Security Events
+                </a>
+<a class="flex items-center gap-3 px-6 py-3 text-[#625d5b] dark:text-[#a8a29e] hover:bg-[#f97316]/5 hover:text-[#f97316] transition-all duration-200 font-['Plus_Jakarta_Sans'] text-sm" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                    Archive
+                </a>
+</nav>
+<div class="p-6 border-t border-outline-variant/10">
+<button class="w-full bg-secondary text-on-secondary py-2.5 rounded-md text-sm font-bold font-headline hover:brightness-105 transition-all">
+                    Generate Report
+                </button>
+<div class="mt-6 space-y-2">
+<a class="flex items-center gap-2 text-xs text-primary/70 hover:text-secondary transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">menu_book</span> Documentation
+                    </a>
+<a class="flex items-center gap-2 text-xs text-primary/70 hover:text-secondary transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">support_agent</span> Support
+                    </a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 ml-64 p-12 bg-surface">
+<!-- Breadcrumb -->
+<nav class="flex items-center gap-2 text-xs font-medium text-primary/60 mb-6 tracking-wider uppercase">
+<span>Admin</span>
+<span class="material-symbols-outlined text-[10px]">chevron_right</span>
+<span class="text-secondary font-bold">Logs</span>
+</nav>
+<!-- Page Header -->
+<header class="mb-10">
+<h1 class="text-4xl font-headline font-bold text-on-surface negative-kerning mb-2">Logs do Sistema</h1>
+<p class="text-primary/70 max-w-2xl font-medium">Rastreamento completo de acessos e atividades administrativas.</p>
+</header>
+<!-- Filter Bar -->
+<section class="mb-8 grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4 items-end bg-surface-container-low p-6 rounded-xl border border-outline-variant/5">
+<div class="space-y-2">
+<label class="text-[10px] font-bold text-primary tracking-widest uppercase px-1">Busca</label>
+<div class="relative">
+<input class="w-full bg-surface-container-high border-none rounded-md px-4 py-2.5 text-sm focus:ring-2 focus:ring-secondary/20 transition-all" placeholder="Usuário ou ação..." type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-2.5 text-primary/40 text-sm">search</span>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-[10px] font-bold text-primary tracking-widest uppercase px-1">Período</label>
+<div class="relative">
+<input class="w-full bg-surface-container-high border-none rounded-md px-4 py-2.5 text-sm focus:ring-2 focus:ring-secondary/20 transition-all" type="text" value="Últimos 7 dias"/>
+<span class="material-symbols-outlined absolute right-3 top-2.5 text-primary/40 text-sm">calendar_today</span>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-[10px] font-bold text-primary tracking-widest uppercase px-1">Tipo de Ação</label>
+<select class="w-full bg-surface-container-high border-none rounded-md px-4 py-2.5 text-sm focus:ring-2 focus:ring-secondary/20 transition-all appearance-none">
+<option>Todos</option>
+<option>Login</option>
+<option>Edit</option>
+<option>Delete</option>
+</select>
+</div>
+<div class="space-y-2">
+<label class="text-[10px] font-bold text-primary tracking-widest uppercase px-1">Cargo</label>
+<select class="w-full bg-surface-container-high border-none rounded-md px-4 py-2.5 text-sm focus:ring-2 focus:ring-secondary/20 transition-all appearance-none">
+<option>Qualquer</option>
+<option>Administrator</option>
+<option>Editor</option>
+<option>Viewer</option>
+</select>
+</div>
+<div class="flex justify-end">
+<button class="bg-on-surface text-surface px-6 py-2.5 rounded-md font-bold text-sm hover:bg-primary transition-all">Filtrar</button>
+</div>
+</section>
+<!-- Table Container -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant/10">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant/10">
+<th class="px-6 py-4 text-[10px] font-bold text-primary tracking-widest uppercase">Data e Hora</th>
+<th class="px-6 py-4 text-[10px] font-bold text-primary tracking-widest uppercase">Usuário</th>
+<th class="px-6 py-4 text-[10px] font-bold text-primary tracking-widest uppercase">Tipo</th>
+<th class="px-6 py-4 text-[10px] font-bold text-primary tracking-widest uppercase">Descrição</th>
+<th class="px-6 py-4 text-[10px] font-bold text-primary tracking-widest uppercase">Endereço IP</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<!-- Log Row 1 -->
+<tr class="hover:bg-surface-container-low/50 transition-all duration-200 group">
+<td class="px-6 py-4">
+<span class="font-mono text-xs text-primary font-medium tracking-tight">2023-10-27 14:23:45</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img class="w-8 h-8 rounded-full" data-alt="professional portrait of a young male architect with modern glasses and clean aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDoszz-rCQ1EZDuXHLwr9BY4IMcyhdKbdla64oUD_gK2UwtJKYunFNzl1Eq6mo10XaLrWdmcrYNC0u6zUrd0eV41G3YVn-L4EaoLEPJ2WJgRqM943sVkFe9YUyPian6oTBX0tS55P6Eue2cQmhu3N6FirV0z7Rs1xy-o8JZllsUv0jWy4Yp9rK0PpAxL1h3oY-Rf0o43f_U-HqVRS0VCSnIFdekft36GVQ__kGfZdCcRzrD4CoTamD0VCIp94MeleYVLdbd0zcYtENu"/>
+<span class="text-sm font-bold text-on-surface">Ricardo Mendes</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-tighter">Login Success</span>
+</td>
+<td class="px-6 py-4 text-sm text-primary/80">Acesso realizado via painel administrativo.</td>
+<td class="px-6 py-4">
+<span class="font-mono text-xs text-primary/60">192.168.1.45</span>
+</td>
+</tr>
+<!-- Log Row 2 -->
+<tr class="hover:bg-surface-container-low/50 transition-all duration-200 group">
+<td class="px-6 py-4">
+<span class="font-mono text-xs text-primary font-medium tracking-tight">2023-10-27 14:25:12</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img class="w-8 h-8 rounded-full" data-alt="modern professional woman with sleek hairstyle wearing a minimalist blazer in a bright studio" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHBNwTEKyv-ZvGsNCmTpDmb38mJ3S8qL4wWR4OQTEZFUgTiIkDxzkJswC2KgcEOvnZ1h5-3BF-TklwPnGqV8qB7GA3bt4upj9TURrZPXxKVgq6IXBF-yt8XEbwveSyXBS7vJTlol87mcGIHmu4RqPPzfkl5bHIUXld1KTqlOoh9bs0ZKx-RJ2zol6dIMG8sBwfP6ubquVuYANXSZHX6lBhzBeCmV5n5UdzPsa0ujmWjKGY8Bgp5rVrgD3-o2-ELsN14nr7P-M9SUMl"/>
+<span class="text-sm font-bold text-on-surface">Beatriz Silva</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700 uppercase tracking-tighter">Resource Edit</span>
+</td>
+<td class="px-6 py-4 text-sm text-primary/80">Alteração nos parâmetros da API Apex_v4.</td>
+<td class="px-6 py-4">
+<span class="font-mono text-xs text-primary/60">177.34.12.89</span>
+</td>
+</tr>
+<!-- Log Row 3 -->
+<tr class="hover:bg-surface-container-low/50 transition-all duration-200 group">
+<td class="px-6 py-4">
+<span class="font-mono text-xs text-primary font-medium tracking-tight">2023-10-27 14:30:01</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img class="w-8 h-8 rounded-full" data-alt="close up professional headshot of a system administrator in tech office environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA47Cn2yZZnNt5hYMPsDXLwAHtVvI5AtjNcBLzzQhfWF8Gg6LV38Wplsbi1LcjrpZkUzEYPtqXExzOD3lVoK2g_IS4qTZ64pu12dYfG-5FV4XmOs6IM1U4yXm6dhjBiwdmNmECUp_l-PttC-5y4K79UtIFXYg6rU1gGymLldpbHKA5-EM45n1H0PYVH_8kuDNm-gp6yH7HPfB4erCOpXqWNLKh6jm7Zz0LDVBFPIkIFSiHjYNPQbqImwEkVUoFnPiHY3ATbge_tDII3"/>
+<span class="text-sm font-bold text-on-surface">Admin Global</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-700 uppercase tracking-tighter">Security Alert</span>
+</td>
+<td class="px-6 py-4 text-sm text-primary/80">Múltiplas tentativas de exclusão de logs antigos.</td>
+<td class="px-6 py-4">
+<span class="font-mono text-xs text-primary/60">45.230.11.201</span>
+</td>
+</tr>
+<!-- Log Row 4 -->
+<tr class="hover:bg-surface-container-low/50 transition-all duration-200 group">
+<td class="px-6 py-4">
+<span class="font-mono text-xs text-primary font-medium tracking-tight">2023-10-27 14:35:45</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<img class="w-8 h-8 rounded-full" data-alt="focused creative designer with urban style in a modern minimalist workspace" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAl1pfYV50Rou7FLq7Ag21OQFcphuevulR8gkgdOFnlEgP7ctezt9WZRy05QA544RZu6SXzZSEcJu6omR7XWBJO88zAvZX-WoKTFeSMbHFxRmg5ll6P1po8bkLGyHKqgdc_rJ44zm5yxC1vQcAnFoRTAilWevC0LD7BDgW0iFtZTTkesTi4xNF4LXoxx2mLhCtGO6DZi2gckfLOC3vXSEuT5LQPL6zAHY1Vp_jYRCp-6zbVg7V3D77P5h8xttfuTxQyIGz8wUn4cpAx"/>
+<span class="text-sm font-bold text-on-surface">Lucas Jorge</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 uppercase tracking-tighter">Entity Create</span>
+</td>
+<td class="px-6 py-4 text-sm text-primary/80">Novo usuário "Operador_C" registrado no sistema.</td>
+<td class="px-6 py-4">
+<span class="font-mono text-xs text-primary/60">10.0.0.154</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Status Bar -->
+<footer class="mt-8 flex justify-between items-center bg-surface-container-high/40 p-4 rounded-lg">
+<div class="flex items-center gap-4">
+<span class="text-xs font-bold text-primary/60 uppercase tracking-widest">Total de entradas</span>
+<span class="bg-secondary text-on-secondary px-3 py-0.5 rounded-full text-xs font-bold font-mono">14,289</span>
+</div>
+<div class="flex gap-2">
+<button class="p-2 bg-surface-container-highest rounded-md hover:bg-secondary/10 transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="p-2 bg-surface-container-highest rounded-md hover:bg-secondary/10 transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</footer>
+</main>
+</div>
+<!-- Background Decoration (Kinetic Compass Aesthetic) -->
+<div class="fixed top-0 right-0 w-[500px] h-[500px] bg-secondary/5 blur-[120px] -z-10 rounded-full"></div>
+<div class="fixed bottom-0 left-0 w-[300px] h-[300px] bg-primary/5 blur-[100px] -z-10 rounded-full"></div>
+</body></html>

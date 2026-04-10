@@ -28,6 +28,7 @@ import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
 import Historico from "@/pages/historico";
 import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
+import LogsSistema from "@/pages/logs-sistema";
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType; path?: string }) {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -149,6 +150,9 @@ function Router() {
       </Route>
       <Route path="/patrocinadores">
         {() => <ProtectedRoute component={Patrocinadores} />}
+      </Route>
+      <Route path="/logs-sistema">
+        {() => <RoleProtectedRoute component={LogsSistema} allowedRoles={["admin"]} />}
       </Route>
       <Route component={NotFound} />
     </Switch>

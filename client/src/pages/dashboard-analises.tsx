@@ -41,7 +41,7 @@ function cutoff(p: string): Date | null {
 const WF_GROUPS = [
   { label: "Produção",     keys: ["inProduction", "produced"],                      color: T.accent },
   { label: "Aprovação",    keys: ["awaiting_approval", "awaiting_final_review", "ready_for_production", "approved"], color: "#ffffff" },
-  { label: "Planejamento", keys: ["requested", "awaiting_linking", "awaiting_submission"], color: "#57534e" },
+  { label: "Planejamento", keys: ["requested", "awaiting_linking", "awaiting_submission"], color: "#3b82f6" },
   { label: "Entregue",     keys: ["delivered"],                                     color: "#6b7280" },
 ];
 

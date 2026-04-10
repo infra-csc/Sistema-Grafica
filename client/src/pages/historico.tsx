@@ -1,29 +1,89 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-// Titanium palette
-const TI = {
-  bg: "#fafaf9",
+/* ── Palette ── */
+const P = {
+  bg:      "#fafaf9",
   surface: "#ffffff",
-  border: "#e7e5e4",
-  text: "#1c1917",
-  secondary: "#78716c",
-  muted: "#a8a29e",
-  accent: "#f97316",
-  graphite: "#44403c",
+  border:  "#e7e5e4",
+  text:    "#1c1917",
+  second:  "#78716c",
+  muted:   "#a8a29e",
+  accent:  "#f97316",
 };
+
+/* ── Type pill config ── */
+const TYPE_CONFIG: Record<string, {
+  label: string; dot: string; bg: string; border: string; color: string;
+  icon: any;
+}> = {
+  event_created: {
+    label: "event_created", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#f97316",
+    icon: Calendar,
+  },
+  item_created: {
+    label: "item_created", dot: "#625d5b", bg: "#f5f5f4", border: "#e7e5e4", color: "#44403c",
+    icon: Plus,
+  },
+  item_approved: {
+    label: "item_approved", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
+    icon: FileCheck,
+  },
+  production_started: {
+    label: "production_started", dot: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8",
+    icon: Package,
+  },
+  item_delivered: {
+    label: "item_delivered", dot: "#9333ea", bg: "#faf5ff", border: "#e9d5ff", color: "#7e22ce",
+    icon: Truck,
+  },
+};
+
+const DEFAULT_CFG = {
+  label: "atividade", dot: P.muted, bg: "#f5f5f4", border: P.border, color: P.second,
+  icon: Clock,
+};
+
+const PAGE_SIZE = 25;
+
+/* ── Initials helper ── */
+function getInitials(name: string) {
+  return (name || "?")
+    .split(" ").filter(Boolean).slice(0, 2)
+    .map(n => n[0].toUpperCase()).join("");
+}
+
+/* ── User avatar ── */
+function UserAvatar({ name }: { name?: string }) {
+  const initials = getInitials(name || "");
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: "50%",
+        backgroundColor: "#e8e8e7",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 9, fontWeight: 800, color: P.text,
+        flexShrink: 0, letterSpacing: "0.02em",
+      }}>
+        {initials}
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 700, color: P.text, whiteSpace: "nowrap" }}>
+        {name || "—"}
+      </span>
+    </div>
+  );
+}
 
 interface TimelineEvent {
   id: string;
-  type: "event_created" | "item_created" | "item_approved" | "production_started" | "item_delivered";
+  type: string;
   timestamp: Date;
   eventName: string;
   eventId: string;
@@ -36,41 +96,31 @@ interface TimelineEvent {
   userName?: string;
 }
 
-const ACTION_CONFIG: Record<string, { label: string; dot: string; icon: any; entityType: "Evento" | "Item" }> = {
-  event_created:      { label: "Evento Criado",    dot: TI.accent,    icon: Calendar,  entityType: "Evento" },
-  item_created:       { label: "Peça Adicionada",  dot: TI.graphite,  icon: Plus,      entityType: "Peça" },
-  item_approved:      { label: "Peça Liberada",    dot: "#16a34a",    icon: FileCheck, entityType: "Peça" },
-  production_started: { label: "Em Produção",      dot: "#2563eb",    icon: Package,   entityType: "Peça" },
-  item_delivered:     { label: "Peça Entregue",    dot: "#7c3aed",    icon: Truck,     entityType: "Peça" },
-};
+/* ── Description builder ── */
+function buildDescription(e: TimelineEvent) {
+  const ID = e.itemDisplayId
+    ? <code style={{ fontFamily: "monospace", fontWeight: 700, color: P.second, fontSize: 12 }}>{e.itemDisplayId}</code>
+    : null;
 
-function getInitials(name: string): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(n => n[0].toUpperCase())
-    .join("");
-}
-
-function UserAvatar({ name }: { name?: string }) {
-  const initials = getInitials(name || "");
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-      <div style={{
-        width: 24, height: 24, borderRadius: "50%",
-        backgroundColor: "#f5f5f4",
-        border: `1px solid ${TI.border}`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 9, fontWeight: 700, color: TI.text,
-        flexShrink: 0, letterSpacing: "0.02em",
-      }}>
-        {initials}
-      </div>
-      <span style={{ fontSize: 12, color: TI.secondary, whiteSpace: "nowrap" }}>{name || "—"}</span>
-    </div>
-  );
+  switch (e.type) {
+    case "event_created":
+      return <span>Evento <strong style={{ color: P.text }}>{e.eventName}</strong> foi criado</span>;
+    case "item_created":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> ({e.quantity} un.) adicionado ao evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "item_approved":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> de <strong style={{ color: P.text }}>{e.eventName}</strong> liberado para produção</span>;
+    case "production_started":
+      return <span>Produção de {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.quantityProduced}/{e.quantity} un.</span>;
+    case "item_delivered":
+      return (
+        <span>
+          {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> de <strong style={{ color: P.text }}>{e.eventName}</strong> entregue
+          {e.receivedBy && <> para <strong style={{ color: P.text }}>{e.receivedBy}</strong></>}
+        </span>
+      );
+    default:
+      return <span>Atividade registrada</span>;
+  }
 }
 
 export default function Historico() {
@@ -78,11 +128,13 @@ export default function Historico() {
   const [eventFilter, setEventFilter] = useState("all");
   const [actionFilter, setActionFilter] = useState("all");
   const [searchFilter, setSearchFilter] = useState("");
+  const [page, setPage] = useState(1);
 
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: items = [] }  = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
 
+  /* ── Build timeline ── */
   const auditLogMap = new Map<string, any>();
   auditLogs.forEach(log => auditLogMap.set(`${log.entityId}-${log.action}`, log));
 
@@ -91,11 +143,9 @@ export default function Historico() {
   events.forEach(event => {
     const log = auditLogMap.get(`${event.id}-created`);
     timeline.push({
-      id: `event-${event.id}`,
-      type: "event_created",
+      id: `event-${event.id}`, type: "event_created",
       timestamp: new Date(event.createdAt),
-      eventName: event.name,
-      eventId: event.id,
+      eventName: event.name, eventId: event.id,
       userName: log?.userName,
     });
   });
@@ -103,71 +153,52 @@ export default function Historico() {
   items.forEach(item => {
     const event = events.find(e => e.id === item.eventId);
     const eventName = event?.name || "Evento desconhecido";
-
     const createdLog = auditLogMap.get(`${item.id}-created`);
+
     timeline.push({
-      id: `item-created-${item.id}`,
-      type: "item_created",
+      id: `item-created-${item.id}`, type: "item_created",
       timestamp: new Date(item.createdAt),
-      eventName,
-      eventId: item.eventId,
-      itemType: item.type,
-      itemId: item.id,
-      itemDisplayId: item.displayId,
-      quantity: item.quantity,
-      userName: createdLog?.userName,
+      eventName, eventId: item.eventId,
+      itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
+      quantity: item.quantity, userName: createdLog?.userName,
     });
 
     if (["approved", "inProduction", "produced", "delivered"].includes(item.status)) {
-      const approvedLog = auditLogMap.get(`${item.id}-approved`);
+      const log = auditLogMap.get(`${item.id}-approved`);
       timeline.push({
-        id: `item-approved-${item.id}`,
-        type: "item_approved",
+        id: `item-approved-${item.id}`, type: "item_approved",
         timestamp: new Date(item.approvedAt || item.updatedAt),
-        eventName,
-        eventId: item.eventId,
-        itemType: item.type,
-        itemId: item.id,
-        itemDisplayId: item.displayId,
-        quantity: item.quantity,
-        userName: approvedLog?.userName,
+        eventName, eventId: item.eventId,
+        itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
+        quantity: item.quantity, userName: log?.userName,
       });
     }
 
     if (item.quantityProduced && item.quantityProduced > 0) {
       timeline.push({
-        id: `production-${item.id}`,
-        type: "production_started",
+        id: `production-${item.id}`, type: "production_started",
         timestamp: new Date(item.productionStartedAt || item.updatedAt),
-        eventName,
-        eventId: item.eventId,
-        itemType: item.type,
-        itemId: item.id,
-        itemDisplayId: item.displayId,
-        quantity: item.quantity,
-        quantityProduced: item.quantityProduced,
+        eventName, eventId: item.eventId,
+        itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
+        quantity: item.quantity, quantityProduced: item.quantityProduced,
       });
     }
 
     if (item.status === "delivered" && item.deliveredAt) {
-      const deliveredLog = auditLogMap.get(`${item.id}-delivered`);
+      const log = auditLogMap.get(`${item.id}-delivered`);
       timeline.push({
-        id: `delivered-${item.id}`,
-        type: "item_delivered",
+        id: `delivered-${item.id}`, type: "item_delivered",
         timestamp: new Date(item.deliveredAt),
-        eventName,
-        eventId: item.eventId,
-        itemType: item.type,
-        itemId: item.id,
-        itemDisplayId: item.displayId,
-        receivedBy: item.receivedBy,
-        userName: deliveredLog?.userName,
+        eventName, eventId: item.eventId,
+        itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
+        receivedBy: item.receivedBy, userName: log?.userName,
       });
     }
   });
 
   const sorted = timeline.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
+  /* ── Filters ── */
   let filtered = eventFilter === "all" ? sorted : sorted.filter(e => e.eventId === eventFilter);
   if (actionFilter !== "all") filtered = filtered.filter(e => e.type === actionFilter);
   if (searchFilter.trim()) {
@@ -181,224 +212,291 @@ export default function Historico() {
     );
   }
 
-  const getDescription = (e: TimelineEvent) => {
-    switch (e.type) {
-      case "event_created":
-        return <>Evento <strong style={{ color: TI.text }}>{e.eventName}</strong> foi criado</>;
-      case "item_created":
-        return (
-          <>
-            <span style={{ fontFamily: "monospace", fontWeight: 700, color: TI.accent }}>{e.itemDisplayId}</span>{" "}
-            <strong style={{ color: TI.text }}>{e.itemType}</strong> ({e.quantity} un.) adicionado ao evento{" "}
-            <strong style={{ color: TI.text }}>{e.eventName}</strong>
-          </>
-        );
-      case "item_approved":
-        return (
-          <>
-            <span style={{ fontFamily: "monospace", fontWeight: 700, color: TI.accent }}>{e.itemDisplayId}</span>{" "}
-            <strong style={{ color: TI.text }}>{e.itemType}</strong> de{" "}
-            <strong style={{ color: TI.text }}>{e.eventName}</strong> liberado para produção
-          </>
-        );
-      case "production_started":
-        return (
-          <>
-            Produção de{" "}
-            <span style={{ fontFamily: "monospace", fontWeight: 700, color: TI.accent }}>{e.itemDisplayId}</span>{" "}
-            <strong style={{ color: TI.text }}>{e.itemType}</strong> — {e.quantityProduced}/{e.quantity} un.
-          </>
-        );
-      case "item_delivered":
-        return (
-          <>
-            <span style={{ fontFamily: "monospace", fontWeight: 700, color: TI.accent }}>{e.itemDisplayId}</span>{" "}
-            <strong style={{ color: TI.text }}>{e.itemType}</strong> de{" "}
-            <strong style={{ color: TI.text }}>{e.eventName}</strong> entregue
-            {e.receivedBy && <> para <strong style={{ color: TI.text }}>{e.receivedBy}</strong></>}
-          </>
-        );
-      default:
-        return "Atividade registrada";
-    }
+  /* ── Pagination ── */
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const pageItems  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const handleFilterChange = (setter: (v: string) => void) => (v: string) => {
+    setter(v);
+    setPage(1);
+  };
+
+  /* page buttons: show at most 5 */
+  const pageWindow: number[] = [];
+  const start = Math.max(1, safePage - 2);
+  const end   = Math.min(totalPages, start + 4);
+  for (let i = start; i <= end; i++) pageWindow.push(i);
+
+  /* ── Select style helper ── */
+  const selectStyle: React.CSSProperties = {
+    backgroundColor: "#ffffff", border: "none", borderRadius: 8,
+    padding: "9px 14px", fontSize: 13, fontWeight: 600,
+    color: P.text, cursor: "pointer", outline: "none",
+    appearance: "none", WebkitAppearance: "none", minWidth: 168,
   };
 
   return (
-    <div style={{ backgroundColor: TI.bg, minHeight: "100%", padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ backgroundColor: P.bg, minHeight: "100%", padding: "28px 28px 48px" }}>
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ backgroundColor: TI.accent, borderRadius: 8, padding: "6px 8px", display: "flex" }}>
-          <Activity style={{ color: "#fff", width: 18, height: 18 }} />
+      {/* ── Header ── */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 20, marginBottom: 32 }}>
+        <div style={{
+          width: 56, height: 56, flexShrink: 0,
+          backgroundColor: "#fff7ed",
+          borderRadius: 14,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 1px 4px rgba(249,115,22,0.18)",
+        }}>
+          <Activity style={{ width: 28, height: 28, color: P.accent }} />
         </div>
         <div>
-          <h1 style={{ color: TI.text, fontSize: 18, fontWeight: 700, margin: 0 }}>
+          <h1 style={{
+            fontSize: 32, fontWeight: 700, color: P.text, margin: 0,
+            letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
+          }}>
             Histórico de Atividades
           </h1>
-          <p style={{ color: TI.muted, fontSize: 12, margin: 0 }}>Audit log completo de todas as ações do sistema</p>
+          <p style={{ fontSize: 13, color: P.second, margin: "6px 0 0", fontWeight: 500 }}>
+            Audit log completo de todas as ações do sistema
+          </p>
         </div>
       </div>
 
-      {/* Card principal */}
-      <div style={{
-        backgroundColor: TI.surface,
-        border: `1px solid ${TI.border}`,
-        borderRadius: 12,
-        overflow: "hidden",
-      }}>
+      {/* ── Card ── */}
+      <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, overflow: "hidden" }}>
 
-        {/* Filtros */}
+        {/* Filter strip */}
         <div style={{
-          padding: "14px 20px",
-          borderBottom: `1px solid ${TI.border}`,
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 10,
-          alignItems: "center",
+          padding: "20px 24px",
+          borderBottom: `1px solid ${P.border}`,
+          backgroundColor: "#f3f4f3",
+          display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center",
         }}>
+
           {/* Search */}
-          <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
+          <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
             <Search style={{
-              position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
-              width: 14, height: 14, color: TI.muted, pointerEvents: "none",
+              position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
+              width: 14, height: 14, color: P.muted, pointerEvents: "none",
             }} />
             <input
-              placeholder="Buscar por evento, usuário, item..."
+              placeholder="Buscar por ID, evento ou usuário..."
               value={searchFilter}
-              onChange={e => setSearchFilter(e.target.value)}
+              onChange={e => { setSearchFilter(e.target.value); setPage(1); }}
               data-testid="input-search-filter"
               style={{
-                width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
-                backgroundColor: TI.bg, border: `1px solid ${TI.border}`, borderRadius: 8,
-                fontSize: 12, color: TI.text, outline: "none",
+                width: "100%", paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9,
+                backgroundColor: "#ffffff", border: "none", borderRadius: 8,
+                fontSize: 13, color: P.text, outline: "none",
                 boxSizing: "border-box",
               }}
             />
           </div>
 
-          <Select value={actionFilter} onValueChange={setActionFilter}>
-            <SelectTrigger className="w-44" data-testid="select-action-filter"
-              style={{ backgroundColor: TI.bg, borderColor: TI.border, fontSize: 12 }}>
-              <SelectValue placeholder="Tipo de ação" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as ações</SelectItem>
-              <SelectItem value="event_created">Eventos criados</SelectItem>
-              <SelectItem value="item_created">Itens adicionados</SelectItem>
-              <SelectItem value="item_approved">Itens liberados</SelectItem>
-              <SelectItem value="production_started">Em produção</SelectItem>
-              <SelectItem value="item_delivered">Entregas</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Action type select */}
+          <select
+            value={actionFilter}
+            onChange={e => handleFilterChange(setActionFilter)(e.target.value)}
+            data-testid="select-action-filter"
+            style={selectStyle}
+          >
+            <option value="all">Todas as ações</option>
+            <option value="event_created">Eventos criados</option>
+            <option value="item_created">Itens adicionados</option>
+            <option value="item_approved">Itens liberados</option>
+            <option value="production_started">Em produção</option>
+            <option value="item_delivered">Entregas</option>
+          </select>
 
-          <Select value={eventFilter} onValueChange={setEventFilter}>
-            <SelectTrigger className="w-44" data-testid="select-event-filter"
-              style={{ backgroundColor: TI.bg, borderColor: TI.border, fontSize: 12 }}>
-              <SelectValue placeholder="Filtrar por evento" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os eventos</SelectItem>
-              {events.map(ev => (
-                <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Event select */}
+          <select
+            value={eventFilter}
+            onChange={e => handleFilterChange(setEventFilter)(e.target.value)}
+            data-testid="select-event-filter"
+            style={selectStyle}
+          >
+            <option value="all">Todos os eventos</option>
+            {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
+          </select>
 
-          <span style={{ marginLeft: "auto", fontSize: 11, color: TI.muted, whiteSpace: "nowrap" }}>
-            {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
-          </span>
+          {/* Counter chip */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            backgroundColor: "#e8e8e7", borderRadius: 8, padding: "9px 14px",
+            marginLeft: "auto",
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 800, color: P.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Total</span>
+            <span style={{ fontSize: 14, fontWeight: 900, color: P.accent }}>{filtered.length}</span>
+          </div>
         </div>
 
-        {/* Table */}
+        {/* Table header */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
+          padding: "14px 32px",
+          backgroundColor: "#f3f4f3",
+          borderBottom: `1px solid ${P.border}`,
+        }}>
+          {["Tipo", "Ação", "Data / Hora", "Realizado Por"].map(h => (
+            <div key={h} style={{ fontSize: 10, fontWeight: 900, color: P.muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+              {h}
+            </div>
+          ))}
+        </div>
+
+        {/* Rows */}
         {filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 20px", color: TI.muted }}>
-            <Activity style={{ width: 36, height: 36, margin: "0 auto 12px", opacity: 0.4 }} />
-            <p style={{ fontSize: 14, fontWeight: 500, color: TI.secondary }}>Nenhuma atividade encontrada</p>
-            <p style={{ fontSize: 12, marginTop: 4 }}>Tente ajustar os filtros</p>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
+            <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
+              <Search style={{ width: 32, height: 32, color: P.muted }} />
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+              Nenhuma atividade encontrada
+            </h3>
+            <p style={{ fontSize: 13, color: P.second, margin: 0 }}>Tente ajustar os filtros para encontrar o que procura</p>
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ backgroundColor: TI.bg, borderBottom: `1px solid ${TI.border}` }}>
-                {["Tipo", "Ação", "Data / Hora", "Realizado por"].map(h => (
-                  <th key={h} style={{
-                    padding: "9px 16px",
-                    textAlign: "left",
-                    fontSize: 10, fontWeight: 600,
-                    color: "#71717a",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    whiteSpace: "nowrap",
-                  }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((entry, idx) => {
-                const cfg = ACTION_CONFIG[entry.type] ?? {
-                  label: "Atividade", dot: TI.muted, icon: Clock, entityType: "Peça" as const,
-                };
-                const Icon = cfg.icon;
-                const isLast = idx === filtered.length - 1;
+          <div style={{ borderBottom: `1px solid ${P.border}` }}>
+            {pageItems.map((entry, idx) => {
+              const cfg = TYPE_CONFIG[entry.type] ?? DEFAULT_CFG;
+              const isLast = idx === pageItems.length - 1;
 
-                return (
-                  <tr
-                    key={entry.id}
-                    data-testid={`timeline-event-${idx}`}
-                    onClick={() => setLocation(`/eventos/${entry.eventId}`)}
-                    style={{
-                      borderBottom: isLast ? "none" : `1px solid ${TI.border}`,
-                      cursor: "pointer",
-                      transition: "background 0.1s",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = TI.bg)}
-                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                  >
-                    {/* Tipo */}
-                    <td style={{ padding: "11px 16px", whiteSpace: "nowrap" }}>
-                      <div style={{
-                        display: "inline-flex", alignItems: "center", gap: 6,
-                        backgroundColor: TI.surface,
-                        border: `1px solid ${TI.border}`,
-                        borderRadius: 6,
-                        padding: "3px 8px",
-                      }}>
-                        <div style={{
-                          width: 6, height: 6, borderRadius: "50%",
-                          backgroundColor: cfg.dot, flexShrink: 0,
-                        }} />
-                        <span style={{ fontSize: 11, fontWeight: 500, color: TI.text }}>{cfg.label}</span>
-                      </div>
-                    </td>
+              return (
+                <div
+                  key={entry.id}
+                  data-testid={`timeline-event-${idx}`}
+                  onClick={() => setLocation(`/eventos/${entry.eventId}`)}
+                  style={{
+                    display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
+                    padding: "18px 32px", alignItems: "center",
+                    borderBottom: isLast ? "none" : `1px solid #f0efee`,
+                    cursor: "pointer", transition: "background 0.1s",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#f9f9f8")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
+                  {/* Tipo pill */}
+                  <div>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "4px 10px", borderRadius: 100,
+                      backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
+                      fontSize: 9, fontWeight: 800, color: cfg.color,
+                      textTransform: "uppercase", letterSpacing: "0.04em",
+                      whiteSpace: "nowrap",
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />
+                      {cfg.label}
+                    </span>
+                  </div>
 
-                    {/* Ação */}
-                    <td style={{ padding: "11px 16px", fontSize: 12, color: TI.secondary, maxWidth: 480 }}>
-                      {getDescription(entry)}
-                    </td>
+                  {/* Ação */}
+                  <div style={{ fontSize: 13, color: P.second, paddingRight: 16, lineHeight: 1.45 }}>
+                    {buildDescription(entry)}
+                  </div>
 
-                    {/* Data / Hora */}
-                    <td style={{ padding: "11px 16px", whiteSpace: "nowrap" }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: TI.text }}>
-                        {format(entry.timestamp, "dd/MM/yyyy", { locale: ptBR })}
-                      </div>
-                      <div style={{ fontSize: 11, color: TI.muted, marginTop: 1 }}>
-                        {format(entry.timestamp, "HH:mm", { locale: ptBR })}
-                      </div>
-                    </td>
+                  {/* Data / Hora */}
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: P.text }}>
+                      {format(entry.timestamp, "dd MMM, HH:mm", { locale: ptBR })}
+                    </div>
+                    <div style={{ fontSize: 10, color: P.muted, marginTop: 2 }}>
+                      {format(entry.timestamp, "yyyy", { locale: ptBR })}
+                    </div>
+                  </div>
 
-                    {/* Realizado por */}
-                    <td style={{ padding: "11px 16px" }}>
-                      <UserAvatar name={entry.userName} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  {/* Realizado por */}
+                  <div>
+                    <UserAvatar name={entry.userName} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Footer pagination */}
+        {filtered.length > 0 && (
+          <div style={{
+            padding: "14px 32px",
+            backgroundColor: "#f3f4f3",
+            borderTop: `1px solid ${P.border}`,
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          }}>
+            <span style={{ fontSize: 12, color: P.second }}>
+              Exibindo <strong style={{ color: P.text }}>{Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)}</strong> de <strong style={{ color: P.text }}>{filtered.length}</strong> registros
+            </span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {/* Prev */}
+              <PageBtn
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                testId="button-prev-page"
+              >
+                <ChevronLeft style={{ width: 14, height: 14 }} />
+              </PageBtn>
+
+              {/* Page numbers */}
+              {pageWindow.map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  data-testid={`button-page-${p}`}
+                  style={{
+                    padding: "4px 10px", borderRadius: 6, border: "none",
+                    fontSize: 12, fontWeight: p === safePage ? 900 : 700,
+                    cursor: "pointer",
+                    backgroundColor: p === safePage ? P.accent : "transparent",
+                    color: p === safePage ? "#ffffff" : P.second,
+                    transition: "all 0.12s",
+                    minWidth: 32,
+                  }}
+                  onMouseEnter={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e8e8e7"; }}
+                  onMouseLeave={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                >
+                  {p}
+                </button>
+              ))}
+
+              {/* Next */}
+              <PageBtn
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+                testId="button-next-page"
+              >
+                <ChevronRight style={{ width: 14, height: 14 }} />
+              </PageBtn>
+            </div>
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+/* ── Pagination arrow button ── */
+function PageBtn({ onClick, disabled, children, testId }: {
+  onClick: () => void; disabled: boolean; children: React.ReactNode; testId: string;
+}) {
+  const [h, setH] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      data-testid={testId}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        padding: 6, borderRadius: 6, border: "none", cursor: disabled ? "default" : "pointer",
+        backgroundColor: h && !disabled ? "#e8e8e7" : "transparent",
+        color: disabled ? "#d4d0cc" : "#57534e",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "background 0.12s", opacity: disabled ? 0.35 : 1,
+      }}
+    >
+      {children}
+    </button>
   );
 }

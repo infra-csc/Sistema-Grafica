@@ -588,17 +588,19 @@ export default function Estoque() {
                         </span>
                       </td>
 
-                      {/* Name + AUTO/MAN */}
+                      {/* Name + origem badge */}
                       <td style={TD}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{
-                            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                            background: asset.autoAdded ? "rgba(37,99,235,0.08)" : "#f1f5f9",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            border: `1px solid ${asset.autoAdded ? "rgba(37,99,235,0.18)" : "#e2e8f0"}`,
-                          }}>
-                            <span style={{ fontSize: 8, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.03em", textTransform: "uppercase", color: asset.autoAdded ? "#2563eb" : "#94a3b8" }}>
-                              {asset.autoAdded ? "AUTO" : "MAN"}
+                          <div
+                            title={asset.autoAdded ? "Criado automaticamente pela gráfica ao marcar item como produzido" : "Adicionado manualmente"}
+                            style={{
+                              height: 32, borderRadius: 8, flexShrink: 0, padding: "0 8px",
+                              background: asset.autoAdded ? "rgba(37,99,235,0.08)" : "#f1f5f9",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              border: `1px solid ${asset.autoAdded ? "rgba(37,99,235,0.18)" : "#e2e8f0"}`,
+                            }}>
+                            <span style={{ fontSize: 8, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", color: asset.autoAdded ? "#2563eb" : "#94a3b8", whiteSpace: "nowrap" }}>
+                              {asset.autoAdded ? "GRÁFICA" : "MANUAL"}
                             </span>
                           </div>
                           <div>

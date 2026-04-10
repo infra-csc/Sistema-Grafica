@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-dim": "#dadad9",
+                        "inverse-surface": "#2f3130",
+                        "error-container": "#ffdad6",
+                        "inverse-primary": "#ccc5c2",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "surface-tint": "#625d5b",
+                        "on-error": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-primary-fixed": "#1e1b19",
+                        "surface-container": "#eeeeed",
+                        "surface": "#f9f9f8",
+                        "on-surface-variant": "#584237",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "surface-container-high": "#e8e8e7",
+                        "secondary-fixed": "#ffdbca",
+                        "primary-container": "#9f9996",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-container": "#00a2f4",
+                        "on-surface": "#1a1c1c",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#9d4300",
+                        "on-primary-container": "#35322f",
+                        "surface-bright": "#f9f9f8",
+                        "on-secondary-fixed": "#341100",
+                        "background": "#f9f9f8",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#ffb690",
+                        "secondary-container": "#fd761a",
+                        "primary": "#625d5b",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "outline-variant": "#e0c0b1",
+                        "on-tertiary-container": "#003554",
+                        "on-secondary-container": "#5c2400",
+                        "on-primary": "#ffffff",
+                        "on-background": "#1a1c1c",
+                        "on-tertiary-fixed": "#001d32",
+                        "outline": "#8c7164",
+                        "tertiary-fixed": "#cde5ff",
+                        "tertiary": "#006398",
+                        "error": "#ba1a1a",
+                        "inverse-on-surface": "#f1f1f0",
+                        "surface-container-low": "#f3f4f3",
+                        "on-secondary-fixed-variant": "#783200",
+                        "surface-variant": "#e2e2e2",
+                        "primary-fixed": "#e9e1dd"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"],
+                        "mono": ["DM Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            vertical-align: middle;
+        }
+        .negative-kerning { letter-spacing: -0.03em; }
+        .glass-header {
+            background: rgba(249, 249, 248, 0.8);
+            backdrop-filter: blur(12px);
+        }
+        .titanium-input {
+            background-color: #f0efee;
+            border: none;
+            transition: all 0.2s ease-out;
+        }
+        .titanium-input:focus {
+            background-color: #ffffff;
+            box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased">
+<!-- TopNavBar (Shared Component) -->
+<header class="fixed top-0 w-full z-50 border-b border-stone-200/15 bg-stone-50/80 backdrop-blur-xl shadow-[0_16px_32px_-12px_rgba(0,0,0,0.05)]">
+<div class="flex justify-between items-center h-16 px-8 w-full">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black tracking-tighter text-stone-900 font-headline uppercase">NORTE</span>
+<nav class="hidden md:flex gap-6 items-center h-full">
+<a class="text-stone-500 hover:text-stone-900 transition-colors font-headline tracking-[-0.03em] uppercase font-bold text-sm" href="#">Dashboard</a>
+<a class="text-stone-500 hover:text-stone-900 transition-colors font-headline tracking-[-0.03em] uppercase font-bold text-sm" href="#">Talent</a>
+<a class="text-stone-500 hover:text-stone-900 transition-colors font-headline tracking-[-0.03em] uppercase font-bold text-sm" href="#">Campaigns</a>
+<a class="text-stone-500 hover:text-stone-900 transition-colors font-headline tracking-[-0.03em] uppercase font-bold text-sm" href="#">Analytics</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">search</span>
+<input class="bg-stone-200/50 border-none rounded-full py-1.5 pl-10 pr-4 text-xs focus:ring-2 focus:ring-secondary/20 w-48" placeholder="Search..." type="text"/>
+</div>
+<button class="p-2 hover:bg-stone-200/50 rounded-full transition-all active:scale-95">
+<span class="material-symbols-outlined text-stone-600">notifications</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-stone-200">
+<img alt="Manager Profile" data-alt="professional male profile picture in a sleek corporate environment with soft office lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBh4bfJAgna1O-Q9DGedBdI7eo8EabSZca10wRL5IH0kvYbtq557vCQXrnGc7mO-KViOtRxnSBqPc-ZGQnuOE9nDA1KUs9ntMpG1Hk8_NKpK99o2R5yAqT1MGnhyNiGBRggJCkcs-X534kOvBs_p4YBVw54f5PlptcyUcaPcnv-AS3F8IVtfcE1wT2B2IL66RsFT7p06Gt_Ilti3RXQg8VLjackhOQfg1EfiXJ2eXOy-5Lp68UkNBK3Dou3KNfFOJzTXDmd_e75IhDq"/>
+</div>
+</div>
+</div>
+</header>
+<!-- SideNavBar (Shared Component) -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-stone-100 border-r border-stone-200/15 z-40 hidden md:flex flex-col p-4 gap-2">
+<div class="mb-6 px-4 py-2">
+<h3 class="font-headline font-bold text-sm text-stone-900 uppercase tracking-wider">Admin Console</h3>
+<p class="text-[10px] text-stone-500 font-medium">Elite Marketing v2.4</p>
+</div>
+<a class="bg-stone-200 text-stone-900 rounded-md px-4 py-2 flex items-center gap-3 font-medium text-sm transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined text-secondary" data-weight="fill">group</span>
+            User Directory
+        </a>
+<a class="text-stone-500 hover:bg-stone-200/30 rounded-md px-4 py-2 flex items-center gap-3 font-medium text-sm transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">shield</span>
+            Access Control
+        </a>
+<a class="text-stone-500 hover:bg-stone-200/30 rounded-md px-4 py-2 flex items-center gap-3 font-medium text-sm transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">history</span>
+            Audit Logs
+        </a>
+<a class="text-stone-500 hover:bg-stone-200/30 rounded-md px-4 py-2 flex items-center gap-3 font-medium text-sm transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">hub</span>
+            Team Groups
+        </a>
+<a class="text-stone-500 hover:bg-stone-200/30 rounded-md px-4 py-2 flex items-center gap-3 font-medium text-sm transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">key</span>
+            API Keys
+        </a>
+<div class="mt-auto pt-6 border-t border-stone-200/50 flex flex-col gap-2">
+<a class="text-stone-500 hover:bg-stone-200/30 rounded-md px-4 py-2 flex items-center gap-3 font-medium text-sm transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">help</span>
+                Support
+            </a>
+<a class="text-stone-500 hover:bg-stone-200/30 rounded-md px-4 py-2 flex items-center gap-3 font-medium text-sm transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">description</span>
+                Documentation
+            </a>
+<button class="mt-4 bg-secondary text-white font-bold py-2.5 rounded-md text-xs uppercase tracking-widest hover:brightness-110 transition-all active:opacity-80">
+                Invite Member
+            </button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="md:ml-64 pt-24 pb-12 px-8 min-h-screen">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+<div class="space-y-1">
+<h1 class="text-4xl md:text-5xl font-headline font-black text-stone-900 negative-kerning uppercase leading-none">
+                    Gerenciamento de Usuários
+                </h1>
+<p class="text-stone-500 text-lg font-medium">Gerencie usuários, perfis e permissões de acesso ao sistema</p>
+</div>
+<button class="bg-[#1c1917] text-white px-6 py-3 rounded-md flex items-center gap-3 font-bold text-sm tracking-tight hover:bg-stone-800 transition-all active:scale-95">
+<span class="material-symbols-outlined text-secondary">add</span>
+                Novo Usuário
+            </button>
+</div>
+<!-- High Density Table Container -->
+<section class="bg-white border border-stone-200/60 rounded-xl overflow-hidden shadow-sm">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-stone-50 border-b border-stone-100">
+<th class="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-stone-400">ID</th>
+<th class="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-stone-400">NOME</th>
+<th class="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-stone-400">EMAIL</th>
+<th class="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-stone-400">PERFIL</th>
+<th class="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-stone-400">STATUS</th>
+<th class="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-stone-400">CRIADO EM</th>
+<th class="px-6 py-4 text-[10px] uppercase font-bold tracking-widest text-stone-400 text-right">AÇÕES</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-50">
+<!-- User Row 1 -->
+<tr class="hover:bg-stone-50/50 transition-colors">
+<td class="px-6 py-4 font-mono text-xs text-stone-400">#NRT-0842</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-[10px] font-bold text-stone-600">AF</div>
+<span class="font-bold text-stone-900 text-sm">Adriano Fonseca</span>
+</div>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">adriano.f@norteapex.com</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-[10px] font-bold uppercase tracking-wider">Admin</span>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-md border border-amber-200 text-amber-600 text-[10px] font-bold uppercase tracking-wider">Trocar Senha</span>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">12/05/2024</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-1.5 text-stone-400 hover:text-error hover:bg-error-container/20 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- User Row 2 -->
+<tr class="hover:bg-stone-50/50 transition-colors">
+<td class="px-6 py-4 font-mono text-xs text-stone-400">#NRT-0915</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary-container/10 flex items-center justify-center text-[10px] font-bold text-secondary">BE</div>
+<span class="font-bold text-stone-900 text-sm">Beatriz Esteves</span>
+</div>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">beatriz.e@norteapex.com</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold uppercase tracking-wider">Solicitação</span>
+</td>
+<td class="px-6 py-4">
+<span class="w-2 h-2 rounded-full bg-green-500 inline-block ml-4"></span>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">08/06/2024</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-1.5 text-stone-400 hover:text-error hover:bg-error-container/20 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- User Row 3 -->
+<tr class="hover:bg-stone-50/50 transition-colors">
+<td class="px-6 py-4 font-mono text-xs text-stone-400">#NRT-1002</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-[10px] font-bold text-stone-600">CM</div>
+<span class="font-bold text-stone-900 text-sm">Carlos Mendes</span>
+</div>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">carlos.m@norteapex.com</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 text-[10px] font-bold uppercase tracking-wider">Arte</span>
+</td>
+<td class="px-6 py-4">
+<span class="w-2 h-2 rounded-full bg-green-500 inline-block ml-4"></span>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">15/06/2024</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-1.5 text-stone-400 hover:text-error hover:bg-error-container/20 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- User Row 4 -->
+<tr class="hover:bg-stone-50/50 transition-colors">
+<td class="px-6 py-4 font-mono text-xs text-stone-400">#NRT-1144</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-[10px] font-bold text-stone-600">DA</div>
+<span class="font-bold text-stone-900 text-sm">Danielle Araújo</span>
+</div>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">danielle.a@norteapex.com</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 text-[10px] font-bold uppercase tracking-wider">Gráfica</span>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-md border border-amber-200 text-amber-600 text-[10px] font-bold uppercase tracking-wider">Trocar Senha</span>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">22/06/2024</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-1.5 text-stone-400 hover:text-error hover:bg-error-container/20 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- User Row 5 -->
+<tr class="hover:bg-stone-50/50 transition-colors">
+<td class="px-6 py-4 font-mono text-xs text-stone-400">#NRT-1209</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-[10px] font-bold text-stone-600">EM</div>
+<span class="font-bold text-stone-900 text-sm">Eduardo Malta</span>
+</div>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">eduardo.m@norteapex.com</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-full bg-green-50 text-green-600 text-[10px] font-bold uppercase tracking-wider">Atendimento</span>
+</td>
+<td class="px-6 py-4">
+<span class="w-2 h-2 rounded-full bg-green-500 inline-block ml-4"></span>
+</td>
+<td class="px-6 py-4 text-stone-500 text-sm">25/06/2024</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2">
+<button class="p-1.5 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="p-1.5 text-stone-400 hover:text-error hover:bg-error-container/20 rounded-md transition-all">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="bg-stone-50/50 px-6 py-4 border-t border-stone-100 flex items-center justify-between">
+<p class="text-xs text-stone-400 font-medium tracking-tight">Exibindo 5 de 128 usuários</p>
+<div class="flex items-center gap-2">
+<button class="p-1 text-stone-400 hover:text-stone-900 disabled:opacity-30">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<span class="text-xs font-bold text-stone-900 bg-white px-2.5 py-1 rounded border border-stone-200">1</span>
+<span class="text-xs font-bold text-stone-400 px-2.5 py-1">2</span>
+<span class="text-xs font-bold text-stone-400 px-2.5 py-1">3</span>
+<button class="p-1 text-stone-400 hover:text-stone-900">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Asymmetric Detail Cards (Bento Grid Style) -->
+<div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="md:col-span-2 bg-stone-900 rounded-xl p-8 relative overflow-hidden flex flex-col justify-between min-h-[240px]">
+<div class="absolute top-0 right-0 w-64 h-64 bg-secondary/20 blur-[100px] rounded-full -mr-20 -mt-20"></div>
+<div>
+<h3 class="text-white font-headline text-3xl font-black uppercase tracking-tight leading-none mb-2">Relatório de Acessos</h3>
+<p class="text-stone-400 max-w-sm">Monitore a atividade dos usuários em tempo real para garantir a segurança da plataforma.</p>
+</div>
+<div class="flex items-end justify-between">
+<div class="flex -space-x-2">
+<div class="w-10 h-10 rounded-full border-2 border-stone-900 overflow-hidden"><img alt="user1" data-alt="portrait of a professional user" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6BX-v22KUZd14tg9uC69I6zWcxl4GJbWvIMd0J9wcwR3O1KJtd8LimrY6Tfttwn1jK0xuxrArMM88kWw1zt2QpkQ57IcaX2qJvpE_bAAvf0XAQv0girjHcnNTVJPx40t5lSmcHA8nxzG8-x9bVcfYRrwyjHAImwmCCofYpVWMxut6bDLrnAKfEaXe3XLqK_PJVFQ5lLFYVitmMQDbfjzj_rkjyFw1XL3YMIzf_V1zHdYdrCZSEw5mEMzecahEs9JPPKi_FUkeb7Of"/></div>
+<div class="w-10 h-10 rounded-full border-2 border-stone-900 overflow-hidden"><img alt="user2" data-alt="portrait of a team member" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPLA3MPx1E_92DupW4POi1_f1H1ZFLFDhhWDJkj2mk3pMF07r00gkJGpSPHKKBSB8GP4fXqm_4TL5bKqBb-BpAb2U5Aaec-aPQyr89TOohGyK7LKWKPlJ8KfIxoiZ5SSZbUBs1Q0VPetOSRO_IMDwnSToJYk1d9yqJUBVLf1xytfHYfRf8jnQA-wamTB4-9hHtAWSuMAQgZCM1ev4onWKuIIfZDt8_ohM3LxIBhiKZkkm14sRQF-ZOKRpUjjRuNJpuOCNUXnKYUp1w"/></div>
+<div class="w-10 h-10 rounded-full border-2 border-stone-900 overflow-hidden"><img alt="user3" data-alt="portrait of a female executive" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVL1OSyrdQfWLdC80AAjZevzhtK_oEerVoXEeOeDLUGWK35ZmfDFxMaYFA2Ozm1ZchA2kb7OsuPfvl8_LX2w4q3YkG0uVgaGmBmSzhbmCOVu2y8pEZJ4UItF9Qc3sZeLATQqIm0OszkxSOI2B2WFxlMb40hQWWyXC99GE2DgRt9cBWta3r5jkdhvY4YcB6WHvUvAIpunBjvAVnTIoQHASD7w3ZgxqJxoRfkyiemecX9aBVjGoqCx0jBGs4d-OwNBGx3BGUffq69dLa"/></div>
+<div class="w-10 h-10 rounded-full border-2 border-stone-900 bg-stone-800 flex items-center justify-center text-[10px] text-stone-400 font-bold">+12</div>
+</div>
+<button class="bg-secondary text-white px-5 py-2.5 rounded font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all">Ver Logs</button>
+</div>
+</div>
+<div class="bg-white border border-stone-200/60 rounded-xl p-8 flex flex-col justify-between">
+<div>
+<span class="material-symbols-outlined text-secondary text-4xl mb-4" data-weight="fill">shield</span>
+<h3 class="text-stone-900 font-headline text-xl font-black uppercase tracking-tight mb-2">Nível de Segurança</h3>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-end">
+<span class="text-xs font-bold text-stone-500 uppercase tracking-widest">Health Score</span>
+<span class="text-2xl font-black text-stone-900 font-headline tracking-tighter">84%</span>
+</div>
+<div class="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[84%]"></div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Modal Overlay (Backdrop) -->
+<div class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+<!-- Create/Edit User Modal (Titanium Style) -->
+<div class="bg-white w-full max-w-lg rounded-xl overflow-hidden shadow-2xl border border-stone-200/50">
+<header class="bg-stone-50 px-8 py-6 border-b border-stone-100 flex items-center justify-between">
+<div>
+<h2 class="text-2xl font-headline font-black uppercase tracking-tight text-stone-900">Novo Usuário</h2>
+<p class="text-xs text-stone-400 font-medium">Preencha as informações do perfil abaixo</p>
+</div>
+<button class="text-stone-400 hover:text-stone-900 p-2">
+<span class="material-symbols-outlined">close</span>
+</button>
+</header>
+<form class="p-8 space-y-6">
+<div class="space-y-1.5">
+<label class="text-[10px] uppercase font-black tracking-widest text-stone-400">Nome Completo</label>
+<input class="titanium-input w-full px-4 py-3 rounded text-sm focus:ring-0" placeholder="Ex: Roberto Carlos" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1.5">
+<label class="text-[10px] uppercase font-black tracking-widest text-stone-400">Email</label>
+<input class="titanium-input w-full px-4 py-3 rounded text-sm focus:ring-0" placeholder="roberto@norte.com" type="email"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] uppercase font-black tracking-widest text-stone-400">Perfil</label>
+<select class="titanium-input w-full px-4 py-3 rounded text-sm focus:ring-0 appearance-none">
+<option>Selecione...</option>
+<option>Admin</option>
+<option>Solicitação</option>
+<option>Arte</option>
+</select>
+</div>
+</div>
+<div class="space-y-1.5">
+<label class="text-[10px] uppercase font-black tracking-widest text-stone-400">Password</label>
+<div class="relative">
+<input class="titanium-input w-full px-4 py-3 rounded text-sm focus:ring-0" type="password" value="********"/>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 cursor-pointer">visibility</span>
+</div>
+</div>
+<div class="flex items-center gap-3 pt-2">
+<div class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
+</div>
+<span class="text-xs font-bold text-stone-600">Forçar troca de senha no primeiro acesso</span>
+</div>
+<div class="flex items-center gap-4 pt-6">
+<button class="flex-1 px-6 py-3 border border-stone-200 text-stone-600 rounded font-bold text-xs uppercase tracking-widest hover:bg-stone-50 transition-all" type="button">Cancelar</button>
+<button class="flex-1 px-6 py-3 bg-[#1c1917] text-white rounded font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all" type="submit">Salvar Usuário</button>
+</div>
+</form>
+</div>
+</div>
+<!-- Delete Confirmation (Warning Banner style) - Hidden by default in actual UI but rendered here per task -->
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-md z-[70] hidden">
+<div class="bg-white rounded-xl shadow-2xl border-l-4 border-error overflow-hidden p-6 flex items-start gap-4">
+<div class="bg-error-container/20 p-2 rounded-full">
+<span class="material-symbols-outlined text-error">warning</span>
+</div>
+<div class="flex-1">
+<h4 class="text-stone-900 font-bold text-sm">Excluir Usuário?</h4>
+<p class="text-stone-500 text-xs mt-1 mb-4">Esta ação não pode ser desfeita. O usuário perderá acesso imediato a todos os recursos do Norte Apex.</p>
+<div class="flex items-center gap-3">
+<button class="text-error text-[10px] font-black uppercase tracking-widest hover:underline">Confirmar Exclusão</button>
+<button class="text-stone-400 text-[10px] font-black uppercase tracking-widest hover:text-stone-900 transition-colors">Manter</button>
+</div>
+</div>
+</div>
+</div>
+</body></html>

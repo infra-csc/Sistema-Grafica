@@ -243,7 +243,7 @@ export default function DashboardAnalises() {
       </div>
 
       {/* ── Global filters — editorial border-bottom only ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 24, marginBottom: 36 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, marginBottom: 36 }}>
         <div>
           <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 8 }}>Período</div>
           <select value={period} onChange={e => setPeriod(e.target.value)} data-testid="select-period" style={selStyle}>
@@ -263,11 +263,6 @@ export default function DashboardAnalises() {
             <option>Toda a Produção</option>
             {[...new Set(items.map(i => i.type).filter(Boolean))].map(t => <option key={t}>{t}</option>)}
           </select>
-        </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-          <button style={{ backgroundColor: T.accent, color: "#fff", border: "none", padding: "10px 20px", fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", cursor: "pointer" }}>
-            Atualizar
-          </button>
         </div>
       </div>
 

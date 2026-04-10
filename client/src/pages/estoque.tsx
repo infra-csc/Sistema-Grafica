@@ -574,8 +574,8 @@ export default function Estoque() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead>
                 <tr>
-                  {["Identificador","Equipamento","Status","Condição","Localização","Arte / Tags","Ações"].map((h, i) => (
-                    <th key={h} style={{ ...TH, textAlign: i === 6 ? "center" : "left" }}>{h}</th>
+                  {["Identificador","Equipamento","Status","Condição","Qtd","Ações"].map((h, i) => (
+                    <th key={h} style={{ ...TH, textAlign: i === 5 ? "center" : "left" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -639,31 +639,12 @@ export default function Estoque() {
                       {/* Condition */}
                       <td style={TD}><Badge color={cm.color} bg={cm.bg} label={cm.label} /></td>
 
-                      {/* Location */}
+                      {/* Quantity */}
                       <td style={TD}>
-                        {asset.location ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#64748b" }}>
-                            <MapPin size={12} color="#94a3b8" />
-                            <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>{asset.location}</span>
-                          </div>
-                        ) : <span style={{ color: "#e2e8f0", fontSize: 12 }}>—</span>}
-                      </td>
-
-                      {/* Art + Tags */}
-                      <td style={TD}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {asset.approvalThumbUrl && <ArtThumb url={asset.approvalThumbUrl} />}
-                          {asset.franchiseTags && asset.franchiseTags.length > 0 ? (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                              {asset.franchiseTags.slice(0, 2).map(t => (
-                                <span key={t} style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(251,146,60,0.08)", color: "#f97316", fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", textTransform: "uppercase", border: "1px solid rgba(251,146,60,0.15)" }}>{t}</span>
-                              ))}
-                              {asset.franchiseTags.length > 2 && (
-                                <span style={{ padding: "2px 7px", borderRadius: 6, background: "#f8fafc", color: "#94a3b8", fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}>+{asset.franchiseTags.length - 2}</span>
-                              )}
-                            </div>
-                          ) : (!asset.approvalThumbUrl && <span style={{ color: "#e2e8f0", fontSize: 12 }}>—</span>)}
-                        </div>
+                        <span style={{ fontFamily: "DM Mono, monospace", fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                          {asset.quantity ?? 1}
+                        </span>
+                        <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", marginLeft: 3 }}>un</span>
                       </td>
 
                       {/* Actions — opacity-0, visible on row hover */}

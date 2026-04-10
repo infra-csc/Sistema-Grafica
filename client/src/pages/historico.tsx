@@ -25,23 +25,23 @@ const TYPE_CONFIG: Record<string, {
   icon: any;
 }> = {
   event_created: {
-    label: "event_created", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#f97316",
+    label: "Evento Criado", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#f97316",
     icon: Calendar,
   },
   item_created: {
-    label: "item_created", dot: "#625d5b", bg: "#f5f5f4", border: "#e7e5e4", color: "#44403c",
+    label: "Peça Adicionada", dot: "#625d5b", bg: "#f5f5f4", border: "#e7e5e4", color: "#44403c",
     icon: Plus,
   },
   item_approved: {
-    label: "item_approved", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
+    label: "Peça Liberada", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
     icon: FileCheck,
   },
   production_started: {
-    label: "production_started", dot: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8",
+    label: "Em Produção", dot: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8",
     icon: Package,
   },
   item_delivered: {
-    label: "item_delivered", dot: "#9333ea", bg: "#faf5ff", border: "#e9d5ff", color: "#7e22ce",
+    label: "Peça Entregue", dot: "#9333ea", bg: "#faf5ff", border: "#e9d5ff", color: "#7e22ce",
     icon: Truck,
   },
 };

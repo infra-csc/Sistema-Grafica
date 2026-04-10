@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { InventoryAsset, Sponsor } from "@shared/schema";
+import type { InventoryAsset, Sponsor, Item, Event } from "@shared/schema";
 import {
   Archive, Plus, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
   XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame,
@@ -347,11 +347,37 @@ export default function Estoque() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterCondition, setFilterCondition] = useState("all");
   const [filterAutoAdded, setFilterAutoAdded] = useState("all");
+  const [filterEvent, setFilterEvent] = useState("all");
+  const [filterSponsor, setFilterSponsor] = useState("all");
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
 
   const { data: assets = [], isLoading } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
   const { data: sponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
+  const { data: allItems = [] } = useQuery<Item[]>({ queryKey: ["/api/items"] });
+  const { data: allEvents = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+
+  // Map assetId → eventName via originalItemId → item → event
+  const assetEventMap = useMemo(() => {
+    const itemMap = Object.fromEntries(allItems.map(i => [i.id, i]));
+    const eventMap = Object.fromEntries(allEvents.map(e => [e.id, e]));
+    const map: Record<string, { id: string; name: string }> = {};
+    for (const asset of assets) {
+      if (!asset.originalItemId) continue;
+      const item = itemMap[asset.originalItemId];
+      if (!item) continue;
+      const event = eventMap[item.eventId];
+      if (event) map[asset.id] = { id: event.id, name: event.name };
+    }
+    return map;
+  }, [assets, allItems, allEvents]);
+
+  // Unique events that appear in the current asset list
+  const eventOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const v of Object.values(assetEventMap)) seen.set(v.id, v.name);
+    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [assetEventMap]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
@@ -370,10 +396,12 @@ export default function Estoque() {
     const mst = filterStatus === "all" || a.trackingStatus === filterStatus;
     const mc = filterCondition === "all" || a.condition === filterCondition;
     const ma = filterAutoAdded === "all" || (filterAutoAdded === "auto" ? a.autoAdded : !a.autoAdded);
-    return ms && mst && mc && ma;
+    const me = filterEvent === "all" || assetEventMap[a.id]?.id === filterEvent;
+    const msp = filterSponsor === "all" || (a.sponsorIds ?? []).includes(filterSponsor);
+    return ms && mst && mc && ma && me && msp;
   });
 
-  const hasFilters = search || filterStatus !== "all" || filterCondition !== "all" || filterAutoAdded !== "all";
+  const hasFilters = !!(search || filterStatus !== "all" || filterCondition !== "all" || filterAutoAdded !== "all" || filterEvent !== "all" || filterSponsor !== "all");
 
   const TH: React.CSSProperties = {
     padding: "18px 24px", fontSize: 10, fontWeight: 700, letterSpacing: "0.2em",
@@ -461,10 +489,50 @@ export default function Estoque() {
           </select>
         ))}
 
+        {/* Filtro por Evento */}
+        <select
+          data-testid="select-filter-event"
+          value={filterEvent}
+          onChange={e => setFilterEvent(e.target.value)}
+          style={{
+            border: "none", borderRadius: 12, fontSize: 11, fontWeight: 700,
+            fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.08em",
+            padding: "10px 14px",
+            background: filterEvent !== "all" ? "#f0f4ff" : "#f8fafc",
+            color: filterEvent !== "all" ? "#4338ca" : "#475569",
+            cursor: "pointer", outline: "none", textTransform: "uppercase",
+          }}
+        >
+          <option value="all">EVENTO: TODOS</option>
+          {eventOptions.map(([id, name]) => (
+            <option key={id} value={id}>{name}</option>
+          ))}
+        </select>
+
+        {/* Filtro por Patrocinador */}
+        <select
+          data-testid="select-filter-sponsor"
+          value={filterSponsor}
+          onChange={e => setFilterSponsor(e.target.value)}
+          style={{
+            border: "none", borderRadius: 12, fontSize: 11, fontWeight: 700,
+            fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.08em",
+            padding: "10px 14px",
+            background: filterSponsor !== "all" ? "#faf5ff" : "#f8fafc",
+            color: filterSponsor !== "all" ? "#7c3aed" : "#475569",
+            cursor: "pointer", outline: "none", textTransform: "uppercase",
+          }}
+        >
+          <option value="all">PATROCINADOR: TODOS</option>
+          {sponsors.map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+
         <div style={{ width: 1, height: 32, background: "#f1f5f9" }} />
 
         {hasFilters && (
-          <button data-testid="button-clear-filters" onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); }} style={{
+          <button data-testid="button-clear-filters" onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); setFilterEvent("all"); setFilterSponsor("all"); }} style={{
             display: "flex", alignItems: "center", gap: 4, padding: "9px 12px", borderRadius: 10,
             border: "none", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer",
             fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,

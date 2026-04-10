@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset } from "@shared/schema";
 import {
-  ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save, CalendarDays, Tag,
+  ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save, CalendarDays, Tag, X,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -98,10 +98,29 @@ export default function TriagemRetorno() {
   const [entries, setEntries] = useState<Record<string, TriagemEntry>>({});
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [filterEvent, setFilterEvent] = useState("all");
+  const [filterSponsor, setFilterSponsor] = useState("all");
 
   const { data: awaitingAssets = [], isLoading, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
   });
+
+  // Derived filter options
+  const eventOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const a of awaitingAssets) {
+      if (a.eventName) seen.set(a.eventName, a.eventName);
+    }
+    return Array.from(seen.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [awaitingAssets]);
+
+  const sponsorOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const a of awaitingAssets) {
+      for (const s of (a.sponsors ?? [])) seen.set(s.id, s.name);
+    }
+    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [awaitingAssets]);
 
   const getEntry = (id: string): TriagemEntry =>
     entries[id] ?? { condition: "PERFEITO", result: "NO_GALPAO", notes: "", selected: false };
@@ -158,7 +177,14 @@ export default function TriagemRetorno() {
     setEntries(prev => ({ ...prev, ...update }));
   };
 
-  const pendingAssets = awaitingAssets.filter(a => !savedIds.has(a.id));
+  const hasFilters = filterEvent !== "all" || filterSponsor !== "all";
+
+  const pendingAssets = awaitingAssets.filter(a => {
+    if (savedIds.has(a.id)) return false;
+    const me = filterEvent === "all" || a.eventName === filterEvent;
+    const msp = filterSponsor === "all" || (a.sponsors ?? []).some(s => s.id === filterSponsor);
+    return me && msp;
+  });
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
   const SEL: React.CSSProperties = {
@@ -219,6 +245,84 @@ export default function TriagemRetorno() {
         <StatCard label="Selecionados" value={selectedIds.length} Icon={CheckCircle2} color="#16a34a" iconBg="#bbf7d0" />
         <StatCard label="Triados Hoje" value={savedIds.size} Icon={Warehouse} color="#2563eb" iconBg="#bfdbfe" />
       </div>
+
+      {/* ── Filter bar ── */}
+      {(eventOptions.length > 0 || sponsorOptions.length > 0) && (
+        <div style={{
+          background: "#fff", padding: "10px 16px", borderRadius: 16,
+          border: "1px solid #e2e8f0", marginBottom: 20,
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+        }}>
+          <ScanSearch size={13} color="#94a3b8" />
+          <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", marginRight: 4 }}>
+            Filtrar
+          </span>
+
+          {eventOptions.length > 0 && (
+            <select
+              data-testid="select-triage-filter-event"
+              value={filterEvent}
+              onChange={e => setFilterEvent(e.target.value)}
+              style={{
+                border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700,
+                fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
+                padding: "8px 12px",
+                background: filterEvent !== "all" ? "#f0f4ff" : "#f8fafc",
+                color: filterEvent !== "all" ? "#4338ca" : "#475569",
+                cursor: "pointer", outline: "none", textTransform: "uppercase",
+              }}
+            >
+              <option value="all">EVENTO: TODOS</option>
+              {eventOptions.map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          )}
+
+          {sponsorOptions.length > 0 && (
+            <select
+              data-testid="select-triage-filter-sponsor"
+              value={filterSponsor}
+              onChange={e => setFilterSponsor(e.target.value)}
+              style={{
+                border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700,
+                fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
+                padding: "8px 12px",
+                background: filterSponsor !== "all" ? "#faf5ff" : "#f8fafc",
+                color: filterSponsor !== "all" ? "#7c3aed" : "#475569",
+                cursor: "pointer", outline: "none", textTransform: "uppercase",
+              }}
+            >
+              <option value="all">PATROCINADOR: TODOS</option>
+              {sponsorOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+          )}
+
+          {hasFilters && (
+            <>
+              <div style={{ width: 1, height: 24, background: "#e2e8f0" }} />
+              <button
+                data-testid="button-triage-clear-filters"
+                onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 4, padding: "7px 10px", borderRadius: 8,
+                  border: "none", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer",
+                  fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+                }}
+              >
+                <X size={10} /> Limpar
+              </button>
+            </>
+          )}
+
+          <span style={{ marginLeft: "auto", fontSize: 10, color: "#cbd5e1", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            {pendingAssets.length} aguardando
+          </span>
+        </div>
+      )}
 
       {/* ── Main card ── */}
       {isLoading ? (

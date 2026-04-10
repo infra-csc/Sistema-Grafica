@@ -28,15 +28,15 @@ const CONDITION_META: Record<string, { label: string; color: string; bg: string;
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 type Condition = typeof CONDITIONS[number];
 
-// ─── Pill badge ─────────────────────────────────────────────────────────────
+// ─── Badge rounded-lg ────────────────────────────────────────────────────────
 function Pill({ color, bg, label }: { color: string; bg: string; label: string }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center",
-      padding: "3px 10px", borderRadius: 9999,
+      padding: "4px 10px", borderRadius: 8,
       fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
       fontFamily: "Space Grotesk, sans-serif",
-      color, background: bg,
+      color, background: bg, border: `1px solid ${color}30`,
     }}>
       {label}
     </span>

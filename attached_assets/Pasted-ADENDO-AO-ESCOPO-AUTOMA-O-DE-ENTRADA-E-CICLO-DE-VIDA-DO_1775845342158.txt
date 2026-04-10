@@ -1,0 +1,34 @@
+ADENDO AO ESCOPO: AUTOMAÇÃO DE ENTRADA E CICLO DE VIDA DO ESTOQUE
+VISÃO GERAL
+O sistema deve gerenciar automaticamente o ciclo de vida logístico dos ativos (`inventory_assets`), desde o seu "nascimento" na Gráfica até a sua alocação, uso e retorno para triagem, baseando-se nos gatilhos de tempo do evento (`truckDepartureDate` e `startDate`).
+
+ATUALIZAÇÃO NO BANCO DE DADOS (Drizzle ORM)
+Na tabela `inventory_assets`, substituir o booleano `available` por um Enum de tracking:
+- trackingStatus (enum: 'NO_GALPAO', 'EM_USO', 'AGUARDANDO_TRIAGEM', 'DESCARTADO')
+
+AUTOMATIZAÇÕES DE BACKEND (CRON JOBS E TRIGGERS)
+O backend deve implementar as seguintes automações de transição de status:
+
+1. O "Nascimento" do Ativo (Integração com Gráfica)
+   - Gatilho: Quando a Gráfica altera o status de um `item` para `produzido`.
+   - Ação: O sistema verifica a `quantity` do item. Se a quantidade for 5, o sistema insere automaticamente 5 novos registros na tabela `inventory_assets`.
+   - Dados iniciais: `trackingStatus` nasce como `NO_GALPAO` (ou já associado ao evento atual), com a condição `PERFEITO`.
+   - Regra de ID: O `displayId` deve ser gerado em série (ex: se o item é #0062, o sistema gera #EST-0062-1, #EST-0062-2...).
+
+2. A Saída (Em Uso)
+   - Gatilho: Um job rodando em background (ou avaliação em tempo real) que checa o `truckDepartureDate` do evento.
+   - Ação: No exato minuto de `truckDepartureDate`, todos os `inventory_assets` vinculados àquele evento (seja alocados de estoque anterior ou recém-produzidos) têm seu `trackingStatus` alterado para `EM_USO`.
+   - UI: Na tela de Estoque, esses itens aparecem com um badge laranja "Em uso no evento: [Nome do Evento]".
+
+3. O Retorno (Aguardando Triagem)
+   - Gatilho: 24 horas (1 dia) após a `startDate` do evento (ou imediatamente quando o evento for manualmente marcado como `completed` pela equipe).
+   - Ação: O sistema altera o `trackingStatus` dos itens vinculados para `AGUARDANDO_TRIAGEM`.
+   - Notificação: Dispara evento via WebSocket para a equipe de Atendimento/Estoque: "Os materiais do [Nome do Evento] retornaram e aguardam triagem".
+   - UI: Esses itens aparecem na página `/triagem-retorno` para que o usuário avalie se voltaram `PERFEITO`, `AVARIA_LEVE` ou `SUCATA`. Após a triagem e salvamento, eles voltam a ser `NO_GALPAO`.
+
+INTERFACE — MELHORIAS NA TELA DE ESTOQUE (/estoque)
+- Indicadores Visuais de Tracking: Usar as cores do Tema Titanium para o status:
+  - NO_GALPAO: Bolinha Verde (#16a34a)
+  - EM_USO: Bolinha Azul (#2563eb) com ícone de caminhão
+  - AGUARDANDO_TRIAGEM: Bolinha Laranja (#f97316)
+- Quantidades Dinâmicas: No card da franquia (ex: "Night Run"), mostrar um resumo consolidado: "Total: 15 itens (10 no galpão, 5 em uso)".

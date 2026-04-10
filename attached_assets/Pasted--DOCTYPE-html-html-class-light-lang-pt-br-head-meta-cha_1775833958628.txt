@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Norte Sponsorship | Gerenciamento de Patrocinadores</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#f9f9f8",
+                    "surface-bright": "#f9f9f8",
+                    "surface-container-low": "#f3f4f3",
+                    "error": "#ba1a1a",
+                    "on-primary-container": "#35322f",
+                    "tertiary-fixed": "#cde5ff",
+                    "background": "#f9f9f8",
+                    "surface-container-highest": "#e2e2e2",
+                    "on-primary-fixed": "#1e1b19",
+                    "tertiary-container": "#00a2f4",
+                    "surface-tint": "#625d5b",
+                    "inverse-on-surface": "#f1f1f0",
+                    "tertiary-fixed-dim": "#93ccff",
+                    "secondary": "#9d4300",
+                    "on-secondary-fixed-variant": "#783200",
+                    "on-primary-fixed-variant": "#4a4643",
+                    "on-surface-variant": "#584237",
+                    "primary-fixed-dim": "#ccc5c2",
+                    "on-secondary-fixed": "#341100",
+                    "outline": "#8c7164",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed-variant": "#004b74",
+                    "tertiary": "#006398",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "primary-container": "#9f9996",
+                    "surface-container": "#eeeeed",
+                    "on-tertiary-fixed": "#001d32",
+                    "surface-container-high": "#e8e8e7",
+                    "secondary-fixed-dim": "#ffb690",
+                    "secondary-container": "#fd761a",
+                    "on-error": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "primary-fixed": "#e9e1dd",
+                    "outline-variant": "#e0c0b1",
+                    "on-surface": "#1a1c1c",
+                    "on-tertiary": "#ffffff",
+                    "on-primary": "#ffffff",
+                    "on-secondary-container": "#5c2400",
+                    "surface-variant": "#e2e2e2",
+                    "on-background": "#1a1c1c",
+                    "inverse-primary": "#ccc5c2",
+                    "on-tertiary-container": "#003554",
+                    "inverse-surface": "#2f3130",
+                    "surface-dim": "#dadad9",
+                    "primary": "#625d5b",
+                    "secondary-fixed": "#ffdbca"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Space Grotesk"],
+                    "body": ["Plus Jakarta Sans"],
+                    "label": ["Plus Jakarta Sans"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .kerning-tight { letter-spacing: -0.05em; }
+        .editorial-shadow { box-shadow: 0 16px 32px rgba(26, 28, 28, 0.05); }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- TopNavBar Alignment -->
+<header class="w-full top-0 sticky z-50 bg-[#f9f9f8] dark:bg-[#1c1917]">
+<div class="flex justify-between items-center h-20 px-8 max-w-screen-2xl mx-auto">
+<div class="text-2xl font-black tracking-[-0.05em] text-[#1c1917] dark:text-[#f9f9f8] font-['Space_Grotesk'] uppercase">
+                NORTE SPONSORSHIP
+            </div>
+<nav class="hidden md:flex items-center space-x-8 font-['Space_Grotesk'] tracking-[-0.02em] font-bold uppercase">
+<a class="text-[#625d5b] dark:text-[#f9f9f8]/60 hover:text-[#1c1917] transition-all duration-200" href="#">Portfolio</a>
+<a class="text-[#625d5b] dark:text-[#f9f9f8]/60 hover:text-[#1c1917] transition-all duration-200" href="#">Analytics</a>
+<a class="text-[#f97316] border-b-2 border-[#f97316] pb-1" href="#">Contracts</a>
+<a class="text-[#625d5b] dark:text-[#f9f9f8]/60 hover:text-[#1c1917] transition-all duration-200" href="#">Logistics</a>
+</nav>
+<div class="flex items-center space-x-6">
+<div class="flex space-x-4">
+<span class="material-symbols-outlined text-primary cursor-pointer hover:opacity-80 transition-opacity">notifications</span>
+<span class="material-symbols-outlined text-primary cursor-pointer hover:opacity-80 transition-opacity">settings</span>
+</div>
+<button class="bg-[#1c1917] text-white px-6 py-2.5 rounded-md font-headline font-bold text-sm tracking-tight scale-95 active:scale-100 transition-transform">
+                    New Partner
+                </button>
+</div>
+</div>
+</header>
+<div class="flex">
+<!-- SideNavBar Alignment -->
+<aside class="hidden lg:flex flex-col fixed left-0 top-0 h-full py-8 px-4 w-64 bg-[#f9f9f8] dark:bg-[#1c1917] border-r-0 z-40">
+<div class="mb-12 px-4">
+<div class="font-['Space_Grotesk'] font-black tracking-tighter text-xl text-[#f97316]">NORTE</div>
+<div class="text-[10px] uppercase tracking-widest text-primary font-bold">Elite Marketing</div>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center space-x-3 px-4 py-3 text-[#625d5b] dark:text-white/70 hover:bg-[#1c1917]/5 rounded-md font-semibold text-sm transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#f97316] bg-[#f97316]/5 rounded-md font-semibold text-sm transition-colors" href="#">
+<span class="material-symbols-outlined">handshake</span>
+<span>Global Partners</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#625d5b] dark:text-white/70 hover:bg-[#1c1917]/5 rounded-md font-semibold text-sm transition-colors" href="#">
+<span class="material-symbols-outlined">campaign</span>
+<span>Campaigns</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#625d5b] dark:text-white/70 hover:bg-[#1c1917]/5 rounded-md font-semibold text-sm transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span>Inventory</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-[#625d5b] dark:text-white/70 hover:bg-[#1c1917]/5 rounded-md font-semibold text-sm transition-colors" href="#">
+<span class="material-symbols-outlined">insights</span>
+<span>ROI Reports</span>
+</a>
+</nav>
+<div class="mt-auto px-4 py-4 space-y-4">
+<div class="bg-surface-container-high p-4 rounded-xl">
+<p class="text-[10px] font-bold uppercase text-primary mb-2">Partner Level</p>
+<p class="text-xs font-semibold mb-3">Upgrade status to access Global Logistics</p>
+<button class="w-full bg-[#f97316] text-white py-2 rounded font-bold text-[11px] uppercase tracking-wider">Upgrade Status</button>
+</div>
+<div class="space-y-1">
+<a class="flex items-center space-x-3 px-2 py-2 text-[#625d5b] text-sm hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined text-lg">help</span>
+<span>Support</span>
+</a>
+<a class="flex items-center space-x-3 px-2 py-2 text-error text-sm hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined text-lg">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 lg:ml-64 px-8 py-12 max-w-7xl mx-auto">
+<!-- Page Header -->
+<div class="mb-16">
+<h1 class="font-headline font-black text-7xl kerning-tight text-on-surface uppercase mb-2">PATROCINADORES</h1>
+<div class="flex items-center space-x-4">
+<p class="text-primary font-medium tracking-wide uppercase text-sm">Gerenciamento de parcerias estratégicas 2024/25</p>
+<div class="h-px w-24 bg-outline-variant opacity-30"></div>
+</div>
+</div>
+<!-- Dashboard Bento Grid / Premium Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+<!-- Sponsor Card 1 -->
+<div class="bg-surface-container-lowest editorial-shadow rounded-lg overflow-hidden flex flex-col group transition-all duration-300 hover:-translate-y-1">
+<div class="h-2 w-full bg-secondary"></div>
+<div class="p-8 flex-1">
+<div class="flex justify-between items-start mb-6">
+<div class="w-16 h-16 bg-surface-container-low rounded-lg flex items-center justify-center overflow-hidden">
+<img alt="Partner Logo" class="w-12 h-12 object-contain" data-alt="minimalist corporate logo for a global energy brand on a clean grey background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuABZ-b7pTe9-Nodo65_Xb12Hn8Wzyb3oT_lP6Ksc3NmMyxo6OOb2yr4GtLsU4dP4IFHZ8Nn6jG51R4REeIMNj5fI3oEKAkMhapvndAH36yS9VxnpJ6kAKp3OpgTedAaNqJks8QVHuG8Xk6xlYEga4gB-CYyWT_fdP7e4QvFP_JHrdjgzW-GWgDGeWd0K3uUjkZTh65Ir8PT7hVFvpkL7f_2Hg9LM28QGJnzdTSubfpeEfN6qUwzDkHL055tq47e_3JQbmlYnQE4gg05"/>
+</div>
+<div class="flex space-x-2">
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined text-primary text-xl">edit</span>
+</button>
+<button class="p-2 hover:bg-error/5 rounded-full transition-colors">
+<span class="material-symbols-outlined text-error text-xl">delete</span>
+</button>
+</div>
+</div>
+<h3 class="font-headline font-black text-2xl kerning-tight mb-1 text-on-surface">ENERGY PLUS</h3>
+<p class="text-xs font-bold text-secondary uppercase tracking-widest mb-6">Platinum Partner</p>
+<div class="space-y-4 pt-6 border-t border-surface-container-low">
+<div>
+<p class="text-[10px] text-primary uppercase font-bold tracking-tighter mb-1">Empresa</p>
+<p class="text-sm font-semibold text-on-surface">Plus International S.A.</p>
+</div>
+<div>
+<p class="text-[10px] text-primary uppercase font-bold tracking-tighter mb-1">Contato Direto</p>
+<p class="text-sm font-semibold text-on-surface">Marcos Oliveira</p>
+</div>
+<div>
+<p class="text-[10px] text-primary uppercase font-bold tracking-tighter mb-1">E-mail</p>
+<p class="text-sm font-semibold text-on-surface">m.oliveira@energyplus.com</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Sponsor Card 2 -->
+<div class="bg-surface-container-lowest editorial-shadow rounded-lg overflow-hidden flex flex-col group transition-all duration-300 hover:-translate-y-1">
+<div class="h-2 w-full bg-tertiary"></div>
+<div class="p-8 flex-1">
+<div class="flex justify-between items-start mb-6">
+<div class="w-16 h-16 bg-surface-container-low rounded-lg flex items-center justify-center overflow-hidden">
+<img alt="Partner Logo" class="w-12 h-12 object-contain" data-alt="modern tech logo featuring abstract geometric shapes in deep blue and silver" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDTaQ-9GDhxV0VK6RMMa9jzpnOs61FBJn7K3A53jn8uqCM4miG2cqMUZ0Kg0c3zjV0UiasArb6DTS-6qOwjK_eLVBv2qKoEldsTn0WDzzYzzTkJ9wpVBjkmF4VlxZdTqNFEHyth6X3JwxHGpD5nnafxITuwZgjVoJ_LItKHNyFR-Qpv3gU1mDkVDEpfLXL8kS2U2ePThD_h1XCk60XefSV0y4o6FncxL41pvtBEKNj86j6v86IFnKLqc-F2AlE5pcS2Uf08AFggWNMv"/>
+</div>
+<div class="flex space-x-2">
+<button class="p-2 hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined text-primary text-xl">edit</span>
+</button>
+<button class="p-2 hover:bg-error/5 rounded-full transition-colors">
+<span class="material-symbols-outlined text-error text-xl">delete</span>
+</button>
+</div>
+</div>
+<h3 class="font-headline font-black text-2xl kerning-tight mb-1 text-on-surface">NEXT TECH</h3>
+<p class="text-xs font-bold text-tertiary uppercase tracking-widest mb-6">Digital Sponsor</p>
+<div class="space-y-4 pt-6 border-t border-surface-container-low">
+<div>
+<p class="text-[10px] text-primary uppercase font-bold tracking-tighter mb-1">Empresa</p>
+<p class="text-sm font-semibold text-on-surface">Next Solutions LTDA</p>
+</div>
+<div>
+<p class="text-[10px] text-primary uppercase font-bold tracking-tighter mb-1">Contato Direto</p>
+<p class="text-sm font-semibold text-on-surface">Sofia Mendes</p>
+</div>
+<div>
+<p class="text-[10px] text-primary uppercase font-bold tracking-tighter mb-1">E-mail</p>
+<p class="text-sm font-semibold text-on-surface">sofia@next-tech.br</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Add New Sponsor "Ghost" Card -->
+<div class="border-2 border-dashed border-outline-variant bg-transparent rounded-lg flex flex-col items-center justify-center p-8 group cursor-pointer hover:bg-surface-container-low transition-colors duration-200 min-h-[400px]">
+<div class="w-16 h-16 rounded-full bg-surface-container-highest flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl text-primary">add</span>
+</div>
+<p class="font-headline font-bold uppercase tracking-tight text-primary">Adicionar Novo Patrocinador</p>
+</div>
+</div>
+</main>
+</div>
+<!-- Registration Modal Overlay (Open by default as requested) -->
+<div class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#1c1917]/60 backdrop-blur-sm p-4">
+<div class="bg-surface w-full max-w-2xl rounded-xl editorial-shadow overflow-hidden">
+<!-- Modal Header -->
+<div class="p-8 border-b border-surface-container-low flex justify-between items-center bg-surface-bright">
+<div>
+<h2 class="font-headline font-black text-3xl kerning-tight uppercase text-on-surface">CADASTRO DE PATROCINADOR</h2>
+<p class="text-xs text-primary font-semibold uppercase tracking-widest mt-1">Insira os detalhes da nova parceria</p>
+</div>
+<button class="text-primary hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-3xl">close</span>
+</button>
+</div>
+<!-- Modal Content -->
+<div class="p-8 space-y-8 max-h-[716px] overflow-y-auto">
+<!-- General Info Section -->
+<section>
+<h3 class="text-[10px] font-black uppercase tracking-widest text-secondary mb-6 flex items-center">
+<span class="mr-2">01</span> Informações Gerais
+                    </h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold uppercase text-primary tracking-tight">Nome do Patrocinador</label>
+<input class="w-full bg-[#f0efee] border-none rounded-lg p-4 text-sm focus:ring-2 focus:ring-secondary/20 transition-all placeholder:text-primary/40" placeholder="Ex: Global Logistics" type="text"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold uppercase text-primary tracking-tight">Empresa (Razão Social)</label>
+<input class="w-full bg-[#f0efee] border-none rounded-lg p-4 text-sm focus:ring-2 focus:ring-secondary/20 transition-all placeholder:text-primary/40" placeholder="Razão Social Completa" type="text"/>
+</div>
+</div>
+</section>
+<!-- Identity Section -->
+<section>
+<h3 class="text-[10px] font-black uppercase tracking-widest text-secondary mb-6 flex items-center">
+<span class="mr-2">02</span> Identidade Visual
+                    </h3>
+<div class="flex items-center space-x-12">
+<div class="space-y-3">
+<p class="text-[11px] font-bold uppercase text-primary tracking-tight">Cor da Marca</p>
+<div class="flex space-x-3">
+<button class="w-8 h-8 rounded-full bg-secondary ring-2 ring-offset-2 ring-secondary ring-offset-surface"></button>
+<button class="w-8 h-8 rounded-full bg-tertiary hover:scale-110 transition-transform"></button>
+<button class="w-8 h-8 rounded-full bg-primary hover:scale-110 transition-transform"></button>
+<button class="w-8 h-8 rounded-full bg-on-surface hover:scale-110 transition-transform"></button>
+<button class="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-sm">colorize</span>
+</button>
+</div>
+</div>
+<div class="flex-1">
+<div class="border-2 border-dashed border-outline-variant rounded-xl p-4 flex items-center space-x-4 cursor-pointer hover:bg-surface-container-low transition-colors">
+<div class="w-12 h-12 bg-surface-container-highest rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">upload</span>
+</div>
+<div>
+<p class="text-xs font-bold text-on-surface">Upload Logo</p>
+<p class="text-[10px] text-primary">SVG, PNG ou JPG (Max 2MB)</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Contact Section -->
+<section>
+<h3 class="text-[10px] font-black uppercase tracking-widest text-secondary mb-6 flex items-center">
+<span class="mr-2">03</span> Contato Executivo
+                    </h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold uppercase text-primary tracking-tight">Pessoa de Contato</label>
+<input class="w-full bg-[#f0efee] border-none rounded-lg p-4 text-sm focus:ring-2 focus:ring-secondary/20 transition-all" placeholder="Nome do Gerente de Conta" type="text"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold uppercase text-primary tracking-tight">Telefone</label>
+<input class="w-full bg-[#f0efee] border-none rounded-lg p-4 text-sm focus:ring-2 focus:ring-secondary/20 transition-all" placeholder="+55 (00) 00000-0000" type="tel"/>
+</div>
+<div class="md:col-span-2 space-y-1.5">
+<label class="text-[11px] font-bold uppercase text-primary tracking-tight">E-mail Institucional</label>
+<input class="w-full bg-[#f0efee] border-none rounded-lg p-4 text-sm focus:ring-2 focus:ring-secondary/20 transition-all" placeholder="contato@empresa.com" type="email"/>
+</div>
+</div>
+</section>
+</div>
+<!-- Modal Footer -->
+<div class="p-8 bg-surface-container-low flex justify-end space-x-4">
+<button class="px-8 py-3 rounded-md font-headline font-bold text-xs uppercase tracking-widest text-primary hover:bg-surface-variant transition-colors">
+                    Cancelar
+                </button>
+<button class="px-10 py-3 rounded-md bg-[#1c1917] text-white font-headline font-black text-xs uppercase tracking-widest editorial-shadow hover:opacity-90 transition-opacity">
+                    Salvar Patrocinador
+                </button>
+</div>
+</div>
+</div>
+</body></html>

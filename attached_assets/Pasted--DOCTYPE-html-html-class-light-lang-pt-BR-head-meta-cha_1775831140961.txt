@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "primary": "#625d5b",
+                "secondary": "#f97316",
+                "background": "#fafaf9",
+                "surface": "#ffffff",
+                "surface-container": "#f3f4f3",
+                "on-surface": "#1a1c1c",
+                "outline": "#8c7164",
+                "tertiary": "#006398"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+            },
+            "fontFamily": {
+                "headline": ["Space Grotesk"],
+                "body": ["Plus Jakarta Sans"],
+                "label": ["Plus Jakarta Sans"],
+                "mono": ["DM Mono"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        h1, h2, h3, .font-headline { font-family: 'Space Grotesk', sans-serif; }
+        .font-mono { font-family: 'DM Mono', monospace; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e2e2; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-background text-on-surface">
+<div class="flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<aside class="hidden lg:flex flex-col h-full p-4 gap-2 bg-white w-64 border-r border-surface-container font-['Plus_Jakarta_Sans'] text-sm font-medium">
+<div class="flex items-center gap-3 mb-8 px-2">
+<div class="w-10 h-10 bg-secondary flex items-center justify-center rounded-md">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+<div>
+<h2 class="text-[#1c1917] font-bold leading-none">NORTE</h2>
+<p class="text-[10px] uppercase tracking-widest text-primary mt-1 font-bold">Marketing Core</p>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 bg-secondary text-white rounded-md ease-out duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Overview</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-primary hover:bg-background rounded-md ease-out duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="insights">insights</span>
+<span>Live Tracking</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-primary hover:bg-background rounded-md ease-out duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span>Revenue</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-primary hover:bg-background rounded-md ease-out duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="movie">movie</span>
+<span>Campaigns</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-primary hover:bg-background rounded-md ease-out duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span>Reports</span>
+</a>
+</nav>
+<div class="mt-auto flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-primary hover:bg-background rounded-md ease-out duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span>Help</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-primary hover:bg-background rounded-md ease-out duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto bg-background flex flex-col custom-scrollbar">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-8 py-4 bg-white border-b border-surface-container sticky top-0 z-30">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-bold tracking-tighter text-[#1c1917] font-headline uppercase">BI PERFORMANCE</h1>
+<nav class="hidden xl:flex gap-6 font-headline tracking-tight uppercase text-xs font-semibold">
+<a class="text-secondary border-b-2 border-secondary pb-1" href="#">Analytics</a>
+<a class="text-primary hover:text-secondary transition-all" href="#">Production</a>
+<a class="text-primary hover:text-secondary transition-all" href="#">Talent</a>
+<a class="text-primary hover:text-secondary transition-all" href="#">Strategy</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-primary text-lg" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-2 bg-background border-none rounded-md text-sm focus:ring-1 focus:ring-secondary/50 w-64" placeholder="Pesquisar inteligência..." type="text"/>
+</div>
+<button class="bg-secondary text-white px-4 py-2 rounded-md font-bold hover:brightness-110 transition-all text-xs uppercase tracking-wider">New Analysis</button>
+<div class="flex gap-1">
+<span class="material-symbols-outlined p-2 text-primary hover:bg-background rounded-full cursor-pointer" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined p-2 text-primary hover:bg-background rounded-full cursor-pointer" data-icon="settings">settings</span>
+</div>
+</div>
+</header>
+<!-- Dashboard Content -->
+<div class="p-8 max-w-[1600px] mx-auto w-full">
+<!-- 1. Tabs System -->
+<div class="flex items-center justify-between mb-6">
+<div class="flex bg-white p-1 rounded-xl shadow-sm border border-surface-container">
+<button class="px-6 py-2 rounded-lg text-sm font-bold bg-secondary text-white shadow-sm transition-all">Visão Geral</button>
+<button class="px-6 py-2 rounded-lg text-sm font-bold text-primary hover:text-secondary transition-all">Produção</button>
+<button class="px-6 py-2 rounded-lg text-sm font-bold text-primary hover:text-secondary transition-all">Logística</button>
+<button class="px-6 py-2 rounded-lg text-sm font-bold text-primary hover:text-secondary transition-all">Patrocinadores</button>
+<button class="px-6 py-2 rounded-lg text-sm font-bold text-primary hover:text-secondary transition-all">Financeiro</button>
+</div>
+<div class="flex gap-2">
+<button class="p-2 bg-white border border-surface-container rounded-lg text-primary hover:text-secondary" title="Exportar Dados">
+<span class="material-symbols-outlined text-xl" data-icon="file_download">file_download</span>
+</button>
+<button class="p-2 bg-white border border-surface-container rounded-lg text-primary hover:text-secondary" title="Compartilhar Dashboard">
+<span class="material-symbols-outlined text-xl" data-icon="share">share</span>
+</button>
+</div>
+</div>
+<!-- 2. Global Filters -->
+<div class="bg-white p-4 rounded-xl shadow-sm border border-surface-container mb-8 flex flex-wrap items-end gap-4">
+<div class="flex-1 min-w-[200px]">
+<label class="block text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-1.5 ml-1">Período</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-primary/50 text-lg" data-icon="calendar_today">calendar_today</span>
+<select class="w-full pl-10 pr-4 py-2.5 bg-background border-none rounded-lg text-xs font-bold text-on-surface focus:ring-1 focus:ring-secondary/50 appearance-none cursor-pointer">
+<option>01 Jan 2024 - 31 Mar 2024</option>
+<option>Últimos 30 dias</option>
+<option>Último Semestre</option>
+<option>Personalizado...</option>
+</select>
+</div>
+</div>
+<div class="flex-1 min-w-[150px]">
+<label class="block text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-1.5 ml-1">Eventos</label>
+<select class="w-full px-4 py-2.5 bg-background border-none rounded-lg text-xs font-bold text-on-surface focus:ring-1 focus:ring-secondary/50 cursor-pointer">
+<option>Todos os Eventos (12)</option>
+<option>Norte Cup 2024</option>
+<option>Summit Performance</option>
+</select>
+</div>
+<div class="flex-1 min-w-[150px]">
+<label class="block text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-1.5 ml-1">Patrocinadores</label>
+<select class="w-full px-4 py-2.5 bg-background border-none rounded-lg text-xs font-bold text-on-surface focus:ring-1 focus:ring-secondary/50 cursor-pointer">
+<option>Todos Ativos</option>
+<option>Nike Brasil</option>
+<option>Red Bull</option>
+</select>
+</div>
+<div class="flex-1 min-w-[150px]">
+<label class="block text-[10px] font-bold text-primary/60 uppercase tracking-widest mb-1.5 ml-1">Tipo de Item</label>
+<select class="w-full px-4 py-2.5 bg-background border-none rounded-lg text-xs font-bold text-on-surface focus:ring-1 focus:ring-secondary/50 cursor-pointer">
+<option>Toda Produção</option>
+<option>Vestuário</option>
+<option>Sinalização</option>
+</select>
+</div>
+<div class="flex gap-2">
+<button class="px-6 py-2.5 bg-secondary text-white rounded-lg text-xs font-bold uppercase tracking-wider hover:brightness-110 transition-all">Apply</button>
+<button class="px-4 py-2.5 bg-surface-container text-primary rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-surface-container-low transition-all">Clear</button>
+</div>
+</div>
+<!-- 3. Enhanced KPI Section -->
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+<!-- KPI 1 -->
+<div class="bg-white p-5 rounded-xl border border-surface-container shadow-sm hover:shadow-md transition-all group relative cursor-help">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-orange-50 text-secondary rounded-lg">
+<span class="material-symbols-outlined text-lg" data-icon="event">event</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold text-green-600">+12%</span>
+<div class="w-12 h-4 overflow-hidden">
+<svg class="w-full h-full" viewbox="0 0 100 30"><path d="M0,25 Q10,15 20,20 T40,10 T60,25 T80,15 T100,5" fill="none" stroke="#16a34a" stroke-width="3"></path></svg>
+</div>
+</div>
+</div>
+<p class="text-[9px] font-bold uppercase tracking-widest text-primary/70 mb-1">Total Events</p>
+<h3 class="text-xl font-mono font-medium tracking-tight">1,482</h3>
+</div>
+<!-- KPI 2 -->
+<div class="bg-white p-5 rounded-xl border border-surface-container shadow-sm hover:shadow-md transition-all group relative cursor-help">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-blue-50 text-tertiary rounded-lg">
+<span class="material-symbols-outlined text-lg" data-icon="inventory_2">inventory_2</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold text-green-600">+8.2%</span>
+<div class="w-12 h-4 overflow-hidden">
+<svg class="w-full h-full" viewbox="0 0 100 30"><path d="M0,20 Q20,25 40,15 T70,10 T100,5" fill="none" stroke="#16a34a" stroke-width="3"></path></svg>
+</div>
+</div>
+</div>
+<p class="text-[9px] font-bold uppercase tracking-widest text-primary/70 mb-1">Active Items</p>
+<h3 class="text-xl font-mono font-medium tracking-tight">42,903</h3>
+</div>
+<!-- KPI 3 -->
+<div class="bg-white p-5 rounded-xl border border-surface-container shadow-sm hover:shadow-md transition-all group relative cursor-help">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-purple-50 text-purple-600 rounded-lg">
+<span class="material-symbols-outlined text-lg" data-icon="timer">timer</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold text-red-600">-2.4%</span>
+<div class="w-12 h-4 overflow-hidden">
+<svg class="w-full h-full" viewbox="0 0 100 30"><path d="M0,5 Q30,15 50,25 T100,20" fill="none" stroke="#dc2626" stroke-width="3"></path></svg>
+</div>
+</div>
+</div>
+<p class="text-[9px] font-bold uppercase tracking-widest text-primary/70 mb-1">Avg. Approval</p>
+<h3 class="text-xl font-mono font-medium tracking-tight">4.2d</h3>
+</div>
+<!-- KPI 4 -->
+<div class="bg-white p-5 rounded-xl border border-surface-container shadow-sm hover:shadow-md transition-all group relative cursor-help">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-green-50 text-green-600 rounded-lg">
+<span class="material-symbols-outlined text-lg" data-icon="local_shipping">local_shipping</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold text-green-600">Stable</span>
+<div class="w-12 h-4 overflow-hidden">
+<svg class="w-full h-full" viewbox="0 0 100 30"><path d="M0,15 L100,15" fill="none" stroke="#16a34a" stroke-width="3"></path></svg>
+</div>
+</div>
+</div>
+<p class="text-[9px] font-bold uppercase tracking-widest text-primary/70 mb-1">Logistics Eff.</p>
+<h3 class="text-xl font-mono font-medium tracking-tight">94.2%</h3>
+</div>
+<!-- KPI 5 -->
+<div class="bg-white p-5 rounded-xl border border-surface-container shadow-sm hover:shadow-md transition-all group relative cursor-help">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-gray-50 text-primary rounded-lg">
+<span class="material-symbols-outlined text-lg" data-icon="payments">payments</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold text-green-600">-5.1%</span>
+<div class="w-12 h-4 overflow-hidden">
+<svg class="w-full h-full" viewbox="0 0 100 30"><path d="M0,5 Q50,5 100,25" fill="none" stroke="#16a34a" stroke-width="3"></path></svg>
+</div>
+</div>
+</div>
+<p class="text-[9px] font-bold uppercase tracking-widest text-primary/70 mb-1">Prod. Cost</p>
+<h3 class="text-xl font-mono font-medium tracking-tight">R$ 1.2M</h3>
+</div>
+<!-- KPI 6 -->
+<div class="bg-white p-5 rounded-xl border border-surface-container shadow-sm hover:shadow-md transition-all group relative cursor-help">
+<div class="flex justify-between items-start mb-3">
+<div class="p-2 bg-yellow-50 text-yellow-600 rounded-lg">
+<span class="material-symbols-outlined text-lg" data-icon="conversion_path">conversion_path</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[10px] font-bold text-green-600">+1.8%</span>
+<div class="w-12 h-4 overflow-hidden">
+<svg class="w-full h-full" viewbox="0 0 100 30"><path d="M0,25 Q20,5 50,15 T100,5" fill="none" stroke="#16a34a" stroke-width="3"></path></svg>
+</div>
+</div>
+</div>
+<p class="text-[9px] font-bold uppercase tracking-widest text-primary/70 mb-1">Conversion</p>
+<h3 class="text-xl font-mono font-medium tracking-tight">28.4%</h3>
+</div>
+</div>
+<!-- 4. Content Row 1: Area Chart & Donut -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+<!-- Volume vs Entregas Area Chart -->
+<div class="lg:col-span-2 bg-white p-8 rounded-xl border border-surface-container shadow-sm">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="text-xl font-headline font-bold tracking-tight">Volume de Produção vs. Entregas</h3>
+<p class="text-xs text-primary font-medium">Fluxo de materiais consolidado por mês</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="text-[10px] font-bold uppercase text-primary/70">Produção</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="text-[10px] font-bold uppercase text-primary/70">Entregas</span>
+</div>
+<button class="material-symbols-outlined text-primary/40 hover:text-secondary" data-icon="fullscreen">fullscreen</button>
+</div>
+</div>
+<div class="relative h-72 w-full">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 1000 300">
+<defs>
+<lineargradient id="prodGrad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#f97316" stop-opacity="0.15"></stop>
+<stop offset="100%" stop-color="#f97316" stop-opacity="0"></stop>
+</lineargradient>
+<lineargradient id="delGrad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#006398" stop-opacity="0.15"></stop>
+<stop offset="100%" stop-color="#006398" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<!-- Grid Lines -->
+<line stroke="#f3f4f3" stroke-width="1" x1="0" x2="1000" y1="50" y2="50"></line>
+<line stroke="#f3f4f3" stroke-width="1" x1="0" x2="1000" y1="125" y2="125"></line>
+<line stroke="#f3f4f3" stroke-width="1" x1="0" x2="1000" y1="200" y2="200"></line>
+<!-- Area 1: Produção -->
+<path d="M0,250 Q100,220 200,180 T400,100 T600,150 T800,80 T1000,40 L1000,300 L0,300 Z" fill="url(#prodGrad)"></path>
+<path d="M0,250 Q100,220 200,180 T400,100 T600,150 T800,80 T1000,40" fill="none" stroke="#f97316" stroke-linecap="round" stroke-width="3"></path>
+<!-- Area 2: Entregas -->
+<path d="M0,280 Q100,260 200,240 T400,200 T600,180 T800,140 T1000,120 L1000,300 L0,300 Z" fill="url(#delGrad)"></path>
+<path d="M0,280 Q100,260 200,240 T400,200 T600,180 T800,140 T1000,120" fill="none" stroke="#006398" stroke-dasharray="8,4" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+<div class="flex justify-between mt-4 px-2 text-[10px] font-bold text-primary/50 font-mono">
+<span>JAN</span><span>FEV</span><span>MAR</span><span>ABR</span><span>MAI</span><span>JUN</span><span>JUL</span>
+</div>
+</div>
+</div>
+<!-- Workflow Status Donut -->
+<div class="bg-white p-8 rounded-xl border border-surface-container shadow-sm flex flex-col">
+<div class="flex justify-between items-center mb-10">
+<h3 class="text-lg font-headline font-bold tracking-tight">Status de Workflow</h3>
+<span class="material-symbols-outlined text-primary/30" data-icon="info" title="Distribuição em tempo real">info</span>
+</div>
+<div class="flex-1 flex flex-col items-center justify-center">
+<div class="relative w-48 h-48">
+<svg class="w-full h-full -rotate-90">
+<circle class="fill-none stroke-surface-container" cx="50%" cy="50%" r="75" stroke-width="20"></circle>
+<circle class="fill-none stroke-secondary" cx="50%" cy="50%" r="75" stroke-dasharray="471" stroke-dashoffset="140" stroke-width="20"></circle>
+<circle class="fill-none stroke-tertiary" cx="50%" cy="50%" r="75" stroke-dasharray="471" stroke-dashoffset="380" stroke-width="20"></circle>
+<circle class="fill-none stroke-primary" cx="50%" cy="50%" r="75" stroke-dasharray="471" stroke-dashoffset="440" stroke-width="20"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-3xl font-headline font-bold">12.5k</span>
+<span class="text-[10px] uppercase font-bold text-primary/60 tracking-widest">Total Peças</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-x-8 gap-y-3 mt-10 w-full px-4">
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-secondary"></div>
+<span class="text-xs font-semibold text-primary">Produção</span>
+</div>
+<span class="text-xs font-mono font-bold text-on-surface">62%</span>
+</div>
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-tertiary"></div>
+<span class="text-xs font-semibold text-primary">Qualidade</span>
+</div>
+<span class="text-xs font-mono font-bold text-on-surface">24%</span>
+</div>
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-primary"></div>
+<span class="text-xs font-semibold text-primary">Planejamento</span>
+</div>
+<span class="text-xs font-mono font-bold text-on-surface">10%</span>
+</div>
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-surface-container"></div>
+<span class="text-xs font-semibold text-primary">Outros</span>
+</div>
+<span class="text-xs font-mono font-bold text-on-surface">4%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 5. Row 2: Horizontal Bar & Status Board -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+<!-- Top Patrocinadores Bar Chart -->
+<div class="bg-white p-8 rounded-xl border border-surface-container shadow-sm">
+<div class="flex justify-between items-center mb-8">
+<h3 class="text-xl font-headline font-bold tracking-tight">Top 10 Patrocinadores por Volume</h3>
+<button class="text-[10px] font-bold uppercase tracking-widest text-secondary hover:underline">Ver Todos</button>
+</div>
+<div class="space-y-4">
+<!-- Item 1 -->
+<div class="space-y-1 group">
+<div class="flex justify-between items-end">
+<span class="text-xs font-bold text-on-surface">Nike Global Operations</span>
+<span class="text-[10px] font-mono font-bold text-secondary">24.5k pts</span>
+</div>
+<div class="w-full h-2 bg-background rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[95%] group-hover:brightness-110 transition-all"></div>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="space-y-1 group">
+<div class="flex justify-between items-end">
+<span class="text-xs font-bold text-on-surface">Red Bull Media House</span>
+<span class="text-[10px] font-mono font-bold text-secondary">18.2k pts</span>
+</div>
+<div class="w-full h-2 bg-background rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[72%] group-hover:brightness-110 transition-all"></div>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="space-y-1 group">
+<div class="flex justify-between items-end">
+<span class="text-xs font-bold text-on-surface">Itaú Unibanco S.A.</span>
+<span class="text-[10px] font-mono font-bold text-secondary">15.8k pts</span>
+</div>
+<div class="w-full h-2 bg-background rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[65%] group-hover:brightness-110 transition-all"></div>
+</div>
+</div>
+<!-- Item 4 -->
+<div class="space-y-1 group">
+<div class="flex justify-between items-end">
+<span class="text-xs font-bold text-on-surface">Coca-Cola FEMSA</span>
+<span class="text-[10px] font-mono font-bold text-secondary">12.1k pts</span>
+</div>
+<div class="w-full h-2 bg-background rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[48%] group-hover:brightness-110 transition-all"></div>
+</div>
+</div>
+<!-- Item 5 -->
+<div class="space-y-1 group">
+<div class="flex justify-between items-end">
+<span class="text-xs font-bold text-on-surface">Heineken BR</span>
+<span class="text-[10px] font-mono font-bold text-secondary">9.4k pts</span>
+</div>
+<div class="w-full h-2 bg-background rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[38%] group-hover:brightness-110 transition-all"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Status Board (Critical Alerts) -->
+<div class="bg-white p-8 rounded-xl border border-surface-container shadow-sm flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-xl font-headline font-bold tracking-tight">Status Board</h3>
+<span class="px-2 py-0.5 bg-red-100 text-red-600 text-[10px] font-bold rounded uppercase">3 Alertas Críticos</span>
+</div>
+<div class="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+<!-- Alert 1 -->
+<div class="p-3 bg-red-50 border-l-4 border-red-500 rounded-r-lg flex gap-3 group hover:bg-red-100 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-red-600 mt-1" data-icon="warning">warning</span>
+<div>
+<p class="text-xs font-bold text-on-surface">Atraso na Produção: Norte Cup</p>
+<p class="text-[10px] text-red-600/80 mt-1">Lote #4829 está com 48h de atraso na etapa de costura.</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="text-[9px] font-bold text-primary/60 uppercase">12m ago</span>
+<button class="text-[9px] font-bold text-secondary uppercase hover:underline">Resolver</button>
+</div>
+</div>
+<span class="material-symbols-outlined ml-auto self-center text-red-300 opacity-0 group-hover:opacity-100 transition-opacity" data-icon="chevron_right">chevron_right</span>
+</div>
+<!-- Alert 2 -->
+<div class="p-3 bg-yellow-50 border-l-4 border-yellow-500 rounded-r-lg flex gap-3 group hover:bg-yellow-100 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-yellow-600 mt-1" data-icon="inventory">inventory</span>
+<div>
+<p class="text-xs font-bold text-on-surface">Estoque Baixo: Aero-Mesh</p>
+<p class="text-[10px] text-yellow-700/80 mt-1">Nível crítico de material para os pedidos da próxima semana.</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="text-[9px] font-bold text-primary/60 uppercase">1h ago</span>
+<button class="text-[9px] font-bold text-secondary uppercase hover:underline">Repor</button>
+</div>
+</div>
+<span class="material-symbols-outlined ml-auto self-center text-yellow-300 opacity-0 group-hover:opacity-100 transition-opacity" data-icon="chevron_right">chevron_right</span>
+</div>
+<!-- Alert 3 -->
+<div class="p-3 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg flex gap-3 group hover:bg-blue-100 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-blue-600 mt-1" data-icon="task_alt">task_alt</span>
+<div>
+<p class="text-xs font-bold text-on-surface">Aprovação Pendente: Layout Nike</p>
+<p class="text-[10px] text-blue-700/80 mt-1">Aguardando validação final do branding manager.</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="text-[9px] font-bold text-primary/60 uppercase">3h ago</span>
+<button class="text-[9px] font-bold text-secondary uppercase hover:underline">Lembrar</button>
+</div>
+</div>
+<span class="material-symbols-outlined ml-auto self-center text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 6. Row 3: Data Table Desempenho -->
+<section class="bg-white rounded-xl border border-surface-container shadow-sm overflow-hidden mb-12">
+<div class="p-8 border-b border-surface-container flex justify-between items-center">
+<div>
+<h3 class="text-xl font-headline font-bold tracking-tight">Desempenho por Categoria</h3>
+<p class="text-xs text-primary font-medium mt-1">Comparativo de métricas de eficiência operacional</p>
+</div>
+<div class="flex gap-2">
+<button class="px-4 py-2 border border-surface-container rounded-lg text-xs font-bold text-primary hover:bg-background transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="filter_list">filter_list</span> Filtrar
+                            </button>
+<button class="px-4 py-2 bg-secondary text-white rounded-lg text-xs font-bold transition-all hover:brightness-110">Download PDF</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-background">
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-primary/60">Categoria</th>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-primary/60 text-center">Volume Total</th>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-primary/60">SLA Atendimento</th>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-primary/60">Qualidade (QA)</th>
+<th class="px-8 py-4 text-[10px] font-bold uppercase tracking-widest text-primary/60 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<tr class="hover:bg-background/50 transition-colors group cursor-default">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-orange-50 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary text-sm" data-icon="checkroom">checkroom</span>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Vestuário Técnico</p>
+<p class="text-[10px] text-primary">Kits Performance</p>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 text-center font-mono text-sm font-medium">18,402</td>
+<td class="px-8 py-5">
+<div class="flex items-center gap-4">
+<div class="flex-1 min-w-[80px] h-1.5 bg-background rounded-full overflow-hidden">
+<div class="bg-green-500 h-full w-[94%]"></div>
+</div>
+<span class="text-[10px] font-mono font-bold text-green-600">94.2%</span>
+</div>
+</td>
+<td class="px-8 py-5">
+<span class="px-2 py-0.5 bg-green-50 text-green-700 text-[10px] font-bold rounded border border-green-200 uppercase tracking-tighter">Optimal</span>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="material-symbols-outlined text-primary/40 hover:text-secondary p-1" data-icon="open_in_new">open_in_new</button>
+</td>
+</tr>
+<tr class="hover:bg-background/50 transition-colors group cursor-default">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-blue-50 flex items-center justify-center">
+<span class="material-symbols-outlined text-tertiary text-sm" data-icon="campaign">campaign</span>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Comunicação Visual</p>
+<p class="text-[10px] text-primary">Painéis e Lonas</p>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 text-center font-mono text-sm font-medium">4,120</td>
+<td class="px-8 py-5">
+<div class="flex items-center gap-4">
+<div class="flex-1 min-w-[80px] h-1.5 bg-background rounded-full overflow-hidden">
+<div class="bg-yellow-500 h-full w-[78%]"></div>
+</div>
+<span class="text-[10px] font-mono font-bold text-yellow-600">78.5%</span>
+</div>
+</td>
+<td class="px-8 py-5">
+<span class="px-2 py-0.5 bg-yellow-50 text-yellow-700 text-[10px] font-bold rounded border border-yellow-200 uppercase tracking-tighter">At-Risk</span>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="material-symbols-outlined text-primary/40 hover:text-secondary p-1" data-icon="open_in_new">open_in_new</button>
+</td>
+</tr>
+<tr class="hover:bg-background/50 transition-colors group cursor-default">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-purple-50 flex items-center justify-center">
+<span class="material-symbols-outlined text-purple-600 text-sm" data-icon="workspace_premium">workspace_premium</span>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Premiações</p>
+<p class="text-[10px] text-primary">Medalhas e Troféus</p>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 text-center font-mono text-sm font-medium">1,250</td>
+<td class="px-8 py-5">
+<div class="flex items-center gap-4">
+<div class="flex-1 min-w-[80px] h-1.5 bg-background rounded-full overflow-hidden">
+<div class="bg-green-500 h-full w-[99%]"></div>
+</div>
+<span class="text-[10px] font-mono font-bold text-green-600">99.1%</span>
+</div>
+</td>
+<td class="px-8 py-5">
+<span class="px-2 py-0.5 bg-green-50 text-green-700 text-[10px] font-bold rounded border border-green-200 uppercase tracking-tighter">Optimal</span>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="material-symbols-outlined text-primary/40 hover:text-secondary p-1" data-icon="open_in_new">open_in_new</button>
+</td>
+</tr>
+<tr class="hover:bg-background/50 transition-colors group cursor-default">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-gray-50 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="category">category</span>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Estruturas Provisórias</p>
+<p class="text-[10px] text-primary">Tendas e Stands</p>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 text-center font-mono text-sm font-medium">840</td>
+<td class="px-8 py-5">
+<div class="flex items-center gap-4">
+<div class="flex-1 min-w-[80px] h-1.5 bg-background rounded-full overflow-hidden">
+<div class="bg-red-500 h-full w-[42%]"></div>
+</div>
+<span class="text-[10px] font-mono font-bold text-red-600">42.8%</span>
+</div>
+</td>
+<td class="px-8 py-5">
+<span class="px-2 py-0.5 bg-red-50 text-red-700 text-[10px] font-bold rounded border border-red-200 uppercase tracking-tighter">Critical</span>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="material-symbols-outlined text-primary/40 hover:text-secondary p-1" data-icon="open_in_new">open_in_new</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</div>
+</main>
+</div>
+</body></html>

@@ -29,7 +29,7 @@ const TYPE_CONFIG: Record<string, {
     icon: Calendar,
   },
   item_created: {
-    label: "Peça Adicionada", dot: "#625d5b", bg: "#f5f5f4", border: "#e7e5e4", color: "#44403c",
+    label: "Peça Adicionada", dot: "#0891b2", bg: "#ecfeff", border: "#a5f3fc", color: "#0e7490",
     icon: Plus,
   },
   item_approved: {

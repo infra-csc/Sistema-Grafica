@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nexus Logistics | Acervo</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&amp;family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;700&amp;family=Plus+Jakarta+Sans:wght@600&amp;family=DM+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#ffb596",
+                        "primary-fixed-dim": "#b4c5ff",
+                        "outline-variant": "#c3c6d7",
+                        "on-primary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "secondary": "#505f76",
+                        "inverse-primary": "#b4c5ff",
+                        "secondary-container": "#d0e1fb",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#00174b",
+                        "surface-container-highest": "#dce2f7",
+                        "surface-bright": "#f9f9ff",
+                        "primary-container": "#2563eb",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "surface-container": "#e9edff",
+                        "primary": "#004ac6",
+                        "on-tertiary-container": "#ffede6",
+                        "surface-tint": "#0053db",
+                        "on-tertiary": "#ffffff",
+                        "outline": "#737686",
+                        "tertiary-fixed": "#ffdbcd",
+                        "surface-dim": "#d3daef",
+                        "surface-container-low": "#f1f3ff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "on-primary-container": "#eeefff",
+                        "inverse-on-surface": "#edf0ff",
+                        "tertiary-container": "#bc4800",
+                        "surface-variant": "#dce2f7",
+                        "on-primary-fixed-variant": "#003ea8",
+                        "background": "#f9f9ff",
+                        "on-secondary-fixed": "#0b1c30",
+                        "inverse-surface": "#293040",
+                        "tertiary": "#943700",
+                        "surface-container-lowest": "#ffffff",
+                        "on-background": "#141b2b",
+                        "primary-fixed": "#dbe1ff",
+                        "on-surface": "#141b2b",
+                        "error-container": "#ffdad6",
+                        "on-surface-variant": "#434655",
+                        "on-secondary-container": "#54647a",
+                        "surface-container-high": "#e1e8fd",
+                        "on-tertiary-fixed": "#360f00",
+                        "surface": "#f9f9ff",
+                        "on-tertiary-fixed-variant": "#7d2d00"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "grotesk": ["Space Grotesk"],
+                        "jakarta": ["Plus Jakarta Sans"],
+                        "mono": ["DM Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #dce2f7;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-[#fafaf9] text-on-surface font-body antialiased min-h-screen">
+<!-- Sidebar Navigation (SideNavBar Anchor) -->
+<aside class="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-slate-50 dark:bg-slate-900 transition-all duration-200 ease-in-out py-4 gap-2 z-40">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">package_2</span>
+</div>
+<div>
+<h2 class="text-lg font-black text-blue-700 dark:text-blue-400 font-headline">Acervo System</h2>
+<p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Fleet Management</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-2 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-medium font-label tracking-wide">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 shadow-sm rounded-lg mx-2 transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">local_shipping</span>
+<span class="font-medium font-label tracking-wide">Transfers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-medium font-label tracking-wide">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">inventory</span>
+<span class="font-medium font-label tracking-wide">Suppliers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-medium font-label tracking-wide">Settings</span>
+</a>
+</nav>
+<div class="px-6 py-4 mt-auto">
+<div class="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
+<p class="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-tighter">System Status: Optimal</p>
+<div class="w-full bg-blue-200 dark:bg-blue-800 h-1 rounded-full mt-2">
+<div class="bg-blue-600 w-3/4 h-1 rounded-full"></div>
+</div>
+</div>
+<div class="mt-4 flex flex-col gap-1">
+<button class="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-slate-900 transition-colors">
+<span class="material-symbols-outlined text-sm">help_outline</span>
+<span class="text-xs font-medium">Support</span>
+</button>
+<button class="flex items-center gap-3 px-4 py-2 text-error hover:bg-error-container/20 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-sm">logout</span>
+<span class="text-xs font-medium text-error">Logout</span>
+</button>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="lg:ml-64 min-h-screen">
+<!-- Top Navigation (TopNavBar Anchor) -->
+<header class="sticky top-0 z-30 bg-white/85 dark:bg-slate-950/85 backdrop-blur-md shadow-sm dark:shadow-none transition-all">
+<div class="flex justify-between items-center w-full px-8 py-4 max-w-[1920px] mx-auto">
+<div class="flex items-center gap-8">
+<h1 class="text-xl font-bold tracking-tighter text-slate-900 dark:text-slate-50 font-headline uppercase tracking-widest">Logistics Command</h1>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium font-body transition-colors" href="#">Dashboard</a>
+<a class="text-blue-600 dark:text-blue-400 font-bold border-b-2 border-blue-600 font-body transition-all" href="#">Acervo</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium font-body transition-colors" href="#">Fleet</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium font-body transition-colors" href="#">Reports</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<div class="h-8 w-px bg-slate-200"></div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold text-slate-900">Admin User</p>
+<p class="text-[10px] text-slate-500">Fleet Director</p>
+</div>
+<img alt="User profile avatar" class="w-10 h-10 rounded-full border-2 border-white shadow-sm" data-alt="close-up portrait of professional logistics manager with a clean urban background and soft daylight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDooXxv2T8MuqLjVF_9Xg-bQ3LBPJLp-EPBmvgKiy8sPDDCtqwErkYPWn6bfQPvxQTUiAr257uvITN7LUg_TcSbu1gqNJkG97bKmutMpq2mVsJ4TPTpqg4qSfU5xfTt8TValOO5AFog1kXRFbsN0ilC865ekPS-NVIhq8OkN--w9pUqjJpHsNkFdHXJ2E4EnF0FTjgQVnuyLYQhkjMLgEikBt2jZOp53WXr7HRNRpG2Vah_SYA4pBFRnK2m8_p0OtSa7B2VEQslP_VG"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Page Header Section -->
+<section class="px-8 pt-8 pb-4">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<div class="flex items-center gap-3 mb-1">
+<div class="w-10 h-10 bg-[#f97316] rounded-xl flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">archive</span>
+</div>
+<h2 class="text-3xl font-bold font-headline tracking-tight text-slate-900">Acervo</h2>
+</div>
+<p class="text-slate-500 font-grotesk uppercase tracking-widest text-xs font-bold">Módulo de Estoque &amp; Logística Reversa</p>
+</div>
+<button class="flex items-center gap-2 bg-[#f97316] text-white px-6 py-3 rounded-xl font-bold font-grotesk tracking-wide text-sm shadow-lg shadow-orange-500/20 active:scale-95 transition-transform">
+<span class="material-symbols-outlined">add</span>
+<span>+ NOVO ATIVO</span>
+</button>
+</div>
+</section>
+<!-- Stats Grid (Bento Style) -->
+<section class="px-8 py-6">
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-primary/20 transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">inventory_2</span>
+<span class="text-xs font-bold text-slate-400 group-hover:text-primary transition-colors">Total</span>
+</div>
+<p class="text-2xl font-black font-headline text-slate-900">1,284</p>
+<p class="text-[10px] text-green-600 font-bold mt-1">+12% vs mês ant.</p>
+</div>
+<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-[#16a34a]/20 transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-[#16a34a] bg-[#16a34a]/10 p-2 rounded-lg">warehouse</span>
+<span class="text-xs font-bold text-slate-400 group-hover:text-[#16a34a] transition-colors">No Galpão</span>
+</div>
+<p class="text-2xl font-black font-headline text-slate-900">842</p>
+<p class="text-[10px] text-slate-400 font-bold mt-1">65% de ocupação</p>
+</div>
+<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-[#ea580c]/20 transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-[#ea580c] bg-[#ea580c]/10 p-2 rounded-lg">commute</span>
+<span class="text-xs font-bold text-slate-400 group-hover:text-[#ea580c] transition-colors">Em Uso</span>
+</div>
+<p class="text-2xl font-black font-headline text-slate-900">312</p>
+<p class="text-[10px] text-slate-400 font-bold mt-1">Frota ativa</p>
+</div>
+<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-[#b45309]/20 transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-[#b45309] bg-[#b45309]/10 p-2 rounded-lg">assignment_return</span>
+<span class="text-xs font-bold text-slate-400 group-hover:text-[#b45309] transition-colors">Ag. Triagem</span>
+</div>
+<p class="text-2xl font-black font-headline text-slate-900">86</p>
+<p class="text-[10px] text-[#b45309] font-bold mt-1">Prioridade Alta</p>
+</div>
+<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-slate-400/20 transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-slate-500 bg-slate-100 p-2 rounded-lg">delete_sweep</span>
+<span class="text-xs font-bold text-slate-400 group-hover:text-slate-600 transition-colors">Descartado</span>
+</div>
+<p class="text-2xl font-black font-headline text-slate-900">24</p>
+<p class="text-[10px] text-slate-400 font-bold mt-1">Logística reversa</p>
+</div>
+<div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 group hover:border-[#dc2626]/20 transition-all">
+<div class="flex justify-between items-start mb-4">
+<span class="material-symbols-outlined text-[#dc2626] bg-[#dc2626]/10 p-2 rounded-lg">recycling</span>
+<span class="text-xs font-bold text-slate-400 group-hover:text-[#dc2626] transition-colors">Sucata</span>
+</div>
+<p class="text-2xl font-black font-headline text-slate-900">20</p>
+<p class="text-[10px] text-error font-bold mt-1">Perda total</p>
+</div>
+</div>
+</section>
+<!-- Filter Bar -->
+<section class="px-8 pb-4">
+<div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4">
+<div class="flex-1 min-w-[240px] relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Buscar por ID, Nome ou Tag..." type="text"/>
+</div>
+<div class="flex gap-2">
+<select class="bg-slate-50 border-none rounded-xl text-xs font-bold font-grotesk tracking-wide py-2.5 pl-4 pr-10 focus:ring-2 focus:ring-primary/20">
+<option>STATUS: TODOS</option>
+<option>NO GALPÃO</option>
+<option>EM USO</option>
+<option>AG. TRIAGEM</option>
+</select>
+<select class="bg-slate-50 border-none rounded-xl text-xs font-bold font-grotesk tracking-wide py-2.5 pl-4 pr-10 focus:ring-2 focus:ring-primary/20">
+<option>CONDIÇÃO: QUALQUER</option>
+<option>NOVO</option>
+<option>USADO (A)</option>
+<option>USADO (B)</option>
+<option>AVARIADO</option>
+</select>
+<select class="bg-slate-50 border-none rounded-xl text-xs font-bold font-grotesk tracking-wide py-2.5 pl-4 pr-10 focus:ring-2 focus:ring-primary/20">
+<option>ORIGEM: TODAS</option>
+<option>PRÓPRIO</option>
+<option>LEASING</option>
+<option>PARCEIRO</option>
+</select>
+</div>
+<div class="h-8 w-px bg-slate-100"></div>
+<button class="flex items-center gap-2 p-2.5 text-slate-500 hover:bg-slate-50 rounded-xl transition-all">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+</section>
+<!-- Main Table Area -->
+<section class="px-8 pb-12">
+<div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50/50">
+<th class="px-6 py-4 font-grotesk text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Identificador</th>
+<th class="px-6 py-4 font-grotesk text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Equipamento</th>
+<th class="px-6 py-4 font-grotesk text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Status</th>
+<th class="px-6 py-4 font-grotesk text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Condição</th>
+<th class="px-6 py-4 font-grotesk text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Sponsors</th>
+<th class="px-6 py-4 font-grotesk text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Localização</th>
+<th class="px-6 py-4 font-grotesk text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Arte / Tags</th>
+<th class="px-6 py-4 font-grotesk text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase text-center">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50">
+<!-- Row 1 -->
+<tr class="hover:bg-slate-50/50 transition-colors group">
+<td class="px-6 py-4 font-mono text-sm font-bold text-slate-600">#EST-2024-X1</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-[10px]">AUTO</div>
+<span class="font-jakarta text-slate-900 text-sm">Empilhadeira Elétrica Yale v2</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#16a34a]/10 text-[#16a34a]">No Galpão</span>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700">Novo</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex -space-x-2 overflow-hidden">
+<div class="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-200 flex items-center justify-center text-[8px] font-bold">YL</div>
+<div class="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-200 flex items-center justify-center text-[8px] font-bold">NX</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1 text-slate-500">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="text-xs font-medium">Setor A-4</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="relative group/pop">
+<img alt="Thumbnail" class="w-8 h-8 rounded-md object-cover border border-slate-200" data-alt="high-quality industrial forklift in warehouse setting with bright cinematic lighting and depth of field" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAMPbUKYco-W80KjMqDPbn7VRRhvShcZwPiwnJCKJ4AtKmgr-rP8Tef9enRgyAiK_cC9g_fN-uiO5r6lfvp6X8129yLcnCsGW9j_hKTkG0ZqXG0nat-KnFUGLJ5tmdi9KLj8LHL-yGV38RGg0Fxw9Z_CoXu8xbRx5HF20mLz4JyZTWYV4NdneKvTxee0HGTOIlBooQpaycv4aFVMAXtnjcRVQAJbXT-nbl6aHg2_S3TV7avCxQKAYOwPGLwKpvVk21amHxj8FMkgW5E"/>
+<div class="absolute left-0 bottom-full mb-2 opacity-0 group-hover/pop:opacity-100 pointer-events-none transition-all z-50">
+<div class="bg-white p-1 rounded-lg shadow-xl border border-slate-100">
+<img alt="Large Preview" class="w-48 h-48 rounded-md object-cover" data-alt="high-quality industrial forklift in warehouse setting with bright cinematic lighting and depth of field" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDA87hhLL_Zye3Ako2xSrK6Cx49eFGkTHt9zHje0U1LJJlyIQF9-nW__RIobGgfSIH25xgcDE0KzlIqefzExAP_PQQMoho5uv23xwWu7pReKATLkFPMK2JaaIFfD0iGYo4Z2f3CXmN_QZWS8ft6iOrN3Ip66GrUediDHoYxlnpyIOfPCNzT0cqPrSVoghIqPH5aXLpeSqwF6gRrzBGM5TkpH5WuVIXg9ZcHa3V1AxGz53aUvEgTvkes_zvDraRELaCPmUcR1XsFt9K2"/>
+</div>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded-md bg-orange-50 text-[#f97316] text-[10px] font-bold uppercase tracking-tighter">Manutenção</span>
+</div>
+</td>
+<td class="px-6 py-4 text-center">
+<div class="flex items-center justify-center gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"><span class="material-symbols-outlined text-lg">edit</span></button>
+<button class="p-1.5 text-slate-400 hover:text-error hover:bg-error/5 rounded-lg transition-all"><span class="material-symbols-outlined text-lg">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-slate-50/50 transition-colors group">
+<td class="px-6 py-4 font-mono text-sm font-bold text-slate-600">#EST-2024-C9</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-[10px]">AUTO</div>
+<span class="font-jakarta text-slate-900 text-sm">Caminhão Scania G450</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#ea580c]/10 text-[#ea580c]">Em Uso</span>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700">Usado (A)</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex -space-x-2 overflow-hidden">
+<div class="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-200 flex items-center justify-center text-[8px] font-bold">SC</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1 text-slate-500">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="text-xs font-medium">Rota BR-116</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="relative group/pop">
+<img alt="Thumbnail" class="w-8 h-8 rounded-md object-cover border border-slate-200" data-alt="modern scania heavy transport truck on a highway at sunrise with soft golden light and motion blur" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBuBlrOPwkl8giakTkmQeDO83qfWHhIGlo8G29uPC3Za0qKsU24ZFQ9hhJkZgDMSIycbMEqzwBpLt_AW5SUN9b8QtHdZxtNXXfKUth5qt4RVxCEtiP2Er4eg1-Dmlp8z-tcjD8SBPg6P4lPzdjXx2d_H4n5egM7WuQjUFdm7bN_GYRfiIUU8i5ue9UHgcLnuahZGH3tzmP-AIudV2kpq-frTtP4jSamJogZQUImKAR1ZeM1D_jdn7wzgWPvHZ1DlsAyknSiK4tfVwek"/>
+</div>
+<span class="px-2 py-0.5 rounded-md bg-orange-50 text-[#f97316] text-[10px] font-bold uppercase tracking-tighter">Leasing</span>
+</div>
+</td>
+<td class="px-6 py-4 text-center">
+<div class="flex items-center justify-center gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"><span class="material-symbols-outlined text-lg">edit</span></button>
+<button class="p-1.5 text-slate-400 hover:text-error hover:bg-error/5 rounded-lg transition-all"><span class="material-symbols-outlined text-lg">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-slate-50/50 transition-colors group">
+<td class="px-6 py-4 font-mono text-sm font-bold text-slate-600">#EST-2023-F2</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-[10px]">MAN</div>
+<span class="font-jakarta text-slate-900 text-sm">Transpaleteira Manual Reforçada</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#b45309]/10 text-[#b45309]">Ag. Triagem</span>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-700">Avariado</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex -space-x-2 overflow-hidden">
+<span class="text-[10px] font-medium text-slate-400">N/A</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1 text-slate-500">
+<span class="material-symbols-outlined text-sm">location_on</span>
+<span class="text-xs font-medium">Docas 2</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<div class="relative group/pop">
+<img alt="Thumbnail" class="w-8 h-8 rounded-md object-cover border border-slate-200" data-alt="industrial warehouse storage rack with pallets and packaging materials under bright LED lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDsLOZDptlpYpMQ9O5w5lERPg3mkssa6B6s-bQEMqMeg0bPLjQVum7P9oz88ni79yI0--BIQZQABfBAXRPBdKQYmT7CuTnPmKHBNrrV43B1tDdoSWn61K_EduOHuiT-cLjaKHPAmkx03lG9gJ_RDjxZsy6FgkKuHV5IN5xoXHDC4xZOivn26PTlUvTmvVvML5vyy9VnLBR2Ui0nQ2NouYimkyBnOKRY0MX7YV5UP6Izx7sbiEddErBwwnxpIg8WsjqfYbjTh-YOF0O8"/>
+</div>
+<span class="px-2 py-0.5 rounded-md bg-orange-50 text-[#f97316] text-[10px] font-bold uppercase tracking-tighter">Retorno</span>
+</div>
+</td>
+<td class="px-6 py-4 text-center">
+<div class="flex items-center justify-center gap-2">
+<button class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"><span class="material-symbols-outlined text-lg">edit</span></button>
+<button class="p-1.5 text-slate-400 hover:text-error hover:bg-error/5 rounded-lg transition-all"><span class="material-symbols-outlined text-lg">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-6 py-4 bg-slate-50/50 flex items-center justify-between">
+<p class="text-[10px] font-bold font-grotesk tracking-widest text-slate-400 uppercase">Exibindo 3 de 1.284 registros</p>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:border-primary hover:text-primary transition-all"><span class="material-symbols-outlined text-sm">chevron_left</span></button>
+<button class="w-8 h-8 flex items-center justify-center bg-primary text-white rounded-lg text-xs font-bold">1</button>
+<button class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:border-primary hover:text-primary transition-all">2</button>
+<button class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:border-primary hover:text-primary transition-all">3</button>
+<button class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:border-primary hover:text-primary transition-all"><span class="material-symbols-outlined text-sm">chevron_right</span></button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Modal: Novo Ativo (Overlay) - Simulation of showing one -->
+<div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden" id="novoAtivoModal">
+<div class="bg-white w-[480px] rounded-3xl shadow-2xl overflow-hidden border border-white">
+<div class="p-8">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h3 class="text-xl font-bold font-headline text-slate-900 uppercase tracking-tight">Novo Ativo</h3>
+<p class="text-xs font-grotesk tracking-widest font-bold text-slate-500 uppercase mt-1">Cadastro de Inventário</p>
+</div>
+<button class="p-2 text-slate-400 hover:bg-slate-50 rounded-full transition-all"><span class="material-symbols-outlined">close</span></button>
+</div>
+<form class="space-y-4">
+<div class="space-y-1">
+<label class="text-[10px] font-bold font-grotesk tracking-widest text-slate-500 uppercase ml-1">Nome do Equipamento</label>
+<input class="w-full bg-slate-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary/20 transition-all font-jakarta text-sm" placeholder="Ex: Caminhão Mercedes-Benz Actros" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1">
+<label class="text-[10px] font-bold font-grotesk tracking-widest text-slate-500 uppercase ml-1">Status Inicial</label>
+<select class="w-full bg-slate-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary/20 text-sm font-medium">
+<option>No Galpão</option>
+<option>Em Uso</option>
+</select>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold font-grotesk tracking-widest text-slate-500 uppercase ml-1">Condição</label>
+<select class="w-full bg-slate-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary/20 text-sm font-medium">
+<option>Novo</option>
+<option>Usado</option>
+</select>
+</div>
+</div>
+<div class="space-y-1">
+<label class="text-[10px] font-bold font-grotesk tracking-widest text-slate-500 uppercase ml-1">Identificador Manual (Opcional)</label>
+<input class="w-full bg-slate-50 border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary/20 font-mono text-sm" placeholder="#EST-0000-X" type="text"/>
+</div>
+<div class="pt-4 flex gap-3">
+<button class="flex-1 py-3 bg-slate-100 text-slate-600 font-bold font-grotesk tracking-widest text-xs rounded-xl hover:bg-slate-200 transition-all" type="button">CANCELAR</button>
+<button class="flex-1 py-3 bg-primary text-white font-bold font-grotesk tracking-widest text-xs rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all" type="button">SALVAR ATIVO</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+<!-- Modal: Deletar Ativo (Overlay) - Simulation of showing one -->
+<div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden" id="deleteModal">
+<div class="bg-white w-[420px] rounded-3xl shadow-2xl overflow-hidden border border-white">
+<div class="bg-error h-1.5 w-full"></div>
+<div class="p-8 text-center">
+<div class="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mx-auto mb-4">
+<span class="material-symbols-outlined text-3xl">warning</span>
+</div>
+<h3 class="text-xl font-bold font-headline text-slate-900 mb-2">Excluir Ativo?</h3>
+<p class="text-sm text-slate-500 leading-relaxed">Esta ação não pode ser desfeita. O ativo <span class="font-bold text-slate-900">#EST-2024-X1</span> será removido permanentemente do inventário e dos registros de movimentação.</p>
+<div class="mt-8 flex gap-3">
+<button class="flex-1 py-3 border border-slate-200 text-slate-500 font-bold font-grotesk tracking-widest text-xs rounded-xl hover:bg-slate-50 transition-all">MANTER</button>
+<button class="flex-1 py-3 bg-error text-white font-bold font-grotesk tracking-widest text-xs rounded-xl shadow-lg shadow-error/20 hover:scale-105 active:scale-95 transition-all">CONFIRMAR EXCLUSÃO</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Action Buttons (FAB Suppression logic - shown here because it's Dashboard/Inventory Context) -->
+<div class="fixed bottom-8 right-8 z-40 hidden md:block">
+<button class="w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all" title="Scan QR Code">
+<span class="material-symbols-outlined text-2xl">qr_code_scanner</span>
+</button>
+</div>
+</body></html>

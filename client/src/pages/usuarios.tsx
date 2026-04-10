@@ -15,6 +15,8 @@ import { ptBR } from "date-fns/locale";
 import {
   UserPlus, Pencil, Trash2, Search, Eye, EyeOff,
   ChevronLeft, ChevronRight, X, AlertTriangle, ShieldCheck,
+  Shield, FileText, Palette, Printer, Headphones,
+  Lock, Mail, User, CheckCircle2, Circle, LockKeyhole,
 } from "lucide-react";
 
 /* ── Palette ── */
@@ -33,6 +35,26 @@ const ROLE_CFG: Record<string, { label: string; bg: string; color: string; avata
   grafica:     { label: "Gráfica",      bg: "#fff7ed", color: "#ea580c", avatarBg: "#ffedd5", avatarColor: "#c2410c" },
   atendimento: { label: "Atendimento",  bg: "#f0fdf4", color: "#16a34a", avatarBg: "#dcfce7", avatarColor: "#15803d" },
 };
+
+/* ── Role cards config ── */
+const ROLE_CARDS = [
+  { value: "admin",       label: "Administrador", Icon: Shield,     color: "#dc2626", bg: "#fef2f2", desc: "Acesso completo ao sistema" },
+  { value: "solicitacao", label: "Solicitação",   Icon: FileText,   color: "#2563eb", bg: "#eff6ff", desc: "Criação de pedidos e itens" },
+  { value: "arte",        label: "Arte",          Icon: Palette,    color: "#9333ea", bg: "#faf5ff", desc: "Criação e aprovação de arte" },
+  { value: "grafica",     label: "Gráfica",       Icon: Printer,    color: "#ea580c", bg: "#fff7ed", desc: "Produção e impressão" },
+  { value: "atendimento", label: "Atendimento",   Icon: Headphones, color: "#16a34a", bg: "#f0fdf4", desc: "Atendimento ao cliente" },
+] as const;
+
+/* ── Password strength ── */
+function pwStrength(pw: string): { bars: number; label: string; color: string } {
+  const len = pw.length;
+  if (len === 0) return { bars: 0, label: "", color: "" };
+  if (len < 4)  return { bars: 1, label: "Fraca",     color: "#ef4444" };
+  if (len < 6)  return { bars: 2, label: "Regular",   color: "#f97316" };
+  if (len < 9)  return { bars: 3, label: "Média",     color: "#f59e0b" };
+  if (len < 12) return { bars: 4, label: "Forte",     color: "#84cc16" };
+  return            { bars: 5, label: "Excelente",  color: "#22c55e" };
+}
 
 const userSchema = z.object({
   name:     z.string().min(1, "Nome obrigatório"),
@@ -87,6 +109,10 @@ export default function Usuarios() {
     resolver: zodResolver(userSchema),
     defaultValues: { name: "", email: "", role: "solicitacao", password: "" },
   });
+  const watchName     = form.watch("name");
+  const watchEmail    = form.watch("email");
+  const watchRole     = form.watch("role");
+  const watchPassword = form.watch("password") || "";
 
   const createMutation = useMutation({
     mutationFn: async (data: UserForm) => {
@@ -483,128 +509,287 @@ export default function Usuarios() {
       {/* ══════════════════════════════
           MODAL: Criar / Editar
       ══════════════════════════════ */}
-      {modalOpen && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.55)", backdropFilter: "blur(4px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget) setModalOpen(false); }}>
-          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 520, borderRadius: 10, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)" }}>
-            {/* Modal header */}
-            <div style={{ backgroundColor: T.low, padding: "20px 28px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-              <div>
-                <h2 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: "0 0 3px", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "-0.03em" }}>
-                  {editingUser ? "Editar Usuário" : "Novo Usuário"}
-                </h2>
-                <p style={{ fontSize: 11, color: T.muted, margin: 0 }}>
-                  {editingUser ? "Edite as informações do perfil abaixo" : "Preencha as informações do perfil abaixo"}
-                </p>
-              </div>
-              <button onClick={() => setModalOpen(false)}
-                style={{ padding: 6, color: T.muted, background: "none", border: "none", cursor: "pointer", borderRadius: 6, display: "flex", alignItems: "center" }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.border)}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
-                <X style={{ width: 18, height: 18 }} />
-              </button>
-            </div>
+      {modalOpen && (() => {
+        const strength = pwStrength(watchPassword);
+        const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(watchEmail);
+        const roleCard = ROLE_CARDS.find(r => r.value === watchRole);
+        const previewInitials = watchName.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
+        const checks = [
+          { label: "Nome preenchido",    ok: watchName.length >= 2 },
+          { label: "E-mail válido",      ok: emailValid },
+          { label: "Senha segura",       ok: watchPassword.length >= 6 },
+          { label: "Perfil selecionado", ok: !!watchRole },
+        ];
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.6)", backdropFilter: "blur(5px)", zIndex: 60, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "32px 16px", overflowY: "auto" }}
+            onClick={e => { if (e.target === e.currentTarget) setModalOpen(false); }}
+          >
+            <div style={{ width: "100%", maxWidth: 960, margin: "auto" }}>
 
-            {/* Modal form */}
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
-
-                {/* Nome */}
-                <FormField control={form.control} name="name" render={({ field }) => (
-                  <FormItem>
-                    <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Nome Completo</div>
-                    <FormControl>
-                      <input {...field} placeholder="Ex: Roberto Carlos" data-testid="input-name"
-                        style={tiInput}
-                        onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                        onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                {/* Email + Perfil grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                  <FormField control={form.control} name="email" render={({ field }) => (
-                    <FormItem>
-                      <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Email</div>
-                      <FormControl>
-                        <input {...field} type="email" placeholder="email@norte.com" data-testid="input-email"
-                          style={tiInput}
-                          onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                          onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-
-                  <FormField control={form.control} name="role" render={({ field }) => (
-                    <FormItem>
-                      <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Perfil</div>
-                      <FormControl>
-                        <select {...field} data-testid="select-role"
-                          style={{ ...tiInput, appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}
-                          onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                          onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                        >
-                          <option value="admin">Administrador</option>
-                          <option value="solicitacao">Solicitação</option>
-                          <option value="arte">Arte</option>
-                          <option value="grafica">Gráfica</option>
-                          <option value="atendimento">Atendimento</option>
-                        </select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
+              {/* ── Modal page header ── */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "#0033CC", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <UserPlus style={{ width: 18, height: 18, color: "#fff" }} />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0F172A", margin: "0 0 2px", fontFamily: "'Space Grotesk', sans-serif" }}>
+                      {editingUser ? "Editar Usuário" : "Cadastro de Usuários"}
+                    </h2>
+                    <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>
+                      {editingUser ? "Atualize as informações do perfil" : "Crie uma nova conta de acesso ao sistema"}
+                    </p>
+                  </div>
                 </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 12px", borderRadius: 100, backgroundColor: "#FEF3C7", fontSize: 11, fontWeight: 700, color: "#D97706" }}>
+                    <LockKeyhole style={{ width: 11, height: 11 }} /> Acesso restrito
+                  </span>
+                  <button onClick={() => setModalOpen(false)}
+                    style={{ padding: 6, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", borderRadius: 6, display: "flex" }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.border)}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
+                    <X style={{ width: 18, height: 18 }} />
+                  </button>
+                </div>
+              </div>
 
-                {/* Senha com show/hide */}
-                <FormField control={form.control} name="password" render={({ field }) => (
-                  <FormItem>
-                    <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>
-                      {editingUser ? "Nova Senha (opcional)" : "Senha"}
-                    </div>
-                    <FormControl>
-                      <div style={{ position: "relative" }}>
-                        <input {...field} type={showPassword ? "text" : "password"}
-                          placeholder={editingUser ? "Deixe em branco para manter a atual" : "Mínimo 6 caracteres (padrão: 123456)"}
-                          data-testid="input-password"
-                          style={{ ...tiInput, paddingRight: 40 }}
-                          onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                          onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                        />
-                        <button type="button" onClick={() => setShowPassword(v => !v)}
-                          style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.muted, display: "flex", alignItems: "center" }}>
-                          {showPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
+              {/* ── 2-col grid ── */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16, alignItems: "start" }}>
+
+                {/* ── Main form card ── */}
+                <div style={{ backgroundColor: T.surface, borderRadius: 12, border: "1px solid #E8ECF8", overflow: "hidden" }}>
+                  <Form {...form}>
+                    <form id="user-form" onSubmit={form.handleSubmit(onSubmit)}>
+
+                      {/* Section 1 — Dados Pessoais */}
+                      <div style={{ padding: "18px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                          <User style={{ width: 14, height: 14, color: "#94A3B8" }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em" }}>Dados Pessoais</span>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                          {/* Nome */}
+                          <FormField control={form.control} name="name" render={({ field }) => (
+                            <FormItem>
+                              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 6 }}>
+                                Nome Completo <span style={{ color: "#EF4444" }}>*</span>
+                              </label>
+                              <FormControl>
+                                <div style={{ position: "relative" }}>
+                                  <User style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#94A3B8" }} />
+                                  <input {...field} placeholder="Ex: Ana Silva" data-testid="input-name"
+                                    style={{ ...tiInput, paddingLeft: 32, height: 38, boxSizing: "border-box" }}
+                                    onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(0,51,204,0.15)"; }}
+                                    onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+                                  />
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )} />
+
+                          {/* Email */}
+                          <FormField control={form.control} name="email" render={({ field }) => (
+                            <FormItem>
+                              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 6 }}>
+                                E-mail <span style={{ color: "#EF4444" }}>*</span>
+                              </label>
+                              <FormControl>
+                                <div style={{ position: "relative" }}>
+                                  <Mail style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#94A3B8" }} />
+                                  <input {...field} type="email" placeholder="email@norte.com" data-testid="input-email"
+                                    style={{ ...tiInput, paddingLeft: 32, paddingRight: 36, height: 38, boxSizing: "border-box", border: emailValid && field.value ? "1.5px solid #22C55E" : "none" }}
+                                    onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(0,51,204,0.15)"; }}
+                                    onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+                                  />
+                                  <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }}>
+                                    {field.value ? (
+                                      emailValid
+                                        ? <CheckCircle2 style={{ width: 14, height: 14, color: "#22C55E" }} />
+                                        : <Circle style={{ width: 14, height: 14, color: "#CBD5E1" }} />
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )} />
+                        </div>
+
+                        {/* Senha */}
+                        <FormField control={form.control} name="password" render={({ field }) => (
+                          <FormItem>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "#64748B", display: "block", marginBottom: 6 }}>
+                              {editingUser ? "Nova Senha (opcional)" : "Senha"}
+                            </label>
+                            <FormControl>
+                              <div style={{ position: "relative" }}>
+                                <Lock style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#94A3B8" }} />
+                                <input {...field} type={showPassword ? "text" : "password"}
+                                  placeholder={editingUser ? "Deixe em branco para manter a atual" : "Mínimo 6 caracteres (padrão: 123456)"}
+                                  data-testid="input-password"
+                                  style={{ ...tiInput, paddingLeft: 32, paddingRight: 40, height: 38, boxSizing: "border-box" }}
+                                  onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(0,51,204,0.15)"; }}
+                                  onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+                                />
+                                <button type="button" onClick={() => setShowPassword(v => !v)}
+                                  style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94A3B8", display: "flex", alignItems: "center" }}>
+                                  {showPassword ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
+                                </button>
+                              </div>
+                            </FormControl>
+                            {/* Strength bar */}
+                            {watchPassword.length > 0 && (
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ display: "flex", gap: 4, marginBottom: 5 }}>
+                                  {[1, 2, 3, 4, 5].map(i => (
+                                    <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: i <= strength.bars ? strength.color : "#E2E8F0", transition: "background 0.3s" }} />
+                                  ))}
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: strength.color, marginLeft: 6, whiteSpace: "nowrap" }}>{strength.label}</span>
+                                </div>
+                              </div>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      </div>
+
+                      <div style={{ height: 1, backgroundColor: "#F1F5F9" }} />
+
+                      {/* Section 2 — Perfil de Acesso */}
+                      <div style={{ padding: "18px 20px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                          <Shield style={{ width: 14, height: 14, color: "#94A3B8" }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.1em" }}>Perfil de Acesso</span>
+                          {form.formState.errors.role && (
+                            <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: "#EF4444" }}>
+                              {form.formState.errors.role.message}
+                            </span>
+                          )}
+                        </div>
+                        <FormField control={form.control} name="role" render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                                {ROLE_CARDS.map(({ value, label, Icon, color, bg, desc }) => {
+                                  const active = field.value === value;
+                                  return (
+                                    <button
+                                      key={value} type="button"
+                                      data-testid={`role-card-${value}`}
+                                      onClick={() => field.onChange(value)}
+                                      style={{
+                                        padding: "10px 12px", borderRadius: 8, cursor: "pointer", textAlign: "left",
+                                        border: active ? `1.5px solid ${color}` : "1.5px solid #E8ECF8",
+                                        backgroundColor: active ? bg : "#fff",
+                                        position: "relative", transition: "all 0.15s",
+                                      }}
+                                    >
+                                      <Icon style={{ width: 18, height: 18, color: active ? color : "#CBD5E1", marginBottom: 6 }} />
+                                      <div style={{ fontSize: 11, fontWeight: 700, color: active ? color : "#374151", marginBottom: 2 }}>{label}</div>
+                                      <div style={{ fontSize: 9, color: active ? color : "#94A3B8", lineHeight: 1.3 }}>{desc}</div>
+                                      {active && (
+                                        <CheckCircle2 style={{ position: "absolute", top: 8, right: 8, width: 14, height: 14, color }} />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      </div>
+
+                      <div style={{ height: 1, backgroundColor: "#F1F5F9" }} />
+
+                      {/* Footer */}
+                      <div style={{ backgroundColor: "#FAFBFF", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <button type="button" data-testid="button-cancel"
+                          onClick={() => { form.reset(); setModalOpen(false); setEditingUser(null); }}
+                          style={{ height: 36, padding: "0 16px", border: "1px solid #E2E8F0", backgroundColor: "#fff", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#64748B", cursor: "pointer" }}>
+                          Limpar
+                        </button>
+                        <button type="submit" form="user-form" data-testid="button-save-user"
+                          disabled={createMutation.isPending || updateMutation.isPending}
+                          style={{ height: 36, padding: "0 22px", backgroundColor: "#0033CC", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer", display: "flex", alignItems: "center", gap: 7, opacity: createMutation.isPending || updateMutation.isPending ? 0.6 : 1 }}>
+                          {createMutation.isPending || updateMutation.isPending ? (
+                            <>
+                              <svg style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
+                                <path d="M12 2a10 10 0 0 1 10 10" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+                              </svg>
+                              Criando...
+                            </>
+                          ) : (
+                            <><UserPlus style={{ width: 13, height: 13 }} /> {editingUser ? "Salvar Alterações" : "Criar Usuário"}</>
+                          )}
                         </button>
                       </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                {/* Buttons */}
-                <div style={{ display: "flex", gap: 10, paddingTop: 6 }}>
-                  <button type="button" onClick={() => setModalOpen(false)}
-                    data-testid="button-cancel"
-                    style={{ flex: 1, padding: "11px 0", border: `1px solid ${T.border}`, backgroundColor: "transparent", borderRadius: 6, fontSize: 11, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer" }}>
-                    Cancelar
-                  </button>
-                  <button type="submit"
-                    data-testid="button-save-user"
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                    style={{ flex: 1, padding: "11px 0", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", opacity: createMutation.isPending || updateMutation.isPending ? 0.6 : 1 }}>
-                    {createMutation.isPending || updateMutation.isPending ? "Salvando..." : editingUser ? "Salvar Alterações" : "Criar Usuário"}
-                  </button>
+                    </form>
+                  </Form>
                 </div>
-              </form>
-            </Form>
+
+                {/* ── Sidebar ── */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+                  {/* Preview card */}
+                  <div style={{ backgroundColor: T.surface, borderRadius: 12, border: "1px solid #E8ECF8", padding: "16px 18px" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px" }}>Pré-visualização</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{
+                        width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                        backgroundColor: watchName ? (roleCard?.color || "#0033CC") + "20" : "#E2E8F0",
+                        color: watchName ? (roleCard?.color || "#0033CC") : "#94A3B8",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 14, fontWeight: 900, fontFamily: "'Space Grotesk', sans-serif",
+                      }}>
+                        {previewInitials}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: watchName ? T.text : "#CBD5E1", margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {watchName || "Nome do usuário"}
+                        </p>
+                        <p style={{ fontSize: 11, color: watchEmail ? T.second : "#CBD5E1", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {watchEmail || "email@norte.com"}
+                        </p>
+                      </div>
+                    </div>
+                    {watchRole && roleCard && (
+                      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 100, backgroundColor: roleCard.bg, width: "fit-content" }}>
+                        <roleCard.Icon style={{ width: 11, height: 11, color: roleCard.color }} />
+                        <span style={{ fontSize: 10, fontWeight: 700, color: roleCard.color }}>{roleCard.label}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Checklist card */}
+                  <div style={{ backgroundColor: T.surface, borderRadius: 12, border: "1px solid #E8ECF8", padding: "16px 18px" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 12px" }}>Checklist</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {checks.map(c => (
+                        <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <CheckCircle2 style={{ width: 15, height: 15, flexShrink: 0, color: c.ok ? "#22C55E" : "#E2E8F0" }} />
+                          <span style={{ fontSize: 12, fontWeight: 500, color: c.ok ? "#374151" : "#94A3B8" }}>{c.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Security note */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", backgroundColor: T.low, borderRadius: 8 }}>
+                    <LockKeyhole style={{ width: 13, height: 13, color: "#94A3B8", flexShrink: 0 }} />
+                    <span style={{ fontSize: 10, color: "#94A3B8" }}>Dados criptografados e protegidos</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ══════════════════════════════
           MODAL: Confirmar Exclusão

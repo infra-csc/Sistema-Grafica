@@ -1,0 +1,80 @@
+Tela de Cadastro de Usuários — Layout Completo
+Container geral
+Padding 24px, largura máxima 920px centralizada. Fundo da página é o fundo padrão do app (branco/cinza claro).
+
+Cabeçalho da página
+Linha horizontal com 3 elementos:
+
+Ícone-box à esquerda: quadrado 36×36px, border-radius 10px, fundo azul #0033CC, ícone person_add branco 18px preenchido
+Textos ao lado: título "Cadastro de Usuários" em 18px bold #0F172A + subtítulo "Crie uma nova conta de acesso ao sistema" em 12px #94A3B8
+Badge à direita: pílula "Acesso restrito" com fundo âmbar #FEF3C7, texto #D97706 11px bold, ícone cadeado à esquerda
+Layout de 2 colunas
+Grade: coluna principal (1fr) + sidebar fixa (280px), gap 16px
+
+Coluna principal — Card do formulário
+Card branco, border-radius 12px, borda 1px solid #E8ECF8, dividido em seções separadas por linha 1px solid #F1F5F9
+
+Seção 1 — Dados Pessoais
+Padding 18px 20px. Cabeçalho de seção: ícone person cinza #94A3B8 + texto uppercase "DADOS PESSOAIS" em 11px 700
+
+Grid 2 colunas, gap 12px:
+
+Nome Completo (obrigatório * vermelho)
+
+Input 38px altura, ícone person cinza à esquerda (32px padding-left)
+Placeholder: "Ex: Ana Silva", borda vermelha se erro
+E-mail (obrigatório)
+
+Input com ícone mail à esquerda + ícone de validação à direita
+Borda verde #22C55E quando e-mail válido; check_circle verde / radio_button_unchecked cinza
+Abaixo (largura total):
+
+Senha (obrigatório)
+Input com ícone lock à esquerda + botão olho (Eye/EyeOff) à direita
+Ao digitar: barra de força de senha com 5 segmentos coloridos (3px altura):
+Fraca → vermelho #EF4444
+Média → âmbar #F59E0B
+Forte → verde #22C55E
+Label da força ao lado direito da barra (10px bold)
+Seção 2 — Perfil de Acesso
+Padding 18px 20px. Cabeçalho: ícone shield + "PERFIL DE ACESSO". Erro inline no cabeçalho se não selecionado.
+
+Grid 3 colunas de cards de perfil clicáveis (gap 8px):
+
+Cada card tem padding 10px 12px, border-radius 8px, 1.5px border:
+
+Perfil	Ícone	Cor ativa	Desc
+Administrador	admin_panel_settings	#7C3AED violeta	Acesso completo (só visível para admins)
+Logística Interna	local_shipping	#0033CC azul	Escalações e eventos
+Área de Função	work	#EA580C laranja	Responsável por funções
+Compras / Viagem	shopping_cart	#0891B2 ciano	Passagens e hospedagem
+RH	account_balance_wallet	#059669 verde	Prestações de contas
+Estado inativo: borda #E8ECF8, fundo branco, ícone outline cinza
+Estado ativo: borda colorida, fundo tintado (ex: #F5F3FF), ícone preenchido colorido + check_circle no canto superior direito
+Seção 3 — Área Específica
+Padding 18px 20px. Cabeçalho: ícone location_on + "ÁREA ESPECÍFICA" + contador "0/80 · opcional" à direita.
+
+Textarea 2 linhas, sem resize, placeholder "Ex: Som, Iluminação, Cenografia, Palco...", borda #E2E8F0
+
+Footer do card
+Fundo #FAFBFF, padding 14px 20px, space-between:
+
+Botão "Limpar" à esquerda: 36px altura, borda #E2E8F0, fundo branco, texto cinza #64748B
+Botão "Criar Usuário" à direita: 36px, fundo #0033CC, texto branco bold, ícone person_add à esquerda — estado loading: spinner animado + texto "Criando..."
+Coluna direita — Sidebar
+Card 1 — Pré-visualização
+Atualiza em tempo real conforme o formulário é preenchido:
+
+Avatar 40×40px, border-radius 10px, fundo azul #0033CC com iniciais do nome (ex: "AS") — cinza quando vazio
+Nome do usuário 13px bold + e-mail 11px abaixo
+Badge de perfil com ícone + label colorida (cor do perfil selecionado) ou "Sem perfil" cinza
+Card 2 — Checklist
+4 itens com ícone check_circle:
+
+"Nome preenchido" — verde quando ≥ 2 chars
+"E-mail válido" — verde quando formato ok
+"Senha segura" — verde quando ≥ 6 chars
+"Perfil selecionado" — verde quando selecionado
+Cada item: cinza #E2E8F0 quando pendente → verde #22C55E quando ok, texto fica #374151 medium
+Nota de segurança
+Faixa cinza clara com ícone encrypted + texto "Dados criptografados e protegidos" em 10px #94A3B8

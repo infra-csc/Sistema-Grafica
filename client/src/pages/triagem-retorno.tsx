@@ -27,7 +27,12 @@ const RESULT_OPTIONS = [
 ] as const;
 type TriagemResult = "NO_GALPAO" | "DESCARTADO";
 
-interface TriagemEntry { condition: Condition; result: TriagemResult; notes: string; selected: boolean; }
+interface SplitLine { qty: number; condition: Condition; result: TriagemResult; }
+interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; }
+
+function makeSplits(totalQty: number): SplitLine[] {
+  return [{ qty: totalQty, condition: "PERFEITO", result: "NO_GALPAO" }];
+}
 
 type EnrichedAsset = InventoryAsset & {
   eventName: string | null;
@@ -122,32 +127,76 @@ export default function TriagemRetorno() {
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [awaitingAssets]);
 
-  const getEntry = (id: string): TriagemEntry =>
-    entries[id] ?? { condition: "PERFEITO", result: "NO_GALPAO", notes: "", selected: false };
+  const getEntry = (id: string, totalQty?: number): TriagemEntry =>
+    entries[id] ?? { splits: makeSplits(totalQty ?? 1), notes: "", selected: false };
 
   const updateEntry = (id: string, patch: Partial<TriagemEntry>) =>
     setEntries(prev => ({ ...prev, [id]: { ...getEntry(id), ...patch } }));
 
-  const triageMutation = useMutation({
-    mutationFn: ({ id, condition, notes, trackingStatus }: { id: string; condition: Condition; notes: string; trackingStatus: string }) =>
-      apiRequest("PATCH", `/api/inventory/${id}/triage`, { condition, notes, trackingStatus }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory/awaiting-triage"] });
-    },
-  });
+  const updateSplit = (id: string, splitIdx: number, patch: Partial<SplitLine>) =>
+    setEntries(prev => {
+      const e = prev[id] ?? { splits: makeSplits(1), notes: "", selected: false };
+      const splits = e.splits.map((s, i) => i === splitIdx ? { ...s, ...patch } : s);
+      return { ...prev, [id]: { ...e, splits } };
+    });
 
-  const handleSingle = async (assetId: string) => {
-    const entry = getEntry(assetId);
-    setSavingIds(prev => new Set(Array.from(prev).concat(assetId)));
+  const addSplit = (id: string, totalQty: number) =>
+    setEntries(prev => {
+      const e = prev[id] ?? { splits: makeSplits(totalQty), notes: "", selected: false };
+      const usedQty = e.splits.reduce((s, l) => s + l.qty, 0);
+      const remaining = totalQty - usedQty;
+      if (remaining <= 0) return prev;
+      return { ...prev, [id]: { ...e, splits: [...e.splits, { qty: remaining, condition: "PERFEITO", result: "NO_GALPAO" }] } };
+    });
+
+  const removeSplit = (id: string, splitIdx: number) =>
+    setEntries(prev => {
+      const e = prev[id];
+      if (!e || e.splits.length <= 1) return prev;
+      return { ...prev, [id]: { ...e, splits: e.splits.filter((_, i) => i !== splitIdx) } };
+    });
+
+  const isSplitValid = (entry: TriagemEntry, totalQty: number) =>
+    entry.splits.reduce((s, l) => s + l.qty, 0) === totalQty;
+
+  const doTriage = async (assetId: string, totalQty: number) => {
+    const entry = getEntry(assetId, totalQty);
+    if (entry.splits.length === 1) {
+      await apiRequest("PATCH", `/api/inventory/${assetId}/triage`, {
+        condition: entry.splits[0].condition,
+        notes: entry.notes,
+        trackingStatus: entry.splits[0].result,
+      });
+    } else {
+      await apiRequest("POST", `/api/inventory/${assetId}/triage-split`, {
+        splits: entry.splits.map(s => ({
+          qty: s.qty,
+          condition: s.condition,
+          trackingStatus: s.result,
+          notes: entry.notes,
+        })),
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/inventory/awaiting-triage"] });
+  };
+
+  const handleSingle = async (asset: EnrichedAsset) => {
+    const totalQty = asset.quantity ?? 1;
+    const entry = getEntry(asset.id, totalQty);
+    if (!isSplitValid(entry, totalQty)) {
+      toast({ title: `A soma das quantidades deve ser ${totalQty}.`, variant: "destructive" });
+      return;
+    }
+    setSavingIds(prev => new Set(Array.from(prev).concat(asset.id)));
     try {
-      await triageMutation.mutateAsync({ id: assetId, condition: entry.condition, notes: entry.notes, trackingStatus: entry.result });
-      setSavedIds(prev => new Set(Array.from(prev).concat(assetId)));
-      toast({ title: "Triagem registrada." });
+      await doTriage(asset.id, totalQty);
+      setSavedIds(prev => new Set(Array.from(prev).concat(asset.id)));
+      toast({ title: entry.splits.length > 1 ? `Triagem registrada em ${entry.splits.length} lotes.` : "Triagem registrada." });
     } catch {
       toast({ title: "Erro ao registrar triagem.", variant: "destructive" });
     } finally {
-      setSavingIds(prev => { const s = new Set(Array.from(prev)); s.delete(assetId); return s; });
+      setSavingIds(prev => { const s = new Set(Array.from(prev)); s.delete(asset.id); return s; });
     }
   };
 
@@ -158,8 +207,9 @@ export default function TriagemRetorno() {
     setSavingIds(new Set(selectedIds));
     const results = await Promise.allSettled(
       selectedIds.map(id => {
-        const entry = getEntry(id);
-        return triageMutation.mutateAsync({ id, condition: entry.condition, notes: entry.notes, trackingStatus: entry.result });
+        const asset = awaitingAssets.find(a => a.id === id);
+        const totalQty = asset?.quantity ?? 1;
+        return doTriage(id, totalQty);
       })
     );
     const succeeded = results.filter(r => r.status === "fulfilled").length;
@@ -373,10 +423,12 @@ export default function TriagemRetorno() {
               </thead>
               <tbody>
                 {[...pendingAssets, ...awaitingAssets.filter(a => savedIds.has(a.id))].map(asset => {
-                  const entry = getEntry(asset.id);
+                  const qty = asset.quantity ?? 1;
+                  const entry = getEntry(asset.id, qty);
                   const isSaved = savedIds.has(asset.id);
                   const isSaving = savingIds.has(asset.id);
-                  const qty = asset.quantity ?? 1;
+                  const splitSum = entry.splits.reduce((s, l) => s + l.qty, 0);
+                  const splitValid = splitSum === qty;
 
                   return (
                     <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
@@ -459,51 +511,90 @@ export default function TriagemRetorno() {
                         <SponsorChips sponsors={asset.sponsors ?? []} />
                       </td>
 
-                      {/* Condição + Destino — coluna unificada */}
-                      <td style={{ padding: "18px 20px", verticalAlign: "middle", minWidth: 240 }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                          {/* Condição */}
-                          <div style={{ flex: 1 }}>
-                            <p style={{ margin: "0 0 4px", fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                              Condição
-                            </p>
-                            <select data-testid={`select-condition-${asset.id}`}
-                              value={entry.condition} disabled={isSaved}
-                              onChange={e => updateEntry(asset.id, { condition: e.target.value as Condition })}
-                              style={{ ...SEL, opacity: isSaved ? 0.5 : 1, cursor: isSaved ? "not-allowed" : "pointer" }}
-                            >
-                              {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_LABELS[c]}</option>)}
-                            </select>
-                            {!isSaved && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-                                <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: CONDITION_COLORS[entry.condition]?.color ?? "#64748b" }} />
-                                <span style={{ fontSize: 9, color: CONDITION_COLORS[entry.condition]?.color ?? "#64748b", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-                                  {CONDITION_LABELS[entry.condition]}
-                                </span>
+                      {/* Condição / Destino por quantidade */}
+                      <td style={{ padding: "14px 20px", verticalAlign: "top", minWidth: 280 }}>
+                        {isSaved ? (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "#dcfce7", color: "#16a34a" }}>
+                            <CheckCircle2 size={12} />
+                            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Triado</span>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {/* Header labels */}
+                            {entry.splits.length > 1 && (
+                              <div style={{ display: "grid", gridTemplateColumns: "52px 1fr 1fr 20px", gap: 4, paddingBottom: 2 }}>
+                                {["Qtd", "Condição", "Destino", ""].map(l => (
+                                  <span key={l} style={{ fontSize: 8, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>{l}</span>
+                                ))}
                               </div>
                             )}
+
+                            {entry.splits.map((split, si) => (
+                              <div key={si} style={{ display: "grid", gridTemplateColumns: "52px 1fr 1fr 20px", gap: 4, alignItems: "center" }}>
+                                {/* Qty input */}
+                                <input
+                                  type="number" min={1} max={qty}
+                                  value={split.qty}
+                                  disabled={entry.splits.length === 1}
+                                  onChange={e => updateSplit(asset.id, si, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
+                                  style={{
+                                    ...INP, width: "100%", textAlign: "center",
+                                    fontFamily: "DM Mono, monospace", fontWeight: 700, fontSize: 13,
+                                    background: entry.splits.length === 1 ? "#f8fafc" : (!splitValid ? "#fff1f2" : "#f1f3ff"),
+                                    color: !splitValid && entry.splits.length > 1 ? "#dc2626" : "#0f172a",
+                                    padding: "7px 4px",
+                                    border: !splitValid && entry.splits.length > 1 ? "1px solid #fca5a5" : "none",
+                                  }}
+                                />
+                                {/* Condition */}
+                                <select
+                                  data-testid={`select-condition-${asset.id}-${si}`}
+                                  value={split.condition}
+                                  onChange={e => updateSplit(asset.id, si, { condition: e.target.value as Condition })}
+                                  style={{ ...SEL, padding: "7px 8px", fontSize: 12 }}
+                                >
+                                  {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_LABELS[c]}</option>)}
+                                </select>
+                                {/* Result */}
+                                <select
+                                  data-testid={`select-result-${asset.id}-${si}`}
+                                  value={split.result}
+                                  onChange={e => updateSplit(asset.id, si, { result: e.target.value as TriagemResult })}
+                                  style={{ ...SEL, padding: "7px 8px", fontSize: 12, color: split.result === "DESCARTADO" ? "#dc2626" : "#0f172a" }}
+                                >
+                                  {RESULT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                </select>
+                                {/* Remove */}
+                                {entry.splits.length > 1 ? (
+                                  <button onClick={() => removeSplit(asset.id, si)}
+                                    style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex", alignItems: "center" }}>
+                                    <X size={13} />
+                                  </button>
+                                ) : <span />}
+                              </div>
+                            ))}
+
+                            {/* Add split button + qty counter */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                              {qty > 1 && splitSum < qty && (
+                                <button onClick={() => addSplit(asset.id, qty)}
+                                  style={{
+                                    border: "1px dashed #c7d2fe", borderRadius: 7, background: "transparent",
+                                    cursor: "pointer", color: "#4338ca", fontSize: 10, fontWeight: 700,
+                                    fontFamily: "Space Grotesk, sans-serif", padding: "4px 10px",
+                                    letterSpacing: "0.06em", textTransform: "uppercase",
+                                  }}>
+                                  + Dividir
+                                </button>
+                              )}
+                              {entry.splits.length > 1 && (
+                                <span style={{ fontSize: 9, fontFamily: "DM Mono, monospace", color: splitValid ? "#16a34a" : "#dc2626", fontWeight: 700 }}>
+                                  {splitSum}/{qty} un
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          {/* Divisor */}
-                          <div style={{ width: 1, background: "#e2e8f0", alignSelf: "stretch", marginTop: 16 }} />
-                          {/* Destino */}
-                          <div style={{ flex: 1 }}>
-                            <p style={{ margin: "0 0 4px", fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                              Destino
-                            </p>
-                            <select data-testid={`select-result-${asset.id}`}
-                              value={entry.result} disabled={isSaved}
-                              onChange={e => updateEntry(asset.id, { result: e.target.value as TriagemResult })}
-                              style={{
-                                ...SEL,
-                                opacity: isSaved ? 0.5 : 1,
-                                cursor: isSaved ? "not-allowed" : "pointer",
-                                color: entry.result === "DESCARTADO" ? "#dc2626" : "#0f172a",
-                              }}
-                            >
-                              {RESULT_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                            </select>
-                          </div>
-                        </div>
+                        )}
                       </td>
 
                       {/* Observação */}
@@ -518,7 +609,7 @@ export default function TriagemRetorno() {
                             type="text" placeholder="Adicionar nota..."
                             value={entry.notes}
                             onChange={e => updateEntry(asset.id, { notes: e.target.value })}
-                            onKeyDown={e => e.key === "Enter" && handleSingle(asset.id)}
+                            onKeyDown={e => e.key === "Enter" && handleSingle(asset)}
                             style={INP}
                           />
                         )}
@@ -533,23 +624,24 @@ export default function TriagemRetorno() {
                           </span>
                         ) : (
                           <button data-testid={`button-save-triage-${asset.id}`}
-                            disabled={isSaving}
-                            onClick={() => handleSingle(asset.id)}
+                            disabled={isSaving || !splitValid}
+                            onClick={() => handleSingle(asset)}
+                            title={!splitValid ? `Soma das quantidades deve ser ${qty}` : ""}
                             style={{
                               display: "inline-flex", alignItems: "center", gap: 6,
                               padding: "8px 16px", borderRadius: 9,
                               border: "none",
-                              background: isSaving ? "#e2e8f0" : "#2563eb",
-                              color: isSaving ? "#94a3b8" : "#fff",
+                              background: isSaving || !splitValid ? "#e2e8f0" : "#2563eb",
+                              color: isSaving || !splitValid ? "#94a3b8" : "#fff",
                               fontSize: 12, fontWeight: 700,
                               fontFamily: "Space Grotesk, sans-serif",
-                              cursor: isSaving ? "not-allowed" : "pointer",
-                              boxShadow: isSaving ? "none" : "0 2px 8px rgba(37,99,235,0.28)",
+                              cursor: isSaving || !splitValid ? "not-allowed" : "pointer",
+                              boxShadow: isSaving || !splitValid ? "none" : "0 2px 8px rgba(37,99,235,0.28)",
                               transition: "all 0.15s",
                               whiteSpace: "nowrap",
                             }}
-                            onMouseEnter={e => { if (!isSaving) (e.currentTarget as HTMLButtonElement).style.background = "#1d4ed8"; }}
-                            onMouseLeave={e => { if (!isSaving) (e.currentTarget as HTMLButtonElement).style.background = "#2563eb"; }}
+                            onMouseEnter={e => { if (!isSaving && splitValid) (e.currentTarget as HTMLButtonElement).style.background = "#1d4ed8"; }}
+                            onMouseLeave={e => { if (!isSaving && splitValid) (e.currentTarget as HTMLButtonElement).style.background = "#2563eb"; }}
                           >
                             {isSaving
                               ? <span style={{ fontSize: 12 }}>...</span>

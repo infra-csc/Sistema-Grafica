@@ -387,17 +387,18 @@ export default function Estoque() {
     onError: () => toast({ title: "Erro ao excluir.", variant: "destructive" }),
   });
 
-  // Assets that have been triaged (not awaiting triage) — these belong to the acervo
-  const acervoAssets = assets.filter(a => a.trackingStatus !== "AGUARDANDO_TRIAGEM" && a.trackingStatus !== "DESCARTADO");
+  // Exclude AGUARDANDO_TRIAGEM — those belong to the triage screen only
+  const acervoAssets = assets.filter(a => a.trackingStatus !== "AGUARDANDO_TRIAGEM");
   const triageCount = assets.filter(a => a.trackingStatus === "AGUARDANDO_TRIAGEM").length;
-  const descartadoCount = assets.filter(a => a.trackingStatus === "DESCARTADO").length;
 
-  const total = acervoAssets.length;
+  const total = acervoAssets.filter(a => a.trackingStatus !== "DESCARTADO").length;
   const byStatus = (s: string) => assets.filter(a => a.trackingStatus === s).length;
   const sucata = acervoAssets.filter(a => a.condition === "SUCATA").length;
   const autoCount = acervoAssets.filter(a => a.autoAdded).length;
 
   const filtered = acervoAssets.filter(a => {
+    // Hide DESCARTADO by default — only show when explicitly filtered
+    if (filterStatus === "all" && a.trackingStatus === "DESCARTADO") return false;
     const q = search.toLowerCase();
     const ms = !q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q));
     const mst = filterStatus === "all" || a.trackingStatus === filterStatus;
@@ -485,7 +486,7 @@ export default function Estoque() {
         <div style={{ width: 1, height: 32, background: "#f1f5f9" }} />
 
         {[
-          { val: filterStatus,    fn: setFilterStatus,    opts: [["all","STATUS: TODOS"], ...ALL_STATUSES.filter(s => s !== "AGUARDANDO_TRIAGEM" && s !== "DESCARTADO").map(s => [s, STATUS_META[s].label])] },
+          { val: filterStatus,    fn: setFilterStatus,    opts: [["all","STATUS: TODOS"], ...ALL_STATUSES.filter(s => s !== "AGUARDANDO_TRIAGEM").map(s => [s, STATUS_META[s].label])] },
           { val: filterCondition, fn: setFilterCondition, opts: [["all","CONDIÇÃO: TODA"], ...CONDITIONS.map(c => [c, CONDITION_META[c].label])] },
           { val: filterAutoAdded, fn: setFilterAutoAdded, opts: [["all","ORIGEM: TODAS"],["auto","Gráfica (Auto)"],["manual","Manual"]] },
         ].map(({ val, fn, opts }, i) => (

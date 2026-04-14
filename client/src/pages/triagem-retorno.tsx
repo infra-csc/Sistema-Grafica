@@ -33,6 +33,20 @@ function makeSplits(totalQty: number): SplitLine[] {
   return [{ qty: totalQty, condition: "PERFEITO", result: "NO_GALPAO" }];
 }
 
+// ─── ThumbCell — fallback quando a imagem falha ou URL está vazia ─────────────
+function ThumbCell({ url, size = 15 }: { url?: string | null; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) return <Package size={size} color="#94a3b8" />;
+  return (
+    <img
+      src={url}
+      alt=""
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function makeEntry(totalQty: number): TriagemEntry {
   return { splits: makeSplits(totalQty), notes: "", selected: false, mode: "all" };
 }
@@ -643,10 +657,7 @@ export default function TriagemRetorno() {
                             boxShadow: thumbRing,
                             transition: "box-shadow 0.2s",
                           }}>
-                            {asset.approvalThumbUrl
-                              ? <img src={asset.approvalThumbUrl} alt="thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              : <Package size={15} color="#94a3b8" />
-                            }
+                            <ThumbCell url={asset.approvalThumbUrl} size={15} />
                           </div>
                           {/* Text: ID acima do nome */}
                           <div>

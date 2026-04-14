@@ -154,9 +154,11 @@ function SponsorStack({ sponsorIds, sponsors }: { sponsorIds: string[]; sponsors
 // ─── Art thumbnail with hover popover ────────────────────────────────────────
 function ArtThumb({ url }: { url: string }) {
   const [show, setShow] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const handleError = () => setFailed(true);
   return (
-    <div style={{ position: "relative", display: "inline-block", cursor: "zoom-in" }}
-      onMouseEnter={() => setShow(true)}
+    <div style={{ position: "relative", display: "inline-block", cursor: failed ? "default" : "zoom-in" }}
+      onMouseEnter={() => !failed && setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
       <div style={{
@@ -164,10 +166,15 @@ function ArtThumb({ url }: { url: string }) {
         border: `2px solid ${show ? "rgba(37,99,235,0.3)" : "#e2e8f0"}`,
         boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
         transition: "border-color 0.15s",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "#f1f5f9",
       }}>
-        <img src={url} alt="arte" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {failed
+          ? <Package size={15} color="#94a3b8" />
+          : <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={handleError} />
+        }
       </div>
-      {show && (
+      {show && !failed && (
         <div style={{
           position: "absolute", bottom: "calc(100% + 10px)", left: 0,
           background: "#fff", borderRadius: 12, padding: 6,
@@ -176,7 +183,7 @@ function ArtThumb({ url }: { url: string }) {
           transform: "scale(1)", opacity: 1,
           transformOrigin: "bottom left",
         }}>
-          <img src={url} alt="preview" style={{ width: 192, height: 192, borderRadius: 8, objectFit: "cover", display: "block" }} />
+          <img src={url} alt="" style={{ width: 192, height: 192, borderRadius: 8, objectFit: "cover", display: "block" }} onError={handleError} />
           <p style={{ textAlign: "center", fontSize: 10, color: "#94a3b8", margin: "5px 0 0", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
             Arte aprovada
           </p>

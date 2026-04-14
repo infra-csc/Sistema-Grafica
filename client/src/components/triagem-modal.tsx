@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   X, Sparkles, Hammer, Trash2, Warehouse, Package2,
@@ -79,6 +80,7 @@ export function TriagemModal({
 
   const thumbUrl = asset.approvalThumbUrl;
   const isImg    = thumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl);
+  const [thumbImgFailed, setThumbImgFailed] = useState(false);
 
   async function handleSave() {
     await onSaveAndClose();
@@ -533,12 +535,12 @@ export function TriagemModal({
             {/* ── Imagem de Referência (approval thumb) ── */}
             {thumbUrl && (
               <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "21/9" }}>
-                {isImg ? (
+                {isImg && !thumbImgFailed ? (
                   <img
                     src={thumbUrl}
-                    alt="Arte aprovada"
+                    alt=""
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    onError={() => setThumbImgFailed(true)}
                   />
                 ) : (
                   <div style={{ width: "100%", height: "100%", background: "#1f2937", display: "flex", alignItems: "center", justifyContent: "center" }}>

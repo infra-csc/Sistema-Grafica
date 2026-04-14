@@ -513,15 +513,14 @@ export default function TriagemRetorno() {
                           <div>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                               <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>{asset.name}</p>
-                              {qty > 1 && (
-                                <span style={{
-                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                  minWidth: 22, height: 18, borderRadius: 5,
-                                  background: "#e0f2fe", color: "#0369a1",
-                                  fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 5px",
-                                  border: "1px solid #bae6fd",
-                                }}>×{qty}</span>
-                              )}
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                minWidth: 26, height: 20, borderRadius: 6,
+                                background: qty > 1 ? "#0f172a" : "#f1f5f9",
+                                color: qty > 1 ? "#fff" : "#94a3b8",
+                                fontSize: 11, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 6px",
+                                letterSpacing: "0.02em",
+                              }}>×{qty}</span>
                             </div>
                             <p style={{ margin: "3px 0 0", fontSize: 11, color: "#94a3b8", fontFamily: "DM Mono, monospace", letterSpacing: "0.04em" }}>
                               {asset.displayId}

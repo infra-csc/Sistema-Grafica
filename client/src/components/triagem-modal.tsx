@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   X, Sparkles, Hammer, Trash2, Warehouse, Package2,
-  Tag, Calendar, Ruler, Layers, HelpCircle, CheckCircle2,
+  Tag, Calendar, Ruler, Layers, CheckCircle2,
   Archive, Truck, ClipboardCheck, Image,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -232,18 +232,6 @@ export function TriagemModal({
             )}
           </div>
 
-          {/* Sidebar footer */}
-          <div style={{ padding: "16px 24px", background: "rgba(0,0,0,0.3)" }}>
-            <button style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              gap: 6, width: "100%", padding: "8px 0",
-              background: "none", border: "none", cursor: "pointer",
-              fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 12, color: "#6b7280",
-            }}>
-              <HelpCircle size={14} color="#6b7280" />
-              Suporte Técnico
-            </button>
-          </div>
         </aside>
 
         {/* ══════════════════════════════════════════

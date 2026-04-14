@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Triagem de Retorno | NORTE Assets</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-fixed-variant": "#4a4643",
+                      "on-surface-variant": "#584237",
+                      "secondary-fixed": "#ffdbca",
+                      "surface-container-high": "#e8e8e7",
+                      "tertiary-container": "#00a2f4",
+                      "on-surface": "#1a1c1c",
+                      "on-tertiary": "#ffffff",
+                      "primary-container": "#9f9996",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary": "#9d4300",
+                      "on-primary-container": "#35322f",
+                      "inverse-primary": "#ccc5c2",
+                      "inverse-surface": "#2f3130",
+                      "error-container": "#ffdad6",
+                      "surface-dim": "#dadad9",
+                      "surface-tint": "#625d5b",
+                      "primary-fixed-dim": "#ccc5c2",
+                      "surface-container-highest": "#e2e2e2",
+                      "on-secondary": "#ffffff",
+                      "on-error": "#ffffff",
+                      "surface": "#f9f9f8",
+                      "surface-container": "#eeeeed",
+                      "on-primary-fixed": "#1e1b19",
+                      "outline": "#8c7164",
+                      "on-tertiary-fixed": "#001d32",
+                      "on-primary": "#ffffff",
+                      "on-background": "#1a1c1c",
+                      "tertiary-fixed": "#cde5ff",
+                      "error": "#ba1a1a",
+                      "tertiary": "#006398",
+                      "surface-variant": "#e2e2e2",
+                      "primary-fixed": "#e9e1dd",
+                      "surface-container-low": "#f3f4f3",
+                      "on-secondary-fixed-variant": "#783200",
+                      "inverse-on-surface": "#f1f1f0",
+                      "background": "#f9f9f8",
+                      "surface-bright": "#f9f9f8",
+                      "on-secondary-fixed": "#341100",
+                      "secondary-fixed-dim": "#ffb690",
+                      "on-tertiary-fixed-variant": "#004b74",
+                      "on-error-container": "#93000a",
+                      "outline-variant": "#e0c0b1",
+                      "on-tertiary-container": "#003554",
+                      "on-secondary-container": "#5c2400",
+                      "tertiary-fixed-dim": "#93ccff",
+                      "secondary-container": "#fd761a",
+                      "primary": "#625d5b"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "fontFamily": {
+                      "headline": ["Space Grotesk", "sans-serif"],
+                      "body": ["Plus Jakarta Sans", "sans-serif"],
+                      "label": ["Plus Jakarta Sans", "sans-serif"],
+                      "mono": ["DM Mono", "monospace"]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .kerning-tight { letter-spacing: -0.03em; }
+        .glass-brand {
+            background: rgba(226, 226, 222, 0.6);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- SideNavBar Shell -->
+<aside class="bg-stone-900 h-screen w-64 fixed left-0 top-0 border-r-0 flex flex-col py-6 z-50">
+<div class="px-6 mb-8">
+<h1 class="text-xl font-bold tracking-tighter text-orange-500 font-headline">NORTE Assets</h1>
+<p class="text-[10px] uppercase tracking-widest text-stone-500 font-headline mt-1">Gestão de Ativos Físicos</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center px-6 py-3 text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-all duration-200 ease-out group" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+<span class="text-sm">Visão Geral</span>
+</a>
+<a class="flex items-center px-6 py-3 text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-all duration-200 ease-out group" href="#">
+<span class="material-symbols-outlined mr-3">inventory_2</span>
+<span class="text-sm">Gestão de Ativos</span>
+</a>
+<!-- Active State -->
+<a class="flex items-center px-6 py-3 text-orange-500 font-bold border-r-4 border-orange-500 bg-stone-800/50 group" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">assignment_return</span>
+<span class="text-sm">Triagem de Retorno</span>
+</a>
+<a class="flex items-center px-6 py-3 text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-all duration-200 ease-out group" href="#">
+<span class="material-symbols-outlined mr-3">local_shipping</span>
+<span class="text-sm">Logística</span>
+</a>
+<a class="flex items-center px-6 py-3 text-stone-400 hover:text-stone-200 hover:bg-stone-800 transition-all duration-200 ease-out group" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+<span class="text-sm">Configurações</span>
+</a>
+</nav>
+<div class="px-6 mt-auto space-y-2">
+<button class="w-full bg-secondary text-white py-2.5 rounded-lg flex items-center justify-center gap-2 font-semibold text-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm">add</span>
+                Novo Chamado
+            </button>
+<div class="pt-4 border-t border-stone-800">
+<a class="flex items-center py-2 text-stone-400 hover:text-stone-200 text-xs" href="#">
+<span class="material-symbols-outlined mr-2 text-sm">help</span> Suporte
+                </a>
+<a class="flex items-center py-2 text-stone-400 hover:text-stone-200 text-xs" href="#">
+<span class="material-symbols-outlined mr-2 text-sm">logout</span> Sair
+                </a>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="pl-64 min-h-screen">
+<!-- TopAppBar Shell -->
+<header class="bg-stone-50/80 backdrop-blur-md sticky top-0 z-40 flex justify-between items-center w-full px-8 py-4">
+<div class="flex items-center gap-6">
+<h2 class="text-lg font-headline font-bold -tracking-[0.02em] text-on-surface">Triagem de Ativos</h2>
+<nav class="hidden md:flex gap-6 text-sm font-medium">
+<a class="text-stone-500 hover:text-stone-800 transition-colors" href="#">Fila de Espera</a>
+<a class="text-orange-600 border-b-2 border-orange-600 pb-2" href="#">Em Processamento</a>
+<a class="text-stone-500 hover:text-stone-800 transition-colors" href="#">Concluídos</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center bg-stone-100 rounded-full px-4 py-1.5 gap-2">
+<span class="material-symbols-outlined text-stone-400 text-lg">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48" placeholder="Buscar ativo..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-stone-500 hover:bg-stone-200/50 rounded-full transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-stone-500 hover:bg-stone-200/50 rounded-full transition-all">
+<span class="material-symbols-outlined">keyboard</span>
+</button>
+</div>
+<img alt="Avatar do usuário" class="w-8 h-8 rounded-full border border-stone-200" data-alt="professional male equipment manager profile picture with neutral background and soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUdX1k34zy1OP9ghbxoLCSLG9muhFbHONQKpZijsfp0MElhFL8oepayazQ50rPURIq-TAe9zSLUC0hpODgrnd_FkidHT3hTPuh4T3pfEIMNmLV-8405We3tgI1mGNr63Mo0U6PyWOXA-dT9BXlPvTYHuUoNwxyCmCRyHU-pOhvr9m9cppJ_7tVp1_d8mE8C8sH2CyP9XF6sQmTFXJKvzfJZT0RUEJntCGCp_3ZBpY2vGn8l7TlcZUjdfAVZLsVYbet5dxlbLbg-jtx"/>
+</div>
+</header>
+<div class="p-8">
+<!-- Header Section -->
+<div class="flex justify-between items-end mb-8">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-amber-600 text-3xl" style="font-variation-settings: 'FILL' 1;">qr_code_scanner</span>
+</div>
+<div>
+<h3 class="text-3xl font-headline font-bold kerning-tight text-on-surface">Triagem de Retorno</h3>
+<p class="text-sm text-stone-500">Módulo de Inspeção Técnica e Recebimento de Materiais</p>
+</div>
+</div>
+<button class="bg-gradient-to-r from-tertiary to-tertiary-container text-white px-6 py-2.5 rounded-lg font-semibold flex items-center gap-2 shadow-lg shadow-tertiary/20 active:scale-95 transition-all">
+<span class="material-symbols-outlined">done_all</span>
+                    Confirmar Triagem em Lote
+                </button>
+</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<div class="bg-surface-container-low p-6 rounded-xl relative overflow-hidden group">
+<div class="flex justify-between items-start relative z-10">
+<div>
+<p class="text-xs font-bold uppercase tracking-widest text-stone-400 mb-1">Aguardando Triagem</p>
+<h4 class="text-4xl font-headline font-bold text-on-surface">1,248</h4>
+</div>
+<span class="material-symbols-outlined text-stone-300 text-4xl">pending_actions</span>
+</div>
+<div class="mt-4 flex items-center text-xs font-medium text-orange-600">
+<span class="material-symbols-outlined text-sm mr-1">trending_up</span>
+                        +12% desde ontem
+                    </div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl relative overflow-hidden">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-xs font-bold uppercase tracking-widest text-stone-400 mb-1">Selecionados</p>
+<h4 class="text-4xl font-headline font-bold text-on-surface">24</h4>
+</div>
+<span class="material-symbols-outlined text-stone-300 text-4xl">checklist</span>
+</div>
+<div class="mt-4 flex items-center text-xs font-medium text-stone-500">
+                        Clique nos itens para ação em massa
+                    </div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl relative overflow-hidden">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-xs font-bold uppercase tracking-widest text-stone-400 mb-1">Triados Hoje</p>
+<h4 class="text-4xl font-headline font-bold text-on-surface">312</h4>
+</div>
+<span class="material-symbols-outlined text-stone-300 text-4xl">check_circle</span>
+</div>
+<div class="mt-4 flex items-center text-xs font-medium text-tertiary">
+                        Meta diária: 85% concluída
+                    </div>
+</div>
+</div>
+<!-- Filters Bar -->
+<div class="bg-surface-container-highest p-4 rounded-xl flex flex-wrap items-center gap-4 mb-6">
+<div class="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border-none">
+<span class="material-symbols-outlined text-stone-400 text-lg">event</span>
+<select class="bg-transparent border-none text-sm focus:ring-0 font-medium">
+<option>Evento: Ironman Brasil 2024</option>
+<option>Maratona Rio 2024</option>
+<option>L'Étape Brasil</option>
+</select>
+</div>
+<div class="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border-none">
+<span class="material-symbols-outlined text-stone-400 text-lg">workspace_premium</span>
+<select class="bg-transparent border-none text-sm focus:ring-0 font-medium">
+<option>Patrocinador: Todos</option>
+<option>Red Bull</option>
+<option>Oakley</option>
+<option>Specialized</option>
+</select>
+</div>
+<button class="flex items-center gap-2 text-stone-500 hover:text-stone-800 text-sm font-semibold px-4 transition-colors">
+<span class="material-symbols-outlined">filter_alt_off</span>
+                    Limpar Filtros
+                </button>
+</div>
+<!-- Main Table Section -->
+<div class="bg-white rounded-xl overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-stone-50 border-b border-stone-100">
+<th class="p-4 w-12 text-center">
+<input class="rounded text-orange-600 focus:ring-orange-500 border-stone-300" type="checkbox"/>
+</th>
+<th class="p-4 text-xs font-bold uppercase tracking-wider text-stone-400">Material / Qtd</th>
+<th class="p-4 text-xs font-bold uppercase tracking-wider text-stone-400">Evento</th>
+<th class="p-4 text-xs font-bold uppercase tracking-wider text-stone-400">Patrocinadores</th>
+<th class="p-4 text-xs font-bold uppercase tracking-wider text-stone-400">Condição / Destino</th>
+<th class="p-4 text-xs font-bold uppercase tracking-wider text-stone-400">Observação</th>
+<th class="p-4 text-xs font-bold uppercase tracking-wider text-stone-400 text-right">Ação</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-100">
+<!-- Row 1 -->
+<tr class="hover:bg-stone-50/50 transition-colors">
+<td class="p-4 text-center">
+<input checked="" class="rounded text-orange-600 focus:ring-orange-500 border-stone-300" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-stone-100 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="professional carbon fiber road bike racing helmet close up on white background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5py2812kk7BF1XQdbcFH-dFxwGnRw3CtW6J_zsTkqSnPgrP5072GvSnJwjjHbvnj8RVvyvYyaaVMySdPZucUH5mq0xblGTTmEEuTNJ0of3eXfZvkjx89v7Mat3Jnq6mRsqWI2o4CNK50aQI0zKIwInWfKw7viT_qskPo-uoY-lZDfDffvHWstFzy4ol-tysbJZ3iaqsFjlPnV4FDZtrKbenVJT0a2lekCL8yDG8erdmBgyuVpxqkmg6pb5nNiFaCn-95G7cbAIj73"/>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Capacete Aero-Spec V2</p>
+<p class="text-[10px] font-mono text-stone-500">ID: #HLM-8829 | Qtd: 12</p>
+</div>
+</div>
+</td>
+<td class="p-4 text-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-stone-400 text-base">calendar_today</span>
+<span>Ironman SP 2024</span>
+</div>
+</td>
+<td class="p-4">
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-0.5 bg-stone-100 rounded text-[10px] font-bold text-stone-600">OAKLEY</span>
+<span class="px-2 py-0.5 bg-stone-100 rounded text-[10px] font-bold text-stone-600">RED BULL</span>
+</div>
+</td>
+<td class="p-4">
+<div class="space-y-2">
+<div class="flex gap-1">
+<button class="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-lg border-2 border-green-200">PERFEITO (1)</button>
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200 hover:bg-stone-200">AVARIA (2)</button>
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200 hover:bg-stone-200">SUCATA (3)</button>
+</div>
+<div class="flex gap-1">
+<button class="px-3 py-1 bg-tertiary-container/10 text-tertiary font-bold text-[10px] rounded-lg border border-tertiary/20">GALPÃO</button>
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200">DESCARTAR</button>
+</div>
+</div>
+</td>
+<td class="p-4">
+<input class="w-full text-xs bg-stone-50 border-none rounded focus:ring-1 focus:ring-orange-500 py-1 px-2" placeholder="Adicionar nota..." type="text"/>
+</td>
+<td class="p-4 text-right">
+<button class="bg-stone-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-stone-900 transition-transform active:scale-90">SALVAR</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-stone-50/50 transition-colors">
+<td class="p-4 text-center">
+<input class="rounded text-orange-600 focus:ring-orange-500 border-stone-300" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-stone-100 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="professional white cycling shoes on neutral floor with soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBJbcQEzVpDqSQV3HIjIuoKWpmlCJzOTocPW7ISO1VkzaXm2tlh4hR5MSbGddHa5w0uprLUkJ8VvZF6r1w6h4FyWfOUg685lgaQawI_1B9H6qQCWspER0LOoIxsT1w_8nWNZhjOhYSOS6ORHEMfK4I2yqBtZmYBnyFW62g_A558jnYItCawyqmaNVtNdFwxm1o3KA0vYpgf3ITsfRuSv9XlQnX5t6EvugrNjJ4OlTKar62Xj3aRcJrMc6JQT_iGw-44BAP0wK8b_T7T"/>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Sapatilha Elite Track</p>
+<p class="text-[10px] font-mono text-stone-500">ID: #SHOE-1120 | Qtd: 05</p>
+</div>
+</div>
+</td>
+<td class="p-4 text-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-stone-400 text-base">calendar_today</span>
+<span>Troféu Brasil</span>
+</div>
+</td>
+<td class="p-4">
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-0.5 bg-stone-100 rounded text-[10px] font-bold text-stone-600">SHIMANO</span>
+</div>
+</td>
+<td class="p-4">
+<div class="space-y-2">
+<div class="flex gap-1">
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200">PERFEITO (1)</button>
+<button class="px-3 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-lg border-2 border-amber-200">AVARIA (2)</button>
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200">SUCATA (3)</button>
+</div>
+<div class="flex gap-1">
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200">GALPÃO</button>
+<button class="px-3 py-1 bg-error-container/20 text-error font-bold text-[10px] rounded-lg border border-error/20">DESCARTAR</button>
+</div>
+</div>
+</td>
+<td class="p-4">
+<input class="w-full text-xs bg-stone-50 border-none rounded focus:ring-1 focus:ring-orange-500 py-1 px-2" type="text" value="Zíper lateral danificado"/>
+</td>
+<td class="p-4 text-right">
+<button class="bg-stone-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-stone-900">SALVAR</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-stone-50/50 transition-colors">
+<td class="p-4 text-center">
+<input checked="" class="rounded text-orange-600 focus:ring-orange-500 border-stone-300" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-stone-100 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="high performance triathlon hydration system with straw and carbon fiber brackets" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXeE0Pz_yF1aUUeTqBTH3REZ9VxvHZII99UzbcXhia5YGH4csySM38m0svfp2da6A7ZWY_T7HH6K5nm7IYy5PZTo00HW86ICTzkJqlsxeYTTMlIlxo_rH14eRF7Yu0ehV6QTlQju9v-wRvJA5cmNBG5g6gOcr38wXI7E7h-6ZNX3new047KcFus3EtaJ2sXlKunOy55Tu7qSSR_2IXCTOOvnMuCtvHuRU7WcpsF8QjpO70om_zeJBBlG3YLFFRD7E0Zk6kcPV5Zp8d"/>
+</div>
+<div>
+<p class="text-sm font-bold text-on-surface">Caramanhola Térmica 750ml</p>
+<p class="text-[10px] font-mono text-stone-500">ID: #HYD-9901 | Qtd: 45</p>
+</div>
+</div>
+</td>
+<td class="p-4 text-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-stone-400 text-base">calendar_today</span>
+<span>Ironman SP 2024</span>
+</div>
+</td>
+<td class="p-4">
+<div class="flex flex-wrap gap-1">
+<span class="px-2 py-0.5 bg-stone-100 rounded text-[10px] font-bold text-stone-600">GATORADE</span>
+</div>
+</td>
+<td class="p-4">
+<div class="space-y-2">
+<div class="flex gap-1">
+<button class="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-lg border-2 border-green-200">PERFEITO (1)</button>
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200">AVARIA (2)</button>
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200">SUCATA (3)</button>
+</div>
+<div class="flex gap-1">
+<button class="px-3 py-1 bg-tertiary-container/10 text-tertiary font-bold text-[10px] rounded-lg border border-tertiary/20">GALPÃO</button>
+<button class="px-3 py-1 bg-stone-100 text-stone-400 text-[10px] font-bold rounded-lg border border-stone-200">DESCARTAR</button>
+</div>
+</div>
+</td>
+<td class="p-4">
+<input class="w-full text-xs bg-stone-50 border-none rounded focus:ring-1 focus:ring-orange-500 py-1 px-2" placeholder="Adicionar nota..." type="text"/>
+</td>
+<td class="p-4 text-right">
+<button class="bg-stone-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-stone-900">SALVAR</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Floating Action Bar -->
+<div class="fixed bottom-12 left-1/2 transform -translate-x-1/2 z-50 animate-bounce-subtle">
+<div class="glass-brand px-6 py-4 rounded-full flex items-center gap-8 shadow-2xl border border-white/40 ring-1 ring-black/5">
+<div class="flex items-center gap-3">
+<div class="bg-orange-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">24</div>
+<span class="text-sm font-bold text-stone-800">Itens selecionados</span>
+</div>
+<div class="h-8 w-px bg-stone-300"></div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-green-700 transition-colors">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+                        Triar Lote: Perfeito
+                    </button>
+<button class="flex items-center gap-2 bg-stone-800 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-black transition-colors">
+<span class="material-symbols-outlined text-sm">move_to_inbox</span>
+                        Enviar p/ Galpão
+                    </button>
+</div>
+</div>
+</div>
+<!-- Shortcut Footer -->
+<footer class="fixed bottom-0 right-0 left-64 bg-white/80 backdrop-blur-sm border-t border-stone-100 px-8 py-2.5 flex justify-between items-center z-40">
+<div class="flex gap-6">
+<div class="flex items-center gap-2">
+<span class="bg-stone-100 text-[10px] font-bold px-1.5 py-0.5 rounded border border-stone-300 font-mono">1</span>
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-wider">Perfeito</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="bg-stone-100 text-[10px] font-bold px-1.5 py-0.5 rounded border border-stone-300 font-mono">2</span>
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-wider">Avaria</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="bg-stone-100 text-[10px] font-bold px-1.5 py-0.5 rounded border border-stone-300 font-mono">3</span>
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-wider">Sucata</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="bg-stone-100 text-[10px] font-bold px-1.5 py-0.5 rounded border border-stone-300 font-mono">ENT</span>
+<span class="text-[10px] text-stone-500 uppercase font-bold tracking-wider">Salvar Ativo</span>
+</div>
+</div>
+<div class="text-[10px] text-stone-400 font-medium">
+                Sincronizado há 2 minutos • Versão Titanium 4.2.0
+            </div>
+</footer>
+</main>
+</body></html>

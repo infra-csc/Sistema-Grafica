@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -465,6 +465,14 @@ export default function Estoque() {
   const [filterSponsor, setFilterSponsor] = useState("all");
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
+  const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" | "status" } | null>(null);
+
+  useEffect(() => {
+    if (!quickEdit) return;
+    const close = () => setQuickEdit(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [quickEdit]);
 
   const { data: assets = [], isLoading } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
   const { data: sponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
@@ -497,6 +505,12 @@ export default function Estoque() {
     mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: "Ativo excluído." }); setDeleting(null); },
     onError: () => toast({ title: "Erro ao excluir.", variant: "destructive" }),
+  });
+
+  const patchMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: object }) => apiRequest("PATCH", `/api/inventory/${id}`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); },
+    onError: () => toast({ title: "Erro ao atualizar.", variant: "destructive" }),
   });
 
   // Exclude AGUARDANDO_TRIAGEM — those belong to the triage screen only
@@ -710,7 +724,7 @@ export default function Estoque() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead>
                 <tr>
-                  {["Identificador","Equipamento / Ativo","Status","Condição","Localização","Ações"].map((h, i) => (
+                  {["Identificador","Equipamento / Ativo","Status","Condição","Patrocinadores","Ações"].map((h, i) => (
                     <th key={h} style={{ ...TH, textAlign: i === 5 ? "right" : "left" }}>{h}</th>
                   ))}
                 </tr>
@@ -733,12 +747,11 @@ export default function Estoque() {
                         </span>
                       </td>
 
-                      {/* Name + evento + patrocinadores */}
+                      {/* Name + evento */}
                       <td style={TD}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
                           {asset.name}
                         </p>
-                        {/* Evento */}
                         {assetEventMap[asset.id] && (
                           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
                             <CalendarDays size={10} color="#2563eb" />
@@ -747,26 +760,6 @@ export default function Estoque() {
                             </span>
                           </div>
                         )}
-                        {/* Patrocinadores */}
-                        {(asset.sponsorIds ?? []).length > 0 && (() => {
-                          const matched = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean);
-                          return matched.length > 0 ? (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
-                              {matched.map(sp => (
-                                <span key={sp!.id} style={{
-                                  display: "inline-flex", alignItems: "center", gap: 3,
-                                  padding: "2px 7px", borderRadius: 5,
-                                  background: "#f1f5f9", border: "1px solid #e2e8f0",
-                                  fontSize: 9, fontWeight: 700, color: "#475569",
-                                  fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
-                                  textTransform: "uppercase", whiteSpace: "nowrap",
-                                }}>
-                                  {sp!.name}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null;
-                        })()}
                       </td>
 
                       {/* Status */}
@@ -779,32 +772,98 @@ export default function Estoque() {
                         <ConditionBadge color={cm.color} bg={cm.bg} label={cm.label} />
                       </td>
 
-                      {/* Localização */}
-                      <td style={TD}>
-                        {asset.location ? (
-                          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#475569", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                            <MapPin size={13} color="#94a3b8" />
-                            {asset.location}
-                          </span>
-                        ) : (
-                          <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>
-                        )}
+                      {/* Patrocinadores */}
+                      <td style={{ ...TD, maxWidth: 180 }}>
+                        {(() => {
+                          const matched = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean);
+                          return matched.length > 0 ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                              {matched.map(sp => (
+                                <span key={sp!.id} style={{
+                                  display: "inline-flex", alignItems: "center", gap: 3,
+                                  padding: "2px 7px", borderRadius: 5,
+                                  background: "#f1f5f9", border: "1px solid #e2e8f0",
+                                  fontSize: 9, fontWeight: 700, color: "#475569",
+                                  fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
+                                  textTransform: "uppercase", whiteSpace: "nowrap",
+                                }}>
+                                  <Tag size={8} />{sp!.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>;
+                        })()}
                       </td>
 
-                      {/* Actions — opacity-0, visible on row hover */}
-                      <td style={{ ...TD, textAlign: "center" }}>
-                        <div className="group-row-actions" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, opacity: 0, transition: "opacity 0.15s" }}>
+                      {/* Actions */}
+                      <td style={{ ...TD, textAlign: "right" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+
+                          {/* Quick-edit Condição */}
+                          <div style={{ position: "relative" }}>
+                            <button data-testid={`button-quick-condition-${asset.id}`}
+                              onClick={e => { e.stopPropagation(); setQuickEdit(quickEdit?.assetId === asset.id && quickEdit.field === "condition" ? null : { assetId: asset.id, field: "condition" }); }}
+                              title="Alterar condição"
+                              style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0", background: cm.bg, color: cm.color, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                              {cm.label}
+                            </button>
+                            {quickEdit?.assetId === asset.id && quickEdit.field === "condition" && (
+                              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 6, display: "flex", flexDirection: "column", gap: 2, minWidth: 130 }}>
+                                {CONDITIONS.map(c => {
+                                  const meta = CONDITION_META[c];
+                                  return (
+                                    <button key={c} onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { condition: c } }); }}
+                                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 7, border: "none", background: asset.condition === c ? meta.bg : "transparent", color: asset.condition === c ? meta.color : "#475569", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", textAlign: "left", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                      {asset.condition === c && <CheckCircle2 size={11} />}
+                                      {meta.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Quick-edit Status */}
+                          <div style={{ position: "relative" }}>
+                            <button data-testid={`button-quick-status-${asset.id}`}
+                              onClick={e => { e.stopPropagation(); setQuickEdit(quickEdit?.assetId === asset.id && quickEdit.field === "status" ? null : { assetId: asset.id, field: "status" }); }}
+                              title="Alterar status"
+                              style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0", background: sm.bg, color: sm.color, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                              {sm.label}
+                            </button>
+                            {quickEdit?.assetId === asset.id && quickEdit.field === "status" && (
+                              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 6, display: "flex", flexDirection: "column", gap: 2, minWidth: 160 }}>
+                                {ALL_STATUSES.map(s => {
+                                  const meta = STATUS_META[s];
+                                  return (
+                                    <button key={s} onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { trackingStatus: s } }); }}
+                                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 7, border: "none", background: asset.trackingStatus === s ? meta.bg : "transparent", color: asset.trackingStatus === s ? meta.color : "#475569", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", textAlign: "left", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                      {asset.trackingStatus === s && <CheckCircle2 size={11} />}
+                                      {meta.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Divider */}
+                          <div style={{ width: 1, height: 20, background: "#e2e8f0", margin: "0 2px" }} />
+
+                          {/* Edit */}
                           <button data-testid={`button-edit-asset-${asset.id}`} onClick={() => setEditing(asset)}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#2563eb"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                            style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
-                            <Pencil size={15} />
+                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
+                            <Pencil size={14} />
                           </button>
+
+                          {/* Delete */}
                           <button data-testid={`button-delete-asset-${asset.id}`} onClick={() => setDeleting(asset)}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                            style={{ padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
-                            <Trash2 size={15} />
+                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>

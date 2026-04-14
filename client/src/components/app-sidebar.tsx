@@ -44,8 +44,8 @@ const productionItems: MenuItem[] = [
 ];
 
 const stockItems: MenuItem[] = [
-  { title: "Acervo",           url: "/estoque",          icon: Archive },
   { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch },
+  { title: "Estoque",            url: "/estoque",          icon: Archive },
 ];
 
 const adminItems: MenuItem[] = [

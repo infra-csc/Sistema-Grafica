@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { InventoryAsset } from "@shared/schema";
+import type { InventoryAsset, Sponsor } from "@shared/schema";
 import {
   ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save,
   CalendarDays, Tag, X, Scissors, Sparkles, Hammer, Trash2, Eye,
@@ -249,6 +249,7 @@ export default function TriagemRetorno() {
   });
   const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+  const { data: allSponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
 
   const openItemDialog = (asset: EnrichedAsset) => {
     if (!asset.originalItemId) return;
@@ -262,11 +263,9 @@ export default function TriagemRetorno() {
     return Array.from(seen.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [awaitingAssets]);
 
-  const sponsorOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const a of awaitingAssets) { for (const s of (a.sponsors ?? [])) seen.set(s.id, s.name); }
-    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [awaitingAssets]);
+  const sponsorOptions = useMemo(() =>
+    [...allSponsors].sort((a, b) => a.name.localeCompare(b.name)),
+  [allSponsors]);
 
   const getEntry = (id: string, totalQty?: number): TriagemEntry =>
     entries[id] ?? makeEntry(totalQty ?? 1);
@@ -510,46 +509,42 @@ export default function TriagemRetorno() {
       </div>
 
       {/* ── Filter bar ── */}
-      {(eventOptions.length > 0 || sponsorOptions.length > 0) && (
-        <div style={{
-          background: "#fff", padding: "10px 16px", borderRadius: 16,
-          border: "1px solid #e2e8f0",
-          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-        }}>
-          <ScanSearch size={13} color="#94a3b8" />
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", marginRight: 4 }}>
-            Filtrar
-          </span>
-          {eventOptions.length > 0 && (
-            <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)}
-              style={{ border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", padding: "8px 12px", background: filterEvent !== "all" ? "#fef3c7" : "#f8fafc", color: filterEvent !== "all" ? "#b45309" : "#475569", cursor: "pointer", outline: "none", textTransform: "uppercase" }}>
-              <option value="all">EVENTO: TODOS</option>
-              {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
-            </select>
-          )}
-          {sponsorOptions.length > 0 && (
-            <select data-testid="select-triage-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)}
-              style={{ border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", padding: "8px 12px", background: filterSponsor !== "all" ? "#f1f5f9" : "#f8fafc", color: filterSponsor !== "all" ? "#475569" : "#475569", cursor: "pointer", outline: "none", textTransform: "uppercase" }}>
-              <option value="all">PATROCINADOR: TODOS</option>
-              {sponsorOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            </select>
-          )}
-          {hasFilters && (
-            <>
-              <div style={{ width: 1, height: 24, background: "#e2e8f0" }} />
-              <button data-testid="button-triage-clear-filters"
-                onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
-                style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 10px", borderRadius: 8, border: "none", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-                <X size={10} /> Limpar
-              </button>
-            </>
-          )}
-          <span style={{ marginLeft: "auto", fontSize: 10, color: "#cbd5e1", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            {pendingAssets.length} aguardando
-          </span>
-        </div>
-      )}
+      <div style={{
+        background: "#fff", padding: "10px 16px", borderRadius: 16,
+        border: "1px solid #e2e8f0",
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+      }}>
+        <ScanSearch size={13} color="#94a3b8" />
+        <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", marginRight: 4 }}>
+          Filtrar
+        </span>
+        {eventOptions.length > 0 && (
+          <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)}
+            style={{ border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", padding: "8px 12px", background: filterEvent !== "all" ? "#fef3c7" : "#f8fafc", color: filterEvent !== "all" ? "#b45309" : "#475569", cursor: "pointer", outline: "none", textTransform: "uppercase" }}>
+            <option value="all">EVENTO: TODOS</option>
+            {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+          </select>
+        )}
+        <select data-testid="select-triage-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)}
+          style={{ border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", padding: "8px 12px", background: filterSponsor !== "all" ? "#faf5ff" : "#f8fafc", color: filterSponsor !== "all" ? "#7c3aed" : "#475569", cursor: "pointer", outline: "none", textTransform: "uppercase" }}>
+          <option value="all">PATROCINADOR: TODOS</option>
+          {sponsorOptions.map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+        </select>
+        {hasFilters && (
+          <>
+            <div style={{ width: 1, height: 24, background: "#e2e8f0" }} />
+            <button data-testid="button-triage-clear-filters"
+              onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
+              style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 10px", borderRadius: 8, border: "none", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+              <X size={10} /> Limpar
+            </button>
+          </>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: 10, color: "#cbd5e1", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          {pendingAssets.length} aguardando
+        </span>
+      </div>
 
       {/* ── Main table ── */}
       {isLoading ? (

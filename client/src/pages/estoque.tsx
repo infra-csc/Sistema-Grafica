@@ -78,7 +78,7 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
         boxShadow: on ? `0 8px 24px ${color}18` : "0 1px 3px rgba(0,0,0,0.04)",
         transition: "border-color 0.2s, box-shadow 0.2s, background 0.2s",
         cursor: onClick ? "pointer" : "default",
-        display: "flex", flexDirection: "column", gap: 10,
+        display: "flex", flexDirection: "column", gap: 6,
         outline: active ? `2px solid ${color}40` : "none", outlineOffset: 2,
       }}
       onMouseEnter={() => setHov(true)}
@@ -566,16 +566,16 @@ export default function Estoque() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
         <StatCard
           label="Total Acervo" value={total} Icon={Package} color="#2563eb"
-          subtext={`${autoCount} via gráfica`}
+          subtext="Ativos cadastrados"
           active={filterStatus === "all" && filterCondition === "all"}
           onClick={() => { setFilterStatus("all"); setFilterCondition("all"); }}
         />
         <StatCard
-          label="Economia" value={autoCount} Icon={TrendingUp} color="#16a34a"
-          subtext={autoCount > 0 ? `${autoCount} peças reutilizadas` : "Nenhuma reutilização"}
+          label="Auto-gerados" value={autoCount} Icon={TrendingUp} color="#16a34a"
+          subtext={autoCount > 0 ? "Entrada via produção" : "Nenhuma entrada auto"}
           subColor="#16a34a"
         />
         <StatCard

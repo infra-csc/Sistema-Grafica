@@ -5,23 +5,23 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset } from "@shared/schema";
 import {
   ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save,
-  CalendarDays, Tag, X, Scissors,
+  CalendarDays, Tag, X, Scissors, Sparkles, Hammer, Trash2,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 type Condition = typeof CONDITIONS[number];
 
-const CONDITION_META: Record<Condition, { label: string; color: string; bg: string; key: string }> = {
-  PERFEITO:    { label: "Perfeito",    color: "#16a34a", bg: "#dcfce7", key: "1" },
-  AVARIA_LEVE: { label: "Avaria Leve", color: "#b45309", bg: "#fef3c7", key: "2" },
-  SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "#fee2e2", key: "3" },
+const CONDITION_META: Record<Condition, { label: string; color: string; bg: string; border: string; key: string; Icon: React.ElementType }> = {
+  PERFEITO:    { label: "Perfeito",    color: "#16a34a", bg: "#f0fdf4", border: "#86efac", key: "1", Icon: Sparkles },
+  AVARIA_LEVE: { label: "Avaria",      color: "#b45309", bg: "#fffbeb", border: "#fcd34d", key: "2", Icon: Hammer   },
+  SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "#fff1f2", border: "#fca5a5", key: "3", Icon: Trash2   },
 };
 
 type TriagemResult = "NO_GALPAO" | "DESCARTADO";
-const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string }> = {
-  NO_GALPAO:  { label: "Galpão",   color: "#16a34a", bg: "#dcfce7" },
-  DESCARTADO: { label: "Descartar", color: "#dc2626", bg: "#fee2e2" },
+const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string; border: string }> = {
+  NO_GALPAO:  { label: "Galpão",    color: "#166534", bg: "#f0fdf4", border: "#86efac" },
+  DESCARTADO: { label: "Descartar", color: "#991b1b", bg: "#fff1f2", border: "#fca5a5" },
 };
 
 interface SplitLine { qty: number; condition: Condition; result: TriagemResult; }
@@ -84,67 +84,62 @@ function SponsorChips({ sponsors }: { sponsors: { id: string; name: string }[] }
   );
 }
 
-// ─── Condition Toggle ─────────────────────────────────────────────────────────
-function ConditionToggle({ value, onChange, disabled }: {
-  value: Condition; onChange: (c: Condition) => void; disabled?: boolean;
+// ─── TriageActionToggles ──────────────────────────────────────────────────────
+function TriageActionToggles({
+  condition, result, onCondition, onResult, disabled,
+}: {
+  condition: Condition;
+  result: TriagemResult;
+  onCondition: (c: Condition) => void;
+  onResult: (r: TriagemResult) => void;
+  disabled?: boolean;
 }) {
+  const btnBase: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 4,
+    padding: "4px 10px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
+    fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+    letterSpacing: "0.05em", textTransform: "uppercase", transition: "all 0.12s",
+    whiteSpace: "nowrap",
+  };
   return (
-    <div style={{ display: "flex", gap: 3 }}>
-      {(Object.entries(CONDITION_META) as [Condition, typeof CONDITION_META[Condition]][]).map(([val, meta]) => {
-        const active = value === val;
-        return (
-          <button key={val} onClick={() => !disabled && onChange(val)}
-            title={`Tecla ${meta.key}`}
-            style={{
-              padding: "5px 10px", borderRadius: 7, border: "none",
-              background: active ? meta.bg : "#f8fafc",
-              color: active ? meta.color : "#94a3b8",
-              fontSize: 10, fontWeight: 700,
-              fontFamily: "Space Grotesk, sans-serif",
-              cursor: disabled ? "default" : "pointer",
-              letterSpacing: "0.06em", textTransform: "uppercase",
-              transition: "all 0.12s",
-              outline: active ? `1.5px solid ${meta.color}44` : "none",
-              whiteSpace: "nowrap",
-              boxShadow: active ? `0 2px 6px ${meta.color}22` : "none",
-            }}
-          >
-            {meta.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Destination Toggle ───────────────────────────────────────────────────────
-function DestinationToggle({ value, onChange, disabled }: {
-  value: TriagemResult; onChange: (r: TriagemResult) => void; disabled?: boolean;
-}) {
-  return (
-    <div style={{ display: "flex", gap: 3 }}>
-      {(Object.entries(RESULT_META) as [TriagemResult, typeof RESULT_META[TriagemResult]][]).map(([val, meta]) => {
-        const active = value === val;
-        return (
-          <button key={val} onClick={() => !disabled && onChange(val)}
-            style={{
-              padding: "5px 10px", borderRadius: 7, border: "none",
-              background: active ? meta.bg : "#f8fafc",
-              color: active ? meta.color : "#94a3b8",
-              fontSize: 10, fontWeight: 700,
-              fontFamily: "Space Grotesk, sans-serif",
-              cursor: disabled ? "default" : "pointer",
-              letterSpacing: "0.06em", textTransform: "uppercase",
-              transition: "all 0.12s",
-              outline: active ? `1.5px solid ${meta.color}44` : "none",
-              whiteSpace: "nowrap",
-              boxShadow: active ? `0 2px 6px ${meta.color}22` : "none",
-            }}
-          >
-            {meta.label}
-          </button>
-        );
-      })}
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {/* Condição */}
+      <div style={{ display: "flex", gap: 3 }}>
+        {(Object.entries(CONDITION_META) as [Condition, typeof CONDITION_META[Condition]][]).map(([val, meta]) => {
+          const active = condition === val;
+          return (
+            <button key={val} onClick={() => !disabled && onCondition(val)} title={`Tecla ${meta.key}`}
+              style={{
+                ...btnBase,
+                background: active ? meta.bg : "#f8fafc",
+                color: active ? meta.color : "#94a3b8",
+                border: active ? `1px solid ${meta.border}` : "1px solid #e2e8f0",
+                boxShadow: active ? `0 1px 4px ${meta.color}18` : "none",
+              }}>
+              <meta.Icon size={11} />
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+      {/* Destino */}
+      <div style={{ display: "flex", gap: 3 }}>
+        {(Object.entries(RESULT_META) as [TriagemResult, typeof RESULT_META[TriagemResult]][]).map(([val, meta]) => {
+          const active = result === val;
+          return (
+            <button key={val} onClick={() => !disabled && onResult(val)}
+              style={{
+                ...btnBase,
+                background: active ? meta.bg : "#f8fafc",
+                color: active ? meta.color : "#94a3b8",
+                border: active ? `1px solid ${meta.border}` : "1px solid #e2e8f0",
+                boxShadow: active ? `0 1px 4px ${meta.color}18` : "none",
+              }}>
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -337,13 +332,6 @@ export default function TriagemRetorno() {
     return me && msp;
   });
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
-
-  const INP: React.CSSProperties = {
-    padding: "8px 12px", borderRadius: 8, border: "1px solid #e2e8f0",
-    fontSize: 13, fontFamily: "Plus Jakarta Sans, sans-serif",
-    background: "#f8fafc", color: "#0f172a", outline: "none",
-    width: "100%", boxSizing: "border-box",
-  };
 
   return (
     <div style={{ padding: "32px 36px", background: "#f8fafc", minHeight: "100vh" }}>
@@ -561,17 +549,16 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Condição + Destino (coluna unificada) */}
-                      <td style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 300 }}>
+                      <td style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 280 }}>
                         {isSaved ? (
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "#dcfce7", color: "#16a34a" }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "#f0fdf4", border: "1px solid #86efac", color: "#16a34a" }}>
                             <CheckCircle2 size={12} />
                             <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Triado</span>
                           </div>
                         ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             {entry.splits.map((split, si) => (
-                              <div key={si} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                {/* Qty input + remove for splits */}
+                              <div key={si} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                 {entry.splits.length > 1 && (
                                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                                     <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>Lote {si + 1} — Qtd:</span>
@@ -583,41 +570,35 @@ export default function TriagemRetorno() {
                                         padding: "3px 6px", borderRadius: 6, width: 52,
                                         fontSize: 12, fontFamily: "DM Mono, monospace", fontWeight: 700,
                                         textAlign: "center", outline: "none",
-                                        background: !splitValid ? "#fff1f2" : "#f1f5f9",
+                                        background: !splitValid ? "#fff1f2" : "#f8fafc",
                                         color: !splitValid ? "#dc2626" : "#0f172a",
                                         border: !splitValid ? "1px solid #fca5a5" : "1px solid #e2e8f0",
                                         boxSizing: "border-box",
                                       }}
                                     />
                                     <button onClick={e => { e.stopPropagation(); removeSplit(asset.id, si); }}
-                                      style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex", alignItems: "center", marginLeft: "auto" }}>
+                                      style={{ border: "none", background: "none", cursor: "pointer", color: "#cbd5e1", padding: 0, display: "flex", alignItems: "center", marginLeft: "auto" }}>
                                       <X size={13} />
                                     </button>
                                   </div>
                                 )}
-                                {/* Condição row */}
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em", minWidth: 52 }}>Condição</span>
-                                  <ConditionToggle value={split.condition} onChange={c => updateSplit(asset.id, si, { condition: c })} />
-                                </div>
-                                {/* Destino row */}
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em", minWidth: 52 }}>Destino</span>
-                                  <DestinationToggle value={split.result} onChange={r => updateSplit(asset.id, si, { result: r })} />
-                                </div>
-                                {/* Separator between splits */}
+                                <TriageActionToggles
+                                  condition={split.condition}
+                                  result={split.result}
+                                  onCondition={c => updateSplit(asset.id, si, { condition: c })}
+                                  onResult={r => updateSplit(asset.id, si, { result: r })}
+                                />
                                 {entry.splits.length > 1 && si < entry.splits.length - 1 && (
-                                  <div style={{ borderTop: "1px dashed #e2e8f0", marginTop: 4 }} />
+                                  <div style={{ borderTop: "1px dashed #e2e8f0", marginTop: 2 }} />
                                 )}
                               </div>
                             ))}
-                            {/* Progress + Add split */}
                             {entry.splits.length > 1 && (
                               <SplitProgress splits={entry.splits} total={qty} />
                             )}
                             {qty > 1 && splitSum < qty && (
                               <button onClick={e => { e.stopPropagation(); addSplit(asset.id, qty); }}
-                                style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, border: "1px dashed #e2e8f0", borderRadius: 7, background: "transparent", cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", padding: "4px 8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                                style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, border: "1px dashed #e2e8f0", borderRadius: 6, background: "transparent", cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", padding: "4px 8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                                 <Scissors size={10} /> Dividir lote
                               </button>
                             )}
@@ -626,7 +607,7 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Observação */}
-                      <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 130 }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 150 }}>
                         {isSaved ? null : (
                           <input data-testid={`input-notes-${asset.id}`}
                             type="text" placeholder="Adicionar nota..."
@@ -635,7 +616,12 @@ export default function TriagemRetorno() {
                             onClick={e => e.stopPropagation()}
                             onFocus={() => setFocusedId(asset.id)}
                             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSingle(asset); } }}
-                            style={{ ...INP, fontSize: 12 }}
+                            style={{
+                              padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0",
+                              fontSize: 11, fontFamily: "Plus Jakarta Sans, sans-serif",
+                              background: "#f8fafc", color: "#0f172a", outline: "none",
+                              width: "100%", boxSizing: "border-box",
+                            }}
                           />
                         )}
                       </td>
@@ -653,12 +639,12 @@ export default function TriagemRetorno() {
                             title={!splitValid ? `Soma deve ser ${qty}` : "Salvar (Enter)"}
                             style={{
                               display: "inline-flex", alignItems: "center", gap: 6,
-                              padding: "8px 16px", borderRadius: 9, border: "none",
-                              background: isSaving || !splitValid ? "#e2e8f0" : "#2563eb",
+                              padding: "7px 14px", borderRadius: 8, border: "none",
+                              background: isSaving || !splitValid ? "#e2e8f0" : "#0f172a",
                               color: isSaving || !splitValid ? "#94a3b8" : "#fff",
                               fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
                               cursor: isSaving || !splitValid ? "not-allowed" : "pointer",
-                              boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(37,99,235,0.28)" : "none",
+                              boxShadow: !isSaving && splitValid ? "0 2px 6px rgba(15,23,42,0.22)" : "none",
                               transition: "all 0.15s", whiteSpace: "nowrap",
                             }}>
                             {isSaving ? "..." : <><Save size={13} /> Salvar</>}

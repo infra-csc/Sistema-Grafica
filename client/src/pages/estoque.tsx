@@ -3,12 +3,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { InventoryAsset, Sponsor, Item, Event } from "@shared/schema";
+import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
 import {
   Archive, Plus, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
   XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame, CalendarDays,
-  TrendingUp, Grid3X3, Eye, Zap,
+  TrendingUp, Grid3X3, Eye,
 } from "lucide-react";
+import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -467,176 +468,7 @@ function AssetModal({ asset, onClose, onSaved }: {
   );
 }
 
-// ─── Asset Detail Panel ────────────────────────────────────────────────────────
-function AssetDetailPanel({ asset, sponsors, eventName, onClose, onEdit }: {
-  asset: InventoryAsset;
-  sponsors: Sponsor[];
-  eventName: string | null;
-  onClose: () => void;
-  onEdit: () => void;
-}) {
-  const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
-  const cm = CONDITION_META[asset.condition ?? "PERFEITO"];
-  const matchedSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean) as Sponsor[];
 
-  // Close on Escape key
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.12em" }}>{label}</span>
-      <div>{children}</div>
-    </div>
-  );
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.35)", zIndex: 900, backdropFilter: "blur(2px)" }}
-      />
-      {/* Slide-in panel */}
-      <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: 400,
-        background: "#fff", zIndex: 901,
-        boxShadow: "-24px 0 60px rgba(15,23,42,0.16)",
-        display: "flex", flexDirection: "column",
-        animation: "slideIn 0.2s ease",
-      }}>
-        <style>{`@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
-
-        {/* Panel header */}
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: sm.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Package size={18} color={sm.color} />
-            </div>
-            <div>
-              <p style={{ margin: 0, fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "DM Mono, monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                {asset.displayId}
-              </p>
-              <p style={{ margin: "2px 0 0", fontSize: 14, fontWeight: 800, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", lineHeight: 1.2, maxWidth: 240, wordBreak: "break-word" }}>
-                {asset.name}
-              </p>
-            </div>
-          </div>
-          <button onClick={onClose} data-testid="button-close-detail-panel"
-            style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", flexShrink: 0 }}>
-            <X size={14} />
-          </button>
-        </div>
-
-        {/* Thumb + quick badges */}
-        {asset.approvalThumbUrl && (
-          <div style={{ margin: "16px 24px 0", borderRadius: 12, overflow: "hidden", border: "1px solid #e2e8f0", height: 160, flexShrink: 0 }}>
-            <img src={asset.approvalThumbUrl} alt="Arte aprovada" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          </div>
-        )}
-
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
-
-          {/* Quantity badge */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              minWidth: 36, height: 28, borderRadius: 8,
-              background: (asset.quantity ?? 1) > 1 ? "#0f172a" : "#f1f5f9",
-              color: (asset.quantity ?? 1) > 1 ? "#fff" : "#94a3b8",
-              fontSize: 13, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 8px",
-            }}>×{asset.quantity ?? 1}</span>
-            <span style={{ fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              {(asset.quantity ?? 1) === 1 ? "unidade" : "unidades"}
-            </span>
-            {asset.autoAdded && (
-              <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, background: "#fff7ed", border: "1px solid #fed7aa", fontSize: 9, fontWeight: 700, color: "#ea580c", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                <Zap size={9} /> Auto (Gráfica)
-              </span>
-            )}
-          </div>
-
-          {/* Status + Condition */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Row label="Status">
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 9999, fontSize: 11, fontWeight: 600, fontFamily: "Plus Jakarta Sans, sans-serif", color: sm.color, background: sm.bg }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: sm.color, flexShrink: 0 }} />
-                {sm.label}
-              </span>
-            </Row>
-            <Row label="Condição">
-              <span style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "Space Grotesk, sans-serif", color: cm.color, background: cm.bg }}>
-                {cm.label}
-              </span>
-            </Row>
-          </div>
-
-          {/* Location */}
-          {asset.location && (
-            <Row label="Localização">
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <MapPin size={13} color="#f97316" />
-                <span style={{ fontSize: 12, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500 }}>{asset.location}</span>
-              </div>
-            </Row>
-          )}
-
-          {/* Event */}
-          {eventName && (
-            <Row label="Evento de Origem">
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <CalendarDays size={13} color="#2563eb" />
-                <span style={{ fontSize: 12, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500 }}>{eventName}</span>
-              </div>
-            </Row>
-          )}
-
-          {/* Sponsors */}
-          <Row label="Patrocinadores">
-            {matchedSponsors.length === 0 ? (
-              <span style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Sem patrocinador</span>
-            ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                {matchedSponsors.map(sp => (
-                  <span key={sp.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, background: "#f1f5f9", border: "1px solid #e2e8f0", fontSize: 10, fontWeight: 700, color: "#475569", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                    <Tag size={9} />{sp.name}
-                  </span>
-                ))}
-              </div>
-            )}
-          </Row>
-
-          {/* Notes */}
-          {asset.notes && (
-            <Row label="Observações">
-              <div style={{ padding: "10px 12px", borderRadius: 10, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
-                <p style={{ margin: 0, fontSize: 12, color: "#475569", fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.6 }}>{asset.notes}</p>
-              </div>
-            </Row>
-          )}
-        </div>
-
-        {/* Footer actions */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", display: "flex", gap: 8, flexShrink: 0 }}>
-          <button
-            data-testid="button-edit-from-detail"
-            onClick={() => { onClose(); onEdit(); }}
-            style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "11px 16px", borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", letterSpacing: "0.04em" }}>
-            <Pencil size={13} /> Editar Ativo
-          </button>
-          <button onClick={onClose}
-            style={{ padding: "11px 16px", borderRadius: 12, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer" }}>
-            Fechar
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Estoque() {
@@ -651,7 +483,7 @@ export default function Estoque() {
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
   const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" | "status" } | null>(null);
-  const [viewingAsset, setViewingAsset] = useState<InventoryAsset | null>(null);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   useEffect(() => {
     if (!quickEdit) return;
@@ -662,8 +494,15 @@ export default function Estoque() {
 
   const { data: assets = [], isLoading } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
   const { data: sponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
-  const { data: allItems = [] } = useQuery<Item[]>({ queryKey: ["/api/items"] });
+  const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: allEvents = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+
+  const openItemDialog = (asset: InventoryAsset) => {
+    if (!asset.originalItemId) return;
+    const item = allItems.find((i: any) => i.id === asset.originalItemId);
+    if (item) setSelectedItem(item);
+  };
 
   // Map assetId → eventName via originalItemId → item → event
   const assetEventMap = useMemo(() => {
@@ -922,7 +761,7 @@ export default function Estoque() {
                   return (
                     <tr key={asset.id} data-testid={`row-asset-${asset.id}`}
                       className="group"
-                      onClick={() => setViewingAsset(asset)}
+                      onClick={() => openItemDialog(asset)}
                       onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(248,250,252,0.6)"}
                       onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ""}
                       style={{ transition: "background 0.1s", cursor: "pointer" }}
@@ -1014,13 +853,15 @@ export default function Estoque() {
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
 
                           {/* View detail */}
+                          {asset.originalItemId && (
                           <button data-testid={`button-view-asset-${asset.id}`}
-                            onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
+                            onClick={e => { e.stopPropagation(); openItemDialog(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
                             style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
                             <Eye size={14} />
                           </button>
+                          )}
 
                           {/* Edit */}
                           <button data-testid={`button-edit-asset-${asset.id}`}
@@ -1066,15 +907,12 @@ export default function Estoque() {
       {deleting && (
         <DeleteModal asset={deleting} onClose={() => setDeleting(null)} onConfirm={() => deleteMutation.mutate(deleting.id)} />
       )}
-      {viewingAsset && (
-        <AssetDetailPanel
-          asset={viewingAsset}
-          sponsors={sponsors}
-          eventName={assetEventMap[viewingAsset.id]?.name ?? null}
-          onClose={() => setViewingAsset(null)}
-          onEdit={() => setEditing(viewingAsset)}
-        />
-      )}
+      <ItemDetailsDialog
+        item={selectedItem}
+        auditLogs={auditLogs}
+        open={!!selectedItem}
+        onOpenChange={(open) => !open && setSelectedItem(null)}
+      />
     </div>
   );
 }

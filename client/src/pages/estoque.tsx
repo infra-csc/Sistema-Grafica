@@ -823,30 +823,6 @@ export default function Estoque() {
                             )}
                           </div>
 
-                          {/* Quick-edit Status */}
-                          <div style={{ position: "relative" }}>
-                            <button data-testid={`button-quick-status-${asset.id}`}
-                              onClick={e => { e.stopPropagation(); setQuickEdit(quickEdit?.assetId === asset.id && quickEdit.field === "status" ? null : { assetId: asset.id, field: "status" }); }}
-                              title="Alterar status"
-                              style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0", background: sm.bg, color: sm.color, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                              {sm.label}
-                            </button>
-                            {quickEdit?.assetId === asset.id && quickEdit.field === "status" && (
-                              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 6, display: "flex", flexDirection: "column", gap: 2, minWidth: 160 }}>
-                                {ALL_STATUSES.map(s => {
-                                  const meta = STATUS_META[s];
-                                  return (
-                                    <button key={s} onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { trackingStatus: s } }); }}
-                                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 7, border: "none", background: asset.trackingStatus === s ? meta.bg : "transparent", color: asset.trackingStatus === s ? meta.color : "#475569", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", textAlign: "left", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                                      {asset.trackingStatus === s && <CheckCircle2 size={11} />}
-                                      {meta.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-
                           {/* Divider */}
                           <div style={{ width: 1, height: 20, background: "#e2e8f0", margin: "0 2px" }} />
 

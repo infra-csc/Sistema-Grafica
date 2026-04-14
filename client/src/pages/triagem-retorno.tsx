@@ -866,11 +866,11 @@ export default function TriagemRetorno() {
                             style={{
                               display: "inline-flex", alignItems: "center", gap: 6,
                               padding: "7px 14px", borderRadius: 8, border: "none",
-                              background: isSaving || !splitValid ? "#e2e8f0" : "#2563eb",
+                              background: isSaving || !splitValid ? "#e2e8f0" : "#f97316",
                               color: isSaving || !splitValid ? "#94a3b8" : "#fff",
                               fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
                               cursor: isSaving || !splitValid ? "not-allowed" : "pointer",
-                              boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(37,99,235,0.3)" : "none",
+                              boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(249,115,22,0.35)" : "none",
                               transition: "all 0.15s", whiteSpace: "nowrap",
                             }}>
                             {isSaving ? "..." : <><Save size={13} /> Salvar</>}

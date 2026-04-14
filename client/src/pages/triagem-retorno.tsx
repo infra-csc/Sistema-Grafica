@@ -679,33 +679,28 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Evento */}
-                      <td style={{ padding: "10px 14px", verticalAlign: "middle", maxWidth: 180 }}>
+                      <td style={{ padding: "10px 14px", verticalAlign: "middle", maxWidth: 160 }}>
                         {asset.eventName ? (
-                          <div style={{
-                            display: "inline-flex", flexDirection: "column", gap: 3,
-                            background: "#eff6ff", border: "1px solid #bfdbfe",
-                            borderRadius: 8, padding: "5px 9px",
-                            maxWidth: 164,
-                          }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             <span
                               title={asset.eventName}
                               style={{
-                                fontSize: 11, fontWeight: 700, color: "#1e40af",
+                                fontSize: 12, fontWeight: 700, color: "#0f172a",
                                 fontFamily: "Plus Jakarta Sans, sans-serif",
                                 whiteSpace: "nowrap", overflow: "hidden",
                                 textOverflow: "ellipsis", maxWidth: 148,
-                                display: "block", lineHeight: 1.3,
+                                display: "block",
                               }}
                             >
                               {asset.eventName}
                             </span>
                             {asset.eventDate && (
                               <span style={{
-                                display: "flex", alignItems: "center", gap: 4,
-                                fontSize: 9, color: "#3b82f6",
-                                fontFamily: "DM Mono, monospace", letterSpacing: "0.04em",
+                                display: "flex", alignItems: "center", gap: 3,
+                                fontSize: 10, color: "#64748b",
+                                fontFamily: "DM Mono, monospace", letterSpacing: "0.02em",
                               }}>
-                                <CalendarDays size={9} color="#3b82f6" />
+                                <CalendarDays size={10} color="#94a3b8" />
                                 {new Date(asset.eventDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "")}
                               </span>
                             )}

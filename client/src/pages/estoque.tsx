@@ -29,22 +29,38 @@ const CONDITION_META: Record<string, { label: string; color: string; bg: string 
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 type Condition = typeof CONDITIONS[number];
 
-// ─── Rounded-lg badge ────────────────────────────────────────────────────────
-function Badge({ color, bg, label }: { color: string; bg: string; label: string }) {
+// ─── Status badge (pill + dot) ────────────────────────────────────────────────
+function StatusBadge({ color, bg, label, dot }: { color: string; bg: string; label: string; dot?: string }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 6,
+      padding: "5px 12px", borderRadius: 9999,
+      fontSize: 12, fontWeight: 600,
+      fontFamily: "Plus Jakarta Sans, sans-serif",
+      color, background: bg,
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot ?? color, flexShrink: 0 }} />
+      {label}
+    </span>
+  );
+}
+
+// ─── Condition badge (compact) ────────────────────────────────────────────────
+function ConditionBadge({ color, bg, label }: { color: string; bg: string; label: string }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center",
-      padding: "4px 10px", borderRadius: 8,
-      fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+      padding: "3px 10px", borderRadius: 6,
+      fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
       fontFamily: "Space Grotesk, sans-serif",
-      color, background: bg, border: `1px solid ${color}22`,
+      color, background: bg,
     }}>
       {label}
     </span>
   );
 }
 
-// ─── Stat card with icon-fill-on-hover ───────────────────────────────────────
+// ─── Stat card with watermark icon ───────────────────────────────────────────
 function StatCard({ label, value, Icon, color, subtext, subColor, onClick, active }: {
   label: string; value: number; Icon: React.ElementType;
   color: string; subtext: string; subColor?: string;
@@ -56,37 +72,37 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
     <div
       onClick={onClick}
       style={{
-        background: active ? `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)` : "linear-gradient(135deg, #fff 0%, #f8fafc 100%)",
-        padding: 24, borderRadius: 20,
-        border: `1px solid ${on ? color + "55" : "rgba(226,232,240,0.7)"}`,
-        boxShadow: on ? `0 8px 24px ${color}22` : "0 1px 4px rgba(0,0,0,0.04)",
+        background: active ? `linear-gradient(135deg, ${color}18 0%, ${color}06 100%)` : "#fff",
+        padding: 24, borderRadius: 20, position: "relative", overflow: "hidden",
+        border: `1px solid ${on ? color + "50" : "#e2e8f0"}`,
+        boxShadow: on ? `0 8px 24px ${color}18` : "0 1px 3px rgba(0,0,0,0.04)",
         transition: "border-color 0.2s, box-shadow 0.2s, background 0.2s",
         cursor: onClick ? "pointer" : "default",
-        outline: active ? `2px solid ${color}44` : "none",
-        outlineOffset: 2,
+        display: "flex", flexDirection: "column", justifyContent: "space-between", height: 130,
+        outline: active ? `2px solid ${color}40` : "none", outlineOffset: 2,
       }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-        <div style={{
-          padding: 10, borderRadius: 12,
-          background: on ? color : color + "18",
-          transition: "background 0.2s",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <Icon size={18} color={on ? "#fff" : color} />
-        </div>
-        <span style={{ fontSize: 10, fontWeight: 700, color: active ? color : "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", transition: "color 0.2s" }}>
+      {/* Top row: icon left, label right */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <Icon size={22} color={on ? color : color + "bb"} style={{ transition: "color 0.2s" }} />
+        <span style={{ fontSize: 10, fontWeight: 700, color: on ? color : "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", transition: "color 0.2s", textAlign: "right" }}>
           {label}
         </span>
       </div>
-      <p style={{ margin: "0 0 6px", fontSize: 30, fontWeight: 700, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.02em" }}>
+      {/* Value */}
+      <p style={{ margin: 0, fontSize: 30, fontWeight: 800, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.02em", lineHeight: 1 }}>
         {value.toLocaleString("pt-BR")}
       </p>
+      {/* Subtext */}
       <p style={{ margin: 0, fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em", color: subColor ?? "#94a3b8" }}>
         {subtext}
       </p>
+      {/* Watermark icon bottom-right */}
+      <div style={{ position: "absolute", right: -8, bottom: -8, opacity: 0.05, transform: "scale(2)", pointerEvents: "none" }}>
+        <Icon size={64} color={color} />
+      </div>
     </div>
   );
 }
@@ -319,19 +335,19 @@ function AssetModal({ asset, onClose, onSaved }: {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "#fff", borderRadius: 20, width: 500, maxHeight: "90vh", overflow: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
-        <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(249,115,22,0.3)" }}>
-              <Archive size={18} color="#fff" />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a" }}>
-                {isEdit ? "Editar Ativo" : "Novo Ativo"}
-              </h3>
-              <p style={{ margin: 0, fontSize: 11, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Acervo — Estoque & Logística</p>
-            </div>
+        <div style={{ background: "#f97316", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Archive size={22} color="#fff" />
           </div>
-          <button onClick={onClose} data-testid="button-close-modal" style={{ background: "#f1f5f9", border: "none", width: 32, height: 32, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#fff", lineHeight: 1 }}>
+              {isEdit ? "Editar Ativo" : "Cadastrar Novo Ativo"}
+            </h3>
+            <p style={{ margin: "4px 0 0", fontSize: 10, color: "rgba(255,255,255,0.7)", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em" }}>
+              Acervo Norte Assets
+            </p>
+          </div>
+          <button onClick={onClose} data-testid="button-close-modal" style={{ background: "rgba(255,255,255,0.15)", border: "none", width: 32, height: 32, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
             <X size={15} />
           </button>
         </div>
@@ -692,8 +708,8 @@ export default function Estoque() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead>
                 <tr>
-                  {["Identificador","Equipamento","Status","Condição","Qtd","Ações"].map((h, i) => (
-                    <th key={h} style={{ ...TH, textAlign: i === 5 ? "center" : "left" }}>{h}</th>
+                  {["Identificador","Equipamento / Ativo","Status","Condição","Localização","Ações"].map((h, i) => (
+                    <th key={h} style={{ ...TH, textAlign: i === 5 ? "right" : "left" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -752,17 +768,25 @@ export default function Estoque() {
                       </td>
 
                       {/* Status */}
-                      <td style={TD}><Badge color={sm.color} bg={sm.bg} label={sm.label} /></td>
+                      <td style={TD}>
+                        <StatusBadge color={sm.color} bg={sm.bg} label={sm.label} />
+                      </td>
 
                       {/* Condition */}
-                      <td style={TD}><Badge color={cm.color} bg={cm.bg} label={cm.label} /></td>
-
-                      {/* Quantity */}
                       <td style={TD}>
-                        <span style={{ fontFamily: "DM Mono, monospace", fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
-                          {asset.quantity ?? 1}
-                        </span>
-                        <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", marginLeft: 3 }}>un</span>
+                        <ConditionBadge color={cm.color} bg={cm.bg} label={cm.label} />
+                      </td>
+
+                      {/* Localização */}
+                      <td style={TD}>
+                        {asset.location ? (
+                          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: "#475569", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                            <MapPin size={13} color="#94a3b8" />
+                            {asset.location}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>
+                        )}
                       </td>
 
                       {/* Actions — opacity-0, visible on row hover */}

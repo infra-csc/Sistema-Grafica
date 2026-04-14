@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .negative-kerning { letter-spacing: -0.02em; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-fixed": "#ffdbca",
+                        "on-background": "#1a1c1c",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#e0c0b1",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "tertiary": "#006398",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#584237",
+                        "on-surface": "#1a1c1c",
+                        "inverse-surface": "#2f3130",
+                        "on-secondary-container": "#5c2400",
+                        "on-tertiary-container": "#003554",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "inverse-on-surface": "#f1f1f0",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container": "#eeeeed",
+                        "surface": "#f9f9f8",
+                        "on-primary-fixed": "#1e1b19",
+                        "on-tertiary-fixed": "#001d32",
+                        "on-primary-container": "#35322f",
+                        "secondary": "#9d4300",
+                        "on-secondary-fixed-variant": "#783200",
+                        "on-secondary-fixed": "#341100",
+                        "surface-container-low": "#f3f4f3",
+                        "secondary-container": "#fd761a",
+                        "on-secondary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#00a2f4",
+                        "surface-container-high": "#e8e8e7",
+                        "secondary-fixed-dim": "#ffb690",
+                        "outline": "#8c7164",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#625d5b",
+                        "surface-bright": "#f9f9f8",
+                        "tertiary-fixed": "#cde5ff",
+                        "on-secondary-fixed-variant": "#783200",
+                        "primary-fixed": "#e9e1dd",
+                        "inverse-primary": "#ccc5c2",
+                        "surface-variant": "#e2e2e2",
+                        "surface-dim": "#dadad9",
+                        "background": "#f9f9f8",
+                        "primary": "#625d5b",
+                        "on-primary": "#ffffff",
+                        "primary-container": "#9f9996",
+                        "surface-container-highest": "#e2e2e2"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem",
+                        "20": "1.25rem",
+                        "16": "1rem"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"],
+                        "mono": ["DM Mono"]
+                    }
+                },
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<div class="flex min-h-screen">
+<!-- Side Navigation (Shared Component Integration) -->
+<aside class="hidden lg:flex flex-col h-screen w-64 bg-stone-100 dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 py-6 sticky top-0 shrink-0">
+<div class="px-6 mb-10 flex items-center gap-3">
+<div class="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-icon="inventory_2">inventory_2</span>
+</div>
+<div>
+<h2 class="font-headline font-bold text-stone-900 dark:text-stone-50 leading-none">Titanium Hub</h2>
+<p class="text-[10px] text-stone-500 uppercase tracking-widest mt-1">Elite Asset Management</p>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-stone-600 hover:bg-stone-200/50 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label font-medium text-sm">Overview</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg bg-stone-200 text-orange-600 font-bold border-r-4 border-orange-600" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-label text-sm">Active Stock</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-stone-600 hover:bg-stone-200/50 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="build">build</span>
+<span class="font-label font-medium text-sm">Maintenance</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-stone-600 hover:bg-stone-200/50 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+<span class="font-label font-medium text-sm">Audit Log</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-stone-600 hover:bg-stone-200/50 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+<span class="font-label font-medium text-sm">Reports</span>
+</a>
+</nav>
+<div class="mt-auto px-4 pt-4 border-t border-stone-200 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-stone-600 hover:bg-stone-200/50 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-label font-medium text-sm">Support</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-stone-600 hover:bg-stone-200/50 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label font-medium text-sm">Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 min-w-0">
+<!-- Top App Bar -->
+<header class="w-full top-0 sticky z-30 flex justify-between items-center px-8 py-4 bg-stone-50 dark:bg-stone-950 border-b border-stone-200 dark:border-stone-800">
+<div class="flex items-center gap-4">
+<div class="bg-[#f97316] w-14 h-14 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-white text-3xl" data-icon="archive">archive</span>
+</div>
+<div>
+<h1 class="text-[30px] font-headline font-[800] leading-none text-stone-900 negative-kerning">Estoque &amp; Acervo</h1>
+<p class="text-[11px] font-[700] text-stone-500 uppercase tracking-widest mt-1">GESTÃO DE ATIVOS FÍSICOS DE PRODUÇÃO GRÁFICA</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 mr-4">
+<span class="material-symbols-outlined text-stone-400" data-icon="notifications">notifications</span>
+<span class="material-symbols-outlined text-stone-400" data-icon="settings">settings</span>
+</div>
+<button class="bg-[#f97316] text-white font-headline font-bold text-sm px-7 py-3 rounded-16 transition-all active:scale-95">
+                        + NOVO ATIVO
+                    </button>
+</div>
+</header>
+<div class="p-8 space-y-8">
+<!-- Stat Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+<!-- Total Acervo -->
+<div class="bg-surface-container-lowest p-6 rounded-20 border border-stone-200 flex flex-col justify-between h-32 relative overflow-hidden">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[#2563eb]" data-icon="package">package</span>
+<span class="text-[10px] font-headline font-bold text-[#2563eb] tracking-widest uppercase">TOTAL ACERVO</span>
+</div>
+<div class="text-3xl font-headline font-bold text-stone-900 negative-kerning">2450</div>
+<div class="absolute -right-2 -bottom-2 opacity-5 scale-150">
+<span class="material-symbols-outlined text-[80px]" data-icon="package">package</span>
+</div>
+</div>
+<!-- Economia -->
+<div class="bg-surface-container-lowest p-6 rounded-20 border border-stone-200 flex flex-col justify-between h-32 relative overflow-hidden">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[#16a34a]" data-icon="trending_up">trending_up</span>
+<span class="text-[10px] font-headline font-bold text-[#16a34a] tracking-widest uppercase">ECONOMIA</span>
+</div>
+<div class="text-3xl font-headline font-bold text-stone-900 negative-kerning">R$ 124k</div>
+<div class="absolute -right-2 -bottom-2 opacity-5 scale-150">
+<span class="material-symbols-outlined text-[80px]" data-icon="trending_up">trending_up</span>
+</div>
+</div>
+<!-- No Galpão -->
+<div class="bg-surface-container-lowest p-6 rounded-20 border border-stone-200 flex flex-col justify-between h-32 relative overflow-hidden">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[#0369a1]" data-icon="warehouse">warehouse</span>
+<span class="text-[10px] font-headline font-bold text-[#0369a1] tracking-widest uppercase">NO GALPÃO</span>
+</div>
+<div class="text-3xl font-headline font-bold text-stone-900 negative-kerning">1820</div>
+<div class="absolute -right-2 -bottom-2 opacity-5 scale-150">
+<span class="material-symbols-outlined text-[80px]" data-icon="warehouse">warehouse</span>
+</div>
+</div>
+<!-- Em Uso -->
+<div class="bg-surface-container-lowest p-6 rounded-20 border border-stone-200 flex flex-col justify-between h-32 relative overflow-hidden">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[#ea580c]" data-icon="local_shipping">local_shipping</span>
+<span class="text-[10px] font-headline font-bold text-[#ea580c] tracking-widest uppercase">EM USO</span>
+</div>
+<div class="text-3xl font-headline font-bold text-stone-900 negative-kerning">630</div>
+<div class="absolute -right-2 -bottom-2 opacity-5 scale-150">
+<span class="material-symbols-outlined text-[80px]" data-icon="local_shipping">local_shipping</span>
+</div>
+</div>
+<!-- Ag. Triagem -->
+<div class="bg-surface-container-lowest p-6 rounded-20 border border-stone-200 flex flex-col justify-between h-32 relative overflow-hidden">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[#b45309]" data-icon="manage_search">manage_search</span>
+<span class="text-[10px] font-headline font-bold text-[#b45309] tracking-widest uppercase">AG. TRIAGEM</span>
+</div>
+<div class="text-3xl font-headline font-bold text-stone-900 negative-kerning">12</div>
+<div class="absolute -right-2 -bottom-2 opacity-5 scale-150">
+<span class="material-symbols-outlined text-[80px]" data-icon="manage_search">manage_search</span>
+</div>
+</div>
+</div>
+<!-- Filter Bar -->
+<div class="bg-surface-container-lowest p-5 rounded-20 border border-stone-200 flex flex-wrap items-center gap-3">
+<div class="flex-1 min-w-[240px] relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2.5 bg-surface border-none rounded-lg text-sm focus:ring-2 focus:ring-secondary/20" placeholder="Buscar ativos pelo ID ou nome..." type="text"/>
+</div>
+<select class="bg-surface border-none rounded-lg text-sm py-2.5 px-4 focus:ring-0">
+<option>STATUS: Todos</option>
+<option>No Galpão</option>
+<option>Em Uso</option>
+<option>Descartado</option>
+</select>
+<select class="bg-surface border-none rounded-lg text-sm py-2.5 px-4 focus:ring-0">
+<option>CONDIÇÃO: Toda</option>
+<option>Perfeito</option>
+<option>Avaria Leve</option>
+<option>Sucata</option>
+</select>
+<select class="bg-surface border-none rounded-lg text-sm py-2.5 px-4 focus:ring-0">
+<option>ORIGEM: Todas</option>
+<option>Gráfica</option>
+<option>Manual</option>
+</select>
+<select class="bg-surface border-none rounded-lg text-sm py-2.5 px-4 focus:ring-0">
+<option>EVENTO</option>
+</select>
+<button class="bg-[#fef2f2] text-[#ba1a1a] p-2.5 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="filter_alt_off">filter_alt_off</span>
+</button>
+</div>
+<!-- Assets Table -->
+<div class="bg-surface-container-lowest rounded-20 border border-stone-200 overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface border-b border-stone-100">
+<tr>
+<th class="px-6 py-4 text-[10px] font-headline font-bold text-stone-400 uppercase tracking-widest">ID</th>
+<th class="px-6 py-4 text-[10px] font-headline font-bold text-stone-400 uppercase tracking-widest">Equipamento / Ativo</th>
+<th class="px-6 py-4 text-[10px] font-headline font-bold text-stone-400 uppercase tracking-widest">Status</th>
+<th class="px-6 py-4 text-[10px] font-headline font-bold text-stone-400 uppercase tracking-widest">Condição</th>
+<th class="px-6 py-4 text-[10px] font-headline font-bold text-stone-400 uppercase tracking-widest">Localização</th>
+<th class="px-6 py-4 text-right"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-stone-50">
+<!-- Row 1 -->
+<tr class="group transition-colors duration-200 hover:bg-stone-50/50">
+<td class="px-6 py-5">
+<span class="font-mono text-xs text-stone-500 bg-stone-100 px-2 py-1 rounded">#NT-8821</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="font-semibold text-stone-900">Painel Backlight 200x100</span>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs text-[#2563eb] hover:underline cursor-pointer">Copa Pro 2024</span>
+<span class="w-1 h-1 bg-stone-300 rounded-full"></span>
+<span class="text-[10px] font-bold bg-stone-100 text-stone-500 px-2 py-0.5 rounded uppercase">Mastercard</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        No Galpão
+                                    </span>
+</td>
+<td class="px-6 py-5">
+<span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded uppercase tracking-tighter">Perfeito</span>
+</td>
+<td class="px-6 py-5">
+<span class="text-sm text-stone-600 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="location_on">location_on</span>
+                                        Setor A-44
+                                    </span>
+</td>
+<td class="px-6 py-5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex justify-end gap-2">
+<button class="p-1.5 text-stone-400 hover:text-stone-900 transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="edit">edit</span>
+</button>
+<button class="p-1.5 text-stone-400 hover:text-error transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="delete">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="group transition-colors duration-200 hover:bg-stone-50/50">
+<td class="px-6 py-5">
+<span class="font-mono text-xs text-stone-500 bg-stone-100 px-2 py-1 rounded">#NT-4312</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="font-semibold text-stone-900">Totem Interativo Digital</span>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs text-[#2563eb] hover:underline cursor-pointer">Lollapalooza 2024</span>
+<span class="w-1 h-1 bg-stone-300 rounded-full"></span>
+<span class="text-[10px] font-bold bg-stone-100 text-stone-500 px-2 py-0.5 rounded uppercase">Vivo</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700">
+<span class="w-2 h-2 rounded-full bg-orange-500"></span>
+                                        Em Uso
+                                    </span>
+</td>
+<td class="px-6 py-5">
+<span class="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded uppercase tracking-tighter">Avaria Leve</span>
+</td>
+<td class="px-6 py-5">
+<span class="text-sm text-stone-600 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="local_shipping">local_shipping</span>
+                                        Em Trânsito
+                                    </span>
+</td>
+<td class="px-6 py-5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex justify-end gap-2">
+<button class="p-1.5 text-stone-400 hover:text-stone-900 transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="edit">edit</span>
+</button>
+<button class="p-1.5 text-stone-400 hover:text-error transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="delete">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="group transition-colors duration-200 hover:bg-stone-50/50">
+<td class="px-6 py-5">
+<span class="font-mono text-xs text-stone-500 bg-stone-100 px-2 py-1 rounded">#NT-1109</span>
+</td>
+<td class="px-6 py-5">
+<div class="flex flex-col">
+<span class="font-semibold text-stone-900">Estrutura Backdrop Modular</span>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs text-[#2563eb] hover:underline cursor-pointer">Summit 2023</span>
+<span class="w-1 h-1 bg-stone-300 rounded-full"></span>
+<span class="text-[10px] font-bold bg-stone-100 text-stone-500 px-2 py-0.5 rounded uppercase">AWS</span>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        No Galpão
+                                    </span>
+</td>
+<td class="px-6 py-5">
+<span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded uppercase tracking-tighter">Perfeito</span>
+</td>
+<td class="px-6 py-5">
+<span class="text-sm text-stone-600 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="location_on">location_on</span>
+                                        Setor C-12
+                                    </span>
+</td>
+<td class="px-6 py-5 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex justify-end gap-2">
+<button class="p-1.5 text-stone-400 hover:text-stone-900 transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="edit">edit</span>
+</button>
+<button class="p-1.5 text-stone-400 hover:text-error transition-colors">
+<span class="material-symbols-outlined text-lg" data-icon="delete">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<div class="bg-surface p-4 flex justify-between items-center px-6">
+<span class="text-xs text-stone-500 font-medium">Mostrando 3 de 2450 ativos</span>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded border border-stone-200 text-stone-400 hover:bg-stone-100">
+<span class="material-symbols-outlined text-lg" data-icon="chevron_left">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-secondary text-white font-bold text-xs">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-stone-200 text-stone-600 hover:bg-stone-100 text-xs">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-stone-200 text-stone-600 hover:bg-stone-100 text-xs">3</button>
+<button class="w-8 h-8 flex items-center justify-center rounded border border-stone-200 text-stone-400 hover:bg-stone-100">
+<span class="material-symbols-outlined text-lg" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Modals Section (Demo Layout) -->
+<div class="fixed inset-0 bg-[#1c1917]/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+<!-- New Asset Modal -->
+<div class="bg-surface w-full max-w-[500px] rounded-20 shadow-2xl overflow-hidden">
+<header class="bg-[#f97316] p-6 flex items-center gap-4">
+<div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white text-2xl" data-icon="archive">archive</span>
+</div>
+<div>
+<h3 class="text-xl font-headline font-bold text-white leading-none">Cadastrar Novo Ativo</h3>
+<p class="text-[10px] text-white/70 font-bold uppercase tracking-widest mt-1">Acervo Norte Assets</p>
+</div>
+</header>
+<div class="p-6 space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="col-span-2">
+<label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1 block">Nome do Equipamento</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm" placeholder="Ex: Painel LED Curvo" type="text"/>
+</div>
+<div>
+<label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1 block">Quantidade</label>
+<input class="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm" type="number" value="1"/>
+</div>
+<div>
+<label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1 block">Condição</label>
+<select class="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm">
+<option>Perfeito</option>
+<option>Avaria Leve</option>
+</select>
+</div>
+</div>
+<div>
+<label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1 block">Localização (Galpão)</label>
+<div class="flex gap-2">
+<input class="flex-1 bg-surface-container-low border-none rounded-lg p-3 text-sm" placeholder="Ex: A-12" type="text"/>
+<button class="bg-secondary/10 text-secondary p-3 rounded-lg">
+<span class="material-symbols-outlined text-lg" data-icon="map">map</span>
+</button>
+</div>
+</div>
+<div>
+<label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1 block">Observações</label>
+<textarea class="w-full bg-surface-container-low border-none rounded-lg p-3 text-sm h-24" placeholder="Detalhes técnicos ou histórico..."></textarea>
+</div>
+</div>
+<footer class="p-6 border-t border-stone-100 flex gap-3 justify-end">
+<button class="px-6 py-2.5 text-sm font-bold text-stone-500">Cancelar</button>
+<button class="px-8 py-2.5 bg-[#f97316] text-white rounded-16 text-sm font-bold shadow-lg shadow-orange-500/20">Salvar Ativo</button>
+</footer>
+</div>
+</div>
+<!-- Warehouse Map Tooltip (Asymmetric UI Detail) -->
+<div class="fixed bottom-8 right-8 z-50">
+<button class="w-16 h-16 bg-stone-900 text-white rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-105 active:scale-95 group">
+<span class="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform" data-icon="warehouse">warehouse</span>
+</button>
+<div class="absolute bottom-20 right-0 w-80 bg-surface-container-lowest rounded-20 border border-stone-200 shadow-2xl p-6 hidden group-hover:block transition-all animate-in fade-in slide-in-from-bottom-4">
+<div class="flex items-center justify-between mb-4">
+<h4 class="font-headline font-bold text-stone-900 text-sm uppercase">Layout do Galpão</h4>
+<span class="text-[10px] font-mono text-stone-400">v2.4</span>
+</div>
+<div class="grid grid-cols-6 gap-1">
+<!-- Simple 6x6 grid for visual demo -->
+<div class="w-full aspect-square bg-emerald-100 border border-emerald-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-emerald-100 border border-emerald-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-orange-100 border border-orange-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-emerald-100 border border-emerald-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-emerald-100 border border-emerald-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-orange-100 border border-orange-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-orange-100 border border-orange-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-orange-100 border border-orange-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-stone-100 border border-stone-200 rounded-sm"></div>
+<div class="w-full aspect-square bg-emerald-100 border border-emerald-200 rounded-sm"></div>
+</div>
+<div class="mt-4 flex gap-4 text-[9px] font-bold uppercase text-stone-400">
+<div class="flex items-center gap-1"><div class="w-2 h-2 bg-emerald-400 rounded-full"></div> Livre</div>
+<div class="flex items-center gap-1"><div class="w-2 h-2 bg-orange-400 rounded-full"></div> Ocupado</div>
+<div class="flex items-center gap-1"><div class="w-2 h-2 bg-stone-200 rounded-full"></div> Reservado</div>
+</div>
+</div>
+</div>
+</body></html>

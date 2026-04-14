@@ -78,7 +78,7 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
         boxShadow: on ? `0 8px 24px ${color}18` : "0 1px 3px rgba(0,0,0,0.04)",
         transition: "border-color 0.2s, box-shadow 0.2s, background 0.2s",
         cursor: onClick ? "pointer" : "default",
-        display: "flex", flexDirection: "column", justifyContent: "space-between", height: 130,
+        display: "flex", flexDirection: "column", gap: 10,
         outline: active ? `2px solid ${color}40` : "none", outlineOffset: 2,
       }}
       onMouseEnter={() => setHov(true)}

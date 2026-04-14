@@ -260,12 +260,15 @@ export default function TriagemRetorno() {
       return { ...prev, [id]: { ...e, mode: "split" } };
     });
 
-  // Quick presets
+  // Quick presets — reset splits to single batch but KEEP the current mode
   const applyPreset = (id: string, condition: Condition, result: TriagemResult, totalQty: number) =>
-    setEntries(prev => ({
-      ...prev,
-      [id]: { ...(prev[id] ?? makeEntry(totalQty)), splits: [{ qty: totalQty, condition, result }], mode: "all" },
-    }));
+    setEntries(prev => {
+      const e = prev[id] ?? makeEntry(totalQty);
+      return {
+        ...prev,
+        [id]: { ...e, splits: [{ qty: totalQty, condition, result }] },
+      };
+    });
 
   const isSplitValid = (entry: TriagemEntry, totalQty: number) =>
     entry.splits.reduce((s, l) => s + l.qty, 0) === totalQty;
@@ -735,18 +738,18 @@ export default function TriagemRetorno() {
                                           +
                                         </button>
                                       </div>
-                                      {/* Remove lote */}
-                                      <button
-                                        data-testid={`button-remove-split-${asset.id}-${si}`}
-                                        onClick={() => removeSplit(asset.id, si)}
-                                        disabled={entry.splits.length <= 1}
-                                        style={{
-                                          border: "none", background: "none", cursor: entry.splits.length <= 1 ? "not-allowed" : "pointer",
-                                          color: entry.splits.length <= 1 ? "#e2e8f0" : "#94a3b8",
-                                          padding: 0, display: "flex", alignItems: "center",
-                                        }}>
-                                        <X size={12} />
-                                      </button>
+                                      {/* Remove lote — só aparece quando há ≥ 2 lotes */}
+                                      {entry.splits.length >= 2 && (
+                                        <button
+                                          data-testid={`button-remove-split-${asset.id}-${si}`}
+                                          onClick={() => removeSplit(asset.id, si)}
+                                          style={{
+                                            border: "none", background: "none", cursor: "pointer",
+                                            color: "#94a3b8", padding: 0, display: "flex", alignItems: "center",
+                                          }}>
+                                          <X size={12} />
+                                        </button>
+                                      )}
                                     </div>
                                     {/* Card body: condition + result toggles */}
                                     <div style={{ padding: "6px 8px" }}>

@@ -186,11 +186,12 @@ function LabeledTriageToggles({
     letterSpacing: "0.1em", minWidth: 62, flexShrink: 0,
   };
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 7 }}>
         <span style={labelStyle}>Condição</span>
         <ConditionToggles condition={condition} onCondition={onCondition} disabled={disabled} grayscale={grayscale} />
       </div>
+      <div style={{ height: 1, background: "#f1f5f9", marginBottom: 7 }} />
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={labelStyle}>Destino</span>
         <ResultToggles result={result} onResult={onResult} disabled={disabled} grayscale={grayscale} />
@@ -602,18 +603,21 @@ export default function TriagemRetorno() {
                   const splitSum = entry.splits.reduce((s, l) => s + l.qty, 0);
                   const splitValid = splitSum === qty;
                   const isFocused = focusedId === asset.id;
+                  const condRingColor = { PERFEITO: "#16a34a", AVARIA_LEVE: "#f59e0b", SUCATA: "#dc2626" }[entry.splits[0].condition];
+                  const thumbRing = isSaved ? "0 0 0 2px #e2e8f0" : `0 0 0 2px ${condRingColor}`;
 
                   return (
                     <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
                       onClick={() => !isSaved && setFocusedId(asset.id)}
                       style={{
-                        opacity: isSaved ? 0.55 : 1,
+                        opacity: isSaved ? 0.45 : 1,
+                        filter: isSaved ? "grayscale(1)" : "none",
                         background: isSaved ? "#f9fdf9" : isFocused ? "#f8fafc" : "#fff",
-                        transition: "background 0.1s",
+                        transition: "all 0.15s",
                         borderBottom: "1px solid #f1f5f9",
-                        outline: isFocused && !isSaved ? "2px solid rgba(37,99,235,0.15)" : "none",
-                        outlineOffset: -2,
+                        borderLeft: isFocused && !isSaved ? "3px solid #f97316" : "3px solid transparent",
                         cursor: isSaved ? "default" : "pointer",
+                        pointerEvents: isSaved ? "none" : "auto",
                       }}
                       onMouseEnter={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"; }}
                       onMouseLeave={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.background = "#fff"; }}
@@ -633,21 +637,26 @@ export default function TriagemRetorno() {
                       {/* Material + Qty */}
                       <td style={{ padding: "10px 14px", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          {/* Thumb / icon */}
+                          {/* Thumb / icon — ring muda com a condição */}
                           <div style={{
                             width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                            background: "#f1f5f9", border: "1px solid #e2e8f0",
+                            background: "#f1f5f9",
                             display: "flex", alignItems: "center", justifyContent: "center",
                             overflow: "hidden",
+                            boxShadow: thumbRing,
+                            transition: "box-shadow 0.2s",
                           }}>
                             {asset.approvalThumbUrl
                               ? <img src={asset.approvalThumbUrl} alt="thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               : <Package size={15} color="#94a3b8" />
                             }
                           </div>
-                          {/* Text */}
+                          {/* Text: ID acima do nome */}
                           <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+                            <span style={{ fontSize: 9, color: "#94a3b8", fontFamily: "DM Mono, monospace", letterSpacing: "0.07em", display: "block", marginBottom: 2 }}>
+                              {asset.displayId}
+                            </span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                               <span style={{ fontWeight: 700, fontSize: 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>{asset.name}</span>
                               <span style={{
                                 display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -657,9 +666,6 @@ export default function TriagemRetorno() {
                                 fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace",
                               }}>+{qty}</span>
                             </div>
-                            <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "DM Mono, monospace", letterSpacing: "0.04em" }}>
-                              {asset.displayId}
-                            </span>
                           </div>
                         </div>
                       </td>
@@ -698,12 +704,14 @@ export default function TriagemRetorno() {
                           />
                         ) : qty === 1 ? (
                           /* ── qty = 1: toggles simples com labels ── */
-                          <LabeledTriageToggles
-                            condition={entry.splits[0].condition}
-                            result={entry.splits[0].result}
-                            onCondition={c => smartUpdateSplit(asset.id, 0, c)}
-                            onResult={r => updateSplit(asset.id, 0, { result: r })}
-                          />
+                          <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", border: "1px solid #f1f5f9" }}>
+                            <LabeledTriageToggles
+                              condition={entry.splits[0].condition}
+                              result={entry.splits[0].result}
+                              onCondition={c => smartUpdateSplit(asset.id, 0, c)}
+                              onResult={r => updateSplit(asset.id, 0, { result: r })}
+                            />
+                          </div>
                         ) : (
                           /* ── qty > 1: banner + modo ── */
                           <div style={{ display: "flex", flexDirection: "column", gap: 8 }} onClick={e => e.stopPropagation()}>
@@ -720,14 +728,16 @@ export default function TriagemRetorno() {
                               </button>
                             </div>
                             {entry.mode === "all" ? (
-                              <LabeledTriageToggles
-                                condition={entry.splits[0].condition}
-                                result={entry.splits[0].result}
-                                onCondition={c => smartUpdateSplit(asset.id, 0, c)}
-                                onResult={r => updateSplit(asset.id, 0, { result: r })}
-                              />
+                              <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", border: "1px solid #f1f5f9" }}>
+                                <LabeledTriageToggles
+                                  condition={entry.splits[0].condition}
+                                  result={entry.splits[0].result}
+                                  onCondition={c => smartUpdateSplit(asset.id, 0, c)}
+                                  onResult={r => updateSplit(asset.id, 0, { result: r })}
+                                />
+                              </div>
                             ) : (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgba(248,250,252,0.8)", borderRadius: 10, padding: "8px 8px 8px 14px", borderLeft: "2px solid #e2e8f0" }}>
                                 {/* Presets rápidos */}
                                 <div style={{ display: "flex", gap: 5, marginBottom: 2 }}>
                                   <button data-testid={`button-preset-perfeito-${asset.id}`} onClick={() => applyPreset(asset.id, "PERFEITO", "NO_GALPAO", qty)}

@@ -20,7 +20,7 @@ const CONDITION_META: Record<Condition, { label: string; color: string; bg: stri
 
 type TriagemResult = "NO_GALPAO" | "DESCARTADO";
 const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string; border: string }> = {
-  NO_GALPAO:  { label: "Galpão",    color: "#166534", bg: "#f0fdf4", border: "#86efac" },
+  NO_GALPAO:  { label: "Galpão",    color: "#1e40af", bg: "#eff6ff", border: "#93c5fd" },
   DESCARTADO: { label: "Descartar", color: "#991b1b", bg: "#fff1f2", border: "#fca5a5" },
 };
 
@@ -269,6 +269,20 @@ export default function TriagemRetorno() {
         [id]: { ...e, splits: [{ qty: totalQty, condition, result }] },
       };
     });
+
+  // Bulk preset — preenche todas as linhas selecionadas na UI sem salvar
+  const applyBulkPreset = (condition: Condition, result: TriagemResult) => {
+    setEntries(prev => {
+      const next = { ...prev };
+      selectedIds.forEach(id => {
+        const asset = awaitingAssets.find(a => a.id === id);
+        const qty = asset?.quantity ?? 1;
+        const e = next[id] ?? makeEntry(qty);
+        next[id] = { ...e, splits: [{ qty, condition, result }] };
+      });
+      return next;
+    });
+  };
 
   const isSplitValid = (entry: TriagemEntry, totalQty: number) =>
     entry.splits.reduce((s, l) => s + l.qty, 0) === totalQty;
@@ -873,7 +887,41 @@ export default function TriagemRetorno() {
             </div>
             {/* Divider */}
             <div style={{ width: 1, height: 28, background: "#cbd5e1" }} />
-            {/* Actions */}
+            {/* Quick presets */}
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
+                Pré-preencher:
+              </span>
+              <button
+                data-testid="button-bulk-preset-perfeito"
+                onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "6px 12px", borderRadius: 9999,
+                  border: "1px solid #93c5fd", background: "#eff6ff",
+                  color: "#1e40af", fontSize: 11, fontWeight: 700,
+                  fontFamily: "Space Grotesk, sans-serif", cursor: "pointer",
+                  whiteSpace: "nowrap", letterSpacing: "0.02em",
+                }}>
+                <Sparkles size={11} /> Perfeitos → Galpão
+              </button>
+              <button
+                data-testid="button-bulk-preset-sucata"
+                onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "6px 12px", borderRadius: 9999,
+                  border: "1px solid #fca5a5", background: "#fff1f2",
+                  color: "#991b1b", fontSize: 11, fontWeight: 700,
+                  fontFamily: "Space Grotesk, sans-serif", cursor: "pointer",
+                  whiteSpace: "nowrap", letterSpacing: "0.02em",
+                }}>
+                <Trash2 size={11} /> Sucata → Descartar
+              </button>
+            </div>
+            {/* Divider */}
+            <div style={{ width: 1, height: 28, background: "#cbd5e1" }} />
+            {/* Confirm / Cancel */}
             <div style={{ display: "flex", gap: 10 }}>
               <button data-testid="button-bulk-confirm" onClick={handleBulk}
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 9999, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(22,163,74,0.28)" }}>

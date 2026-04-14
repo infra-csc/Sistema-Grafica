@@ -1,0 +1,219 @@
+Tela: Triagem de Retorno (/triagem-retorno)
+
+Visão Geral
+
+Tela de inspeção e destinação dos materiais gráficos retornados após um evento. O sistema move automaticamente ativos para o status AGUARDANDO_TRIAGEM após o evento encerrar (24h após startDate). O operador avalia cada peça, define a condição e o destino, e registra a triagem individualmente ou em lote.
+
+Fonte de dados
+
+API: GET /api/inventory/awaiting-triage
+
+Retorna EnrichedAsset[]: InventoryAsset + campos extras eventName, eventDate, sponsors[]
+
+Após salvar: invalida /api/inventory e /api/inventory/awaiting-triage
+
+Triagem simples: PATCH /api/inventory/:id/triage com { condition, notes, trackingStatus }
+
+Triagem dividida: POST /api/inventory/:id/triage-split com { splits: [{ qty, condition, trackingStatus, notes }] }
+
+Paleta e tipografia
+
+bg página: #f8fafc
+
+surface/card: #ffffff
+
+borda: #e2e8f0
+
+texto dark: #0f172a
+
+texto sec: #64748b
+
+texto muted: #94a3b8
+
+accent azul: #2563eb
+
+accent laranja: #f97316
+
+
+
+Títulos/labels: Space Grotesk
+
+Corpo/inputs: Plus Jakarta Sans
+
+IDs/monospace: DM Mono
+
+Layout da página (padding: 32px 36px 64px)
+
+1. Header (flex, space-between)
+
+Esquerda: ícone ScanSearch (56×56, bg #fffbeb, amber) + título "Triagem de Retorno" (30px, 800) + subtítulo "Avalie e destine os materiais retornados" (11px uppercase, muted)
+
+Direita: botão "Confirmar Triagem em Lote (N)" — desabilitado (cinza) se selectedIds.length === 0; ativo quando há seleção (gradiente azul #1e40af → #2563eb, shadow azul)
+
+2. Cards de Estatísticas (grid 3 colunas, gap 20)
+
+CardÍconeCorAguardando TriagemScanSearchamber #b45309SelecionadosCheckCircle2verde #16a34aTriados HojeWarehouseazul #2563eb
+
+Cada StatCard: bg white, border, número 38px/900 weight, label 10px uppercase, ícone 44×44 circle.
+
+3. Barra de filtros (bg white, rounded-16, só aparece se há opções)
+
+Ícone + label "FILTRAR"
+
+<select> Evento (todos / lista de eventos únicos) — amarelo quando ativo
+
+<select> Patrocinador (todos / lista de sponsors únicos)
+
+Botão "Limpar" (vermelho) — aparece só quando algum filtro está ativo
+
+Contador "N aguardando" alinhado à direita
+
+4. Estado vazio
+
+Ícone ScanSearch cinza, texto "Nenhum material aguardando triagem", subtexto explicativo
+
+5. Tabela principal (bg white, rounded-20, border, shadow suave)
+
+Colunas:
+
+#ColunaConteúdo1☐Checkbox de seleção (ou CheckCircle2 verde quando triado)2Material / QtdThumb 42×42 (ou ícone Package) + nome bold + badge ×N + displayId em DM Mono3EventoCalendarDays azul + nome do evento + data em DM Mono4PatrocinadoresChips #f1f5f9 com ícone Tag e nome em uppercase5Condição · DestinoInterface de triagem (ver abaixo)6ObservaçãoInput text "Adicionar nota..."7AçãoBotão "Salvar" ou badge "Salvo"
+
+Ordenação das linhas: pendentes primeiro, depois triados (opacidade 55%, bg #f9fdf9)
+
+Linha focada: outline: 2px solid rgba(37,99,235,0.15), bg #f8fafc
+
+Lógica de triagem — Coluna "Condição · Destino"
+
+Caso A — qty === 1
+
+Exibe diretamente os toggles TriageActionToggles:
+
+Linha 1 — Condição: 3 botões toggle exclusivos: Perfeito (verde) / Avaria (âmbar) / Sucata (vermelho)
+
+Linha 2 — Destino: 2 botões toggle exclusivos: Galpão (verde) / Descartar (vermelho)
+
+Botão ativo: bg colorido + border 2px colorida + shadow suave. Inativo: bg #f8fafc, cor muted.
+
+Caso B — qty > 1
+
+Exibe banner de modo acima dos toggles:
+
+[×N] [Aplicar a todas] [✂ Dividir por condição]
+
+
+
+Modo "all" (azul, padrão): mostra TriageActionToggles normais, aplica a todas as unidades
+
+Modo "split" (laranja): modo de divisão por lote
+
+Modo split — por lote:
+
+Presets rápidos: [✦ Tudo Perfeito → Galpão] e [🗑 Tudo Sucata → Descartar] — resetam para 1 split mas preservam o modo atual
+
+Cards de lote (Lote 1, Lote 2 ...):Header: label "LOTE N" + stepper [ − qty + ] (sem input, só botões) + botão ✕ (só visível quando há ≥ 2 lotes)
+
+Body: TriageActionToggles (condição + destino) para aquele lote
+
+Botão "+ Adicionar lote" (dashed border, só aparece quando splitSum < totalQty)
+
+SplitProgress: barra colorida proporcional (verde/âmbar/vermelho por condição) + texto X/N un (XX%) + "faltam Y un"
+
+Validação: se splitSum !== totalQty, exibe mensagem de erro em vermelho e desabilita o botão Salvar
+
+Stepper logic: stepSplit(id, idx, delta, totalQty) — clamp: mínimo 1, máximo = totalQty - soma dos outros lotes
+
+Botão Salvar (coluna Ação)
+
+Desabilitado (cinza) quando: isSaving || !splitValid
+
+Ativo: bg #0f172a, shadow, texto "Salvar" com ícone Save
+
+Durante save: texto "..."
+
+Após salvo: badge verde "✓ Salvo" + linha fica opaca
+
+Operação em lote
+
+Checkboxes nas linhas → selectedIds[]
+
+"Confirmar Triagem em Lote" dispara handleBulk():Promise.allSettled() para todos os IDs selecionados
+
+Toast diferenciado: "N triagem(ns) registradas" ou "N salvas, M com erro"
+
+Desmarca todos após confirmar
+
+Floating pill (position: fixed, bottom: 52px, centrada horizontalmente)
+
+Aparece quando selectedIds.length > 0:
+
+[● N itens selecionados] | [✓ Confirmar Triagem em Lote] [✕ Cancelar]
+
+
+
+Pill: bg branco translúcido (rgba(248,250,252,0.85)), backdropFilter: blur(12px), border branco, shadow
+
+Círculo laranja com o número
+
+Botão confirmar: verde sólido
+
+Botão cancelar: branco com border
+
+Footer fixo (position: fixed, bottom: 0, left: 260px)
+
+Barra de atalhos de teclado:
+
+[1] Perfeito [2] Avaria [3] Sucata [ENT] Salvar linha
+
+
+
+Tecla 1/2/3 → altera condição do split[0] da linha focada
+
+Enter → salva a linha focada (se não estiver em input/textarea)
+
+Focagem: clicar em qualquer parte de uma linha não salva define focusedId
+
+Foco via input de observação também ativa setFocusedId
+
+Estado local (useState)
+
+EstadoTipoDescriçãoentriesRecord<string, TriagemEntry>Configuração de triagem por assetIdsavingIdsSet<string>IDs em processo de savesavedIdsSet<string>IDs já salvos nesta sessãofilterEventstringFiltro de evento ativofilterSponsorstringFiltro de patrocinador ativofocusedIdstring|nullLinha com foco para atalhos de teclado
+
+TriagemEntry:
+
+{ splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split" }
+
+
+
+SplitLine:
+
+{ qty: number; condition: "PERFEITO"|"AVARIA_LEVE"|"SUCATA"; result: "NO_GALPAO"|"DESCARTADO" }
+
+
+
+algo a melhorar na logica e layout? uma das melhorias seria aalterçaõ de cor dse galpão pois esta parecido com perfeito
+
+
+
+me de outras sugestões alem dessa
+
+Sua estrutura está excelente e muito madura. O fluxo de Split (divisão de lote) é o ponto mais complexo e onde o usuário mais pode errar, então as melhorias devem focar em diferenciação visual e prevenção de fadiga.
+
+Aqui estão 5 sugestões de melhoria para lógica e layout, além da correção das cores:
+
+1. Ajuste na Paleta de Destino (Diferenciação de "Perfeito")
+Para evitar a confusão entre a Condição (como o objeto está) e o Destino (para onde ele vai), vamos separar as cores por "temperatura":
+
+Condição (Semântica de Estado): Mantém Verde (Perfeito), Âmbar (Avaria), Vermelho (Sucata).
+
+Destino (Semântica Logística):
+
+Galpão: Em vez de verde, use Índigo/Azul Escuro (#1e40af ou #312e81). Isso remete a "armazenamento/estabilidade" e separa do "estado perfeito".
+
+Descartar: Mantém Vermelho suave ou Cinza Escuro (#334155), pois o item deixa de existir no sistema.
+
+2. "Smart Defaults" e Proteção de Erro no Split
+A lógica de "faltam Y un" é boa, mas podemos ser mais proativos:
+
+Auto-Preenchimento do último Lote: Se um item tem 10 unidades e o usuário cria um lote de 7, ao clicar em "+ Adicionar Lote", o segundo lote deve nascer automaticamente com qty: 3. Isso elimina cliques no stepper.
+
+Bloqueio de Salvar "Fantasma": Se o usuário entrar no modo "Split" mas não alterar nada (mantendo 1 lote com a quantidade total), o sistema deve tratar como modo "All" automaticamente ao salvar, para evitar erros de processamento no backend.

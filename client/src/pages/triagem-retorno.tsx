@@ -249,6 +249,7 @@ export default function TriagemRetorno() {
   const { data: awaitingAssets = [], isLoading, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
   });
+  const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: allSponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
 
   const eventOptions = useMemo(() => {
@@ -928,6 +929,7 @@ export default function TriagemRetorno() {
 
       <TriagemModal
         asset={selectedAsset}
+        linkedItem={selectedAsset ? (allItems.find((i: any) => i.id === selectedAsset.originalItemId) ?? null) : null}
         entry={selectedAsset ? getEntry(selectedAsset.id, selectedAsset.quantity ?? 1) : null}
         open={!!selectedAsset}
         isSaving={!!selectedAsset && savingIds.has(selectedAsset.id)}

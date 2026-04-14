@@ -37,6 +37,7 @@ type EnrichedAsset = {
 
 interface TriagemModalProps {
   asset: EnrichedAsset | null;
+  linkedItem?: any | null;
   entry: TriagemEntry | null;
   open: boolean;
   isSaving: boolean;
@@ -66,7 +67,7 @@ const RESULT_META: Record<TriagemResult, {
 };
 
 export function TriagemModal({
-  asset, entry, open, isSaving, isSaved, user,
+  asset, linkedItem, entry, open, isSaving, isSaved, user,
   onOpenChange, onUpdateCondition, onUpdateResult, onUpdateNotes, onSaveAndClose,
 }: TriagemModalProps) {
   if (!asset || !entry) return null;
@@ -107,16 +108,19 @@ export function TriagemModal({
           <div style={{ padding: "24px 24px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 900,
-              fontSize: 22, color: "#f97316", letterSpacing: "-0.06em",
+              fontSize: 18, color: "#f97316", letterSpacing: "-0.04em", lineHeight: 1.1,
             }}>
-              NORTE
+              NORTE<br/>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.02em", color: "#f97316", opacity: 0.75 }}>
+                Marketing Esportivo
+              </span>
             </div>
             <div style={{
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
               fontSize: 9, color: "#6b7280", textTransform: "uppercase",
-              letterSpacing: "0.18em", marginTop: 2,
+              letterSpacing: "0.18em", marginTop: 4,
             }}>
-              Sport Editorial
+              Triagem de Retorno
             </div>
           </div>
 
@@ -504,17 +508,33 @@ export function TriagemModal({
                   fontSize: 13, color: "#f9fafb",
                 }}>
                   <Layers size={15} color="#f97316" />
-                  Especificações
+                  Especificações Técnicas
                 </h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                   {[
-                    { label: "DISPLAY ID", value: asset.displayId },
-                    { label: "CONDIÇÃO",   value: asset.condition.replace("_", " ") },
-                    { label: "STATUS",     value: asset.trackingStatus.replace(/_/g, " ") },
-                    { label: "FRANQUIAS",  value: (asset.franchiseTags ?? []).length > 0 ? (asset.franchiseTags ?? []).join(", ") : "—" },
-                  ].map(({ label, value }) => (
-                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                      <span style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</span>
+                    { label: "TIPO",        value: linkedItem?.type || "—" },
+                    { label: "MATERIAL",    value: linkedItem?.material || "—" },
+                    { label: "ACABAMENTO",  value: linkedItem?.finish || "—" },
+                    { label: "MEDIDA",      value: linkedItem?.measurement || "—" },
+                    {
+                      label: "DIMENSÕES",
+                      value: linkedItem?.visualWidth && linkedItem?.visualHeight
+                        ? `${linkedItem.visualWidth} × ${linkedItem.visualHeight} m`
+                        : "—",
+                    },
+                    {
+                      label: "M² TOTAL",
+                      value: linkedItem?.calculatedM2 ? `${linkedItem.calculatedM2} m²` : "—",
+                    },
+                    { label: "QUANTIDADE",  value: linkedItem?.quantity ? `${linkedItem.quantity} un.` : `${asset.quantity ?? 1} un.` },
+                    { label: "FRANQUIAS",   value: (asset.franchiseTags ?? []).length > 0 ? (asset.franchiseTags ?? []).join(", ") : "—" },
+                  ].map(({ label, value }, i, arr) => (
+                    <div key={label} style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+                      gap: 8, padding: "9px 0",
+                      borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                    }}>
+                      <span style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em", flexShrink: 0 }}>{label}</span>
                       <span style={{ fontFamily: "DM Mono, monospace", fontWeight: 500, fontSize: 10, color: "#e5e7eb", textAlign: "right" }}>{value}</span>
                     </div>
                   ))}

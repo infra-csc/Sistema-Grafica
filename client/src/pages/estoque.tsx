@@ -7,6 +7,7 @@ import type { InventoryAsset, Sponsor, Item, Event } from "@shared/schema";
 import {
   Archive, Plus, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
   XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame, CalendarDays,
+  TrendingUp, ShieldAlert, Grid3X3,
 } from "lucide-react";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
@@ -205,6 +206,80 @@ function DeleteModal({ asset, onClose, onConfirm }: {
   );
 }
 
+// ─── Mapa do Galpão ───────────────────────────────────────────────────────────
+const SETORES = ["A", "B", "C", "D", "E", "F"];
+const CORREDORES = [1, 2, 3, 4, 5, 6, 7, 8];
+function MapaGalpao({ value, onSelect, onClose }: {
+  value: string; onSelect: (loc: string) => void; onClose: () => void;
+}) {
+  const [hov, setHov] = useState<string | null>(null);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 20, width: 480, overflow: "hidden", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Grid3X3 size={18} color="#f97316" />
+            <div>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a" }}>Mapa do Galpão</p>
+              <p style={{ margin: 0, fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Clique para selecionar a localização</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "#f1f5f9", border: "none", width: 30, height: 30, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ padding: 20 }}>
+          {/* Column headers */}
+          <div style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
+            <div />
+            {CORREDORES.map(c => (
+              <div key={c} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "DM Mono, monospace" }}>C{c}</div>
+            ))}
+          </div>
+          {/* Grid */}
+          {SETORES.map(s => (
+            <div key={s} style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#64748b", fontFamily: "DM Mono, monospace" }}>{s}</div>
+              {CORREDORES.map(c => {
+                const loc = `Setor ${s} - Corredor ${c}`;
+                const isSelected = value === loc;
+                const isHov = hov === loc;
+                return (
+                  <button key={c} onClick={() => onSelect(loc)}
+                    onMouseEnter={() => setHov(loc)} onMouseLeave={() => setHov(null)}
+                    style={{
+                      height: 40, borderRadius: 8, border: "none",
+                      background: isSelected ? "#f97316" : isHov ? "#fff7ed" : "#f8fafc",
+                      color: isSelected ? "#fff" : isHov ? "#f97316" : "#94a3b8",
+                      fontSize: 9, fontWeight: 700, cursor: "pointer",
+                      fontFamily: "DM Mono, monospace",
+                      transition: "all 0.12s",
+                      outline: isSelected ? "2px solid rgba(249,115,22,0.4)" : "none",
+                      outlineOffset: 2,
+                    }}>
+                    {s}{c}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          {value && (
+            <div style={{ marginTop: 12, padding: "8px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: 8 }}>
+              <MapPin size={13} color="#ea580c" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#ea580c", fontFamily: "Space Grotesk, sans-serif" }}>{value}</span>
+            </div>
+          )}
+        </div>
+        <div style={{ padding: "12px 20px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: "#f97316", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Asset Modal ──────────────────────────────────────────────────────────────
 function AssetModal({ asset, onClose, onSaved }: {
   asset: InventoryAsset | null; onClose: () => void; onSaved: () => void;
@@ -219,6 +294,7 @@ function AssetModal({ asset, onClose, onSaved }: {
     notes: asset.notes ?? "",
   } : { name: "", quantity: 1, location: "", condition: "PERFEITO" as Condition, franchiseTags: [] as string[], trackingStatus: "NO_GALPAO" as TrackingStatus, notes: "" });
   const [tagInput, setTagInput] = useState("");
+  const [showMapa, setShowMapa] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (data: typeof form) =>
@@ -275,11 +351,25 @@ function AssetModal({ asset, onClose, onSaved }: {
             </div>
             <div>
               <label style={LBL}>Localização</label>
-              <input data-testid="input-asset-location" style={INP} value={form.location}
-                onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                placeholder="Ex: Prateleira A3" />
+              <div style={{ display: "flex", gap: 6 }}>
+                <input data-testid="input-asset-location" style={{ ...INP, flex: 1 }} value={form.location}
+                  onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                  placeholder="Ex: Setor A - Corredor 3" />
+                <button type="button" onClick={() => setShowMapa(true)}
+                  title="Abrir mapa do galpão"
+                  style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", color: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Grid3X3 size={15} />
+                </button>
+              </div>
             </div>
           </div>
+          {showMapa && (
+            <MapaGalpao
+              value={form.location}
+              onSelect={loc => { setForm(f => ({ ...f, location: loc })); setShowMapa(false); }}
+              onClose={() => setShowMapa(false)}
+            />
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label style={LBL}>Condição</label>
@@ -439,20 +529,20 @@ export default function Estoque() {
             <Archive size={24} color="#fff" />
           </div>
           <div>
-            <h1 style={{ margin: "0 0 4px", fontSize: 30, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1 }}>
-              Acervo
+            <h1 style={{ margin: "0 0 4px", fontSize: 30, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1 }}>
+              Estoque & Acervo
             </h1>
             <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em" }}>
-              Módulo de Estoque &amp; Logística Reversa
+              Gestão de ativos físicos de produção gráfica
             </p>
           </div>
         </div>
         <button data-testid="button-new-asset" onClick={() => setEditing(null)} style={{
           display: "flex", alignItems: "center", gap: 8,
           padding: "14px 28px", borderRadius: 16, border: "none",
-          background: "#2563eb", color: "#fff", fontSize: 13, cursor: "pointer",
+          background: "#f97316", color: "#fff", fontSize: 13, cursor: "pointer",
           fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, letterSpacing: "0.08em",
-          boxShadow: "0 8px 24px rgba(37,99,235,0.35)",
+          boxShadow: "0 8px 24px rgba(249,115,22,0.35)",
         }}>
           <Plus size={16} />
           + NOVO ATIVO
@@ -462,14 +552,19 @@ export default function Estoque() {
       {/* ── Stat cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginBottom: 28 }}>
         <StatCard
-          label="Total" value={total} Icon={Package} color="#2563eb"
+          label="Total Acervo" value={total} Icon={Package} color="#2563eb"
           subtext={`${autoCount} via gráfica`}
           active={filterStatus === "all" && filterCondition === "all"}
           onClick={() => { setFilterStatus("all"); setFilterCondition("all"); }}
         />
         <StatCard
-          label="Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#16a34a"
-          subtext={total ? `${Math.round(byStatus("NO_GALPAO")/total*100)}% disponível` : "0% disponível"} subColor="#16a34a"
+          label="Economia" value={autoCount} Icon={TrendingUp} color="#16a34a"
+          subtext={autoCount > 0 ? `${autoCount} peças reutilizadas` : "Nenhuma reutilização"}
+          subColor="#16a34a"
+        />
+        <StatCard
+          label="No Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#0369a1"
+          subtext={total ? `${Math.round(byStatus("NO_GALPAO")/total*100)}% disponível` : "0% disponível"} subColor="#0369a1"
           active={filterStatus === "NO_GALPAO"}
           onClick={() => setFilterStatus(filterStatus === "NO_GALPAO" ? "all" : "NO_GALPAO")}
         />
@@ -486,16 +581,9 @@ export default function Estoque() {
           onClick={() => navigate("/triagem-retorno")}
         />
         <StatCard
-          label="Descartado" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
-          subtext="Logística reversa"
-          active={filterStatus === "DESCARTADO"}
-          onClick={() => setFilterStatus(filterStatus === "DESCARTADO" ? "all" : "DESCARTADO")}
-        />
-        <StatCard
-          label="Sucata" value={sucata} Icon={Flame} color="#dc2626"
-          subtext="Perda total" subColor="#dc2626"
-          active={filterCondition === "SUCATA"}
-          onClick={() => setFilterCondition(filterCondition === "SUCATA" ? "all" : "SUCATA")}
+          label="Alerta de Marcas" value={0} Icon={ShieldAlert} color="#dc2626"
+          subtext="Contratos configurados: 0" subColor="#94a3b8"
+          active={false}
         />
       </div>
 
@@ -640,8 +728,8 @@ export default function Estoque() {
                         {/* Evento */}
                         {assetEventMap[asset.id] && (
                           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-                            <CalendarDays size={10} color="#6366f1" />
-                            <span style={{ fontSize: 10, color: "#6366f1", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600 }}>
+                            <CalendarDays size={10} color="#2563eb" />
+                            <span style={{ fontSize: 10, color: "#2563eb", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600 }}>
                               {assetEventMap[asset.id].name}
                             </span>
                           </div>
@@ -655,8 +743,8 @@ export default function Estoque() {
                                 <span key={sp!.id} style={{
                                   display: "inline-flex", alignItems: "center", gap: 3,
                                   padding: "2px 7px", borderRadius: 5,
-                                  background: "#f5f3ff", border: "1px solid #ddd6fe",
-                                  fontSize: 9, fontWeight: 700, color: "#7c3aed",
+                                  background: "#f1f5f9", border: "1px solid #e2e8f0",
+                                  fontSize: 9, fontWeight: 700, color: "#475569",
                                   fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
                                   textTransform: "uppercase", whiteSpace: "nowrap",
                                 }}>

@@ -1,0 +1,82 @@
+📋 COPIE O TEXTO ABAIXO PARA O SEU PROMPT MESTRE:
+Plaintext
+ESCOPO ATUALIZADO V2: MÓDULO DE ESTOQUE & LOGÍSTICA REVERSA
+Contexto Geral
+Sistema desktop de gestão de produção gráfica esportiva (NORTE Marketing Esportivo). O módulo controla o ciclo de vida físico dos materiais gráficos: produção da gráfica -> armazenamento -> checklist de saída -> uso no evento -> retorno -> triagem de avarias/marcas -> realocação ou descarte.
+
+Paleta Titanium (Rigorosamente aplicada):
+Fundo: #f8fafc | Superfície: #ffffff | Acesso/Acento: #f97316 (laranja)
+Escuro: #0f172a | Borda: #e2e8f0 | Texto secundário: #64748b | Texto muted: #94a3b8
+Tipografia: Space Grotesk (títulos), Plus Jakarta Sans (corpo), DM Mono (IDs, Monitário)
+*Regra:* Sem cores lilás/roxas fora do padrão. Manter sobriedade industrial.
+
+---------------------------------------------------------
+TELA 1 — /estoque — Acervo de Ativos e Inteligência
+Objetivo: Listagem do acervo com foco em reutilização, economia e prevenção de uso de marcas defasadas.
+
+Header
+Ícone Archive laranja com glow + "Estoque & Acervo" + "Gestão de ativos físicos".
+Botão [+ NOVO ATIVO] (laranja, topo direito).
+
+Dashboard Inteligente (6 Cards Clicáveis - Grid 6 col)
+1. Total Acervo (Azul): Qtd total não descartada.
+2. Economia Gerada (Verde): Valor estimado economizado (ex: R$ 45.300) - soma do custo estimado dos itens com status "EM_USO" vindos do estoque.
+3. No Galpão (Verde #16a34a): Filtra NO_GALPAO.
+4. Em Uso (Laranja #ea580c): Filtra EM_USO.
+5. Ag. Triagem (Âmbar #b45309): Botão navega direto para /triagem-retorno.
+6. Alerta de Marcas (Vermelho #dc2626): Filtra itens no galpão que possuem logos com contrato expirado (obsoletos).
+
+Tabela de Acervo (Alta Densidade)
+Colunas:
+- ID (DM Mono, #EST-XXXX)
+- Material (Nome + miniatura da arte com "Hover Zoom" exibindo marcações visuais das logos).
+- Patrocinadores (Chips compactos. Se a marca estiver com contrato vencido, o chip fica vermelho com ícone ⚠️).
+- Localização (Texto da prateleira).
+- Qtd | Condição (Badge) | Status (Badge).
+- Ações: Lápis (Editar), Check-list (Ver histórico), Lixeira.
+*Linha Hover:* Fundo #f1f5f9 (slate-100).
+
+Modais da Tela 1
+- Criação/Edição: Campos de Nome, Qtd, Franquias. Novidade: "Localização" possui um botão "Abrir Mapa" que mostra um Grid Visual (mini-mapa do galpão estilo batalha naval) para clique rápido, preenchendo o input (ex: "Setor B - Corredor 3").
+- Modal de Saída (Checklist de Carregamento): O status para EM_USO não é mais apenas por data. Antes da data do evento, o sistema gera um modal "Confirmar Carregamento" para a logística dar "check" físico antes do caminhão sair.
+
+---------------------------------------------------------
+TELA 2 — /triagem-retorno — Triagem de Alta Eficiência
+Objetivo: Fila rápida e à prova de erros para itens que retornaram pós-evento.
+
+Header & Filtros
+Ícone ScanSearch âmbar + "Triagem de Retorno".
+Botão "Confirmar Triagem em Lote (N)" azul escuro.
+Filtros: Evento, Patrocinador, Status de Validade da Marca.
+
+Tabela de Triagem (Otimizada para Operação Rápida)
+*Sem uso de tags Select que exigem 2 cliques. Uso de ToggleGroups (Shadcn).*
+Colunas:
+- Checkbox (Para lote).
+- Material / Quantidade: Nome + ID + Badge de QTD (ex: 10 un).
+- Status da Marca (Crucial): Ícone ShieldCheck verde (Marcas Válidas) ou ShieldAlert vermelho (Aviso: Peça contém logo de patrocinador que encerrou contrato. Destino sugerido: Descarte/Adesivagem).
+- Condição (Toggle Group 1 clique): 
+  [✨ Perfeito] (Verde) | [🔨 Avaria Leve] (Amarelo) | [🗑️ Sucata] (Vermelho).
+- Destino (Toggle Group 1 clique):
+  [📦 Galpão] | [♻️ Descarte] | [✂️ Adesivar Logo].
+- Observação (Input dinâmico, obrigatório se "Avaria" for selecionada).
+- Ação: Botão [Salvar].
+
+Lógica de Split Avançado (Accordion & Progress)
+- Cenário: O item tem 10 unidades, mas voltaram 7 perfeitas e 3 rasgadas.
+- Ação: Clica no botão [+ Dividir Lote] na linha.
+- UI: A linha se expande para baixo (estilo Accordion). O cabeçalho do item permanece fixo. Aparecem sub-linhas.
+- Barra de Progresso: Na célula da "Quantidade Total", aparece uma barra (ex: 70% verde, 30% vermelho). O botão Salvar Geral só habilita quando a soma das partes for exatamente igual ao total (100%).
+- Backend: Dispara POST /api/inventory/:id/triage-split criando os clones no banco.
+
+Acessibilidade e Usabilidade
+- Atalhos de Teclado fofos na linha em foco: '1' marca Perfeito, '2' Avaria, '3' Sucata. 'Enter' salva. Focado em uso por tablet/notebook diretamente no galpão logístico.
+- Estado Vazio: Ilustração limpa e cinza "Nenhum material aguardando triagem no momento".
+Principais Ganhos dessa Nova Lógica:
+Inteligência Comercial (Alerta de Marcas): O sistema impede ativamente que a equipe guarde no estoque perfeito um pórtico cujo patrocinador (ex: um banco) não renovou o contrato. Isso evita vexames no dia do evento.
+
+UX de Galpão (Toggle Groups + Atalhos): Pessoas operando em galpões logísticos usam luvas, tablets ou têm pressa. Tirar os "dropdowns/selects" e colocar botões de 1 clique (Toggle) agiliza a triagem em 300%.
+
+Visão Financeira: O card de "Economia Gerada" justifica o uso do sistema para a diretoria. Reutilizar 10 lonas mostra um número em Reais ($) na hora.
+
+Checklist de Saída: Evita o erro de o sistema achar que o item está "Em Uso" no evento só porque a data chegou, sendo que alguém esqueceu de colocar no caminhão.

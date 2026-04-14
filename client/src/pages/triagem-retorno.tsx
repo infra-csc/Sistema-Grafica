@@ -679,16 +679,34 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Evento */}
-                      <td style={{ padding: "10px 14px", verticalAlign: "middle" }}>
+                      <td style={{ padding: "10px 14px", verticalAlign: "middle", maxWidth: 180 }}>
                         {asset.eventName ? (
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                              <CalendarDays size={12} color="#2563eb" />
-                              <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>{asset.eventName}</span>
-                            </div>
+                          <div style={{
+                            display: "inline-flex", flexDirection: "column", gap: 3,
+                            background: "#eff6ff", border: "1px solid #bfdbfe",
+                            borderRadius: 8, padding: "5px 9px",
+                            maxWidth: 164,
+                          }}>
+                            <span
+                              title={asset.eventName}
+                              style={{
+                                fontSize: 11, fontWeight: 700, color: "#1e40af",
+                                fontFamily: "Plus Jakarta Sans, sans-serif",
+                                whiteSpace: "nowrap", overflow: "hidden",
+                                textOverflow: "ellipsis", maxWidth: 148,
+                                display: "block", lineHeight: 1.3,
+                              }}
+                            >
+                              {asset.eventName}
+                            </span>
                             {asset.eventDate && (
-                              <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "DM Mono, monospace", letterSpacing: "0.02em" }}>
-                                {new Date(asset.eventDate).toLocaleDateString("pt-BR")}
+                              <span style={{
+                                display: "flex", alignItems: "center", gap: 4,
+                                fontSize: 9, color: "#3b82f6",
+                                fontFamily: "DM Mono, monospace", letterSpacing: "0.04em",
+                              }}>
+                                <CalendarDays size={9} color="#3b82f6" />
+                                {new Date(asset.eventDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "")}
                               </span>
                             )}
                           </div>

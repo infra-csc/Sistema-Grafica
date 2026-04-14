@@ -5,8 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset } from "@shared/schema";
 import {
   ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save,
-  CalendarDays, Tag, X, Scissors, Sparkles, Hammer, Trash2,
+  CalendarDays, Tag, X, Scissors, Sparkles, Hammer, Trash2, Eye,
 } from "lucide-react";
+import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
@@ -190,10 +191,19 @@ export default function TriagemRetorno() {
   const [filterEvent, setFilterEvent] = useState("all");
   const [filterSponsor, setFilterSponsor] = useState("all");
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   const { data: awaitingAssets = [], isLoading, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
   });
+  const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+
+  const openItemDialog = (asset: EnrichedAsset) => {
+    if (!asset.originalItemId) return;
+    const item = allItems.find((i: any) => i.id === asset.originalItemId);
+    if (item) setSelectedItem(item);
+  };
 
   const eventOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -830,6 +840,19 @@ export default function TriagemRetorno() {
 
                       {/* Ação */}
                       <td style={{ padding: "12px 14px", verticalAlign: "middle", textAlign: "right" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                          {/* Botão detalhe do item */}
+                          {asset.originalItemId && (
+                            <button
+                              data-testid={`button-view-item-${asset.id}`}
+                              onClick={e => { e.stopPropagation(); openItemDialog(asset); }}
+                              title="Ver detalhe do item"
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                              style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
+                              <Eye size={14} />
+                            </button>
+                          )}
                         {isSaved ? (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontSize: 12, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
                             <CheckCircle2 size={15} /> Salvo
@@ -852,6 +875,7 @@ export default function TriagemRetorno() {
                             {isSaving ? "..." : <><Save size={13} /> Salvar</>}
                           </button>
                         )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -957,6 +981,13 @@ export default function TriagemRetorno() {
           NORTE Assets · Módulo Triagem
         </span>
       </footer>
+
+      <ItemDetailsDialog
+        item={selectedItem}
+        auditLogs={auditLogs}
+        open={!!selectedItem}
+        onOpenChange={(open) => !open && setSelectedItem(null)}
+      />
     </div>
   );
 }

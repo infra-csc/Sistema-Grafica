@@ -26,11 +26,11 @@ const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: str
   DESCARTADO: { label: "Descartar", color: "#991b1b", bg: "#fff1f2", border: "#fca5a5" },
 };
 
-interface SplitLine { qty: number; condition: Condition; result: TriagemResult; }
+interface SplitLine { qty: number; condition: Condition | null; result: TriagemResult; }
 interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; }
 
 function makeSplits(totalQty: number): SplitLine[] {
-  return [{ qty: totalQty, condition: "PERFEITO", result: "NO_GALPAO" }];
+  return [{ qty: totalQty, condition: null, result: "NO_GALPAO" }];
 }
 
 function makeEntry(totalQty: number): TriagemEntry {
@@ -92,7 +92,7 @@ function SponsorChips({ sponsors }: { sponsors: { id: string; name: string }[] }
 
 // ─── ConditionToggles ─────────────────────────────────────────────────────────
 function ConditionToggles({ condition, onCondition, disabled, grayscale }: {
-  condition: Condition; onCondition: (c: Condition) => void;
+  condition: Condition | null; onCondition: (c: Condition) => void;
   disabled?: boolean; grayscale?: boolean;
 }) {
   return (
@@ -161,7 +161,7 @@ function ResultToggles({ result, onResult, disabled, grayscale }: {
 function TriageActionToggles({
   condition, result, onCondition, onResult, disabled,
 }: {
-  condition: Condition; result: TriagemResult;
+  condition: Condition | null; result: TriagemResult;
   onCondition: (c: Condition) => void; onResult: (r: TriagemResult) => void;
   disabled?: boolean;
 }) {
@@ -177,7 +177,7 @@ function TriageActionToggles({
 function LabeledTriageToggles({
   condition, result, onCondition, onResult, disabled, grayscale,
 }: {
-  condition: Condition; result: TriagemResult;
+  condition: Condition | null; result: TriagemResult;
   onCondition: (c: Condition) => void; onResult: (r: TriagemResult) => void;
   disabled?: boolean; grayscale?: boolean;
 }) {
@@ -215,7 +215,7 @@ function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }
           <div key={i} style={{
             height: "100%",
             width: `${(s.qty / total) * 100}%`,
-            background: PROG_COLORS[s.condition],
+            background: s.condition ? PROG_COLORS[s.condition] : "#e2e8f0",
             transition: "width 0.2s",
           }} />
         ))}
@@ -348,7 +348,8 @@ export default function TriagemRetorno() {
   };
 
   const isSplitValid = (entry: TriagemEntry, totalQty: number) =>
-    entry.splits.reduce((s, l) => s + l.qty, 0) === totalQty;
+    entry.splits.reduce((s, l) => s + l.qty, 0) === totalQty &&
+    entry.splits.every(l => l.condition !== null);
 
   const doTriage = async (assetId: string, totalQty: number) => {
     const entry = getEntry(assetId, totalQty);
@@ -374,6 +375,10 @@ export default function TriagemRetorno() {
   const handleSingle = useCallback(async (asset: EnrichedAsset) => {
     const totalQty = asset.quantity ?? 1;
     const entry = getEntry(asset.id, totalQty);
+    if (entry.splits.some(l => l.condition === null)) {
+      toast({ title: "Selecione a condição antes de salvar.", variant: "destructive" });
+      return;
+    }
     if (!isSplitValid(entry, totalQty)) {
       toast({ title: `A soma das quantidades deve ser ${totalQty}.`, variant: "destructive" });
       return;
@@ -593,7 +598,9 @@ export default function TriagemRetorno() {
                   const splitSum = entry.splits.reduce((s, l) => s + l.qty, 0);
                   const splitValid = splitSum === qty;
                   const isFocused = focusedId === asset.id;
-                  const condRingColor = { PERFEITO: "#16a34a", AVARIA_LEVE: "#f59e0b", SUCATA: "#dc2626" }[entry.splits[0].condition];
+                  const condRingColor = entry.splits[0].condition
+                    ? ({ PERFEITO: "#16a34a", AVARIA_LEVE: "#f59e0b", SUCATA: "#dc2626" } as Record<Condition,string>)[entry.splits[0].condition]
+                    : "#e2e8f0";
                   const thumbRing = isSaved ? "0 0 0 2px #e2e8f0" : `0 0 0 2px ${condRingColor}`;
 
                   return (

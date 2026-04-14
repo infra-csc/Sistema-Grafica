@@ -12,7 +12,7 @@ const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 type Condition = typeof CONDITIONS[number];
 type TriagemResult = "NO_GALPAO" | "DESCARTADO";
 
-interface SplitLine { qty: number; condition: Condition; result: TriagemResult; }
+interface SplitLine { qty: number; condition: Condition | null; result: TriagemResult; }
 interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; }
 
 type EnrichedAsset = {
@@ -72,7 +72,7 @@ export function TriagemModal({
 }: TriagemModalProps) {
   if (!asset || !entry) return null;
 
-  const condition = entry.splits[0]?.condition ?? "PERFEITO";
+  const condition: Condition | null = entry.splits[0]?.condition ?? null;
   const result    = entry.splits[0]?.result    ?? "NO_GALPAO";
   const notes     = entry.notes;
   const qty       = asset.quantity ?? 1;
@@ -451,22 +451,22 @@ export function TriagemModal({
                   )}
                   <button
                     onClick={handleSave}
-                    disabled={isSaving || isSaved}
+                    disabled={isSaving || isSaved || condition === null}
                     data-testid="button-triage-modal-save"
                     style={{
                       display: "flex", alignItems: "center", gap: 8,
                       padding: "10px 28px", borderRadius: 8, border: "none",
-                      background: isSaved ? "#f1f5f9" : "#9d4300",
-                      color: isSaved ? "#94a3b8" : "#fff",
+                      background: (isSaved || condition === null) ? "#f1f5f9" : "#9d4300",
+                      color: (isSaved || condition === null) ? "#94a3b8" : "#fff",
                       fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
                       fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em",
-                      cursor: isSaved ? "default" : "pointer",
-                      boxShadow: isSaved ? "none" : "0 4px 16px rgba(157,67,0,0.28)",
+                      cursor: (isSaved || condition === null) ? "default" : "pointer",
+                      boxShadow: (isSaved || condition === null) ? "none" : "0 4px 16px rgba(157,67,0,0.28)",
                       transition: "all 0.15s",
                       opacity: isSaving ? 0.6 : 1,
                     }}
                   >
-                    {isSaving ? "Salvando..." : isSaved ? "Salvo" : "Salvar e Fechar"}
+                    {isSaving ? "Salvando..." : isSaved ? "Salvo" : condition === null ? "Selecione a Condição" : "Salvar e Fechar"}
                   </button>
                 </div>
               </div>

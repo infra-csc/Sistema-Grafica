@@ -144,6 +144,24 @@ export function useWebSocket() {
             });
             break;
             
+          case 'inventory_awaiting_triage':
+            queryClient.invalidateQueries({ queryKey: ['/api/inventory/awaiting-triage'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+            toast({
+              title: 'Material aguarda triagem',
+              description: data.message || `Materiais do evento retornaram e aguardam triagem.`,
+            });
+            break;
+
+          case 'inventory_in_use':
+            queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+            break;
+
+          case 'inventory_triaged':
+            queryClient.invalidateQueries({ queryKey: ['/api/inventory/awaiting-triage'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+            break;
+
           case 'standard_item_created':
             queryClient.invalidateQueries({ queryKey: ['/api/standard-items'] });
             break;

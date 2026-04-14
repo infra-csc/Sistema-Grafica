@@ -2630,6 +2630,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }));
           await storage.createInventoryAssets(additional);
         }
+        // Run lifecycle cron immediately so assets with past event dates
+        // transition straight to EM_USO / AGUARDANDO_TRIAGEM without waiting for the next tick.
+        runInventoryCron();
       }
       
       // Não notificar sobre início de produção

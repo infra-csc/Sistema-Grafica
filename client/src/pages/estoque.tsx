@@ -7,7 +7,7 @@ import type { InventoryAsset, Sponsor, Item, Event } from "@shared/schema";
 import {
   Archive, Plus, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
   XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame, CalendarDays,
-  TrendingUp, ShieldAlert, Grid3X3,
+  TrendingUp, Grid3X3,
 } from "lucide-react";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
@@ -579,11 +579,6 @@ export default function Estoque() {
           subtext={triageCount > 0 ? "Ir para triagem →" : "Nenhum pendente"}
           subColor={triageCount > 0 ? "#b45309" : "#94a3b8"}
           onClick={() => navigate("/triagem-retorno")}
-        />
-        <StatCard
-          label="Alerta de Marcas" value={0} Icon={ShieldAlert} color="#dc2626"
-          subtext="Contratos configurados: 0" subColor="#94a3b8"
-          active={false}
         />
       </div>
 

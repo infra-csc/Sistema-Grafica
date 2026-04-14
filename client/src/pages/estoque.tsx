@@ -747,11 +747,20 @@ export default function Estoque() {
                         </span>
                       </td>
 
-                      {/* Name + evento */}
+                      {/* Name + qtd + evento */}
                       <td style={TD}>
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                          {asset.name}
-                        </p>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                            {asset.name}
+                          </p>
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            minWidth: 24, height: 18, borderRadius: 5,
+                            background: (asset.quantity ?? 1) > 1 ? "#0f172a" : "#f1f5f9",
+                            color: (asset.quantity ?? 1) > 1 ? "#fff" : "#94a3b8",
+                            fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 5px",
+                          }}>×{asset.quantity ?? 1}</span>
+                        </div>
                         {assetEventMap[asset.id] && (
                           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
                             <CalendarDays size={10} color="#2563eb" />
@@ -767,9 +776,27 @@ export default function Estoque() {
                         <StatusBadge color={sm.color} bg={sm.bg} label={sm.label} />
                       </td>
 
-                      {/* Condition */}
-                      <td style={TD}>
-                        <ConditionBadge color={cm.color} bg={cm.bg} label={cm.label} />
+                      {/* Condition — clicável para edição rápida */}
+                      <td style={{ ...TD, position: "relative" }}>
+                        <button data-testid={`button-quick-condition-${asset.id}`}
+                          onClick={e => { e.stopPropagation(); setQuickEdit(quickEdit?.assetId === asset.id && quickEdit.field === "condition" ? null : { assetId: asset.id, field: "condition" }); }}
+                          style={{ padding: "3px 8px", borderRadius: 5, border: "none", background: cm.bg, color: cm.color, fontSize: 10, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                          {cm.label}
+                        </button>
+                        {quickEdit?.assetId === asset.id && quickEdit.field === "condition" && (
+                          <div style={{ position: "absolute", left: 0, top: "calc(100% + 4px)", zIndex: 50, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 6, display: "flex", flexDirection: "column", gap: 2, minWidth: 130 }}>
+                            {CONDITIONS.map(c => {
+                              const meta = CONDITION_META[c];
+                              return (
+                                <button key={c} onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { condition: c } }); }}
+                                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 7, border: "none", background: asset.condition === c ? meta.bg : "transparent", color: asset.condition === c ? meta.color : "#475569", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", textAlign: "left", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                  {asset.condition === c && <CheckCircle2 size={11} />}
+                                  {meta.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </td>
 
                       {/* Patrocinadores */}
@@ -798,33 +825,6 @@ export default function Estoque() {
                       {/* Actions */}
                       <td style={{ ...TD, textAlign: "right" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-
-                          {/* Quick-edit Condição */}
-                          <div style={{ position: "relative" }}>
-                            <button data-testid={`button-quick-condition-${asset.id}`}
-                              onClick={e => { e.stopPropagation(); setQuickEdit(quickEdit?.assetId === asset.id && quickEdit.field === "condition" ? null : { assetId: asset.id, field: "condition" }); }}
-                              title="Alterar condição"
-                              style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #e2e8f0", background: cm.bg, color: cm.color, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                              {cm.label}
-                            </button>
-                            {quickEdit?.assetId === asset.id && quickEdit.field === "condition" && (
-                              <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 50, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 6, display: "flex", flexDirection: "column", gap: 2, minWidth: 130 }}>
-                                {CONDITIONS.map(c => {
-                                  const meta = CONDITION_META[c];
-                                  return (
-                                    <button key={c} onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { condition: c } }); }}
-                                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 7, border: "none", background: asset.condition === c ? meta.bg : "transparent", color: asset.condition === c ? meta.color : "#475569", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", textAlign: "left", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                                      {asset.condition === c && <CheckCircle2 size={11} />}
-                                      {meta.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Divider */}
-                          <div style={{ width: 1, height: 20, background: "#e2e8f0", margin: "0 2px" }} />
 
                           {/* Edit */}
                           <button data-testid={`button-edit-asset-${asset.id}`} onClick={() => setEditing(asset)}

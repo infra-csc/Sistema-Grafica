@@ -72,7 +72,7 @@ export function TriagemModal({
 }: TriagemModalProps) {
   if (!asset || !entry) return null;
 
-  const condition: Condition | null = entry.splits[0]?.condition ?? null;
+  const condition: Condition | null = entry.splits[0]?.condition ?? "PERFEITO";
   const result    = entry.splits[0]?.result    ?? "NO_GALPAO";
   const notes     = entry.notes;
   const qty       = asset.quantity ?? 1;

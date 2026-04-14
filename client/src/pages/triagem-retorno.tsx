@@ -30,7 +30,7 @@ interface SplitLine { qty: number; condition: Condition | null; result: TriagemR
 interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; }
 
 function makeSplits(totalQty: number): SplitLine[] {
-  return [{ qty: totalQty, condition: null, result: "NO_GALPAO" }];
+  return [{ qty: totalQty, condition: "PERFEITO", result: "NO_GALPAO" }];
 }
 
 function makeEntry(totalQty: number): TriagemEntry {

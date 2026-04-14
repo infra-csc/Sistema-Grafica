@@ -344,6 +344,14 @@ export default function TriagemRetorno() {
     });
   };
 
+  // Smart condition update: auto-sets result based on condition (user can override after)
+  const smartUpdateSplit = (id: string, splitIdx: number, condition: Condition) => {
+    const patch: Partial<SplitLine> = { condition };
+    if (condition === "PERFEITO") patch.result = "NO_GALPAO";
+    if (condition === "SUCATA") patch.result = "DESCARTADO";
+    updateSplit(id, splitIdx, patch);
+  };
+
   const isSplitValid = (entry: TriagemEntry, totalQty: number) =>
     entry.splits.reduce((s, l) => s + l.qty, 0) === totalQty;
 
@@ -397,9 +405,9 @@ export default function TriagemRetorno() {
       // Only apply shortcuts when not typing in an input/textarea
       const tag = (document.activeElement as HTMLElement)?.tagName;
       if (tag === "INPUT" && (document.activeElement as HTMLInputElement).type === "number") return;
-      if (e.key === "1") { e.preventDefault(); updateSplit(focusedId, 0, { condition: "PERFEITO" }); }
-      if (e.key === "2") { e.preventDefault(); updateSplit(focusedId, 0, { condition: "AVARIA_LEVE" }); }
-      if (e.key === "3") { e.preventDefault(); updateSplit(focusedId, 0, { condition: "SUCATA" }); }
+      if (e.key === "1") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "PERFEITO"); }
+      if (e.key === "2") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "AVARIA_LEVE"); }
+      if (e.key === "3") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "SUCATA"); }
       if (e.key === "Enter" && !e.repeat && tag !== "INPUT" && tag !== "TEXTAREA") {
         e.preventDefault();
         handleSingle(asset);
@@ -693,7 +701,7 @@ export default function TriagemRetorno() {
                           <LabeledTriageToggles
                             condition={entry.splits[0].condition}
                             result={entry.splits[0].result}
-                            onCondition={c => updateSplit(asset.id, 0, { condition: c })}
+                            onCondition={c => smartUpdateSplit(asset.id, 0, c)}
                             onResult={r => updateSplit(asset.id, 0, { result: r })}
                           />
                         ) : (
@@ -715,7 +723,7 @@ export default function TriagemRetorno() {
                               <LabeledTriageToggles
                                 condition={entry.splits[0].condition}
                                 result={entry.splits[0].result}
-                                onCondition={c => updateSplit(asset.id, 0, { condition: c })}
+                                onCondition={c => smartUpdateSplit(asset.id, 0, c)}
                                 onResult={r => updateSplit(asset.id, 0, { result: r })}
                               />
                             ) : (
@@ -751,7 +759,7 @@ export default function TriagemRetorno() {
                                       )}
                                     </div>
                                     <div style={{ padding: "6px 8px" }}>
-                                      <TriageActionToggles condition={split.condition} result={split.result} onCondition={c => updateSplit(asset.id, si, { condition: c })} onResult={r => updateSplit(asset.id, si, { result: r })} />
+                                      <TriageActionToggles condition={split.condition} result={split.result} onCondition={c => smartUpdateSplit(asset.id, si, c)} onResult={r => updateSplit(asset.id, si, { result: r })} />
                                     </div>
                                   </div>
                                 ))}

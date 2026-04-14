@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
 import { useAuth } from "@/contexts/auth-context";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
@@ -57,26 +58,20 @@ type EnrichedAsset = InventoryAsset & {
   sponsors: { id: string; name: string }[];
 };
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
-function StatCard({ label, value, Icon, color, iconBg }: {
-  label: string; value: number; Icon: React.ElementType; color: string; iconBg: string;
+// ─── Flat Stat card (painel-geral style) ──────────────────────────────────────
+function StatCard({ label, value, color }: {
+  label: string; value: number; color: string;
 }) {
   return (
     <div style={{
-      background: "#fff", padding: "20px 24px", borderRadius: 16,
-      border: "1px solid #e2e8f0", display: "flex", alignItems: "center",
-      justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+      backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
+      padding: 16, minHeight: 100,
+      display: "flex", flexDirection: "column", justifyContent: "space-between",
     }}>
+      <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
       <div>
-        <p style={{ margin: "0 0 4px", fontSize: 10, fontWeight: 700, color, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          {label}
-        </p>
-        <h3 style={{ margin: 0, fontSize: 38, fontWeight: 900, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
-          {value}
-        </h3>
-      </div>
-      <div style={{ width: 44, height: 44, borderRadius: "50%", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon size={20} color={color} />
+        <p style={{ fontSize: 20, fontWeight: 700, color, lineHeight: 1, margin: 0 }}>{value}</p>
+        <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
       </div>
     </div>
   );
@@ -467,44 +462,42 @@ export default function TriagemRetorno() {
   });
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
-  return (
-    <div style={{ background: "#f8fafc", minHeight: "100vh" }}>
+  const filterLabel: React.CSSProperties = {
+    display: "block", fontSize: 10, fontWeight: 900,
+    textTransform: "uppercase", letterSpacing: "0.09em",
+    color: "#78716c", marginBottom: 8,
+  };
+  const selectTriggerStyle: React.CSSProperties = {
+    backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
+    borderRadius: 0, height: 40, fontSize: 13, color: "#1c1917",
+  };
 
-      {/* ── Sticky Header ── */}
-      <header style={{
-        position: "sticky", top: 0, zIndex: 30,
-        background: "rgba(249,250,251,0.85)", backdropFilter: "blur(16px)",
-        borderBottom: "1px solid rgba(226,232,240,0.7)",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "14px 36px",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{
-            background: "#fffbeb", padding: 10, borderRadius: 10,
-            border: "1px solid rgba(253,186,116,0.35)",
-            display: "flex", alignItems: "center", justifyContent: "center",
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24 }}>
+
+      {/* ── Header ── */}
+      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <h1 style={{
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontSize: 28, fontWeight: 700, letterSpacing: "-0.04em",
+            textTransform: "uppercase", color: "#1c1917", margin: 0,
           }}>
-            <ScanSearch size={22} color="#d97706" />
-          </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.04em", lineHeight: 1 }}>
-              Triagem de Retorno
-            </h1>
-            <p style={{ margin: "2px 0 0", fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              Dashboard Operacional · Logística Reversa
-            </p>
-          </div>
+            Triagem de Retorno
+          </h1>
+          <p style={{ fontSize: 13, color: "#78716c", fontWeight: 500, margin: "4px 0 0 0" }}>
+            Logística reversa · avaliação de condição e destino de materiais
+          </p>
         </div>
         <button data-testid="button-bulk-triage-header" onClick={handleBulk}
           disabled={selectedIds.length === 0}
           style={{
             display: "flex", alignItems: "center", gap: 8,
-            padding: "10px 20px", borderRadius: 10, border: "none",
-            background: selectedIds.length === 0 ? "#e2e8f0" : "linear-gradient(135deg, #1e40af, #2563eb)",
+            padding: "10px 20px", border: "none", flexShrink: 0,
+            background: selectedIds.length === 0 ? "#e2e8f0" : "#1c1917",
             color: selectedIds.length === 0 ? "#94a3b8" : "#fff", fontSize: 13,
             cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
             fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-            boxShadow: selectedIds.length > 0 ? "0 4px 16px rgba(37,99,235,0.3)" : "none",
             transition: "all 0.2s",
           }}>
           <CheckCircle2 size={15} />
@@ -512,77 +505,96 @@ export default function TriagemRetorno() {
         </button>
       </header>
 
-      {/* ── Main Content ── */}
-      <div style={{ padding: "36px 36px 80px", display: "flex", flexDirection: "column", gap: 32 }}>
-
       {/* ── Stats ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
-        <StatCard label="Aguardando Triagem" value={pendingAssets.length} Icon={ScanSearch} color="#b45309" iconBg="#fde68a" />
-        <StatCard label="Selecionados" value={selectedIds.length} Icon={CheckCircle2} color="#16a34a" iconBg="#bbf7d0" />
-        <StatCard label="Triados Hoje" value={savedIds.size} Icon={Warehouse} color="#2563eb" iconBg="#bfdbfe" />
-      </div>
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+        {/* Total — dark card */}
+        <div style={{
+          backgroundColor: "#1c1917", borderBottom: "3px solid #f97316",
+          padding: 16, minHeight: 100,
+          display: "flex", flexDirection: "column", justifyContent: "space-between",
+        }}>
+          <ScanSearch style={{ width: 18, height: 18, color: "rgba(255,255,255,0.3)" }} />
+          <div>
+            <p style={{ fontSize: 20, fontWeight: 700, color: "#f97316", lineHeight: 1, margin: 0 }}>{awaitingAssets.length}</p>
+            <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "rgba(255,255,255,0.5)", marginTop: 4, lineHeight: 1.2 }}>Na Fila</p>
+          </div>
+        </div>
+        <StatCard label="Aguardando" value={pendingAssets.length} color="#b45309" />
+        <StatCard label="Selecionados" value={selectedIds.length} color="#16a34a" />
+        <StatCard label="Triados Hoje" value={savedIds.size} color="#2563eb" />
+      </section>
 
-      {/* ── Filter bar ── */}
-      <div style={{
-        background: "#fff", padding: "10px 16px", borderRadius: 16,
-        border: "1px solid #e2e8f0",
-        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+      {/* ── Filter panel ── */}
+      <section style={{
+        backgroundColor: "#fafaf9", border: "1px solid #e7e5e4",
+        padding: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
       }}>
-        <ScanSearch size={13} color="#94a3b8" />
-        <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", marginRight: 4 }}>
-          Filtrar
-        </span>
-        {eventOptions.length > 0 && (
-          <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)}
-            style={{ border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", padding: "8px 12px", background: filterEvent !== "all" ? "#fef3c7" : "#f8fafc", color: filterEvent !== "all" ? "#b45309" : "#475569", cursor: "pointer", outline: "none", textTransform: "uppercase" }}>
-            <option value="all">EVENTO: TODOS</option>
-            {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
-          </select>
-        )}
-        <select data-testid="select-triage-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)}
-          style={{ border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", padding: "8px 12px", background: filterSponsor !== "all" ? "#faf5ff" : "#f8fafc", color: filterSponsor !== "all" ? "#7c3aed" : "#475569", cursor: "pointer", outline: "none", textTransform: "uppercase" }}>
-          <option value="all">PATROCINADOR: TODOS</option>
-          {sponsorOptions.map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
-        </select>
-        {hasFilters && (
-          <>
-            <div style={{ width: 1, height: 24, background: "#e2e8f0" }} />
-            <button data-testid="button-triage-clear-filters"
-              onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
-              style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 10px", borderRadius: 8, border: "none", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-              <X size={10} /> Limpar
-            </button>
-          </>
-        )}
-        <span style={{ marginLeft: "auto", fontSize: 10, color: "#cbd5e1", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          {pendingAssets.length} aguardando
-        </span>
-      </div>
+        <div style={{ display: "grid", gridTemplateColumns: eventOptions.length > 0 ? "1fr 1fr auto" : "1fr auto", gap: 16, alignItems: "end" }}>
+          {eventOptions.length > 0 && (
+            <div>
+              <label style={filterLabel}>Evento</label>
+              <Select value={filterEvent} onValueChange={setFilterEvent}>
+                <SelectTrigger style={selectTriggerStyle} data-testid="select-triage-filter-event">
+                  <SelectValue placeholder="Todos os eventos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os eventos</SelectItem>
+                  {eventOptions.map(([val, label]) => <SelectItem key={val} value={val}>{label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <label style={filterLabel}>Patrocinador</label>
+            <Select value={filterSponsor} onValueChange={setFilterSponsor}>
+              <SelectTrigger style={selectTriggerStyle} data-testid="select-triage-filter-sponsor">
+                <SelectValue placeholder="Todos os patrocinadores" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os patrocinadores</SelectItem>
+                {sponsorOptions.map(sp => <SelectItem key={sp.id} value={sp.id}>{sp.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {hasFilters && (
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button data-testid="button-triage-clear-filters"
+                onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
+                style={{
+                  height: 40, display: "flex", alignItems: "center", gap: 6,
+                  padding: "0 16px", border: "1px solid #e7e5e4", background: "#fff",
+                  color: "#ef4444", fontSize: 12, cursor: "pointer",
+                  fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+                }}>
+                <X size={13} /> Limpar filtros
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
 
-      {/* ── Main table ── */}
+      {/* ── Table ── */}
+      <section>
       {isLoading ? (
-        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", padding: 60, textAlign: "center", color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 14 }}>
-          Carregando materiais para triagem...
+        <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       ) : pendingAssets.length === 0 && savedIds.size === 0 ? (
-        <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", padding: 80, textAlign: "center" }}>
-          <div style={{ width: 64, height: 64, borderRadius: 20, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <ScanSearch size={28} color="#cbd5e1" />
-          </div>
-          <p style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 8px", fontFamily: "Space Grotesk, sans-serif" }}>Nenhum material aguardando triagem</p>
-          <p style={{ fontSize: 13, color: "#64748b", margin: 0, fontFamily: "Plus Jakarta Sans, sans-serif" }}>Os materiais são movidos automaticamente para triagem após o evento.</p>
+        <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", padding: 48, textAlign: "center" }}>
+          <ScanSearch style={{ width: 40, height: 40, color: "#d1d5db", margin: "0 auto 12px" }} />
+          <p style={{ fontSize: 16, fontWeight: 700, color: "#1c1917", margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum material aguardando triagem</p>
+          <p style={{ color: "#a8a29e", fontSize: 13, margin: 0 }}>Os materiais são movidos automaticamente para triagem após o evento.</p>
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", border: "1px solid #e2e8f0", boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
+        <div style={{ border: "1px solid #e2e2e2", backgroundColor: "#ffffff", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
               <thead>
-                <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                <tr style={{ backgroundColor: "#1c1917" }}>
                   <th style={{ width: 44, padding: "12px 16px", textAlign: "left" }}>
                     <input type="checkbox" data-testid="checkbox-select-all"
                       checked={allSelected} onChange={e => toggleAll(e.target.checked)}
-                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#2563eb" }} />
+                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#f97316" }} />
                   </th>
                   {[
                     { label: "Material / Qtd", align: "left" },
@@ -593,10 +605,9 @@ export default function TriagemRetorno() {
                     { label: "Ação", align: "right" },
                   ].map(h => (
                     <th key={h.label} style={{
-                      padding: "12px 14px", fontWeight: 700, fontSize: 10,
-                      textTransform: "uppercase", letterSpacing: "0.08em", color: "#94a3b8",
-                      fontFamily: "Space Grotesk, sans-serif", textAlign: h.align as "left" | "right",
-                      whiteSpace: "nowrap",
+                      padding: "12px 20px", fontWeight: 900, fontSize: 11,
+                      textTransform: "uppercase", letterSpacing: "0.1em", color: "#ffffff",
+                      textAlign: h.align as "left" | "right", whiteSpace: "nowrap",
                     }}>
                       {h.label}
                     </th>
@@ -604,7 +615,7 @@ export default function TriagemRetorno() {
                 </tr>
               </thead>
               <tbody>
-                {[...pendingAssets, ...awaitingAssets.filter(a => savedIds.has(a.id))].map(asset => {
+                {[...pendingAssets, ...awaitingAssets.filter(a => savedIds.has(a.id))].map((asset, idx) => {
                   const qty = asset.quantity ?? 1;
                   const entry = getEntry(asset.id, qty);
                   const isSaved = savedIds.has(asset.id);
@@ -617,21 +628,22 @@ export default function TriagemRetorno() {
                     : "#e2e8f0";
                   const thumbRing = isSaved ? "0 0 0 2px #e2e8f0" : `0 0 0 2px ${condRingColor}`;
 
+                  const baseRowBg = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
                   return (
                     <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
                       onClick={() => !isSaved && setFocusedId(asset.id)}
                       style={{
                         opacity: isSaved ? 0.45 : 1,
                         filter: isSaved ? "grayscale(1)" : "none",
-                        background: isSaved ? "#f9fdf9" : isFocused ? "#f8fafc" : "#fff",
-                        transition: "all 0.15s",
-                        borderBottom: "1px solid #f1f5f9",
+                        backgroundColor: isFocused && !isSaved ? "#f3f4f3" : baseRowBg,
+                        transition: "transform 0.15s, background-color 0.15s",
+                        borderBottom: "1px solid #f0f0ef",
                         borderLeft: isFocused && !isSaved ? "3px solid #f97316" : "3px solid transparent",
                         cursor: isSaved ? "default" : "pointer",
                         pointerEvents: isSaved ? "none" : "auto",
                       }}
-                      onMouseEnter={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"; }}
-                      onMouseLeave={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.background = "#fff"; }}
+                      onMouseEnter={e => { if (!isSaved && !isFocused) { (e.currentTarget as HTMLTableRowElement).style.transform = "translateY(-1px)"; (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f3f4f3"; } }}
+                      onMouseLeave={e => { if (!isSaved && !isFocused) { (e.currentTarget as HTMLTableRowElement).style.transform = "none"; (e.currentTarget as HTMLTableRowElement).style.backgroundColor = baseRowBg; } }}
                     >
                       {/* Checkbox */}
                       <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
@@ -875,6 +887,7 @@ export default function TriagemRetorno() {
 
         </div>
       )}
+      </section>
 
       {/* ── Floating pill ── */}
       {selectedIds.length > 0 && (
@@ -969,7 +982,6 @@ export default function TriagemRetorno() {
         onUpdateNotes={(notes) => { if (selectedAsset) updateEntry(selectedAsset.id, { notes }); }}
         onSaveAndClose={async () => { if (selectedAsset) { await handleSingle(selectedAsset); setSelectedAsset(null); } }}
       />
-      </div>
     </div>
   );
 }

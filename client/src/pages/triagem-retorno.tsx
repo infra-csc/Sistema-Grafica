@@ -461,7 +461,7 @@ export default function TriagemRetorno() {
                     { label: "Material / Qtd", align: "left" },
                     { label: "Evento", align: "left" },
                     { label: "Patrocinadores", align: "left" },
-                    { label: "Condição · Destino  (1·2·3)", align: "left" },
+                    { label: "Condição · Destino", align: "left" },
                     { label: "Observação", align: "left" },
                     { label: "Ação", align: "right" },
                   ].map(h => (
@@ -568,48 +568,58 @@ export default function TriagemRetorno() {
                             <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Triado</span>
                           </div>
                         ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                            {entry.splits.length > 1 && (
-                              <div style={{ display: "grid", gridTemplateColumns: "42px 1fr 1fr 16px", gap: 4, marginBottom: 2 }}>
-                                {["Qtd", "Condição", "Destino", ""].map(l => (
-                                  <span key={l} style={{ fontSize: 8, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}</span>
-                                ))}
-                              </div>
-                            )}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             {entry.splits.map((split, si) => (
-                              <div key={si} style={{ display: "grid", gridTemplateColumns: entry.splits.length > 1 ? "42px 1fr 1fr 16px" : "1fr 1fr", gap: 4, alignItems: "center" }}>
+                              <div key={si} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                {/* Qty input + remove for splits */}
                                 {entry.splits.length > 1 && (
-                                  <input type="number" min={1} max={qty}
-                                    value={split.qty}
-                                    onChange={e => updateSplit(asset.id, si, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    onClick={e => e.stopPropagation()}
-                                    style={{
-                                      padding: "5px 4px", borderRadius: 7,
-                                      fontSize: 12, fontFamily: "DM Mono, monospace", fontWeight: 700,
-                                      textAlign: "center", outline: "none",
-                                      background: !splitValid ? "#fff1f2" : "#f1f5f9",
-                                      color: !splitValid ? "#dc2626" : "#0f172a",
-                                      border: !splitValid ? "1px solid #fca5a5" : "1px solid transparent",
-                                      width: "100%", boxSizing: "border-box",
-                                    }}
-                                  />
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                                    <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>Lote {si + 1} — Qtd:</span>
+                                    <input type="number" min={1} max={qty}
+                                      value={split.qty}
+                                      onChange={e => updateSplit(asset.id, si, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
+                                      onClick={e => e.stopPropagation()}
+                                      style={{
+                                        padding: "3px 6px", borderRadius: 6, width: 52,
+                                        fontSize: 12, fontFamily: "DM Mono, monospace", fontWeight: 700,
+                                        textAlign: "center", outline: "none",
+                                        background: !splitValid ? "#fff1f2" : "#f1f5f9",
+                                        color: !splitValid ? "#dc2626" : "#0f172a",
+                                        border: !splitValid ? "1px solid #fca5a5" : "1px solid #e2e8f0",
+                                        boxSizing: "border-box",
+                                      }}
+                                    />
+                                    <button onClick={e => { e.stopPropagation(); removeSplit(asset.id, si); }}
+                                      style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex", alignItems: "center", marginLeft: "auto" }}>
+                                      <X size={13} />
+                                    </button>
+                                  </div>
                                 )}
-                                <ConditionToggle value={split.condition} onChange={c => updateSplit(asset.id, si, { condition: c })} />
-                                <DestinationToggle value={split.result} onChange={r => updateSplit(asset.id, si, { result: r })} />
-                                {entry.splits.length > 1
-                                  ? <button onClick={e => { e.stopPropagation(); removeSplit(asset.id, si); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex", alignItems: "center" }}><X size={13} /></button>
-                                  : null
-                                }
+                                {/* Condição row */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em", minWidth: 52 }}>Condição</span>
+                                  <ConditionToggle value={split.condition} onChange={c => updateSplit(asset.id, si, { condition: c })} />
+                                </div>
+                                {/* Destino row */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em", minWidth: 52 }}>Destino</span>
+                                  <DestinationToggle value={split.result} onChange={r => updateSplit(asset.id, si, { result: r })} />
+                                </div>
+                                {/* Separator between splits */}
+                                {entry.splits.length > 1 && si < entry.splits.length - 1 && (
+                                  <div style={{ borderTop: "1px dashed #e2e8f0", marginTop: 4 }} />
+                                )}
                               </div>
                             ))}
-                            {qty > 1 && splitSum < qty && (
-                              <button onClick={e => { e.stopPropagation(); addSplit(asset.id, qty); }}
-                                style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, border: "1px dashed #e2e8f0", borderRadius: 7, background: "transparent", cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", padding: "4px 8px", letterSpacing: "0.06em", textTransform: "uppercase", marginTop: 2 }}>
-                                <Scissors size={10} /> Dividir
-                              </button>
-                            )}
+                            {/* Progress + Add split */}
                             {entry.splits.length > 1 && (
                               <SplitProgress splits={entry.splits} total={qty} />
+                            )}
+                            {qty > 1 && splitSum < qty && (
+                              <button onClick={e => { e.stopPropagation(); addSplit(asset.id, qty); }}
+                                style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, border: "1px dashed #e2e8f0", borderRadius: 7, background: "transparent", cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", padding: "4px 8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                                <Scissors size={10} /> Dividir lote
+                              </button>
                             )}
                           </div>
                         )}

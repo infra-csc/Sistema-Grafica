@@ -509,8 +509,8 @@ export default function Estoque() {
   const autoCount = acervoAssets.filter(a => a.autoAdded).length;
 
   const filtered = acervoAssets.filter(a => {
-    // Hide DESCARTADO by default — except when filtering by auto-generated origin
-    if (filterStatus === "all" && filterAutoAdded !== "auto" && a.trackingStatus === "DESCARTADO") return false;
+    // Hide DESCARTADO by default — only show when explicitly filtered
+    if (filterStatus === "all" && a.trackingStatus === "DESCARTADO") return false;
     const q = search.toLowerCase();
     const ms = !q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q));
     const mst = filterStatus === "all" || a.trackingStatus === filterStatus;
@@ -574,18 +574,11 @@ export default function Estoque() {
           onClick={() => { setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); }}
         />
         <StatCard
-          label="Auto-gerados" value={autoCount} Icon={TrendingUp} color="#16a34a"
-          subtext={autoCount > 0 ? "Ver na tabela →" : "Nenhuma entrada auto"}
-          subColor={autoCount > 0 ? "#16a34a" : "#94a3b8"}
-          active={filterAutoAdded === "auto"}
-          onClick={() => {
-            if (filterAutoAdded === "auto") {
-              setFilterAutoAdded("all");
-            } else {
-              setFilterAutoAdded("auto");
-              setFilterStatus("all"); // mostra todos status incluindo descartado
-            }
-          }}
+          label="Descartados" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
+          subtext={byStatus("DESCARTADO") > 0 ? "Ver na tabela →" : "Nenhum descartado"}
+          subColor={byStatus("DESCARTADO") > 0 ? "#6b7280" : "#94a3b8"}
+          active={filterStatus === "DESCARTADO"}
+          onClick={() => setFilterStatus(filterStatus === "DESCARTADO" ? "all" : "DESCARTADO")}
         />
         <StatCard
           label="No Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#0369a1"

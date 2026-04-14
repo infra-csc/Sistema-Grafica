@@ -683,13 +683,10 @@ export default function TriagemRetorno() {
                         {asset.eventName ? (
                           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                             <span
-                              title={asset.eventName}
                               style={{
                                 fontSize: 12, fontWeight: 700, color: "#0f172a",
                                 fontFamily: "Plus Jakarta Sans, sans-serif",
-                                whiteSpace: "nowrap", overflow: "hidden",
-                                textOverflow: "ellipsis", maxWidth: 148,
-                                display: "block",
+                                lineHeight: 1.35,
                               }}
                             >
                               {asset.eventName}

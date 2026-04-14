@@ -526,8 +526,8 @@ export function TriagemModal({
                       label: "M² TOTAL",
                       value: linkedItem?.calculatedM2 ? `${linkedItem.calculatedM2} m²` : "—",
                     },
-                    { label: "QUANTIDADE",  value: linkedItem?.quantity ? `${linkedItem.quantity} un.` : `${asset.quantity ?? 1} un.` },
-                    { label: "FRANQUIAS",   value: (asset.franchiseTags ?? []).length > 0 ? (asset.franchiseTags ?? []).join(", ") : "—" },
+                    { label: "QUANTIDADE",    value: linkedItem?.quantity ? `${linkedItem.quantity} un.` : `${asset.quantity ?? 1} un.` },
+                    { label: "PATROCINADORES", value: (asset.sponsors ?? []).length > 0 ? (asset.sponsors ?? []).map(s => s.name).join(", ") : "—" },
                   ].map(({ label, value }, i, arr) => (
                     <div key={label} style={{
                       display: "flex", justifyContent: "space-between", alignItems: "flex-start",

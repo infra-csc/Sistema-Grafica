@@ -117,7 +117,7 @@ function TriageActionToggles({
                 boxShadow: active ? `0 1px 4px ${meta.color}18` : "none",
               }}>
               <meta.Icon size={11} />
-              {meta.label} <span style={{ opacity: 0.55, fontSize: 9 }}>({meta.key})</span>
+              {meta.label}
             </button>
           );
         })}

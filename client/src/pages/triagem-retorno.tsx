@@ -89,62 +89,85 @@ function SponsorChips({ sponsors }: { sponsors: { id: string; name: string }[] }
   );
 }
 
-// ─── TriageActionToggles ──────────────────────────────────────────────────────
+// ─── ConditionToggles ─────────────────────────────────────────────────────────
+function ConditionToggles({ condition, onCondition, disabled, grayscale }: {
+  condition: Condition; onCondition: (c: Condition) => void;
+  disabled?: boolean; grayscale?: boolean;
+}) {
+  return (
+    <div style={{
+      display: "inline-flex", background: "#f3f4f3", padding: 4, borderRadius: 8,
+      filter: grayscale ? "grayscale(1)" : "none",
+    }}>
+      {(Object.entries(CONDITION_META) as [Condition, typeof CONDITION_META[Condition]][]).map(([val, meta]) => {
+        const active = condition === val;
+        return (
+          <button key={val} onClick={() => !disabled && onCondition(val)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "5px 10px", borderRadius: 6, border: "none",
+              cursor: disabled ? "default" : "pointer",
+              fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+              letterSpacing: "0.04em", textTransform: "uppercase",
+              whiteSpace: "nowrap", transition: "all 0.12s",
+              background: active ? "#fff" : "transparent",
+              color: active ? meta.color : "#94a3b8",
+              boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+            }}>
+            <meta.Icon size={10} />
+            {meta.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── ResultToggles ─────────────────────────────────────────────────────────────
+function ResultToggles({ result, onResult, disabled, grayscale }: {
+  result: TriagemResult; onResult: (r: TriagemResult) => void;
+  disabled?: boolean; grayscale?: boolean;
+}) {
+  return (
+    <div style={{
+      display: "inline-flex", background: "#f3f4f3", padding: 4, borderRadius: 8,
+      filter: grayscale ? "grayscale(1)" : "none",
+    }}>
+      {(Object.entries(RESULT_META) as [TriagemResult, typeof RESULT_META[TriagemResult]][]).map(([val, meta]) => {
+        const active = result === val;
+        return (
+          <button key={val} onClick={() => !disabled && onResult(val)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "5px 10px", borderRadius: 6, border: "none",
+              cursor: disabled ? "default" : "pointer",
+              fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+              letterSpacing: "0.04em", textTransform: "uppercase",
+              whiteSpace: "nowrap", transition: "all 0.12s",
+              background: active ? (val === "DESCARTADO" ? "#dc2626" : "#1e40af") : "transparent",
+              color: active ? "#fff" : "#94a3b8",
+              boxShadow: active ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
+            }}>
+            {meta.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── TriageActionToggles (combined — used in split cards) ─────────────────────
 function TriageActionToggles({
   condition, result, onCondition, onResult, disabled,
 }: {
-  condition: Condition;
-  result: TriagemResult;
-  onCondition: (c: Condition) => void;
-  onResult: (r: TriagemResult) => void;
+  condition: Condition; result: TriagemResult;
+  onCondition: (c: Condition) => void; onResult: (r: TriagemResult) => void;
   disabled?: boolean;
 }) {
-  const btnBase: React.CSSProperties = {
-    display: "inline-flex", alignItems: "center", gap: 4,
-    padding: "4px 9px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
-    fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-    letterSpacing: "0.04em", textTransform: "uppercase", transition: "all 0.12s",
-    whiteSpace: "nowrap",
-  };
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {/* Condição */}
-      <div style={{ display: "flex", gap: 3 }}>
-        {(Object.entries(CONDITION_META) as [Condition, typeof CONDITION_META[Condition]][]).map(([val, meta]) => {
-          const active = condition === val;
-          return (
-            <button key={val} onClick={() => !disabled && onCondition(val)}
-              style={{
-                ...btnBase,
-                background: active ? meta.bg : "#f8fafc",
-                color: active ? meta.color : "#94a3b8",
-                border: active ? `2px solid ${meta.border}` : "1px solid #e2e8f0",
-                boxShadow: active ? `0 1px 4px ${meta.color}18` : "none",
-              }}>
-              <meta.Icon size={11} />
-              {meta.label}
-            </button>
-          );
-        })}
-      </div>
-      {/* Destino */}
-      <div style={{ display: "flex", gap: 3 }}>
-        {(Object.entries(RESULT_META) as [TriagemResult, typeof RESULT_META[TriagemResult]][]).map(([val, meta]) => {
-          const active = result === val;
-          return (
-            <button key={val} onClick={() => !disabled && onResult(val)}
-              style={{
-                ...btnBase,
-                background: active ? meta.bg : "#f8fafc",
-                color: active ? meta.color : "#94a3b8",
-                border: active ? `1px solid ${meta.border}` : "1px solid #e2e8f0",
-                boxShadow: active ? `0 1px 4px ${meta.color}18` : "none",
-              }}>
-              {meta.label}
-            </button>
-          );
-        })}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <ConditionToggles condition={condition} onCondition={onCondition} disabled={disabled} />
+      <ResultToggles result={result} onResult={onResult} disabled={disabled} />
     </div>
   );
 }
@@ -396,24 +419,30 @@ export default function TriagemRetorno() {
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
   return (
-    <div style={{ padding: "32px 36px 64px", background: "#f8fafc", minHeight: "100vh" }}>
+    <div style={{ background: "#f8fafc", minHeight: "100vh" }}>
 
-      {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+      {/* ── Sticky Header ── */}
+      <header style={{
+        position: "sticky", top: 0, zIndex: 30,
+        background: "rgba(249,250,251,0.85)", backdropFilter: "blur(16px)",
+        borderBottom: "1px solid rgba(226,232,240,0.7)",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 36px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{
-            width: 56, height: 56, borderRadius: 18, background: "#fffbeb",
+            background: "#fffbeb", padding: 10, borderRadius: 10,
+            border: "1px solid rgba(253,186,116,0.35)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 16px rgba(180,83,9,0.14)",
           }}>
-            <ScanSearch size={26} color="#b45309" />
+            <ScanSearch size={22} color="#d97706" />
           </div>
           <div>
-            <h1 style={{ margin: "0 0 4px", fontSize: 30, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1 }}>
+            <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.04em", lineHeight: 1 }}>
               Triagem de Retorno
             </h1>
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em" }}>
-              Avalie e destine os materiais retornados
+            <p style={{ margin: "2px 0 0", fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              Dashboard Operacional · Logística Reversa
             </p>
           </div>
         </div>
@@ -421,21 +450,24 @@ export default function TriagemRetorno() {
           disabled={selectedIds.length === 0}
           style={{
             display: "flex", alignItems: "center", gap: 8,
-            padding: "14px 24px", borderRadius: 14, border: "none",
+            padding: "10px 20px", borderRadius: 10, border: "none",
             background: selectedIds.length === 0 ? "#e2e8f0" : "linear-gradient(135deg, #1e40af, #2563eb)",
             color: selectedIds.length === 0 ? "#94a3b8" : "#fff", fontSize: 13,
             cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
             fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-            boxShadow: selectedIds.length > 0 ? "0 8px 24px rgba(37,99,235,0.35)" : "none",
+            boxShadow: selectedIds.length > 0 ? "0 4px 16px rgba(37,99,235,0.3)" : "none",
             transition: "all 0.2s",
           }}>
-          <CheckCircle2 size={16} />
+          <CheckCircle2 size={15} />
           Confirmar Triagem em Lote ({selectedIds.length})
         </button>
-      </div>
+      </header>
+
+      {/* ── Main Content ── */}
+      <div style={{ padding: "36px 36px 80px", display: "flex", flexDirection: "column", gap: 32 }}>
 
       {/* ── Stats ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20, marginBottom: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
         <StatCard label="Aguardando Triagem" value={pendingAssets.length} Icon={ScanSearch} color="#b45309" iconBg="#fde68a" />
         <StatCard label="Selecionados" value={selectedIds.length} Icon={CheckCircle2} color="#16a34a" iconBg="#bbf7d0" />
         <StatCard label="Triados Hoje" value={savedIds.size} Icon={Warehouse} color="#2563eb" iconBg="#bfdbfe" />
@@ -445,7 +477,7 @@ export default function TriagemRetorno() {
       {(eventOptions.length > 0 || sponsorOptions.length > 0) && (
         <div style={{
           background: "#fff", padding: "10px 16px", borderRadius: 16,
-          border: "1px solid #e2e8f0", marginBottom: 20,
+          border: "1px solid #e2e8f0",
           display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
           boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
         }}>
@@ -511,8 +543,9 @@ export default function TriagemRetorno() {
                     { label: "Material / Qtd", align: "left" },
                     { label: "Evento", align: "left" },
                     { label: "Patrocinadores", align: "left" },
-                    { label: "Condição · Destino", align: "left" },
-                    { label: "Observação", align: "left" },
+                    { label: "Condição", align: "left" },
+                    { label: "Destino", align: "left" },
+                    { label: "Obs.", align: "left" },
                     { label: "Ação", align: "right" },
                   ].map(h => (
                     <th key={h.label} style={{
@@ -613,210 +646,94 @@ export default function TriagemRetorno() {
                         <SponsorChips sponsors={asset.sponsors ?? []} />
                       </td>
 
-                      {/* Condição + Destino (coluna unificada) */}
-                      <td style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 300 }}>
-                        {isSaved ? (
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "#f0fdf4", border: "1px solid #86efac", color: "#16a34a" }}>
-                            <CheckCircle2 size={12} />
-                            <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Triado</span>
-                          </div>
-                        ) : qty === 1 ? (
-                          /* ── qty = 1: simple toggles ── */
-                          <TriageActionToggles
-                            condition={entry.splits[0].condition}
-                            result={entry.splits[0].result}
-                            onCondition={c => updateSplit(asset.id, 0, { condition: c })}
-                            onResult={r => updateSplit(asset.id, 0, { result: r })}
-                          />
-                        ) : (
-                          /* ── qty > 1: mode selector + content ── */
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }} onClick={e => e.stopPropagation()}>
-
-                            {/* Mode toggle banner */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{
-                                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                minWidth: 28, height: 20, borderRadius: 6,
-                                background: "#0f172a", color: "#fff",
-                                fontSize: 11, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 6px",
-                              }}>×{qty}</span>
-                              <button
-                                data-testid={`button-mode-all-${asset.id}`}
-                                onClick={() => setMode(asset.id, "all", qty)}
-                                style={{
-                                  display: "inline-flex", alignItems: "center", gap: 3,
-                                  padding: "3px 9px", borderRadius: 6, fontSize: 10, fontWeight: 700,
-                                  fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em",
-                                  textTransform: "uppercase", cursor: "pointer",
-                                  border: entry.mode === "all" ? "2px solid #2563eb" : "1px solid #e2e8f0",
-                                  background: entry.mode === "all" ? "#eff6ff" : "#f8fafc",
-                                  color: entry.mode === "all" ? "#1d4ed8" : "#94a3b8",
-                                  transition: "all 0.12s",
-                                }}>
+                      {/* ── Condição · Destino: 2 colunas separadas ── */}
+                      {(isSaved || qty === 1 || entry.mode === "all") ? (
+                        <>
+                          {/* Condição */}
+                          <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                            {isSaved
+                              ? <ConditionToggles condition={entry.splits[0].condition} onCondition={() => {}} disabled grayscale />
+                              : <>
+                                  {qty > 1 && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 6 }}>
+                                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 24, height: 18, borderRadius: 5, background: "#0f172a", color: "#fff", fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 5px" }}>×{qty}</span>
+                                      <button data-testid={`button-mode-split-${asset.id}`} onClick={e => { e.stopPropagation(); setMode(asset.id, "split", qty); }}
+                                        style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 5, fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", cursor: "pointer", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#94a3b8", transition: "all 0.12s" }}>
+                                        <Scissors size={8} /> Dividir
+                                      </button>
+                                    </div>
+                                  )}
+                                  <ConditionToggles condition={entry.splits[0].condition} onCondition={c => updateSplit(asset.id, 0, { condition: c })} />
+                                </>
+                            }
+                          </td>
+                          {/* Destino */}
+                          <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                            {isSaved
+                              ? <ResultToggles result={entry.splits[0].result} onResult={() => {}} disabled grayscale />
+                              : <ResultToggles result={entry.splits[0].result} onResult={r => updateSplit(asset.id, 0, { result: r })} />
+                            }
+                          </td>
+                        </>
+                      ) : (
+                        /* ── Split mode: spans Condição + Destino ── */
+                        <td colSpan={2} style={{ padding: "10px 14px", verticalAlign: "top" }} onClick={e => e.stopPropagation()}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {/* Mode + presets banner */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 26, height: 18, borderRadius: 5, background: "#0f172a", color: "#fff", fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 5px" }}>×{qty}</span>
+                              <button data-testid={`button-mode-all-${asset.id}`} onClick={() => setMode(asset.id, "all", qty)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 5, fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", cursor: "pointer", border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", transition: "all 0.12s" }}>
                                 Aplicar a todas
                               </button>
-                              <button
-                                data-testid={`button-mode-split-${asset.id}`}
-                                onClick={() => setMode(asset.id, "split", qty)}
-                                style={{
-                                  display: "inline-flex", alignItems: "center", gap: 3,
-                                  padding: "3px 9px", borderRadius: 6, fontSize: 10, fontWeight: 700,
-                                  fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em",
-                                  textTransform: "uppercase", cursor: "pointer",
-                                  border: entry.mode === "split" ? "2px solid #f97316" : "1px solid #e2e8f0",
-                                  background: entry.mode === "split" ? "#fff7ed" : "#f8fafc",
-                                  color: entry.mode === "split" ? "#ea580c" : "#94a3b8",
-                                  transition: "all 0.12s",
-                                }}>
-                                <Scissors size={9} /> Dividir por condição
+                              <button data-testid={`button-preset-perfeito-${asset.id}`} onClick={() => applyPreset(asset.id, "PERFEITO", "NO_GALPAO", qty)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 5, border: "1px solid #86efac", background: "#f0fdf4", color: "#166534", fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", cursor: "pointer" }}>
+                                <Sparkles size={8} /> Perfeitos → Galpão
+                              </button>
+                              <button data-testid={`button-preset-sucata-${asset.id}`} onClick={() => applyPreset(asset.id, "SUCATA", "DESCARTADO", qty)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 5, border: "1px solid #fca5a5", background: "#fff1f2", color: "#991b1b", fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", cursor: "pointer" }}>
+                                <Trash2 size={8} /> Sucata → Descartar
                               </button>
                             </div>
-
-                            {entry.mode === "all" ? (
-                              /* ── Apply-to-all: standard toggles ── */
-                              <TriageActionToggles
-                                condition={entry.splits[0].condition}
-                                result={entry.splits[0].result}
-                                onCondition={c => updateSplit(asset.id, 0, { condition: c })}
-                                onResult={r => updateSplit(asset.id, 0, { result: r })}
-                              />
-                            ) : (
-                              /* ── Split mode: per-batch cards ── */
-                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-
-                                {/* Quick preset buttons */}
-                                <div style={{ display: "flex", gap: 5, marginBottom: 2 }}>
-                                  <button
-                                    data-testid={`button-preset-perfeito-${asset.id}`}
-                                    onClick={() => applyPreset(asset.id, "PERFEITO", "NO_GALPAO", qty)}
-                                    style={{
-                                      display: "inline-flex", alignItems: "center", gap: 4,
-                                      padding: "3px 8px", borderRadius: 6, border: "1px solid #86efac",
-                                      background: "#f0fdf4", color: "#166534",
-                                      fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-                                      letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer",
-                                    }}>
-                                    <Sparkles size={9} /> Tudo Perfeito → Galpão
-                                  </button>
-                                  <button
-                                    data-testid={`button-preset-sucata-${asset.id}`}
-                                    onClick={() => applyPreset(asset.id, "SUCATA", "DESCARTADO", qty)}
-                                    style={{
-                                      display: "inline-flex", alignItems: "center", gap: 4,
-                                      padding: "3px 8px", borderRadius: 6, border: "1px solid #fca5a5",
-                                      background: "#fff1f2", color: "#991b1b",
-                                      fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-                                      letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer",
-                                    }}>
-                                    <Trash2 size={9} /> Tudo Sucata → Descartar
-                                  </button>
-                                </div>
-
-                                {/* Split cards */}
-                                {entry.splits.map((split, si) => (
-                                  <div key={si} style={{
-                                    border: "1px solid #e2e8f0", borderRadius: 8,
-                                    background: "#fafafa", overflow: "hidden",
-                                  }}>
-                                    {/* Card header: label + stepper + remove */}
-                                    <div style={{
-                                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                                      padding: "5px 8px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc",
-                                    }}>
-                                      <span style={{ fontSize: 9, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                                        Lote {si + 1}
-                                      </span>
-                                      {/* Stepper */}
-                                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                        <button
-                                          data-testid={`button-split-minus-${asset.id}-${si}`}
-                                          onClick={() => stepSplit(asset.id, si, -1, qty)}
-                                          disabled={split.qty <= 1}
-                                          style={{
-                                            width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0",
-                                            background: "#fff", cursor: split.qty <= 1 ? "not-allowed" : "pointer",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            fontSize: 14, lineHeight: 1, color: split.qty <= 1 ? "#cbd5e1" : "#0f172a",
-                                            fontWeight: 700, padding: 0,
-                                          }}>
-                                          −
-                                        </button>
-                                        <span style={{
-                                          minWidth: 28, textAlign: "center",
-                                          fontSize: 12, fontWeight: 800, fontFamily: "DM Mono, monospace",
-                                          color: splitValid ? "#0f172a" : "#dc2626",
-                                        }}>
-                                          {split.qty}
-                                        </span>
-                                        <button
-                                          data-testid={`button-split-plus-${asset.id}-${si}`}
-                                          onClick={() => stepSplit(asset.id, si, +1, qty)}
-                                          disabled={splitSum >= qty}
-                                          style={{
-                                            width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0",
-                                            background: "#fff", cursor: splitSum >= qty ? "not-allowed" : "pointer",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            fontSize: 14, lineHeight: 1, color: splitSum >= qty ? "#cbd5e1" : "#0f172a",
-                                            fontWeight: 700, padding: 0,
-                                          }}>
-                                          +
-                                        </button>
-                                      </div>
-                                      {/* Remove lote — só aparece quando há ≥ 2 lotes */}
-                                      {entry.splits.length >= 2 && (
-                                        <button
-                                          data-testid={`button-remove-split-${asset.id}-${si}`}
-                                          onClick={() => removeSplit(asset.id, si)}
-                                          style={{
-                                            border: "none", background: "none", cursor: "pointer",
-                                            color: "#94a3b8", padding: 0, display: "flex", alignItems: "center",
-                                          }}>
-                                          <X size={12} />
-                                        </button>
-                                      )}
-                                    </div>
-                                    {/* Card body: condition + result toggles */}
-                                    <div style={{ padding: "6px 8px" }}>
-                                      <TriageActionToggles
-                                        condition={split.condition}
-                                        result={split.result}
-                                        onCondition={c => updateSplit(asset.id, si, { condition: c })}
-                                        onResult={r => updateSplit(asset.id, si, { result: r })}
-                                      />
-                                    </div>
+                            {/* Split cards */}
+                            {entry.splits.map((split, si) => (
+                              <div key={si} style={{ border: "1px solid #e2e8f0", borderRadius: 8, background: "#fafafa", overflow: "hidden" }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 8px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Lote {si + 1}</span>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                    <button data-testid={`button-split-minus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, -1, qty)} disabled={split.qty <= 1}
+                                      style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: split.qty <= 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: split.qty <= 1 ? "#cbd5e1" : "#0f172a", fontWeight: 700, padding: 0 }}>−</button>
+                                    <span style={{ minWidth: 28, textAlign: "center", fontSize: 12, fontWeight: 800, fontFamily: "DM Mono, monospace", color: splitValid ? "#0f172a" : "#dc2626" }}>{split.qty}</span>
+                                    <button data-testid={`button-split-plus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, +1, qty)} disabled={splitSum >= qty}
+                                      style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: splitSum >= qty ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: splitSum >= qty ? "#cbd5e1" : "#0f172a", fontWeight: 700, padding: 0 }}>+</button>
                                   </div>
-                                ))}
-
-                                {/* Add lote button */}
-                                {splitSum < qty && (
-                                  <button
-                                    data-testid={`button-add-split-${asset.id}`}
-                                    onClick={() => addSplit(asset.id, qty)}
-                                    style={{
-                                      alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4,
-                                      border: "1px dashed #cbd5e1", borderRadius: 6, background: "transparent",
-                                      cursor: "pointer", color: "#64748b", fontSize: 9, fontWeight: 700,
-                                      fontFamily: "Space Grotesk, sans-serif", padding: "4px 8px",
-                                      letterSpacing: "0.06em", textTransform: "uppercase",
-                                    }}>
-                                    + Adicionar lote
-                                  </button>
-                                )}
-
-                                {/* Progress + validation */}
-                                <SplitProgress splits={entry.splits} total={qty} />
-                                {!splitValid && (
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", fontFamily: "Space Grotesk, sans-serif" }}>
-                                    {splitSum < qty
-                                      ? `Faltam ${qty - splitSum} unidades para distribuir`
-                                      : `${splitSum - qty} unidades a mais`}
-                                  </span>
-                                )}
+                                  {entry.splits.length >= 2 && (
+                                    <button data-testid={`button-remove-split-${asset.id}-${si}`} onClick={() => removeSplit(asset.id, si)}
+                                      style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex", alignItems: "center" }}>
+                                      <X size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                                <div style={{ padding: "6px 8px" }}>
+                                  <TriageActionToggles condition={split.condition} result={split.result} onCondition={c => updateSplit(asset.id, si, { condition: c })} onResult={r => updateSplit(asset.id, si, { result: r })} />
+                                </div>
                               </div>
+                            ))}
+                            {splitSum < qty && (
+                              <button data-testid={`button-add-split-${asset.id}`} onClick={() => addSplit(asset.id, qty)}
+                                style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, border: "1px dashed #cbd5e1", borderRadius: 6, background: "transparent", cursor: "pointer", color: "#64748b", fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", padding: "4px 8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                                + Adicionar lote
+                              </button>
+                            )}
+                            <SplitProgress splits={entry.splits} total={qty} />
+                            {!splitValid && (
+                              <span style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", fontFamily: "Space Grotesk, sans-serif" }}>
+                                {splitSum < qty ? `Faltam ${qty - splitSum} unidades` : `${splitSum - qty} a mais`}
+                              </span>
                             )}
                           </div>
-                        )}
-                      </td>
+                        </td>
+                      )}
 
                       {/* Observação */}
                       <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 150 }}>
@@ -894,67 +811,44 @@ export default function TriagemRetorno() {
           zIndex: 50, pointerEvents: "auto",
         }}>
           <div style={{
-            display: "flex", alignItems: "center", gap: 24,
-            padding: "14px 24px", borderRadius: 9999,
-            background: "rgba(248,250,252,0.85)", backdropFilter: "blur(12px)",
-            border: "1px solid rgba(255,255,255,0.5)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.04)",
+            display: "flex", alignItems: "center", gap: 20,
+            padding: "12px 20px", borderRadius: 9999,
+            background: "#0f172a",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)",
           }}>
-            {/* Count */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif" }}>
+            {/* Count badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif" }}>
                 {selectedIds.length}
               </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap" }}>
-                {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#f1f5f9", fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap" }}>
+                {selectedIds.length === 1 ? "item" : "itens"} selecionados
               </span>
             </div>
             {/* Divider */}
-            <div style={{ width: 1, height: 28, background: "#cbd5e1" }} />
+            <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
             {/* Quick presets */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
-                Pré-preencher:
-              </span>
-              <button
-                data-testid="button-bulk-preset-perfeito"
-                onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "6px 12px", borderRadius: 9999,
-                  border: "1px solid #93c5fd", background: "#eff6ff",
-                  color: "#1e40af", fontSize: 11, fontWeight: 700,
-                  fontFamily: "Space Grotesk, sans-serif", cursor: "pointer",
-                  whiteSpace: "nowrap", letterSpacing: "0.02em",
-                }}>
-                <Sparkles size={11} /> Perfeitos → Galpão
+            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+              <button data-testid="button-bulk-preset-perfeito" onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(147,197,253,0.4)", background: "rgba(30,64,175,0.5)", color: "#93c5fd", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                <Sparkles size={10} /> Perfeitos → Galpão
               </button>
-              <button
-                data-testid="button-bulk-preset-sucata"
-                onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5,
-                  padding: "6px 12px", borderRadius: 9999,
-                  border: "1px solid #fca5a5", background: "#fff1f2",
-                  color: "#991b1b", fontSize: 11, fontWeight: 700,
-                  fontFamily: "Space Grotesk, sans-serif", cursor: "pointer",
-                  whiteSpace: "nowrap", letterSpacing: "0.02em",
-                }}>
-                <Trash2 size={11} /> Sucata → Descartar
+              <button data-testid="button-bulk-preset-sucata" onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(252,165,165,0.4)", background: "rgba(185,28,28,0.45)", color: "#fca5a5", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                <Trash2 size={10} /> Sucata → Descartar
               </button>
             </div>
             {/* Divider */}
-            <div style={{ width: 1, height: 28, background: "#cbd5e1" }} />
-            {/* Confirm / Cancel */}
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 8 }}>
               <button data-testid="button-bulk-confirm" onClick={handleBulk}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 9999, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(22,163,74,0.28)" }}>
-                <CheckCircle2 size={14} /> Confirmar Triagem em Lote
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 16px", borderRadius: 9999, border: "none", background: "#22c55e", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(34,197,94,0.3)" }}>
+                <CheckCircle2 size={13} /> Confirmar Triagem
               </button>
-              <button data-testid="button-bulk-cancel"
-                onClick={() => Object.keys(entries).forEach(id => updateEntry(id, { selected: false }))}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9999, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                <X size={13} /> Cancelar
+              <button data-testid="button-bulk-cancel" onClick={() => Object.keys(entries).forEach(id => updateEntry(id, { selected: false }))}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "#94a3b8", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                <X size={12} /> Cancelar
               </button>
             </div>
           </div>
@@ -972,7 +866,14 @@ export default function TriagemRetorno() {
         <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
           {[["1", "Perfeito"], ["2", "Avaria"], ["3", "Sucata"], ["ENT", "Salvar linha"]].map(([key, label]) => (
             <span key={key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              <kbd style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 4, padding: "2px 6px", fontSize: 10, fontFamily: "DM Mono, monospace", color: "#0f172a", fontWeight: 600 }}>{key}</kbd>
+              <kbd style={{
+                background: key === "ENT" ? "#0f172a" : "#f1f5f9",
+                border: key === "ENT" ? "1px solid #0f172a" : "1px solid #e2e8f0",
+                borderRadius: 4, padding: "2px 6px", fontSize: 10,
+                fontFamily: "DM Mono, monospace",
+                color: key === "ENT" ? "#fff" : "#0f172a",
+                fontWeight: 700,
+              }}>{key}</kbd>
               {label}
             </span>
           ))}
@@ -988,6 +889,7 @@ export default function TriagemRetorno() {
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
       />
+      </div>
     </div>
   );
 }

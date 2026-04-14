@@ -305,12 +305,21 @@ function AssetModal({ asset, onClose, onSaved }: {
   const [form, setForm] = useState(asset ? {
     name: asset.name, quantity: asset.quantity ?? 1, location: asset.location ?? "",
     condition: (asset.condition as Condition) ?? "PERFEITO",
-    franchiseTags: asset.franchiseTags ?? [],
+    sponsorIds: asset.sponsorIds ?? [] as string[],
     trackingStatus: (asset.trackingStatus as TrackingStatus) ?? "NO_GALPAO",
     notes: asset.notes ?? "",
-  } : { name: "", quantity: 1, location: "", condition: "PERFEITO" as Condition, franchiseTags: [] as string[], trackingStatus: "NO_GALPAO" as TrackingStatus, notes: "" });
-  const [tagInput, setTagInput] = useState("");
+  } : { name: "", quantity: 1, location: "", condition: "PERFEITO" as Condition, sponsorIds: [] as string[], trackingStatus: "NO_GALPAO" as TrackingStatus, notes: "" });
   const [showMapa, setShowMapa] = useState(false);
+
+  const { data: allSponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
+
+  const toggleSponsor = (id: string) =>
+    setForm(f => ({
+      ...f,
+      sponsorIds: f.sponsorIds.includes(id)
+        ? f.sponsorIds.filter(s => s !== id)
+        : [...f.sponsorIds, id],
+    }));
 
   const mutation = useMutation({
     mutationFn: (data: typeof form) =>
@@ -318,9 +327,6 @@ function AssetModal({ asset, onClose, onSaved }: {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Ativo atualizado." : "Ativo criado." }); onSaved(); },
     onError: () => toast({ title: "Erro ao salvar.", variant: "destructive" }),
   });
-
-  const addTag = () => { const t = tagInput.trim(); if (t && !form.franchiseTags.includes(t)) setForm(f => ({ ...f, franchiseTags: [...f.franchiseTags, t] })); setTagInput(""); };
-  const removeTag = (t: string) => setForm(f => ({ ...f, franchiseTags: f.franchiseTags.filter(x => x !== t) }));
 
   const INP: React.CSSProperties = {
     width: "100%", padding: "10px 12px", borderRadius: 10, border: "none",
@@ -403,26 +409,34 @@ function AssetModal({ asset, onClose, onSaved }: {
             </div>
           </div>
           <div>
-            <label style={LBL}>Tags de Franquia</label>
-            <div style={{ display: "flex", gap: 6 }}>
-              <input data-testid="input-asset-tag" style={{ ...INP, flex: 1 }} value={tagInput}
-                onChange={e => setTagInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())}
-                placeholder="Ex: flamengo — Enter para adicionar" />
-              <button onClick={addTag} data-testid="button-add-tag" style={{
-                width: 40, height: 40, borderRadius: 10, border: "none",
-                background: "#f1f5f9", cursor: "pointer", color: "#64748b",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}><Plus size={14} /></button>
-            </div>
-            {form.franchiseTags.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
-                {form.franchiseTags.map(t => (
-                  <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, padding: "3px 8px", borderRadius: 9999, background: "#fff7ed", color: "#ea580c", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                    <Tag size={9} />{t}
-                    <button onClick={() => removeTag(t)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ea580c", padding: 0 }}><X size={9} /></button>
-                  </span>
-                ))}
+            <label style={LBL}>Patrocinadores</label>
+            {allSponsors.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 12, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontStyle: "italic" }}>
+                Nenhum patrocinador cadastrado no sistema.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {allSponsors.map(sp => {
+                  const selected = form.sponsorIds.includes(sp.id);
+                  return (
+                    <button key={sp.id} type="button"
+                      data-testid={`toggle-sponsor-${sp.id}`}
+                      onClick={() => toggleSponsor(sp.id)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "5px 10px", borderRadius: 7, cursor: "pointer",
+                        fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+                        letterSpacing: "0.06em", textTransform: "uppercase",
+                        transition: "all 0.12s",
+                        background: selected ? "#0f172a" : "#f1f5f9",
+                        color: selected ? "#fff" : "#64748b",
+                        border: selected ? "2px solid #0f172a" : "2px solid transparent",
+                      }}>
+                      {selected && <CheckCircle2 size={11} />}
+                      {sp.name}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

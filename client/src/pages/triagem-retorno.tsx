@@ -96,9 +96,9 @@ function TriageActionToggles({
 }) {
   const btnBase: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", gap: 4,
-    padding: "4px 10px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
+    padding: "4px 9px", borderRadius: 6, cursor: disabled ? "default" : "pointer",
     fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-    letterSpacing: "0.05em", textTransform: "uppercase", transition: "all 0.12s",
+    letterSpacing: "0.04em", textTransform: "uppercase", transition: "all 0.12s",
     whiteSpace: "nowrap",
   };
   return (
@@ -108,16 +108,16 @@ function TriageActionToggles({
         {(Object.entries(CONDITION_META) as [Condition, typeof CONDITION_META[Condition]][]).map(([val, meta]) => {
           const active = condition === val;
           return (
-            <button key={val} onClick={() => !disabled && onCondition(val)} title={`Tecla ${meta.key}`}
+            <button key={val} onClick={() => !disabled && onCondition(val)}
               style={{
                 ...btnBase,
                 background: active ? meta.bg : "#f8fafc",
                 color: active ? meta.color : "#94a3b8",
-                border: active ? `1px solid ${meta.border}` : "1px solid #e2e8f0",
+                border: active ? `2px solid ${meta.border}` : "1px solid #e2e8f0",
                 boxShadow: active ? `0 1px 4px ${meta.color}18` : "none",
               }}>
               <meta.Icon size={11} />
-              {meta.label}
+              {meta.label} <span style={{ opacity: 0.55, fontSize: 9 }}>({meta.key})</span>
             </button>
           );
         })}
@@ -334,7 +334,7 @@ export default function TriagemRetorno() {
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
   return (
-    <div style={{ padding: "32px 36px", background: "#f8fafc", minHeight: "100vh" }}>
+    <div style={{ padding: "32px 36px 64px", background: "#f8fafc", minHeight: "100vh" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
@@ -504,22 +504,26 @@ export default function TriagemRetorno() {
                       {/* Material + Qty */}
                       <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div style={{ width: 38, height: 38, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <Package size={17} color="#64748b" />
+                          <div style={{ width: 42, height: 42, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                            {asset.approvalThumbUrl
+                              ? <img src={asset.approvalThumbUrl} alt="thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              : <Package size={17} color="#94a3b8" />
+                            }
                           </div>
                           <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                               <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>{asset.name}</p>
-                              <span style={{
-                                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                minWidth: 22, height: 20, borderRadius: 6,
-                                background: qty > 1 ? "#e0f2fe" : "#f1f5f9",
-                                color: qty > 1 ? "#0369a1" : "#64748b",
-                                fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 6px",
-                                border: qty > 1 ? "1px solid #bae6fd" : "1px solid #e2e8f0",
-                              }}>×{qty}</span>
+                              {qty > 1 && (
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                  minWidth: 22, height: 18, borderRadius: 5,
+                                  background: "#e0f2fe", color: "#0369a1",
+                                  fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 5px",
+                                  border: "1px solid #bae6fd",
+                                }}>×{qty}</span>
+                              )}
                             </div>
-                            <p style={{ margin: "2px 0 0", fontSize: 11, color: "#94a3b8", fontFamily: "DM Mono, monospace", letterSpacing: "0.04em" }}>
+                            <p style={{ margin: "3px 0 0", fontSize: 11, color: "#94a3b8", fontFamily: "DM Mono, monospace", letterSpacing: "0.04em" }}>
                               {asset.displayId}
                             </p>
                           </div>
@@ -658,39 +662,68 @@ export default function TriagemRetorno() {
             </table>
           </div>
 
-          {/* Sticky batch bar */}
-          {selectedIds.length > 0 && (
-            <div style={{ position: "sticky", bottom: 0, zIndex: 10, background: "#fff7ed", borderTop: "1px solid rgba(253,215,170,0.5)", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#fde68a", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Archive size={16} color="#b45309" />
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                  {selectedIds.length} item(ns) selecionado(s)
-                </span>
-              </div>
-              <button data-testid="button-bulk-confirm" onClick={handleBulk} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 22px", borderRadius: 10, border: "none", background: "#b45309", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, boxShadow: "0 2px 8px rgba(180,83,9,0.3)" }}>
-                Confirmar Triagem em Lote
-              </button>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Footer shortcuts */}
-      <footer style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <ScanSearch size={13} color="#94a3b8" />
-          <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-            Clique na linha para focar, depois use os atalhos:
-          </span>
+      {/* ── Floating pill ── */}
+      {selectedIds.length > 0 && (
+        <div style={{
+          position: "fixed", bottom: 52, left: "50%", transform: "translateX(-50%)",
+          zIndex: 50, pointerEvents: "auto",
+        }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 24,
+            padding: "14px 24px", borderRadius: 9999,
+            background: "rgba(248,250,252,0.85)", backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,255,255,0.5)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.04)",
+          }}>
+            {/* Count */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif" }}>
+                {selectedIds.length}
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap" }}>
+                {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
+              </span>
+            </div>
+            {/* Divider */}
+            <div style={{ width: 1, height: 28, background: "#cbd5e1" }} />
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button data-testid="button-bulk-confirm" onClick={handleBulk}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 9999, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(22,163,74,0.28)" }}>
+                <CheckCircle2 size={14} /> Confirmar Triagem em Lote
+              </button>
+              <button data-testid="button-bulk-cancel"
+                onClick={() => Object.keys(triagemEntries).forEach(id => updateEntry(id, { selected: false }))}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 9999, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                <X size={13} /> Cancelar
+              </button>
+            </div>
+          </div>
         </div>
-        {[["1", "Perfeito"], ["2", "Avaria Leve"], ["3", "Sucata"], ["Enter", "Salvar linha"]].map(([key, label]) => (
-          <span key={key} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-            <kbd style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 5, padding: "2px 7px", fontSize: 11, fontFamily: "DM Mono, monospace", color: "#0f172a" }}>{key}</kbd>
-            {label}
-          </span>
-        ))}
+      )}
+
+      {/* ── Fixed footer shortcuts ── */}
+      <footer style={{
+        position: "fixed", bottom: 0, left: 260, right: 0, zIndex: 40,
+        background: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)",
+        borderTop: "1px solid #f1f5f9",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "8px 32px", gap: 24,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+          {[["1", "Perfeito"], ["2", "Avaria"], ["3", "Sucata"], ["ENT", "Salvar linha"]].map(([key, label]) => (
+            <span key={key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              <kbd style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 4, padding: "2px 6px", fontSize: 10, fontFamily: "DM Mono, monospace", color: "#0f172a", fontWeight: 600 }}>{key}</kbd>
+              {label}
+            </span>
+          ))}
+        </div>
+        <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "DM Mono, monospace", whiteSpace: "nowrap" }}>
+          NORTE Assets · Módulo Triagem
+        </span>
       </footer>
     </div>
   );

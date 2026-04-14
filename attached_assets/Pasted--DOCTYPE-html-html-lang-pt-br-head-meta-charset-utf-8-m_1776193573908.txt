@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+
+<html lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Triagem de Retorno | Detalhes do Item</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=DM+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .kerning-tight { letter-spacing: -0.02em; }
+        .kerning-extra-tight { letter-spacing: -0.05em; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#9d4300",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed": "#ffdbca",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#00a2f4",
+                        "outline": "#8c7164",
+                        "secondary-container": "#fd761a",
+                        "on-secondary-container": "#5c2400",
+                        "on-surface": "#1a1c1c",
+                        "surface-container-low": "#f3f4f3",
+                        "outline-variant": "#e0c0b1",
+                        "surface-tint": "#625d5b",
+                        "surface": "#f9f9f8",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-fixed": "#cde5ff",
+                        "inverse-on-surface": "#f1f1f0",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed": "#341100",
+                        "inverse-surface": "#2f3130",
+                        "background": "#f9f9f8",
+                        "on-surface-variant": "#584237",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "surface-container-high": "#e8e8e7",
+                        "on-error": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#ffb690",
+                        "primary-container": "#9f9996",
+                        "surface-variant": "#e2e2e2",
+                        "surface-container": "#eeeeed",
+                        "on-primary-fixed": "#1e1b19",
+                        "tertiary": "#006398",
+                        "on-tertiary-fixed": "#001d32",
+                        "surface-dim": "#dadad9",
+                        "on-secondary-fixed-variant": "#783200",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "on-primary-container": "#35322f",
+                        "on-tertiary-container": "#003554",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#ccc5c2",
+                        "primary-fixed": "#e9e1dd",
+                        "on-background": "#1a1c1c",
+                        "primary": "#625d5b",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "surface-container-highest": "#e2e2e2",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-bright": "#f9f9f8",
+                        "on-primary-fixed-variant": "#4a4643"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- Overlay Background (Triagem Context) -->
+<div class="fixed inset-0 bg-stone-950/80 backdrop-blur-sm z-0"></div>
+<!-- Modal Container -->
+<div class="fixed inset-0 flex items-center justify-center p-4 md:p-8 z-50 overflow-y-auto">
+<div class="w-full max-w-5xl bg-surface shadow-2xl rounded-xl overflow-hidden flex flex-col md:flex-row">
+<!-- Left Panel: Context & Sidebar -->
+<div class="hidden md:flex w-72 bg-stone-900 flex-col shrink-0">
+<div class="p-6 border-b border-stone-800">
+<div class="text-orange-500 font-headline font-black text-2xl tracking-tighter">NORTE</div>
+<div class="text-stone-500 text-xs font-headline uppercase tracking-widest mt-1">Sport Editorial</div>
+</div>
+<div class="p-6 space-y-8 flex-1">
+<!-- History/Timeline Section -->
+<div class="space-y-4">
+<h4 class="text-stone-400 font-headline text-xs uppercase tracking-widest font-bold">Rastreabilidade</h4>
+<div class="relative space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[1px] before:bg-stone-700">
+<div class="relative pl-8">
+<span class="absolute left-0 top-0 w-6 h-6 rounded-full bg-stone-800 flex items-center justify-center border border-stone-600">
+<span class="material-symbols-outlined text-[14px] text-stone-400">inventory</span>
+</span>
+<div class="text-stone-200 text-sm font-medium">Saída do Estoque</div>
+<div class="text-stone-500 text-xs">12 Out, 09:45 • Op: Marcos</div>
+</div>
+<div class="relative pl-8">
+<span class="absolute left-0 top-0 w-6 h-6 rounded-full bg-stone-800 flex items-center justify-center border border-stone-600">
+<span class="material-symbols-outlined text-[14px] text-stone-400">local_shipping</span>
+</span>
+<div class="text-stone-200 text-sm font-medium">Chegada no Evento</div>
+<div class="text-stone-500 text-xs">14 Out, 11:20 • Allianz P.</div>
+</div>
+<div class="relative pl-8">
+<span class="absolute left-0 top-0 w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center border border-orange-500">
+<span class="material-symbols-outlined text-[14px] text-orange-500">assignment_return</span>
+</span>
+<div class="text-orange-500 text-sm font-bold">Aguardando Triagem</div>
+<div class="text-stone-500 text-xs">Hoje, 14:30 • Docas Sul</div>
+</div>
+</div>
+</div>
+<!-- Tech Specs (Sidebar) -->
+<div class="space-y-4 pt-4 border-t border-stone-800">
+<h4 class="text-stone-400 font-headline text-xs uppercase tracking-widest font-bold">Patrocinadores</h4>
+<div class="flex flex-wrap gap-2">
+<div class="px-2 py-1 bg-stone-800 rounded-sm text-[10px] text-stone-300 font-medium">ADIDAS PERFORMANCE</div>
+<div class="px-2 py-1 bg-stone-800 rounded-sm text-[10px] text-stone-300 font-medium">BETANO PRIME</div>
+</div>
+</div>
+</div>
+<div class="p-6 bg-stone-950/50">
+<button class="w-full flex items-center justify-center gap-2 text-stone-500 hover:text-white transition-colors py-2 text-sm">
+<span class="material-symbols-outlined text-sm">help</span>
+                        Suporte Ténico
+                    </button>
+</div>
+</div>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col h-full max-h-[921px] overflow-y-auto">
+<!-- Header Dark -->
+<header class="bg-stone-950 p-6 md:p-8 flex justify-between items-start sticky top-0 z-10">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<span class="bg-orange-500 text-stone-950 text-[10px] font-black px-2 py-0.5 rounded-sm tracking-tighter">REF: 8842-XP</span>
+<span class="text-stone-500 text-xs font-['DM_Mono']">Lote: 2024.B.09</span>
+</div>
+<h1 class="text-white font-headline text-3xl md:text-4xl font-bold kerning-extra-tight">Backdrop Master Elite - Final Libertadores</h1>
+</div>
+<button class="p-2 text-stone-400 hover:text-white transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</header>
+<div class="p-6 md:p-8 space-y-8 bg-surface">
+<!-- Painel de Ação de Triagem (Destaque) -->
+<section class="relative">
+<div class="absolute -top-3 left-6 px-3 bg-secondary text-white text-[10px] font-bold uppercase tracking-widest z-10">Classificação Obrigatória</div>
+<div class="bg-surface-container-lowest border-2 border-secondary p-6 rounded-lg shadow-sm">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Condição -->
+<div>
+<label class="block text-stone-500 text-[10px] font-bold uppercase tracking-widest mb-3">Condição do Item</label>
+<div class="flex gap-2">
+<button class="flex-1 flex flex-col items-center justify-center gap-2 p-3 border border-outline-variant hover:bg-green-50 transition-all rounded-md group">
+<span class="material-symbols-outlined text-green-600">check_circle</span>
+<span class="text-xs font-bold text-stone-600">Perfeito</span>
+</button>
+<button class="flex-1 flex flex-col items-center justify-center gap-2 p-3 border-2 border-orange-500 bg-orange-50 rounded-md">
+<span class="material-symbols-outlined text-orange-500" data-weight="fill" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="text-xs font-bold text-orange-600">Avaria Leve</span>
+</button>
+<button class="flex-1 flex flex-col items-center justify-center gap-2 p-3 border border-outline-variant hover:bg-red-50 transition-all rounded-md group">
+<span class="material-symbols-outlined text-red-600">delete_forever</span>
+<span class="text-xs font-bold text-stone-600">Sucata</span>
+</button>
+</div>
+</div>
+<!-- Destino -->
+<div>
+<label class="block text-stone-500 text-[10px] font-bold uppercase tracking-widest mb-3">Destino do Fluxo</label>
+<div class="flex gap-2">
+<button class="flex-1 flex items-center justify-center gap-3 p-3 border-2 border-stone-800 bg-stone-900 text-white rounded-md transition-all">
+<span class="material-symbols-outlined text-orange-500">warehouse</span>
+<span class="text-xs font-bold">Galpão Central</span>
+</button>
+<button class="flex-1 flex items-center justify-center gap-3 p-3 border border-outline-variant hover:bg-stone-50 text-stone-600 rounded-md transition-all">
+<span class="material-symbols-outlined">delete_sweep</span>
+<span class="text-xs font-bold">Descartar</span>
+</button>
+</div>
+</div>
+<!-- Observação -->
+<div class="md:col-span-2">
+<label class="block text-stone-500 text-[10px] font-bold uppercase tracking-widest mb-2">Observação da Triagem</label>
+<textarea class="w-full bg-stone-50 border-stone-200 focus:ring-secondary focus:border-secondary rounded-md text-sm p-3 min-h-[80px]" placeholder="Ex: Riscos superficiais na base de alumínio, necessita polimento."></textarea>
+</div>
+</div>
+<div class="mt-6 pt-6 border-t border-stone-100 flex justify-end">
+<button class="bg-secondary text-white px-8 py-3 rounded-md font-headline font-bold text-sm tracking-tight hover:brightness-110 transition-all shadow-lg active:scale-95 duration-150">
+                                    Salvar e Fechar
+                                </button>
+</div>
+</div>
+</section>
+<!-- Seções Técnicas (Read-only) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Bloco Evento e Datas -->
+<div class="bg-surface-container-low p-6 rounded-lg">
+<h3 class="font-headline font-bold text-stone-800 mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-stone-500">event</span>
+                                Informações do Evento
+                            </h3>
+<div class="space-y-4">
+<div class="flex justify-between">
+<span class="text-stone-500 text-xs">Evento</span>
+<span class="text-stone-800 text-xs font-bold">CONMEBOL Final - Rio 2024</span>
+</div>
+<div class="flex justify-between">
+<span class="text-stone-500 text-xs">Data de Uso</span>
+<span class="text-stone-800 text-xs font-bold">28 Nov 2024 — 30 Nov 2024</span>
+</div>
+<div class="flex justify-between">
+<span class="text-stone-500 text-xs">Local</span>
+<span class="text-stone-800 text-xs font-bold">Estádio do Maracanã, RJ</span>
+</div>
+<div class="flex justify-between">
+<span class="text-stone-500 text-xs">Gestor</span>
+<span class="text-stone-800 text-xs font-bold">Carlos Augusto (Editorial)</span>
+</div>
+</div>
+</div>
+<!-- Bloco Especificações -->
+<div class="bg-stone-900 p-6 rounded-lg text-stone-300">
+<h3 class="font-headline font-bold text-white mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-orange-500">architecture</span>
+                                Especificações Técnicas
+                            </h3>
+<div class="space-y-4 font-['DM_Mono'] text-[11px]">
+<div class="flex justify-between border-b border-stone-800 pb-2">
+<span class="text-stone-500 uppercase tracking-tighter">MATERIAL</span>
+<span class="text-white">Alumínio Anodizado 6061-T6</span>
+</div>
+<div class="flex justify-between border-b border-stone-800 pb-2">
+<span class="text-stone-500 uppercase tracking-tighter">DIMENSÕES</span>
+<span class="text-white">2400mm x 3200mm x 450mm</span>
+</div>
+<div class="flex justify-between border-b border-stone-800 pb-2">
+<span class="text-stone-500 uppercase tracking-tighter">PESO LÍQUIDO</span>
+<span class="text-white">42.5 KG</span>
+</div>
+<div class="flex justify-between border-b border-stone-800 pb-2">
+<span class="text-stone-500 uppercase tracking-tighter">FIXAÇÃO</span>
+<span class="text-white">Parafusos M12 - Sistema Click-Lock</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Imagem do Produto (Visual Check) -->
+<div class="relative rounded-xl overflow-hidden group aspect-[21/9]">
+<img class="w-full h-full object-cover" data-alt="Modern sports arena backdrop with aluminum frame being disassembled by technicians in a professional high-contrast workshop environment with orange accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkIS5nAglZiLgPEKPOMggWQuW_RkWn69v2W2_fcMIEBUQa37E5d6xNtTKfGn87mRfWRdi712By-9KavUd6quFpDnccfCZf3Y5nDVQI5m8tPPv4eItj_D2Lc50QEgQRf5HtoJJOdNLU-c_p3e14V0W7vSiwitjOBz9QQVOf9H4Z-hJRw9nW_iamBbhwxacaBcsPFZ9tm8dTEhMSYK5p3ZVa1VCy741tNXMvPtWWRsg191YZZmUxuFbBP1Y2JBvpnIkJ3ivOYnS3sjnc"/>
+<div class="absolute inset-0 bg-gradient-to-t from-stone-950/80 to-transparent flex items-end p-6">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-orange-500 flex items-center justify-center bg-stone-950">
+<span class="material-symbols-outlined text-orange-500">camera_alt</span>
+</div>
+<span class="text-white text-xs font-headline font-medium">Foto de Referência para Triagem (Montagem Original)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Footer -->
+<footer class="bg-surface-container-low p-4 flex justify-between items-center px-8 border-t border-stone-200">
+<div class="flex gap-4">
+<div class="text-[10px] text-stone-500 leading-tight">
+<p class="font-bold">OPERADOR ATUAL</p>
+<p>Ricardo S. — Turno B</p>
+</div>
+<div class="text-[10px] text-stone-500 leading-tight border-l border-stone-300 pl-4">
+<p class="font-bold">ID SESSÃO</p>
+<p>TRX-99420-B</p>
+</div>
+</div>
+<button class="text-stone-600 hover:text-stone-900 font-headline font-bold text-xs uppercase tracking-widest transition-colors">
+                        Cancelar Operação
+                    </button>
+</footer>
+</div>
+</div>
+</div>
+</body></html>

@@ -18,11 +18,10 @@ const CONDITION_META: Record<Condition, { label: string; color: string; bg: stri
   SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "#fee2e2", key: "3" },
 };
 
-type TriagemResult = "NO_GALPAO" | "DESCARTADO" | "ADESIVAR_LOGO";
+type TriagemResult = "NO_GALPAO" | "DESCARTADO";
 const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string }> = {
-  NO_GALPAO:     { label: "Galpão",   color: "#16a34a", bg: "#dcfce7" },
-  DESCARTADO:    { label: "Descartar", color: "#dc2626", bg: "#fee2e2" },
-  ADESIVAR_LOGO: { label: "Adesivar", color: "#ea580c", bg: "#fff7ed" },
+  NO_GALPAO:  { label: "Galpão",   color: "#16a34a", bg: "#dcfce7" },
+  DESCARTADO: { label: "Descartar", color: "#dc2626", bg: "#fee2e2" },
 };
 
 interface SplitLine { qty: number; condition: Condition; result: TriagemResult; }
@@ -243,19 +242,18 @@ export default function TriagemRetorno() {
 
   const doTriage = async (assetId: string, totalQty: number) => {
     const entry = getEntry(assetId, totalQty);
-    const mapResult = (r: TriagemResult) => r === "ADESIVAR_LOGO" ? "DESCARTADO" : r;
     if (entry.splits.length === 1) {
       await apiRequest("PATCH", `/api/inventory/${assetId}/triage`, {
         condition: entry.splits[0].condition,
-        notes: entry.notes + (entry.splits[0].result === "ADESIVAR_LOGO" ? " [Adesivar Logo]" : ""),
-        trackingStatus: mapResult(entry.splits[0].result),
+        notes: entry.notes,
+        trackingStatus: entry.splits[0].result,
       });
     } else {
       await apiRequest("POST", `/api/inventory/${assetId}/triage-split`, {
         splits: entry.splits.map(s => ({
           qty: s.qty, condition: s.condition,
-          trackingStatus: mapResult(s.result),
-          notes: entry.notes + (s.result === "ADESIVAR_LOGO" ? " [Adesivar Logo]" : ""),
+          trackingStatus: s.result,
+          notes: entry.notes,
         })),
       });
     }
@@ -451,26 +449,25 @@ export default function TriagemRetorno() {
       ) : (
         <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", border: "1px solid #e2e8f0", boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1060 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
               <thead>
                 <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-                  <th style={{ width: 48, padding: "14px 20px", textAlign: "left" }}>
+                  <th style={{ width: 44, padding: "12px 16px", textAlign: "left" }}>
                     <input type="checkbox" data-testid="checkbox-select-all"
                       checked={allSelected} onChange={e => toggleAll(e.target.checked)}
-                      style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#2563eb" }} />
+                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#2563eb" }} />
                   </th>
                   {[
                     { label: "Material / Qtd", align: "left" },
                     { label: "Evento", align: "left" },
                     { label: "Patrocinadores", align: "left" },
-                    { label: "Condição  ·  1 · 2 · 3", align: "left" },
-                    { label: "Destino", align: "left" },
+                    { label: "Condição · Destino  (1·2·3)", align: "left" },
                     { label: "Observação", align: "left" },
                     { label: "Ação", align: "right" },
                   ].map(h => (
                     <th key={h.label} style={{
-                      padding: "14px 16px", fontWeight: 700, fontSize: 10,
-                      textTransform: "uppercase", letterSpacing: "0.1em", color: "#94a3b8",
+                      padding: "12px 14px", fontWeight: 700, fontSize: 10,
+                      textTransform: "uppercase", letterSpacing: "0.08em", color: "#94a3b8",
                       fontFamily: "Space Grotesk, sans-serif", textAlign: h.align as "left" | "right",
                       whiteSpace: "nowrap",
                     }}>
@@ -505,7 +502,7 @@ export default function TriagemRetorno() {
                       onMouseLeave={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.background = "#fff"; }}
                     >
                       {/* Checkbox */}
-                      <td style={{ padding: "16px 20px", verticalAlign: "middle" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         {isSaved
                           ? <CheckCircle2 size={17} color="#16a34a" />
                           : <input type="checkbox" data-testid={`checkbox-asset-${asset.id}`}
@@ -517,7 +514,7 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Material + Qty */}
-                      <td style={{ padding: "16px 16px", verticalAlign: "middle" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{ width: 38, height: 38, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                             <Package size={17} color="#64748b" />
@@ -542,7 +539,7 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Evento */}
-                      <td style={{ padding: "16px 16px", verticalAlign: "middle" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         {asset.eventName ? (
                           <div>
                             <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
@@ -559,54 +556,56 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Patrocinadores */}
-                      <td style={{ padding: "16px 16px", verticalAlign: "middle", maxWidth: 160 }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", maxWidth: 140 }}>
                         <SponsorChips sponsors={asset.sponsors ?? []} />
                       </td>
 
-                      {/* Condição (Toggle Groups per split) */}
-                      <td style={{ padding: "12px 16px", verticalAlign: "top", minWidth: 260 }}>
+                      {/* Condição + Destino (coluna unificada) */}
+                      <td style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 300 }}>
                         {isSaved ? (
                           <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "#dcfce7", color: "#16a34a" }}>
                             <CheckCircle2 size={12} />
                             <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Triado</span>
                           </div>
                         ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                             {entry.splits.length > 1 && (
-                              <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 18px", gap: 4, marginBottom: 2 }}>
-                                {["Qtd", "Condição", ""].map(l => (
-                                  <span key={l} style={{ fontSize: 8, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>{l}</span>
+                              <div style={{ display: "grid", gridTemplateColumns: "42px 1fr 1fr 16px", gap: 4, marginBottom: 2 }}>
+                                {["Qtd", "Condição", "Destino", ""].map(l => (
+                                  <span key={l} style={{ fontSize: 8, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}</span>
                                 ))}
                               </div>
                             )}
                             {entry.splits.map((split, si) => (
-                              <div key={si} style={{ display: "grid", gridTemplateColumns: "44px 1fr 18px", gap: 4, alignItems: "center" }}>
-                                <input type="number" min={1} max={qty}
-                                  value={split.qty}
-                                  disabled={entry.splits.length === 1}
-                                  onChange={e => updateSplit(asset.id, si, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
-                                  onClick={e => e.stopPropagation()}
-                                  style={{
-                                    padding: "5px 4px", borderRadius: 7,
-                                    fontSize: 12, fontFamily: "DM Mono, monospace", fontWeight: 700,
-                                    textAlign: "center", outline: "none",
-                                    background: entry.splits.length === 1 ? "#f8fafc" : (!splitValid ? "#fff1f2" : "#f1f5f9"),
-                                    color: !splitValid && entry.splits.length > 1 ? "#dc2626" : "#0f172a",
-                                    border: !splitValid && entry.splits.length > 1 ? "1px solid #fca5a5" : "1px solid transparent",
-                                    width: "100%", boxSizing: "border-box",
-                                  }}
-                                />
+                              <div key={si} style={{ display: "grid", gridTemplateColumns: entry.splits.length > 1 ? "42px 1fr 1fr 16px" : "1fr 1fr", gap: 4, alignItems: "center" }}>
+                                {entry.splits.length > 1 && (
+                                  <input type="number" min={1} max={qty}
+                                    value={split.qty}
+                                    onChange={e => updateSplit(asset.id, si, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
+                                    onClick={e => e.stopPropagation()}
+                                    style={{
+                                      padding: "5px 4px", borderRadius: 7,
+                                      fontSize: 12, fontFamily: "DM Mono, monospace", fontWeight: 700,
+                                      textAlign: "center", outline: "none",
+                                      background: !splitValid ? "#fff1f2" : "#f1f5f9",
+                                      color: !splitValid ? "#dc2626" : "#0f172a",
+                                      border: !splitValid ? "1px solid #fca5a5" : "1px solid transparent",
+                                      width: "100%", boxSizing: "border-box",
+                                    }}
+                                  />
+                                )}
                                 <ConditionToggle value={split.condition} onChange={c => updateSplit(asset.id, si, { condition: c })} />
+                                <DestinationToggle value={split.result} onChange={r => updateSplit(asset.id, si, { result: r })} />
                                 {entry.splits.length > 1
                                   ? <button onClick={e => { e.stopPropagation(); removeSplit(asset.id, si); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex", alignItems: "center" }}><X size={13} /></button>
-                                  : <span />
+                                  : null
                                 }
                               </div>
                             ))}
                             {qty > 1 && splitSum < qty && (
                               <button onClick={e => { e.stopPropagation(); addSplit(asset.id, qty); }}
-                                style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, border: "1px dashed #e2e8f0", borderRadius: 7, background: "transparent", cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", padding: "4px 10px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                                <Scissors size={10} /> Dividir Lote
+                                style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, border: "1px dashed #e2e8f0", borderRadius: 7, background: "transparent", cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", padding: "4px 8px", letterSpacing: "0.06em", textTransform: "uppercase", marginTop: 2 }}>
+                                <Scissors size={10} /> Dividir
                               </button>
                             )}
                             {entry.splits.length > 1 && (
@@ -616,24 +615,8 @@ export default function TriagemRetorno() {
                         )}
                       </td>
 
-                      {/* Destino (Toggle Groups per split) */}
-                      <td style={{ padding: "12px 16px", verticalAlign: "top", minWidth: 240 }}>
-                        {isSaved ? (
-                          <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>—</span>
-                        ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            {entry.splits.length > 1 && (
-                              <span style={{ fontSize: 8, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Destino</span>
-                            )}
-                            {entry.splits.map((split, si) => (
-                              <DestinationToggle key={si} value={split.result} onChange={r => updateSplit(asset.id, si, { result: r })} />
-                            ))}
-                          </div>
-                        )}
-                      </td>
-
                       {/* Observação */}
-                      <td style={{ padding: "16px 16px", verticalAlign: "middle", minWidth: 160 }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 130 }}>
                         {isSaved ? null : (
                           <input data-testid={`input-notes-${asset.id}`}
                             type="text" placeholder="Adicionar nota..."
@@ -648,7 +631,7 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Ação */}
-                      <td style={{ padding: "16px 16px", verticalAlign: "middle", textAlign: "right" }}>
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", textAlign: "right" }}>
                         {isSaved ? (
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontSize: 12, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
                             <CheckCircle2 size={15} /> Salvo

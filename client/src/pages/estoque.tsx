@@ -1050,7 +1050,7 @@ export default function Estoque() {
           onClick={() => setFilterStatus(filterStatus === "DESCARTADO" ? "all" : "DESCARTADO")}
         />
         <StatCard
-          label="No Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#0369a1"
+          label="No Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#16a34a"
           subtext="Disponível no depósito"
           active={filterStatus === "NO_GALPAO"}
           onClick={() => setFilterStatus(filterStatus === "NO_GALPAO" ? "all" : "NO_GALPAO")}

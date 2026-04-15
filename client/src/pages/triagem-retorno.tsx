@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
 import { useAuth } from "@/contexts/auth-context";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
@@ -518,59 +517,68 @@ export default function TriagemRetorno() {
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={{
-        background: "#fff", padding: "16px 20px", borderRadius: 12,
-        border: "1px solid #e2e8f0",
-        display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap",
-      }}>
-        {/* Evento */}
-        {eventOptions.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Evento</span>
-            <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={{
-              height: 36, border: `1px solid ${filterEvent !== "all" ? "#c2610c" : "#e2e8f0"}`,
-              borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-              padding: "0 10px", background: "#fff", color: filterEvent !== "all" ? "#c2610c" : "#475569",
-              cursor: "pointer", outline: "none", minWidth: 180,
-            }}>
-              <option value="all">Todos os eventos</option>
-              {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
-            </select>
-          </div>
-        )}
-
-        {/* Patrocinador */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Patrocinador</span>
-          <select data-testid="select-triage-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)} style={{
-            height: 36, border: `1px solid ${filterSponsor !== "all" ? "#c2610c" : "#e2e8f0"}`,
-            borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-            padding: "0 10px", background: "#fff", color: filterSponsor !== "all" ? "#c2610c" : "#475569",
-            cursor: "pointer", outline: "none", minWidth: 200,
+      {(() => {
+        const FL: React.CSSProperties = {
+          fontSize: 11, fontWeight: 500, color: "#94a3b8",
+          fontFamily: "Plus Jakarta Sans, sans-serif", marginBottom: 6, display: "block",
+        };
+        const SEL = (active: boolean): React.CSSProperties => ({
+          height: 44, width: "100%",
+          border: `1.5px solid ${active ? "#c2610c" : "#e2e8f0"}`,
+          borderRadius: 8, fontSize: 13, fontWeight: 500,
+          fontFamily: "Plus Jakarta Sans, sans-serif",
+          padding: "0 12px", background: "#fff",
+          color: active ? "#c2610c" : "#374151",
+          cursor: "pointer", outline: "none",
+          transition: "border-color 0.15s",
+        });
+        return (
+          <div style={{
+            background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0",
+            padding: "16px 20px 18px",
+            display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap",
           }}>
-            <option value="all">Todos os patrocinadores</option>
-            {sponsorOptions.map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
-          </select>
-        </div>
+            {/* Evento */}
+            {eventOptions.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", flex: "1 1 180px" }}>
+                <label style={FL}>Evento</label>
+                <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={SEL(filterEvent !== "all")}>
+                  <option value="all">Todos os eventos</option>
+                  {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                </select>
+              </div>
+            )}
 
-        {/* Limpar + contador */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", paddingBottom: 1 }}>
-          {hasFilters && (
-            <button data-testid="button-triage-clear-filters"
-              onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", borderRadius: 6,
-                border: "1px solid #fecaca", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer",
-                fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, height: 36,
-              }}>
-              <X size={11} /> Limpar
-            </button>
-          )}
-          <span style={{ fontSize: 10, color: "#cbd5e1", fontFamily: "DM Mono, monospace", fontWeight: 600, whiteSpace: "nowrap" }}>
-            {pendingAssets.length} pendentes · {savedIds.size} triados
-          </span>
-        </div>
-      </div>
+            {/* Patrocinador */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 200px" }}>
+              <label style={FL}>Patrocinador</label>
+              <select data-testid="select-triage-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)} style={SEL(filterSponsor !== "all")}>
+                <option value="all">Todos os patrocinadores</option>
+                {sponsorOptions.map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+              </select>
+            </div>
+
+            {/* Limpar + contador */}
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginLeft: "auto" }}>
+              {hasFilters && (
+                <button data-testid="button-triage-clear-filters"
+                  onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
+                  style={{
+                    height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
+                    borderRadius: 8, border: "1.5px solid #fecaca", background: "#fef2f2",
+                    color: "#ef4444", fontSize: 12, cursor: "pointer",
+                    fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+                  }}>
+                  <X size={12} /> Limpar
+                </button>
+              )}
+              <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: "DM Mono, monospace", fontWeight: 600, whiteSpace: "nowrap", paddingBottom: 12 }}>
+                {pendingAssets.length} pend. · {savedIds.size} triados
+              </span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Table ── */}
       <div>

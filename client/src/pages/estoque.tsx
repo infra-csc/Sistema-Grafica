@@ -1070,115 +1070,110 @@ export default function Estoque() {
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={{
-        background: "#fff", padding: "16px 20px", borderRadius: 12,
-        border: "1px solid #e2e8f0", marginBottom: 20,
-        display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap",
-      }}>
-        {/* Busca */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5, flex: 1, minWidth: 200 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Busca</span>
-          <div style={{ position: "relative" }}>
-            <Search size={13} color="#94a3b8" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
-            <input data-testid="input-search-assets" style={{
-              width: "100%", paddingLeft: 30, paddingRight: 10, height: 36,
-              border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 12, fontWeight: 500,
-              background: "#fff", color: "#0f172a", outline: "none", boxSizing: "border-box",
-              fontFamily: "Plus Jakarta Sans, sans-serif",
-            }}
-            onFocus={e => (e.target.style.borderColor = "#c2610c")}
-            onBlur={e => (e.target.style.borderColor = "#e2e8f0")}
-            placeholder="ID, nome, local ou tag..." value={search} onChange={e => setSearch(e.target.value)} />
+      {(() => {
+        const FL: React.CSSProperties = {
+          fontSize: 11, fontWeight: 500, color: "#94a3b8",
+          fontFamily: "Plus Jakarta Sans, sans-serif", marginBottom: 6, display: "block",
+        };
+        const SEL = (active: boolean): React.CSSProperties => ({
+          height: 44, width: "100%",
+          border: `1.5px solid ${active ? "#c2610c" : "#e2e8f0"}`,
+          borderRadius: 8, fontSize: 13, fontWeight: 500,
+          fontFamily: "Plus Jakarta Sans, sans-serif",
+          padding: "0 12px", background: "#fff",
+          color: active ? "#c2610c" : "#374151",
+          cursor: "pointer", outline: "none",
+          transition: "border-color 0.15s",
+        });
+        return (
+          <div style={{
+            background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0",
+            padding: "16px 20px 18px", marginBottom: 20,
+            display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap",
+          }}>
+            {/* Evento */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
+              <label style={FL}>Evento</label>
+              <select data-testid="select-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={SEL(filterEvent !== "all")}>
+                <option value="all">Todos os eventos</option>
+                {eventOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+            </div>
+
+            {/* Patrocinador */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 180px" }}>
+              <label style={FL}>Patrocinador</label>
+              <select data-testid="select-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)} style={SEL(filterSponsor !== "all")}>
+                <option value="all">Todos os patrocinadores</option>
+                {sponsors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+
+            {/* Status */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 140px" }}>
+              <label style={FL}>Status</label>
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={SEL(filterStatus !== "all")}>
+                <option value="all">Qualquer status</option>
+                {ALL_STATUSES.filter(s => s !== "AGUARDANDO_TRIAGEM").map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+              </select>
+            </div>
+
+            {/* Condição */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 130px" }}>
+              <label style={FL}>Condição</label>
+              <select value={filterCondition} onChange={e => setFilterCondition(e.target.value)} style={SEL(filterCondition !== "all")}>
+                <option value="all">Todas as condições</option>
+                {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_META[c].label}</option>)}
+              </select>
+            </div>
+
+            {/* Origem */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "0 1 110px" }}>
+              <label style={FL}>Origem</label>
+              <select value={filterAutoAdded} onChange={e => setFilterAutoAdded(e.target.value)} style={SEL(filterAutoAdded !== "all")}>
+                <option value="all">Todas</option>
+                <option value="auto">Gráfica</option>
+                <option value="manual">Manual</option>
+              </select>
+            </div>
+
+            {/* Busca */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
+              <label style={FL}>Buscar</label>
+              <div style={{ position: "relative" }}>
+                <Search size={14} color="#94a3b8" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <input data-testid="input-search-assets" style={{
+                  width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
+                  border: `1.5px solid ${search ? "#c2610c" : "#e2e8f0"}`, borderRadius: 8,
+                  fontSize: 13, fontWeight: 400, fontFamily: "Plus Jakarta Sans, sans-serif",
+                  background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box",
+                  transition: "border-color 0.15s",
+                }}
+                onFocus={e => (e.target.style.borderColor = "#c2610c")}
+                onBlur={e => (e.target.style.borderColor = search ? "#c2610c" : "#e2e8f0")}
+                placeholder="Nome..." value={search} onChange={e => setSearch(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Limpar */}
+            {hasFilters && (
+              <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto" }}>
+                <label style={{ ...FL, visibility: "hidden" }}>·</label>
+                <button data-testid="button-clear-filters"
+                  onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); setFilterEvent("all"); setFilterSponsor("all"); }}
+                  style={{
+                    height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
+                    borderRadius: 8, border: "1.5px solid #fecaca", background: "#fef2f2",
+                    color: "#ef4444", fontSize: 12, cursor: "pointer",
+                    fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+                  }}>
+                  <X size={12} /> Limpar
+                </button>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Status */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Status</span>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{
-            height: 36, border: `1px solid ${filterStatus !== "all" ? "#c2610c" : "#e2e8f0"}`,
-            borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-            padding: "0 10px", background: "#fff", color: filterStatus !== "all" ? "#c2610c" : "#475569",
-            cursor: "pointer", outline: "none", minWidth: 140,
-          }}>
-            <option value="all">Todos os status</option>
-            {ALL_STATUSES.filter(s => s !== "AGUARDANDO_TRIAGEM").map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-          </select>
-        </div>
-
-        {/* Condição */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Condição</span>
-          <select value={filterCondition} onChange={e => setFilterCondition(e.target.value)} style={{
-            height: 36, border: `1px solid ${filterCondition !== "all" ? "#c2610c" : "#e2e8f0"}`,
-            borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-            padding: "0 10px", background: "#fff", color: filterCondition !== "all" ? "#c2610c" : "#475569",
-            cursor: "pointer", outline: "none", minWidth: 130,
-          }}>
-            <option value="all">Todas as condições</option>
-            {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_META[c].label}</option>)}
-          </select>
-        </div>
-
-        {/* Patrocinador */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Patrocinador</span>
-          <select data-testid="select-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)} style={{
-            height: 36, border: `1px solid ${filterSponsor !== "all" ? "#c2610c" : "#e2e8f0"}`,
-            borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-            padding: "0 10px", background: "#fff", color: filterSponsor !== "all" ? "#c2610c" : "#475569",
-            cursor: "pointer", outline: "none", minWidth: 180,
-          }}>
-            <option value="all">Todos os patrocinadores</option>
-            {sponsors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-
-        {/* Evento */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Evento</span>
-          <select data-testid="select-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={{
-            height: 36, border: `1px solid ${filterEvent !== "all" ? "#c2610c" : "#e2e8f0"}`,
-            borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-            padding: "0 10px", background: "#fff", color: filterEvent !== "all" ? "#c2610c" : "#475569",
-            cursor: "pointer", outline: "none", minWidth: 160,
-          }}>
-            <option value="all">Todos os eventos</option>
-            {eventOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
-        </div>
-
-        {/* Origem */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Origem</span>
-          <select value={filterAutoAdded} onChange={e => setFilterAutoAdded(e.target.value)} style={{
-            height: 36, border: `1px solid ${filterAutoAdded !== "all" ? "#c2610c" : "#e2e8f0"}`,
-            borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-            padding: "0 10px", background: "#fff", color: filterAutoAdded !== "all" ? "#c2610c" : "#475569",
-            cursor: "pointer", outline: "none", minWidth: 110,
-          }}>
-            <option value="all">Todas as origens</option>
-            <option value="auto">Gráfica (Auto)</option>
-            <option value="manual">Manual</option>
-          </select>
-        </div>
-
-        {/* Limpar + contador */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", paddingBottom: 1 }}>
-          {hasFilters && (
-            <button data-testid="button-clear-filters" onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); setFilterEvent("all"); setFilterSponsor("all"); }} style={{
-              display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", borderRadius: 6,
-              border: "1px solid #fecaca", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer",
-              fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, height: 36,
-            }}>
-              <X size={11} /> Limpar
-            </button>
-          )}
-          <span style={{ fontSize: 10, color: "#cbd5e1", fontFamily: "DM Mono, monospace", fontWeight: 600, whiteSpace: "nowrap" }}>
-            {filtered.length}/{total}
-          </span>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ── Table ── */}
       <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>

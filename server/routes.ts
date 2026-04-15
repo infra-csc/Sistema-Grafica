@@ -3248,6 +3248,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/inventory/:id/allocations", requireAuth, async (req, res) => {
+    try {
+      const allocations = await storage.getAssetAllocations(req.params.id);
+      res.json(allocations);
+    } catch (error) {
+      console.error("Error fetching asset allocations:", error);
+      res.status(500).json({ error: "Erro ao buscar histórico de eventos" });
+    }
+  });
+
   app.get("/api/inventory/:id", requireAuth, async (req, res) => {
     try {
       const asset = await storage.getInventoryAsset(req.params.id);

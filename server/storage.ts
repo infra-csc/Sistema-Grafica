@@ -149,6 +149,7 @@ export interface IStorage {
 
   // Event Inventory Allocations
   getEventAllocations(eventId: string): Promise<EventInventoryAllocation[]>;
+  getAssetAllocations(assetId: string): Promise<Array<EventInventoryAllocation & { event: Event }>>;
   allocateAssetToEvent(eventId: string, assetId: string): Promise<EventInventoryAllocation>;
   deallocateAsset(allocationId: string): Promise<boolean>;
 }
@@ -961,6 +962,22 @@ export class DatabaseStorage implements IStorage {
   async getEventAllocations(eventId: string): Promise<EventInventoryAllocation[]> {
     return await db.select().from(eventInventoryAllocations)
       .where(eq(eventInventoryAllocations.eventId, eventId));
+  }
+
+  async getAssetAllocations(assetId: string): Promise<Array<EventInventoryAllocation & { event: Event }>> {
+    const rows = await db
+      .select({
+        id: eventInventoryAllocations.id,
+        eventId: eventInventoryAllocations.eventId,
+        assetId: eventInventoryAllocations.assetId,
+        allocatedAt: eventInventoryAllocations.allocatedAt,
+        event: events,
+      })
+      .from(eventInventoryAllocations)
+      .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
+      .where(eq(eventInventoryAllocations.assetId, assetId))
+      .orderBy(eventInventoryAllocations.allocatedAt);
+    return rows as Array<EventInventoryAllocation & { event: Event }>;
   }
 
   async allocateAssetToEvent(eventId: string, assetId: string): Promise<EventInventoryAllocation> {

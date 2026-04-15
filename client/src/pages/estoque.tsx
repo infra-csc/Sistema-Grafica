@@ -247,6 +247,13 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   const eventName = linkedItem?.event?.name ?? null;
   const eventDate = linkedItem?.event?.startDate ?? null;
 
+  const { data: allocations = [] } = useQuery<any[]>({
+    queryKey: ["/api/inventory", asset.id, "allocations"],
+    queryFn: () => fetch(`/api/inventory/${asset.id}/allocations`, { credentials: "include" }).then(r => r.json()),
+  });
+  const currentAlloc = ts === "EM_USO" ? allocations[allocations.length - 1] : null;
+  const pastAllocs = ts === "EM_USO" ? allocations.slice(0, -1) : allocations;
+
   // Timeline logic — 4 steps
   // 1. Entrada no Estoque: always done
   // 2. Em Uso no Evento: done once dispatched
@@ -444,24 +451,78 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
             {/* Info grid — same layout as triagem-modal */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
-              {/* Evento e Datas — light card */}
-              <div style={{ background: "#f3f4f3", borderRadius: 10, padding: "20px 22px" }}>
-                <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 13, color: "#374151" }}>
-                  <Calendar size={15} color="#6b7280" />
-                  Informações do Evento
-                </h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[
-                    { label: "Evento",      value: eventName ?? "—" },
-                    { label: "Data",        value: eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—" },
-                    { label: "Qtd Total",   value: `${asset.quantity ?? 1} un.` },
-                    { label: "Localização", value: asset.location ?? "—" },
-                  ].map(({ label, value }) => (
-                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#9ca3af" }}>{label}</span>
-                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937", textAlign: "right" }}>{value}</span>
+              {/* Evento e Histórico — light card */}
+              <div style={{ background: "#f3f4f3", borderRadius: 10, overflow: "hidden" }}>
+                {/* EM USO banner */}
+                {ts === "EM_USO" && (
+                  <div style={{ background: "#f97316", padding: "8px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                    <Truck size={13} color="#fff" />
+                    <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 10, color: "#fff", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                      Em Uso Agora
+                    </span>
+                    {currentAlloc?.event?.name && (
+                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 10, color: "rgba(255,255,255,0.85)", marginLeft: 4 }}>
+                        — {currentAlloc.event.name}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div style={{ padding: "18px 22px" }}>
+                  <h3 style={{ margin: "0 0 14px", display: "flex", alignItems: "center", gap: 8, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 13, color: "#374151" }}>
+                    <Calendar size={15} color="#6b7280" />
+                    {allocations.length > 0 ? "Histórico de Participações" : "Informações do Evento"}
+                  </h3>
+
+                  {/* Allocation history */}
+                  {allocations.length > 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                      {allocations.map((alloc: any, i: number) => {
+                        const isCurrent = ts === "EM_USO" && i === allocations.length - 1;
+                        const evName = alloc.event?.name ?? "Evento";
+                        const evDate = alloc.event?.startDate;
+                        return (
+                          <div key={alloc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 0", borderBottom: i < allocations.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: "50%", background: isCurrent ? "#f97316" : "#9ca3af", flexShrink: 0 }} />
+                              <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, fontWeight: 600, color: isCurrent ? "#ea580c" : "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {evName}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                              {isCurrent && (
+                                <span style={{ background: "#fed7aa", color: "#c2410c", fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 8, textTransform: "uppercase", letterSpacing: "0.1em", padding: "2px 6px", borderRadius: 3 }}>
+                                  Em Uso
+                                </span>
+                              )}
+                              <span style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#9ca3af" }}>
+                                {evDate ? format(new Date(evDate), "dd MMM yy", { locale: ptBR }) : "—"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Static info below history */}
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(0,0,0,0.06)", display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#9ca3af" }}>Qtd Total</span>
+                        <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937" }}>{asset.quantity ?? 1} un.</span>
+                      </div>
                     </div>
-                  ))}
+                  ) : (
+                    /* No allocations — show static info */
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {[
+                        { label: "Evento",      value: eventName ?? "—" },
+                        { label: "Data",        value: eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—" },
+                        { label: "Qtd Total",   value: `${asset.quantity ?? 1} un.` },
+                        { label: "Localização", value: asset.location ?? "—" },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                          <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#9ca3af" }}>{label}</span>
+                          <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937", textAlign: "right" }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

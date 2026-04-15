@@ -1051,7 +1051,7 @@ export default function Estoque() {
         />
         <StatCard
           label="No Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#0369a1"
-          subtext={total ? `${Math.round(byStatus("NO_GALPAO")/total*100)}% disponível` : "0% disponível"} subColor="#0369a1"
+          subtext="Disponível no depósito"
           active={filterStatus === "NO_GALPAO"}
           onClick={() => setFilterStatus(filterStatus === "NO_GALPAO" ? "all" : "NO_GALPAO")}
         />

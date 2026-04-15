@@ -422,13 +422,6 @@ export default function TriagemRetorno() {
 
   const selectedIds = Object.entries(entries).filter(([, e]) => e.selected).map(([id]) => id);
 
-  const filledCount = useMemo(() =>
-    pendingAssets.filter(a => {
-      const e = entries[a.id];
-      return e && e.splits.every(s => s.condition !== null) && isSplitValid(e, a.quantity ?? 1);
-    }).length,
-  [pendingAssets, entries]);
-
   const handleBulk = async () => {
     if (selectedIds.length === 0) return;
     setSavingIds(new Set(selectedIds));
@@ -501,7 +494,7 @@ export default function TriagemRetorno() {
       </header>
 
       {/* ── Stats ── */}
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+      <section style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
         {/* Total — dark card */}
         <div style={{
           backgroundColor: "#1c1917", borderBottom: "3px solid #f97316",
@@ -514,7 +507,6 @@ export default function TriagemRetorno() {
             <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "rgba(255,255,255,0.5)", marginTop: 4, lineHeight: 1.2 }}>Na Fila</p>
           </div>
         </div>
-        <StatCard label="Preenchidos" value={filledCount} color="#b45309" />
         <StatCard label="Selecionados" value={selectedIds.length} color="#16a34a" />
         <StatCard label="Triados Hoje" value={savedIds.size} color="#2563eb" />
       </section>

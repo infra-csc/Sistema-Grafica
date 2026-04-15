@@ -232,126 +232,127 @@ function DeleteModal({ asset, onClose, onConfirm }: {
 }
 
 // ─── Asset Detail Modal (Eye button) ─────────────────────────────────────────
-function AssetDetailModal({ asset, linkedItem, sponsors, onClose, onSaved }: {
+function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   asset: InventoryAsset;
   linkedItem?: any;
   sponsors: Sponsor[];
   onClose: () => void;
-  onSaved: () => void;
+  onSaved?: () => void;
 }) {
-  const { toast } = useToast();
-  const [condition, setCondition] = useState<Condition>((asset.condition as Condition) ?? "PERFEITO");
-  const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>((asset.trackingStatus as TrackingStatus) ?? "NO_GALPAO");
-  const [notes, setNotes] = useState(asset.notes ?? "");
-  const [saved, setSaved] = useState(false);
-
   const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean) as Sponsor[];
   const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
-  const ts = asset.trackingStatus;
-
-  const step2Done = ts === "EM_USO" || ts === "AGUARDANDO_TRIAGEM" || ts === "DESCARTADO" || ts === "NO_GALPAO";
-  const step2Active = ts === "EM_USO";
-  const step3Active = ts === "AGUARDANDO_TRIAGEM";
-  const step3Done = ts === "DESCARTADO" || ts === "NO_GALPAO";
+  const cm = CONDITION_META[asset.condition ?? "PERFEITO"];
+  const ts = asset.trackingStatus ?? "NO_GALPAO";
 
   const eventName = linkedItem?.event?.name ?? null;
   const eventDate = linkedItem?.event?.startDate ?? null;
 
-  const mutation = useMutation({
-    mutationFn: () => apiRequest("PATCH", `/api/inventory/${asset.id}`, { condition, trackingStatus, notes }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
-      setSaved(true);
-      toast({ title: "Ativo atualizado com sucesso." });
-      setTimeout(() => onSaved(), 800);
-    },
-    onError: () => toast({ title: "Erro ao salvar.", variant: "destructive" }),
-  });
+  // Timeline logic — 4 steps
+  // 1. Entrada no Estoque: always done
+  // 2. Em Uso no Evento: done once dispatched
+  // 3. Aguardando Triagem: done when triage passed
+  // 4. Situação Atual: active when on final state
+  const step2Done   = ts !== "NO_GALPAO" || true; // dispatched = true once it has any non-initial status (we treat all as dispatched)
+  const step2Active = ts === "EM_USO";
+  const step3Done   = ts === "NO_GALPAO" || ts === "DESCARTADO";
+  const step3Active = ts === "AGUARDANDO_TRIAGEM";
+  const step4Active = ts === "NO_GALPAO" || ts === "DESCARTADO";
 
-  const conditionBtns: { key: Condition; label: string; Icon: React.ElementType; color: string; bg: string; border: string }[] = [
-    { key: "PERFEITO",    label: "Perfeito",    Icon: Sparkles, color: "#16a34a", bg: "#dcfce7", border: "#86efac" },
-    { key: "AVARIA_LEVE", label: "Avaria Leve", Icon: Hammer,   color: "#d97706", bg: "#fef3c7", border: "#fcd34d" },
-    { key: "SUCATA",      label: "Sucata",      Icon: Trash2,   color: "#dc2626", bg: "#fee2e2", border: "#fca5a5" },
-  ];
+  // Localização Técnica: where the item currently IS
+  const locLabel = ts === "NO_GALPAO" ? (asset.location ?? "Galpão Central")
+    : ts === "EM_USO"            ? "Em Uso (Evento)"
+    : ts === "AGUARDANDO_TRIAGEM" ? "Aguardando Triagem"
+    : "Descartado";
 
-  const destBtns: { key: TrackingStatus; label: string; Icon: React.ElementType; color: string; bg: string; border: string }[] = [
-    { key: "NO_GALPAO",  label: "Galpão Central", Icon: Warehouse, color: "#1e40af", bg: "#eff6ff", border: "#93c5fd" },
-    { key: "EM_USO",     label: "Em Uso",         Icon: Truck,     color: "#ea580c", bg: "#fff7ed", border: "#fdba74" },
-    { key: "DESCARTADO", label: "Descartar",      Icon: Trash2,    color: "#991b1b", bg: "#fef2f2", border: "#fca5a5" },
-  ];
-
-  const sidebarDot = (done: boolean, active: boolean, icon: React.ReactElement) => (
-    <div style={{
-      position: "absolute", left: -21, top: 0,
-      width: 22, height: 22, borderRadius: "50%",
-      background: done ? "#f97316" : active ? "rgba(249,115,22,0.15)" : "#1f2937",
-      border: active ? "1.5px solid #f97316" : done ? "none" : "1px solid #374151",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      boxShadow: active ? "0 0 0 4px rgba(249,115,22,0.08)" : "none",
-    }}>
-      {done ? <Check size={11} color="#fff" strokeWidth={3} /> : icon}
-    </div>
-  );
+  const sidebarDot = (done: boolean, active: boolean, icon: React.ReactElement) => {
+    const isFinal = done && !active;
+    return (
+      <div style={{
+        position: "absolute", left: -21, top: 1,
+        width: 20, height: 20, borderRadius: "50%",
+        background: isFinal ? "#f97316" : active ? "rgba(249,115,22,0.15)" : "#1f2937",
+        border: active ? "1.5px solid #f97316" : isFinal ? "none" : "1px solid #374151",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: active ? "0 0 0 4px rgba(249,115,22,0.10)" : "none",
+        flexShrink: 0,
+      }}>
+        {isFinal ? <Check size={10} color="#fff" strokeWidth={3} /> : icon}
+      </div>
+    );
+  };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ display: "flex", flexDirection: "row", width: "min(1040px, calc(100vw - 48px))", maxHeight: "90vh", borderRadius: 16, overflow: "hidden", boxShadow: "0 32px 64px -12px rgba(0,0,0,0.45)" }}>
 
         {/* ── Sidebar ── */}
-        <aside style={{ width: 280, flexShrink: 0, background: "#1c1917", display: "flex", flexDirection: "column", padding: "28px 24px" }}>
+        <aside style={{ width: 264, flexShrink: 0, background: "#1c1917", display: "flex", flexDirection: "column", padding: "28px 22px" }}>
           {/* Brand */}
-          <div style={{ marginBottom: 32 }}>
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 900, fontSize: 24, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1 }}>NORTE</div>
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 900, fontSize: 22, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1 }}>NORTE</div>
             <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.2em", marginTop: 3 }}>LOGISTICS APEX</div>
           </div>
 
           {/* Rastreabilidade */}
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 20 }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 18 }}>
               Rastreabilidade
             </div>
-            <div style={{ position: "relative", paddingLeft: 32 }}>
-              <div style={{ position: "absolute", left: 11, top: 12, bottom: 24, width: 1, background: "rgba(255,255,255,0.1)" }} />
+            <div style={{ position: "relative", paddingLeft: 30 }}>
+              {/* vertical connector line — between step1 top and step4 bottom */}
+              <div style={{ position: "absolute", left: 9, top: 10, bottom: 10, width: 1, background: "rgba(255,255,255,0.08)" }} />
 
-              {/* Saída do Estoque */}
-              <div style={{ position: "relative", marginBottom: 24 }}>
-                {sidebarDot(true, false, <Archive size={11} color="#9ca3af" />)}
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 13, color: "#f9f9f8" }}>Saída do Estoque</div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 2, textTransform: "uppercase" }}>
-                  {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—"}
-                </div>
+              {/* Step 1 — Entrada no Estoque */}
+              <div style={{ position: "relative", marginBottom: 20 }}>
+                {sidebarDot(true, false, <Archive size={10} color="#9ca3af" />)}
+                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#f9f9f8", lineHeight: 1.3 }}>Entrada no Estoque</div>
+                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>Produzido · Auto-cadastrado</div>
               </div>
 
-              {/* Em Uso no Evento */}
-              <div style={{ position: "relative", marginBottom: 24 }}>
-                {sidebarDot(step2Done, step2Active, <Truck size={11} color="#9ca3af" />)}
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 13, color: step2Active ? "#f97316" : "#e5e7eb" }}>
+              {/* Step 2 — Em Uso no Evento */}
+              <div style={{ position: "relative", marginBottom: 20 }}>
+                {sidebarDot(step2Done && !step2Active, step2Active, <Truck size={10} color={step2Active ? "#f97316" : "#9ca3af"} />)}
+                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 12, color: step2Active ? "#f97316" : "#d1d5db", lineHeight: 1.3 }}>
                   {eventName ?? "Em Uso no Evento"}
                 </div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 2, textTransform: "uppercase" }}>
-                  {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—"}
+                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : (step2Active ? "Em andamento" : "Concluído")}
                 </div>
               </div>
 
-              {/* Aguardando Triagem */}
-              <div style={{ position: "relative" }}>
-                {sidebarDot(step3Done, step3Active, <ClipboardCheck size={11} color={step3Active ? "#f97316" : "#9ca3af"} />)}
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 13, color: step3Active ? "#f97316" : "#e5e7eb" }}>
-                  Aguardando Triagem
+              {/* Step 3 — Triagem de Retorno */}
+              <div style={{ position: "relative", marginBottom: 20 }}>
+                {sidebarDot(step3Done, step3Active, <ClipboardCheck size={10} color={step3Active ? "#f97316" : "#9ca3af"} />)}
+                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 12, color: step3Active ? "#f97316" : step3Done ? "#d1d5db" : "#6b7280", lineHeight: 1.3 }}>
+                  Triagem de Retorno
                 </div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 2, textTransform: "uppercase" }}>
-                  {step3Active ? "Agora · Em análise" : step3Done ? "Concluído" : "Pendente"}
+                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {step3Active ? "Em análise" : step3Done ? "Concluído" : "Pendente"}
+                </div>
+              </div>
+
+              {/* Step 4 — Situação Atual */}
+              <div style={{ position: "relative" }}>
+                {sidebarDot(false, step4Active, ts === "DESCARTADO"
+                  ? <Trash2 size={10} color="#ef4444" />
+                  : <Warehouse size={10} color={step4Active ? "#f97316" : "#9ca3af"} />
+                )}
+                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step4Active ? 700 : 600, fontSize: 12, color: step4Active ? "#f97316" : "#6b7280", lineHeight: 1.3 }}>
+                  {ts === "DESCARTADO" ? "Descartado" : ts === "NO_GALPAO" ? "No Galpão" : "Destino Final"}
+                </div>
+                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {step4Active ? "Estado atual" : "Aguardando triagem"}
                 </div>
               </div>
             </div>
 
             {/* Sponsors */}
             {assetSponsors.length > 0 && (
-              <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 12 }}>Patrocinadores</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div style={{ marginTop: 24, paddingTop: 18, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 10 }}>Patrocinadores</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                   {assetSponsors.map(s => (
-                    <div key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", background: "#292524", borderRadius: 4, border: "1px solid rgba(255,255,255,0.07)" }}>
+                    <div key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 7px", background: "#292524", borderRadius: 4, border: "1px solid rgba(255,255,255,0.07)" }}>
                       <Tag size={8} color="#6b7280" />
                       <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#d1d5db", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.name}</span>
                     </div>
@@ -362,17 +363,17 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose, onSaved }: {
           </div>
 
           {/* Footer card — Localização Técnica */}
-          <div style={{ background: "rgba(255,255,255,0.05)", padding: 16, borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", marginTop: 20, flexShrink: 0 }}>
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 6 }}>
+          <div style={{ background: "rgba(255,255,255,0.04)", padding: 14, borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", marginTop: 18, flexShrink: 0 }}>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 5 }}>
               Localização Técnica
             </div>
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 15, color: "#f9f9f8", letterSpacing: "-0.03em", wordBreak: "break-word" }}>
-              {asset.location ?? "—"}
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 14, color: "#f9f9f8", letterSpacing: "-0.02em", wordBreak: "break-word", lineHeight: 1.3 }}>
+              {locLabel}
             </div>
-            <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase" }}>Condição</span>
-              <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "DM Mono, monospace", color: CONDITION_META[asset.condition ?? "PERFEITO"].color }}>
-                {CONDITION_META[asset.condition ?? "PERFEITO"].label.toUpperCase()}
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase" }}>Condição</span>
+              <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "DM Mono, monospace", color: cm.color }}>
+                {cm.label.toUpperCase()}
               </span>
             </div>
           </div>
@@ -419,80 +420,26 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose, onSaved }: {
           {/* Scrollable body */}
           <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px 0", display: "flex", flexDirection: "column", gap: 24 }}>
 
-            {/* Classification section */}
-            <section style={{ position: "relative" }}>
-              <div style={{ position: "absolute", top: -10, left: 20, zIndex: 2, background: "#9d4300", color: "#fff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.18em", padding: "3px 10px", borderRadius: 4 }}>
-                Classificação do Ativo
-              </div>
-              <div style={{ background: "#fff", border: "2px solid #9d4300", borderRadius: 10, padding: "28px 24px 24px", boxShadow: "0 4px 24px rgba(157,67,0,0.08)" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-
-                  {/* Condição */}
-                  <div>
-                    <label style={{ display: "block", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10 }}>
-                      Condição do Item
-                    </label>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {conditionBtns.map(btn => {
-                        const active = condition === btn.key;
-                        return (
-                          <button key={btn.key} onClick={() => setCondition(btn.key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 6px", borderRadius: 8, border: active ? `2px solid ${btn.border}` : "1.5px solid #e2e8f0", background: active ? btn.bg : "#f8fafc", cursor: "pointer", transition: "all 0.15s" }}>
-                            <btn.Icon size={18} color={active ? btn.color : "#94a3b8"} />
-                            <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: active ? btn.color : "#64748b" }}>{btn.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Destino / Status */}
-                  <div>
-                    <label style={{ display: "block", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10 }}>
-                      Status / Destino
-                    </label>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {destBtns.map(btn => {
-                        const active = trackingStatus === btn.key;
-                        return (
-                          <button key={btn.key} onClick={() => setTrackingStatus(btn.key)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 8px", borderRadius: 8, border: active ? `2px solid ${btn.border}` : "1.5px solid #e2e8f0", background: active ? btn.bg : "#f8fafc", cursor: "pointer", transition: "all 0.15s", flexDirection: "column" }}>
-                            <btn.Icon size={16} color={active ? btn.color : "#94a3b8"} />
-                            <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: active ? btn.color : "#64748b", whiteSpace: "nowrap", textAlign: "center" }}>{btn.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Observações */}
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={{ display: "block", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8 }}>
-                      Observações
-                    </label>
-                    <textarea value={notes} onChange={e => setNotes(e.target.value)}
-                      placeholder="Informações adicionais sobre o estado do ativo..."
-                      style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#f8fafc", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 13, color: "#1e293b", resize: "vertical", minHeight: 72, outline: "none", lineHeight: 1.5 }}
-                      onFocus={e => { e.currentTarget.style.borderColor = "#f97316"; e.currentTarget.style.background = "#fff"; }}
-                      onBlur={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#f8fafc"; }}
-                    />
-                  </div>
+            {/* Condition + Notes read-only banner */}
+            <div style={{ display: "flex", gap: 12 }}>
+              {/* Condition chip */}
+              <div style={{ flex: 1, background: "#fff", borderRadius: 10, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 8, background: cm.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {asset.condition === "PERFEITO" ? <Sparkles size={18} color={cm.color} /> : asset.condition === "AVARIA_LEVE" ? <Hammer size={18} color={cm.color} /> : <Trash2 size={18} color={cm.color} />}
                 </div>
-
-                {/* Save row */}
-                <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
-                  {saved && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <CheckCircle2 size={14} color="#16a34a" />
-                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, color: "#16a34a" }}>Salvo!</span>
-                    </div>
-                  )}
-                  <button onClick={() => mutation.mutate()} disabled={mutation.isPending || saved}
-                    data-testid="button-save-asset-detail"
-                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 28px", borderRadius: 8, border: "none", background: saved ? "#f1f5f9" : "#9d4300", color: saved ? "#94a3b8" : "#fff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", cursor: (mutation.isPending || saved) ? "default" : "pointer", boxShadow: saved ? "none" : "0 4px 16px rgba(157,67,0,0.28)", transition: "all 0.15s", opacity: mutation.isPending ? 0.7 : 1 }}>
-                    {mutation.isPending ? "Salvando..." : saved ? "Salvo" : "Salvar Alterações"}
-                  </button>
+                <div>
+                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.12em" }}>Condição</div>
+                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 14, color: cm.color, marginTop: 2 }}>{cm.label}</div>
                 </div>
               </div>
-            </section>
+              {/* Notes read-only */}
+              {asset.notes && (
+                <div style={{ flex: 2, background: "#fff", borderRadius: 10, padding: "16px 20px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>Observações</div>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 12, color: "#374151", lineHeight: 1.5 }}>{asset.notes}</div>
+                </div>
+              )}
+            </div>
 
             {/* Info grid */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>

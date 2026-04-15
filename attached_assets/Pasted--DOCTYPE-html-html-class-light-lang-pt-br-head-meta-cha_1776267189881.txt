@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-br"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "on-error": "#ffffff",
+                        "inverse-primary": "#ccc5c2",
+                        "tertiary": "#006398",
+                        "secondary": "#9d4300",
+                        "surface-bright": "#f9f9f8",
+                        "on-primary-fixed": "#1e1b19",
+                        "on-surface-variant": "#584237",
+                        "surface-variant": "#e2e2e2",
+                        "surface-dim": "#dadad9",
+                        "error": "#ba1a1a",
+                        "on-tertiary-container": "#003554",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "on-primary-container": "#35322f",
+                        "surface-container-highest": "#e2e2e2",
+                        "secondary-fixed": "#ffdbca",
+                        "on-tertiary-fixed": "#001d32",
+                        "primary-container": "#9f9996",
+                        "on-secondary-container": "#5c2400",
+                        "on-secondary-fixed": "#341100",
+                        "outline": "#8c7164",
+                        "surface": "#f9f9f8",
+                        "secondary-container": "#fd761a",
+                        "on-secondary-fixed-variant": "#783200",
+                        "primary-fixed": "#e9e1dd",
+                        "primary": "#625d5b",
+                        "surface-container-high": "#e8e8e7",
+                        "inverse-surface": "#2f3130",
+                        "outline-variant": "#e0c0b1",
+                        "on-tertiary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-background": "#1a1c1c",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#cde5ff",
+                        "surface-container": "#eeeeed",
+                        "inverse-on-surface": "#f1f1f0",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#00a2f4",
+                        "surface-tint": "#625d5b",
+                        "surface-container-low": "#f3f4f3",
+                        "on-error-container": "#93000a",
+                        "on-surface": "#1a1c1c",
+                        "background": "#f9f9f8",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#ffb690",
+                        "primary-fixed-dim": "#ccc5c2"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .kerning-tight { letter-spacing: -0.05em; }
+        .glass-brand {
+            background: rgba(226, 226, 226, 0.6);
+            backdrop-filter: blur(10px);
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface flex min-h-screen">
+<!-- Sidebar (As per Shared Components JSON) -->
+<aside class="hidden md:flex flex-col h-screen w-64 sticky top-0 bg-[#f9f9f8] dark:bg-[#1c1917] py-6 px-4 gap-8">
+<div class="flex items-center gap-3 px-2">
+<div class="w-10 h-10 bg-secondary rounded flex items-center justify-center text-on-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shield</span>
+</div>
+<div>
+<h1 class="font-headline font-bold tracking-tighter text-[#f97316] leading-none uppercase">NORTE</h1>
+<p class="text-[10px] uppercase tracking-widest opacity-60">Elite Asset Mgmt</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="text-[#1c1917] dark:text-[#f9f9f8] px-4 py-2 opacity-60 hover:bg-[#f97316]/10 transition-colors flex items-center gap-3 rounded-md group" href="#">
+<span class="material-symbols-outlined group-hover:text-secondary">dashboard</span>
+<span class="font-['Plus_Jakarta_Sans'] text-sm">Overview</span>
+</a>
+<a class="text-[#f9f9f8] bg-[#f97316] rounded-md font-bold px-4 py-2 flex items-center gap-3" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-['Plus_Jakarta_Sans'] text-sm">Physical Assets</span>
+</a>
+<a class="text-[#1c1917] dark:text-[#f9f9f8] px-4 py-2 opacity-60 hover:bg-[#f97316]/10 transition-colors flex items-center gap-3 rounded-md group" href="#">
+<span class="material-symbols-outlined group-hover:text-secondary">qr_code_2</span>
+<span class="font-['Plus_Jakarta_Sans'] text-sm">Digital Vault</span>
+</a>
+<a class="text-[#1c1917] dark:text-[#f9f9f8] px-4 py-2 opacity-60 hover:bg-[#f97316]/10 transition-colors flex items-center gap-3 rounded-md group" href="#">
+<span class="material-symbols-outlined group-hover:text-secondary">build</span>
+<span class="font-['Plus_Jakarta_Sans'] text-sm">Maintenance</span>
+</a>
+<a class="text-[#1c1917] dark:text-[#f9f9f8] px-4 py-2 opacity-60 hover:bg-[#f97316]/10 transition-colors flex items-center gap-3 rounded-md group" href="#">
+<span class="material-symbols-outlined group-hover:text-secondary">verified_user</span>
+<span class="font-['Plus_Jakarta_Sans'] text-sm">Audits</span>
+</a>
+</nav>
+<div class="mt-auto">
+<button class="w-full bg-secondary text-on-secondary font-bold py-3 rounded-md flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-110 active:scale-95">
+<span class="material-symbols-outlined">add_circle</span>
+                New Asset
+            </button>
+</div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
+<!-- TopAppBar (As per Shared Components JSON) -->
+<header class="w-full top-0 sticky z-30 bg-[#f9f9f8] dark:bg-[#1c1917] border-b border-outline-variant/10">
+<div class="flex justify-between items-center px-8 py-4 w-full max-w-screen-2xl mx-auto">
+<div class="flex items-center gap-8">
+<span class="text-2xl font-black tracking-[-0.05em] text-[#1c1917] dark:text-[#f9f9f8] font-headline uppercase">NORTE ASSETS</span>
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-[#625d5b] dark:text-[#9d4300] hover:text-[#f97316] font-headline tracking-[-0.05em] uppercase font-bold text-sm" href="#">Dashboard</a>
+<a class="text-[#f97316] border-b-2 border-[#f97316] pb-1 font-headline tracking-[-0.05em] uppercase font-bold text-sm" href="#">Inventory</a>
+<a class="text-[#625d5b] dark:text-[#9d4300] hover:text-[#f97316] font-headline tracking-[-0.05em] uppercase font-bold text-sm" href="#">Acquisitions</a>
+<a class="text-[#625d5b] dark:text-[#9d4300] hover:text-[#f97316] font-headline tracking-[-0.05em] uppercase font-bold text-sm" href="#">Reports</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-primary p-2 hover:bg-surface-container transition-colors rounded-full">notifications</button>
+<button class="material-symbols-outlined text-primary p-2 hover:bg-surface-container transition-colors rounded-full">settings</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-outline-variant">
+<img alt="User Profile" data-alt="professional portrait of an asset manager in a sharp suit with a confident expression and clean lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCWrLW_6wm_HImxjaAlcTcViCZjQevOb24hsQTsX7ARPmzwlKhLgnY9HiBrgAQcOcDuim7HAzyRyV8fETXb8n9kN0QBrtgo5qYsI5PzqvSioHklHT3m6VFituJMDkt2oRRgxaZC_CV0cUyKHt_LSWL_AAlxykY8O5mMWDXyBFokng-MnS6vYwAqwL1zY-cRiuyMsZ4zyNllinVI7am2Si_YYuLGpUcu2HAgKh4PBb1q-9OiYe4hXXkEbaIWp5cWHx8UyX-KfOEOq9O-"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<section class="p-8 flex flex-col gap-8 max-w-screen-2xl mx-auto w-full">
+<!-- Page Header -->
+<div class="flex items-end gap-4">
+<div class="bg-secondary p-3 rounded-lg shadow-lg shadow-secondary/20">
+<span class="material-symbols-outlined text-on-secondary text-3xl" style="font-variation-settings: 'FILL' 1;">archive</span>
+</div>
+<div class="flex flex-col">
+<span class="text-[10px] uppercase font-bold tracking-[0.2em] text-secondary">Asset Management System</span>
+<h2 class="text-4xl font-black font-headline uppercase kerning-tight text-[#1c1917]">Estoque &amp; Acervo</h2>
+</div>
+</div>
+<!-- KPI Cards Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-surface-container-lowest p-6 flex flex-col gap-2 rounded-xl transition-all duration-200 border-b-4 border-primary">
+<span class="text-xs font-bold uppercase tracking-wider text-primary opacity-60">Total de Ativos</span>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-black font-headline text-[#1c1917]">4,282</span>
+<span class="material-symbols-outlined text-primary opacity-30 text-4xl">inventory</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 flex flex-col gap-2 rounded-xl transition-all duration-200 border-b-4 border-secondary">
+<span class="text-xs font-bold uppercase tracking-wider text-primary opacity-60">No Galpão</span>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-black font-headline text-secondary">1,150</span>
+<span class="material-symbols-outlined text-secondary opacity-30 text-4xl">warehouse</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 flex flex-col gap-2 rounded-xl transition-all duration-200 border-b-4 border-on-tertiary-fixed-variant">
+<span class="text-xs font-bold uppercase tracking-wider text-primary opacity-60">Em Uso</span>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-black font-headline text-on-tertiary-fixed-variant">2,912</span>
+<span class="material-symbols-outlined text-tertiary opacity-30 text-4xl">sports_soccer</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 flex flex-col gap-2 rounded-xl transition-all duration-200 border-b-4 border-error">
+<span class="text-xs font-bold uppercase tracking-wider text-primary opacity-60">Triagem Pendente</span>
+<div class="flex items-center justify-between">
+<span class="text-3xl font-black font-headline text-error">220</span>
+<span class="material-symbols-outlined text-error opacity-30 text-4xl">assignment_late</span>
+</div>
+</div>
+</div>
+<!-- Filters Bar -->
+<div class="bg-surface-container-low p-5 rounded-xl flex flex-wrap lg:flex-nowrap gap-4 items-center">
+<div class="flex-1 min-w-[240px] relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-primary opacity-60">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-lowest border-0 rounded-md focus:ring-2 focus:ring-secondary/50 text-sm font-medium" placeholder="Buscar por ID, Nome ou Tag..." type="text"/>
+</div>
+<div class="flex gap-3 flex-wrap">
+<select class="bg-surface-container-lowest border-0 rounded-md text-xs font-bold uppercase px-3 py-2 focus:ring-2 focus:ring-secondary/50 text-primary">
+<option>Status: Todos</option>
+<option>No Galpão</option>
+<option>Em Uso</option>
+<option>Descartado</option>
+</select>
+<select class="bg-surface-container-lowest border-0 rounded-md text-xs font-bold uppercase px-3 py-2 focus:ring-2 focus:ring-secondary/50 text-primary">
+<option>Condição: Todas</option>
+<option>Perfeito</option>
+<option>Avaria</option>
+<option>Sucata</option>
+</select>
+<select class="bg-surface-container-lowest border-0 rounded-md text-xs font-bold uppercase px-3 py-2 focus:ring-2 focus:ring-secondary/50 text-primary">
+<option>Evento: Todos</option>
+<option>Grand Slam 2024</option>
+<option>Elite Qualifier</option>
+</select>
+<select class="bg-surface-container-lowest border-0 rounded-md text-xs font-bold uppercase px-3 py-2 focus:ring-2 focus:ring-secondary/50 text-primary">
+<option>Patrocinador: Todos</option>
+<option>Nike</option>
+<option>Red Bull</option>
+<option>Rolex</option>
+</select>
+<button class="bg-primary text-on-primary p-2 rounded-md hover:brightness-110 transition-all">
+<span class="material-symbols-outlined block">tune</span>
+</button>
+</div>
+</div>
+<!-- Asset Table -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container text-[10px] uppercase font-black tracking-widest text-primary/70">
+<th class="px-6 py-4">Identificador</th>
+<th class="px-6 py-4">Ativo</th>
+<th class="px-6 py-4">Localização</th>
+<th class="px-6 py-4">Condição</th>
+<th class="px-6 py-4">Status</th>
+<th class="px-6 py-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<span class="font-mono text-sm font-medium text-secondary">#NT-2931-X</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded overflow-hidden bg-surface-container shadow-sm border border-outline-variant/10">
+<img alt="Ativo" data-alt="vibrant red athletic shoe with white sole in high-end studio product photography style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsALUNqcId0RqK6px_4Tpejeg_58NhMZEr4NOWhs8NiQFQBUVedsULFSWuhQjmlhUd8EX-t-pUScVpX2QNXj_NaUlBwH24WXY_6dgX6c5j3aqhyt6XdvlYfXGq59YPf5_S64eB8qYIYjMCO6FhMYvNvlHbx8AIWHDjzSxNOg3Zr-Pcq7q3FdqLH4UkahI_ddk5zMPgSMfNWBNWvCQg_qbkBQTfOdjp6ANMqnqDIw34tXR_yZRP_y3Yu2CcGI67930u74p8DxwHLBdk"/>
+</div>
+<div class="flex flex-col">
+<span class="font-bold text-sm text-[#1c1917]">Elite Racer V3</span>
+<div class="flex items-center gap-1">
+<span class="text-[10px] bg-secondary/10 text-secondary px-1.5 rounded font-black">X50</span>
+<span class="text-[10px] text-primary opacity-60">Calçados</span>
+</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Setor B4</span>
+<span class="text-[10px] uppercase tracking-tighter opacity-50">Corredor 12 • Prateleira 02</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-green-100 text-green-700">Perfeito</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-secondary"></div>
+<span class="text-xs font-bold text-secondary uppercase">No Galpão</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+<button class="material-symbols-outlined text-primary hover:text-secondary p-1">visibility</button>
+<button class="material-symbols-outlined text-primary hover:text-secondary p-1">edit</button>
+<button class="material-symbols-outlined text-error p-1">delete</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<span class="font-mono text-sm font-medium text-secondary">#NT-4022-L</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded overflow-hidden bg-surface-container shadow-sm border border-outline-variant/10">
+<img alt="Ativo" data-alt="high performance carbon fiber bicycle frame details with sleek matte finish and professional lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGPgTt6jjT75zj0COHJusyoWioXHyMEGtNxpQ4GSHbSrtxq-rfpkuL8oCAGu7woWpj6p4XvGWITs459DwPOH4QadPy8UwbmE8Rde6zJY0ZwVH_Urz1WU_xucVVcCeyC3Vtj1215DoS9R2s2eJsM8n-csoJxhhdvpx-XntvFngM4C57TltWXBRlTlbXMSzWLy3tTuT8Ya-g8rPu6nJNoSwvBQIegi9c3BpZsrxPUUXZGmtZsKkf8cAo62eFXPIk8oadsifbvm2LiCW-"/>
+</div>
+<div class="flex flex-col">
+<span class="font-bold text-sm text-[#1c1917]">Crono Frame 2024</span>
+<div class="flex items-center gap-1">
+<span class="text-[10px] bg-secondary/10 text-secondary px-1.5 rounded font-black">X02</span>
+<span class="text-[10px] text-primary opacity-60">Equipamentos</span>
+</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Setor A1</span>
+<span class="text-[10px] uppercase tracking-tighter opacity-50">Logística de Eventos</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-700">Avaria</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-on-tertiary-fixed-variant"></div>
+<span class="text-xs font-bold text-on-tertiary-fixed-variant uppercase">Em Uso</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+<button class="material-symbols-outlined text-primary hover:text-secondary p-1">visibility</button>
+<button class="material-symbols-outlined text-primary hover:text-secondary p-1">edit</button>
+<button class="material-symbols-outlined text-error p-1">delete</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<span class="font-mono text-sm font-medium text-secondary">#NT-1108-S</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded overflow-hidden bg-surface-container shadow-sm border border-outline-variant/10">
+<img alt="Ativo" data-alt="collection of training equipment and weights in a dark modern gym setting with focused lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_YcEMhDTqW8IndB0WQZNyCvTrgL7x_GWOOrSom7akxmuLcDcH4rhdnClocv6sVHp-mAncaVCm1K6hME-AcQBo3pkDyrI0vO6lqOEMJxT7q6Wwal6SJ-NMxlQ_5aKxfU8ElDSwrNHvkS0O64TfXfcLTu9yNSW5zIYO-94FCgz_U3A8MrCoYixXy3W8gUF_r7bz5zGQqJOb5xiBygKFgyy1YMeZsMbX0w8jrpiPqS9qB4Q4obW_2pzioQWMkFc2yMGHnp1wj5X9OAEA"/>
+</div>
+<div class="flex flex-col">
+<span class="font-bold text-sm text-[#1c1917]">Kit Halteres Pro</span>
+<div class="flex items-center gap-1">
+<span class="text-[10px] bg-secondary/10 text-secondary px-1.5 rounded font-black">X12</span>
+<span class="text-[10px] text-primary opacity-60">Treinamento</span>
+</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Setor D2</span>
+<span class="text-[10px] uppercase tracking-tighter opacity-50">Área de Descarte</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-100 text-red-700">Sucata</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-primary opacity-40"></div>
+<span class="text-xs font-bold text-primary opacity-40 uppercase">Descartado</span>
+</div>
+</td>
+<td class="px-6 py-4 text-right">
+<div class="flex items-center justify-end gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+<button class="material-symbols-outlined text-primary hover:text-secondary p-1">visibility</button>
+<button class="material-symbols-outlined text-primary hover:text-secondary p-1">edit</button>
+<button class="material-symbols-outlined text-error p-1">delete</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="px-6 py-4 flex items-center justify-between bg-surface-container-low/30">
+<span class="text-xs font-bold text-primary opacity-60 uppercase tracking-widest">Mostrando 1-10 de 4,282 ativos</span>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded bg-surface-container text-primary hover:bg-secondary hover:text-on-secondary transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-secondary text-on-secondary font-bold text-xs">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-surface-container text-primary hover:bg-secondary hover:text-on-secondary transition-colors font-bold text-xs">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-surface-container text-primary hover:bg-secondary hover:text-on-secondary transition-colors font-bold text-xs">3</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-surface-container text-primary hover:bg-secondary hover:text-on-secondary transition-colors">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Floating Action Button (As per contextual rules) -->
+<button class="fixed bottom-8 right-8 bg-secondary text-on-secondary w-14 h-14 rounded-xl shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40 group">
+<span class="material-symbols-outlined text-3xl group-hover:rotate-90 transition-transform">add</span>
+</button>
+</body></html>

@@ -74,37 +74,35 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
     <div
       onClick={onClick}
       style={{
-        background: active ? `linear-gradient(135deg, ${color}18 0%, ${color}06 100%)` : "#fff",
-        padding: 24, borderRadius: 20, position: "relative", overflow: "hidden",
-        border: `1px solid ${on ? color + "50" : "#e2e8f0"}`,
-        boxShadow: on ? `0 8px 24px ${color}18` : "0 1px 3px rgba(0,0,0,0.04)",
-        transition: "border-color 0.2s, box-shadow 0.2s, background 0.2s",
+        background: "#fff",
+        padding: "20px 22px 18px",
+        borderRadius: 14,
+        border: "1px solid #e2e8f0",
+        borderBottom: `4px solid ${color}`,
+        boxShadow: on ? `0 6px 20px ${color}1a` : "0 1px 3px rgba(0,0,0,0.04)",
+        transition: "box-shadow 0.2s, transform 0.15s",
         cursor: onClick ? "pointer" : "default",
-        display: "flex", flexDirection: "column", gap: 6,
-        outline: active ? `2px solid ${color}40` : "none", outlineOffset: 2,
+        display: "flex", flexDirection: "column", gap: 8,
+        transform: on ? "translateY(-1px)" : "none",
       }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
     >
-      {/* Top row: icon left, label right */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <Icon size={22} color={on ? color : color + "bb"} style={{ transition: "color 0.2s" }} />
-        <span style={{ fontSize: 10, fontWeight: 700, color: on ? color : "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", transition: "color 0.2s", textAlign: "right" }}>
-          {label}
-        </span>
+      {/* Label */}
+      <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+        {label}
+      </span>
+      {/* Value + faded icon */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <p style={{ margin: 0, fontSize: 32, fontWeight: 900, color: on ? color : "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.04em", lineHeight: 1, transition: "color 0.2s" }}>
+          {value.toLocaleString("pt-BR")}
+        </p>
+        <Icon size={32} color={color} style={{ opacity: 0.15 }} />
       </div>
-      {/* Value */}
-      <p style={{ margin: 0, fontSize: 30, fontWeight: 800, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.02em", lineHeight: 1 }}>
-        {value.toLocaleString("pt-BR")}
-      </p>
       {/* Subtext */}
       <p style={{ margin: 0, fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em", color: subColor ?? "#94a3b8" }}>
         {subtext}
       </p>
-      {/* Watermark icon bottom-right */}
-      <div style={{ position: "absolute", right: -8, bottom: -8, opacity: 0.05, transform: "scale(2)", pointerEvents: "none" }}>
-        <Icon size={64} color={color} />
-      </div>
     </div>
   );
 }
@@ -1178,11 +1176,18 @@ export default function Estoque() {
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
               <thead>
-                <tr>
-                  {["Identificador","Equipamento / Ativo","Status","Condição","Patrocinadores","Ações"].map((h, i) => (
-                    <th key={h} style={{ ...TH, textAlign: i === 5 ? "right" : "left" }}>{h}</th>
+                <tr style={{ background: "#f8fafc" }}>
+                  {[
+                    { label: "Identificador", align: "left" },
+                    { label: "Ativo", align: "left" },
+                    { label: "Localização", align: "left" },
+                    { label: "Condição", align: "left" },
+                    { label: "Status", align: "left" },
+                    { label: "Ações", align: "right" },
+                  ].map(({ label, align }) => (
+                    <th key={label} style={{ ...TH, textAlign: align as any }}>{label}</th>
                   ))}
                 </tr>
               </thead>
@@ -1190,55 +1195,99 @@ export default function Estoque() {
                 {filtered.map(asset => {
                   const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
                   const cm = CONDITION_META[asset.condition ?? "PERFEITO"];
+                  const thumbOk = asset.approvalThumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl);
+                  const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean);
                   return (
                     <tr key={asset.id} data-testid={`row-asset-${asset.id}`}
                       className="group"
                       onClick={() => setViewingAsset(asset)}
-                      onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(248,250,252,0.6)"}
+                      onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"}
                       onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ""}
-                      style={{ transition: "background 0.1s", cursor: "pointer" }}
+                      style={{ transition: "background 0.12s", cursor: "pointer", borderBottom: "1px solid rgba(226,232,240,0.6)" }}
                     >
-                      {/* ID pill */}
-                      <td style={TD}>
-                        <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 700, color: "#64748b", background: "rgba(241,245,249,0.7)", padding: "3px 8px", borderRadius: 6, display: "inline-block" }}>
+                      {/* ID */}
+                      <td style={{ ...TD, paddingLeft: 24 }}>
+                        <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#c2610c" }}>
                           {asset.displayId}
                         </span>
                       </td>
 
-                      {/* Name + qtd + evento */}
-                      <td style={TD}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                            {asset.name}
-                          </p>
-                          <span style={{
-                            display: "inline-flex", alignItems: "center", justifyContent: "center",
-                            minWidth: 24, height: 18, borderRadius: 5,
-                            background: (asset.quantity ?? 1) > 1 ? "#0f172a" : "#f1f5f9",
-                            color: (asset.quantity ?? 1) > 1 ? "#fff" : "#94a3b8",
-                            fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 5px",
-                          }}>×{asset.quantity ?? 1}</span>
+                      {/* Ativo: thumb + name + qty + sponsors */}
+                      <td style={{ ...TD, maxWidth: 260 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                          {/* Thumbnail */}
+                          <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", background: "#f1f5f9", border: "1px solid #e2e8f0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {thumbOk
+                              ? <img src={asset.approvalThumbUrl!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              : <Package size={16} color="#cbd5e1" />
+                            }
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 }}>
+                                {asset.name}
+                              </span>
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                padding: "1px 6px", borderRadius: 4,
+                                background: (asset.quantity ?? 1) > 1 ? "#c2610c" : "#f1f5f9",
+                                color: (asset.quantity ?? 1) > 1 ? "#fff" : "#94a3b8",
+                                fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", flexShrink: 0,
+                              }}>×{asset.quantity ?? 1}</span>
+                            </div>
+                            {assetEventMap[asset.id] && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 3 }}>
+                                <CalendarDays size={9} color="#64748b" />
+                                <span style={{ fontSize: 10, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 150 }}>
+                                  {assetEventMap[asset.id].name}
+                                </span>
+                              </div>
+                            )}
+                            {assetSponsors.length > 0 && (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                                {assetSponsors.slice(0, 2).map(sp => (
+                                  <span key={sp!.id} style={{
+                                    padding: "1px 5px", borderRadius: 4,
+                                    background: "rgba(194,97,12,0.08)", color: "#c2610c",
+                                    fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+                                    letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap",
+                                  }}>{sp!.name}</span>
+                                ))}
+                                {assetSponsors.length > 2 && (
+                                  <span style={{ fontSize: 9, color: "#94a3b8", fontFamily: "DM Mono, monospace", alignSelf: "center" }}>+{assetSponsors.length - 2}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {assetEventMap[asset.id] && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-                            <CalendarDays size={10} color="#2563eb" />
-                            <span style={{ fontSize: 10, color: "#2563eb", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600 }}>
-                              {assetEventMap[asset.id].name}
+                      </td>
+
+                      {/* Localização */}
+                      <td style={TD}>
+                        {asset.location ? (
+                          <div>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", display: "block" }}>
+                              {asset.location}
+                            </span>
+                            <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              {asset.autoAdded ? "Gráfica" : "Manual"}
                             </span>
                           </div>
+                        ) : (
+                          <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>
                         )}
                       </td>
 
-                      {/* Status */}
-                      <td style={TD}>
-                        <StatusBadge color={sm.color} bg={sm.bg} label={sm.label} />
-                      </td>
-
-                      {/* Condition — clicável para edição rápida */}
+                      {/* Condição — clicável para edição rápida */}
                       <td style={{ ...TD, position: "relative" }}>
                         <button data-testid={`button-quick-condition-${asset.id}`}
                           onClick={e => { e.stopPropagation(); setQuickEdit(quickEdit?.assetId === asset.id && quickEdit.field === "condition" ? null : { assetId: asset.id, field: "condition" }); }}
-                          style={{ padding: "3px 8px", borderRadius: 5, border: "none", background: cm.bg, color: cm.color, fontSize: 10, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                          style={{
+                            padding: "3px 10px", borderRadius: 9999, border: "none",
+                            background: cm.bg, color: cm.color,
+                            fontSize: 10, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif",
+                            cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap",
+                          }}>
                           {cm.label}
                         </button>
                         {quickEdit?.assetId === asset.id && quickEdit.field === "condition" && (
@@ -1257,32 +1306,22 @@ export default function Estoque() {
                         )}
                       </td>
 
-                      {/* Patrocinadores */}
-                      <td style={{ ...TD, maxWidth: 180 }}>
-                        {(() => {
-                          const matched = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean);
-                          return matched.length > 0 ? (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                              {matched.map(sp => (
-                                <span key={sp!.id} style={{
-                                  display: "inline-flex", alignItems: "center", gap: 3,
-                                  padding: "2px 7px", borderRadius: 5,
-                                  background: "#f1f5f9", border: "1px solid #e2e8f0",
-                                  fontSize: 9, fontWeight: 700, color: "#475569",
-                                  fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
-                                  textTransform: "uppercase", whiteSpace: "nowrap",
-                                }}>
-                                  <Tag size={8} />{sp!.name}
-                                </span>
-                              ))}
-                            </div>
-                          ) : <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>;
-                        })()}
+                      {/* Status — dot + label */}
+                      <td style={TD}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: "50%", background: sm.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: sm.color, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+                            {sm.label}
+                          </span>
+                        </div>
                       </td>
 
                       {/* Actions */}
-                      <td style={{ ...TD, textAlign: "right" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+                      <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, opacity: 0.35, transition: "opacity 0.15s" }}
+                          onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.opacity = "1"}
+                          onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.opacity = "0.35"}
+                        >
 
                           {/* View detail */}
                           <button data-testid={`button-view-asset-${asset.id}`}

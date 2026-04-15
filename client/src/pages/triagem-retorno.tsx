@@ -631,7 +631,7 @@ export default function TriagemRetorno() {
                   const baseRowBg = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
                   return (
                     <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
-                      onClick={() => !isSaved && setFocusedId(asset.id)}
+                      onClick={() => { if (!isSaved) { setFocusedId(asset.id); setSelectedAsset(asset); } }}
                       style={{
                         opacity: isSaved ? 0.45 : 1,
                         filter: isSaved ? "grayscale(1)" : "none",

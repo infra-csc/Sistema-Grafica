@@ -111,19 +111,16 @@ export function TriagemModal({
           <div style={{ padding: "24px 24px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 900,
-              fontSize: 18, color: "#f97316", letterSpacing: "-0.04em", lineHeight: 1.1,
+              fontSize: 22, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1,
             }}>
-              NORTE<br/>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.02em", color: "#f97316", opacity: 0.75 }}>
-                Marketing Esportivo
-              </span>
+              NORTE
             </div>
             <div style={{
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-              fontSize: 9, color: "#6b7280", textTransform: "uppercase",
-              letterSpacing: "0.18em", marginTop: 4,
+              fontSize: 9, color: "#f97316", textTransform: "uppercase",
+              letterSpacing: "0.2em", marginTop: 3,
             }}>
-              Triagem de Retorno
+              LOGISTICS APEX
             </div>
           </div>
 

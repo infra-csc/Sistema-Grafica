@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#1a1c1c",
+                        "inverse-on-surface": "#f1f1f0",
+                        "on-surface": "#1a1c1c",
+                        "on-secondary": "#ffffff",
+                        "tertiary-fixed": "#cde5ff",
+                        "on-primary-container": "#35322f",
+                        "surface-container": "#eeeeed",
+                        "surface-container-high": "#e8e8e7",
+                        "on-secondary-container": "#5c2400",
+                        "secondary-container": "#fd761a",
+                        "primary-container": "#9f9996",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#93ccff",
+                        "outline-variant": "#e0c0b1",
+                        "surface": "#f9f9f8",
+                        "on-primary-fixed-variant": "#4a4643",
+                        "surface-variant": "#e2e2e2",
+                        "surface-container-low": "#f3f4f3",
+                        "surface-bright": "#f9f9f8",
+                        "primary-fixed-dim": "#ccc5c2",
+                        "on-secondary-fixed-variant": "#783200",
+                        "on-error": "#ffffff",
+                        "surface-tint": "#625d5b",
+                        "secondary-fixed": "#ffdbca",
+                        "tertiary": "#006398",
+                        "on-tertiary-fixed-variant": "#004b74",
+                        "on-surface-variant": "#584237",
+                        "surface-dim": "#dadad9",
+                        "inverse-surface": "#2f3130",
+                        "on-primary-fixed": "#1e1b19",
+                        "tertiary-container": "#00a2f4",
+                        "primary-fixed": "#e9e1dd",
+                        "error": "#ba1a1a",
+                        "outline": "#8c7164",
+                        "on-tertiary-container": "#003554",
+                        "inverse-primary": "#ccc5c2",
+                        "background": "#f9f9f8",
+                        "on-tertiary-fixed": "#001d32",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-primary": "#ffffff",
+                        "secondary": "#9d4300",
+                        "on-error-container": "#93000a",
+                        "on-tertiary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#ffb690",
+                        "primary": "#625d5b",
+                        "on-secondary-fixed": "#341100"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Plus Jakarta Sans"],
+                        "label": ["Plus Jakarta Sans"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .negative-kerning {
+            letter-spacing: -0.02em;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #625d5b33;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-[#1c1917] font-body text-on-surface overflow-hidden h-screen flex items-center justify-center p-4 md:p-8">
+<!-- Modal Container -->
+<div class="bg-surface flex w-full max-w-7xl h-full rounded-xl overflow-hidden shadow-2xl relative">
+<!-- Sidebar (Dark Column) -->
+<aside class="w-80 bg-[#1c1917] text-white flex flex-col p-8 flex-shrink-0">
+<!-- Brand -->
+<div class="mb-12">
+<h1 class="font-headline font-black text-3xl tracking-[-0.05em] text-[#f9f9f8]">NORTE</h1>
+<p class="text-[0.65rem] tracking-[0.2em] text-secondary font-bold mt-1">LOGISTICS APEX</p>
+</div>
+<!-- Rastreabilidade -->
+<div class="flex-grow">
+<h3 class="font-headline text-xs font-bold text-secondary uppercase tracking-widest mb-6">Rastreabilidade</h3>
+<div class="space-y-8 relative">
+<!-- Vertical Line -->
+<div class="absolute left-3 top-2 bottom-2 w-[1px] bg-white/10"></div>
+<div class="flex items-start gap-4 relative">
+<div class="w-6 h-6 rounded-full bg-secondary flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div>
+<p class="text-sm font-bold text-[#f9f9f8]">Saída do Estoque</p>
+<p class="text-[10px] text-white/40 uppercase">12 Out 2023 • 08:45</p>
+</div>
+</div>
+<div class="flex items-start gap-4 relative">
+<div class="w-6 h-6 rounded-full bg-secondary flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div>
+<p class="text-sm font-bold text-[#f9f9f8]">Chegada no Evento</p>
+<p class="text-[10px] text-white/40 uppercase">14 Out 2023 • 14:20</p>
+</div>
+</div>
+<div class="flex items-start gap-4 relative">
+<div class="w-6 h-6 rounded-full border border-white/20 bg-[#1c1917] flex items-center justify-center z-10">
+<div class="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></div>
+</div>
+<div>
+<p class="text-sm font-bold text-orange-400">Aguardando Triagem</p>
+<p class="text-[10px] text-white/40 uppercase">Status Atual</p>
+</div>
+</div>
+</div>
+<!-- Patrocinadores -->
+<div class="mt-12">
+<h3 class="font-headline text-xs font-bold text-white/40 uppercase tracking-widest mb-4">Patrocinadores</h3>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold tracking-tight">APEX SPORT</span>
+<span class="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold tracking-tight">VELOCITY</span>
+<span class="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold tracking-tight">KINETIC</span>
+</div>
+</div>
+</div>
+<!-- Sidebar Footer Card -->
+<div class="bg-white/5 p-5 rounded-lg border border-white/10">
+<p class="text-[10px] font-bold text-white/40 uppercase mb-2 tracking-widest">Localização Técnica</p>
+<p class="font-headline text-lg font-bold text-[#f9f9f8] negative-kerning">SETOR-B / G-42</p>
+<div class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+<span class="text-[10px] text-white/60">ÚLTIMA REVISÃO</span>
+<span class="text-[10px] font-bold">SET 2023</span>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-grow flex flex-col overflow-hidden">
+<!-- Header (Dark Header Style) -->
+<header class="bg-on-background p-8 flex justify-between items-end">
+<div>
+<div class="flex items-center gap-3 mb-2">
+<span class="text-[10px] font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded">ID: INV-9902</span>
+<span class="text-[10px] font-bold bg-white/10 text-white/80 px-2 py-0.5 rounded uppercase tracking-wider">High-Performance Gear</span>
+</div>
+<h2 class="font-headline text-4xl font-black text-white negative-kerning uppercase">TITANIUM TRAINING RACK PRO</h2>
+</div>
+<div class="text-right">
+<span class="inline-flex items-center gap-2 bg-[#f97316] text-white font-bold px-4 py-2 rounded-md text-xs tracking-tighter">
+<span class="material-symbols-outlined text-sm">warehouse</span>
+                        NO GALPÃO
+                    </span>
+</div>
+</header>
+<!-- Scrollable Content -->
+<div class="flex-grow overflow-y-auto p-8 custom-scrollbar space-y-8 bg-surface">
+<!-- Classification Section -->
+<section class="bg-white p-8 rounded-xl shadow-sm border border-outline-variant/15">
+<div class="flex items-center gap-3 mb-8">
+<div class="w-1.5 h-6 bg-secondary"></div>
+<h3 class="font-headline text-xl font-bold uppercase tracking-tight">CLASSIFICAÇÃO OBRIGATÓRIA</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+<!-- Left Controls -->
+<div class="space-y-8">
+<!-- Condição do Item -->
+<div>
+<label class="block text-[10px] font-bold text-primary mb-3 uppercase tracking-widest">CONDIÇÃO DO ITEM</label>
+<div class="flex gap-2">
+<button class="flex-1 py-3 px-4 rounded border-2 border-secondary bg-orange-50 text-secondary font-bold text-xs transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                        Perfeito
+                                    </button>
+<button class="flex-1 py-3 px-4 rounded border-2 border-outline-variant/30 text-primary font-bold text-xs hover:border-secondary/50 transition-all">
+                                        Avaria Leve
+                                    </button>
+<button class="flex-1 py-3 px-4 rounded border-2 border-outline-variant/30 text-primary font-bold text-xs hover:border-secondary/50 transition-all">
+                                        Sucata
+                                    </button>
+</div>
+</div>
+<!-- Destino do Fluxo -->
+<div>
+<label class="block text-[10px] font-bold text-primary mb-3 uppercase tracking-widest">DESTINO DO FLUXO</label>
+<div class="flex gap-2">
+<button class="flex-1 py-3 px-4 rounded border-2 border-secondary bg-orange-50 text-secondary font-bold text-xs transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">home_storage</span>
+                                        Galpão Central
+                                    </button>
+<button class="flex-1 py-3 px-4 rounded border-2 border-outline-variant/30 text-primary font-bold text-xs hover:border-secondary/50 transition-all">
+                                        Descartar
+                                    </button>
+</div>
+</div>
+</div>
+<!-- Right Controls -->
+<div class="flex flex-col">
+<label class="block text-[10px] font-bold text-primary mb-3 uppercase tracking-widest">OBSERVAÇÃO DA TRIAGEM</label>
+<textarea class="flex-grow w-full bg-surface-container-low border-none rounded-lg p-4 text-sm focus:ring-2 focus:ring-secondary/20 resize-none min-h-[140px]" placeholder="Descreva qualquer detalhe técnico ou avaria encontrada..."></textarea>
+<button class="mt-6 w-full bg-secondary hover:bg-secondary/90 text-white font-headline font-bold py-4 rounded transition-all shadow-lg shadow-secondary/20 flex items-center justify-center gap-3">
+<span>SALVAR E FECHAR</span>
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Info Cards Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Informações do Evento -->
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
+<div class="flex items-center justify-between mb-6">
+<h4 class="font-headline text-sm font-bold uppercase tracking-widest text-primary">Informações do Evento</h4>
+<span class="material-symbols-outlined text-primary/40">event</span>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-end border-b border-outline-variant/10 pb-2">
+<span class="text-[10px] text-primary/60 font-medium uppercase">NOME DO EVENTO</span>
+<span class="text-sm font-bold">IRON TRIATHLON 2023</span>
+</div>
+<div class="flex justify-between items-end border-b border-outline-variant/10 pb-2">
+<span class="text-[10px] text-primary/60 font-medium uppercase">LOCALIZAÇÃO</span>
+<span class="text-sm font-bold">SÃO PAULO - SP</span>
+</div>
+<div class="flex justify-between items-end">
+<span class="text-[10px] text-primary/60 font-medium uppercase">RESPONSÁVEL</span>
+<span class="text-sm font-bold">MARCOS ANDRADE</span>
+</div>
+</div>
+</div>
+<!-- Especificações Técnicas -->
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
+<div class="flex items-center justify-between mb-6">
+<h4 class="font-headline text-sm font-bold uppercase tracking-widest text-primary">Especificações Técnicas</h4>
+<span class="material-symbols-outlined text-primary/40">settings_input_component</span>
+</div>
+<div class="space-y-4">
+<div class="flex justify-between items-end border-b border-outline-variant/10 pb-2">
+<span class="text-[10px] text-primary/60 font-medium uppercase">MATERIAL</span>
+<span class="text-sm font-bold">CARBON STEEL / TITANIUM</span>
+</div>
+<div class="flex justify-between items-end border-b border-outline-variant/10 pb-2">
+<span class="text-[10px] text-primary/60 font-medium uppercase">PESO TOTAL</span>
+<span class="text-sm font-bold">142.5 KG</span>
+</div>
+<div class="flex justify-between items-end">
+<span class="text-[10px] text-primary/60 font-medium uppercase">DIMENSÕES</span>
+<span class="text-sm font-bold">2.4m x 1.2m x 1.2m</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Technical Imagery / Context -->
+<section class="rounded-xl overflow-hidden h-48 relative">
+<img alt="Detailed view of high-performance gym equipment assembly" class="w-full h-full object-cover grayscale opacity-80" data-alt="Close-up of industrial fitness equipment joints and steel structure with dramatic lighting in a dark warehouse setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDuD2WfIecNA-AjX4iWeoogQe2QyXFx_AVhPR-Xfiq1wtVVqz572ZMzI7jLRNOuxWNuY8bI_ukesE4wgjleKQlXz0A2ltAg8WNpL3wQvgSk2LRpfaEMjTDihKXHoGgIBDXGmzrG98195bjbsIErTj6XMJAs98N32QNgVGr8QG_tdbUZwFWiWu4FeYDfFfJesoTbIRWQhz5xUh2Md1uxd_VR1fDkDINczWqZEgpkOC5kpRHN_1aXMZkvy8m36wpAxpAcKP-8Z6xuAvWL"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
+<div class="flex gap-6">
+<div>
+<p class="text-[10px] font-bold text-white/60 uppercase">Nº SÉRIE</p>
+<p class="text-white font-headline font-bold">SN-PX-2023-001</p>
+</div>
+<div>
+<p class="text-[10px] font-bold text-white/60 uppercase">ORIGEM</p>
+<p class="text-white font-headline font-bold">FAB-GERMANY</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Close Button Floating -->
+<button class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-white/20 transition-all">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</body></html>

@@ -6,7 +6,7 @@ import type { InventoryAsset, Sponsor } from "@shared/schema";
 import {
   ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save,
   CalendarDays, Tag, X, Scissors, Sparkles, Hammer, Trash2, Eye, Wrench,
-  MapPin, ClipboardCheck, Users,
+  MapPin, ClipboardCheck, Users, Search,
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
 import { useAuth } from "@/contexts/auth-context";
@@ -262,6 +262,8 @@ export default function TriagemRetorno() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [filterEvent, setFilterEvent] = useState("all");
   const [filterSponsor, setFilterSponsor] = useState("all");
+  const [filterLocation, setFilterLocation] = useState("all");
+  const [search, setSearch] = useState("");
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EnrichedAsset | null>(null);
 
@@ -280,6 +282,12 @@ export default function TriagemRetorno() {
   const sponsorOptions = useMemo(() =>
     [...allSponsors].sort((a, b) => a.name.localeCompare(b.name)),
   [allSponsors]);
+
+  const locationOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const a of awaitingAssets) { if (a.location) seen.add(a.location); }
+    return Array.from(seen).sort();
+  }, [awaitingAssets]);
 
   const getEntry = (id: string, totalQty?: number): TriagemEntry =>
     entries[id] ?? makeEntry(totalQty ?? 1);
@@ -420,12 +428,17 @@ export default function TriagemRetorno() {
   }, [entries, savedIds, awaitingAssets]);
 
   // ── pendingAssets ──────────────────────────────────────────────────────────────
-  const pendingAssets = useMemo(() => awaitingAssets.filter(a => {
-    if (savedIds.has(a.id)) return false;
-    const me = filterEvent === "all" || a.eventName === filterEvent;
-    const msp = filterSponsor === "all" || (a.sponsors ?? []).some(s => s.id === filterSponsor);
-    return me && msp;
-  }), [awaitingAssets, savedIds, filterEvent, filterSponsor]);
+  const pendingAssets = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return awaitingAssets.filter(a => {
+      if (savedIds.has(a.id)) return false;
+      const me = filterEvent === "all" || a.eventName === filterEvent;
+      const msp = filterSponsor === "all" || (a.sponsors ?? []).some(s => s.id === filterSponsor);
+      const mloc = filterLocation === "all" || a.location === filterLocation;
+      const msearch = !q || (a.name ?? "").toLowerCase().includes(q) || (a.displayId ?? "").toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q);
+      return me && msp && mloc && msearch;
+    });
+  }, [awaitingAssets, savedIds, filterEvent, filterSponsor, filterLocation, search]);
 
   const selectedIds = Object.entries(entries).filter(([, e]) => e.selected).map(([id]) => id);
 
@@ -453,7 +466,7 @@ export default function TriagemRetorno() {
     setEntries(prev => ({ ...prev, ...update }));
   };
 
-  const hasFilters = filterEvent !== "all" || filterSponsor !== "all";
+  const hasFilters = filterEvent !== "all" || filterSponsor !== "all" || filterLocation !== "all" || !!search;
 
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
@@ -539,18 +552,16 @@ export default function TriagemRetorno() {
             display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap",
           }}>
             {/* Evento */}
-            {eventOptions.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", flex: "1 1 180px" }}>
-                <label style={FL}>Evento</label>
-                <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={SEL(filterEvent !== "all")}>
-                  <option value="all">Todos os eventos</option>
-                  {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
-                </select>
-              </div>
-            )}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
+              <label style={FL}>Evento</label>
+              <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={SEL(filterEvent !== "all")}>
+                <option value="all">Todos os eventos</option>
+                {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+              </select>
+            </div>
 
             {/* Patrocinador */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 200px" }}>
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 180px" }}>
               <label style={FL}>Patrocinador</label>
               <select data-testid="select-triage-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)} style={SEL(filterSponsor !== "all")}>
                 <option value="all">Todos os patrocinadores</option>
@@ -558,11 +569,45 @@ export default function TriagemRetorno() {
               </select>
             </div>
 
+            {/* Local */}
+            {locationOptions.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", flex: "1 1 130px" }}>
+                <label style={FL}>Local</label>
+                <select data-testid="select-triage-filter-location" value={filterLocation} onChange={e => setFilterLocation(e.target.value)} style={SEL(filterLocation !== "all")}>
+                  <option value="all">Todos os locais</option>
+                  {locationOptions.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+                </select>
+              </div>
+            )}
+
+            {/* Buscar */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 150px" }}>
+              <label style={FL}>Buscar</label>
+              <div style={{ position: "relative" }}>
+                <Search size={14} color="#94a3b8" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <input
+                  data-testid="input-triage-search"
+                  style={{
+                    width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
+                    border: `1.5px solid ${search ? "#c2610c" : "#e2e8f0"}`, borderRadius: 8,
+                    fontSize: 13, fontWeight: 400, fontFamily: "Plus Jakarta Sans, sans-serif",
+                    background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box",
+                    transition: "border-color 0.15s",
+                  }}
+                  onFocus={e => (e.target.style.borderColor = "#c2610c")}
+                  onBlur={e => (e.target.style.borderColor = search ? "#c2610c" : "#e2e8f0")}
+                  placeholder="Nome ou ID..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
             {/* Limpar + contador */}
             <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginLeft: "auto" }}>
               {hasFilters && (
                 <button data-testid="button-triage-clear-filters"
-                  onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
+                  onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); setFilterLocation("all"); setSearch(""); }}
                   style={{
                     height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
                     borderRadius: 8, border: "1.5px solid #fecaca", background: "#fef2f2",

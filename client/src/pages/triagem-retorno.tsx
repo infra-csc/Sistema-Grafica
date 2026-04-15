@@ -723,7 +723,7 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* ── Condição · Destino (coluna unificada com labels internos) ── */}
-                      <td style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 300 }}>
+                      <td onClick={e => e.stopPropagation()} style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 300 }}>
                         {isSaved ? (
                           /* salvo: mostra toggles desabilitados */
                           <LabeledTriageToggles

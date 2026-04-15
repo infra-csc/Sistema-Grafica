@@ -605,18 +605,22 @@ export default function TriagemRetorno() {
 
             {/* Limpar + contador */}
             <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginLeft: "auto" }}>
-              {hasFilters && (
-                <button data-testid="button-triage-clear-filters"
-                  onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); setFilterLocation("all"); setSearch(""); }}
-                  style={{
-                    height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
-                    borderRadius: 8, border: "1.5px solid #fecaca", background: "#fef2f2",
-                    color: "#ef4444", fontSize: 12, cursor: "pointer",
-                    fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                  }}>
-                  <X size={12} /> Limpar
-                </button>
-              )}
+              <button
+                data-testid="button-triage-clear-filters"
+                disabled={!hasFilters}
+                onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); setFilterLocation("all"); setSearch(""); }}
+                style={{
+                  height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
+                  borderRadius: 8,
+                  border: `1.5px solid ${hasFilters ? "#fecaca" : "#e2e8f0"}`,
+                  background: hasFilters ? "#fef2f2" : "#f8fafc",
+                  color: hasFilters ? "#ef4444" : "#cbd5e1",
+                  fontSize: 12, cursor: hasFilters ? "pointer" : "not-allowed",
+                  fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+                  transition: "all 0.15s",
+                }}>
+                <X size={12} /> Limpar filtros
+              </button>
               <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: "DM Mono, monospace", fontWeight: 600, whiteSpace: "nowrap", paddingBottom: 12 }}>
                 {pendingAssets.length} pend. · {savedIds.size} triados
               </span>

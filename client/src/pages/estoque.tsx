@@ -1156,21 +1156,25 @@ export default function Estoque() {
             </div>
 
             {/* Limpar */}
-            {hasFilters && (
-              <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto" }}>
-                <label style={{ ...FL, visibility: "hidden" }}>·</label>
-                <button data-testid="button-clear-filters"
-                  onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); setFilterEvent("all"); setFilterSponsor("all"); }}
-                  style={{
-                    height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
-                    borderRadius: 8, border: "1.5px solid #fecaca", background: "#fef2f2",
-                    color: "#ef4444", fontSize: 12, cursor: "pointer",
-                    fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                  }}>
-                  <X size={12} /> Limpar
-                </button>
-              </div>
-            )}
+            <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto" }}>
+              <label style={{ ...FL, visibility: "hidden" }}>·</label>
+              <button
+                data-testid="button-clear-filters"
+                disabled={!hasFilters}
+                onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); setFilterEvent("all"); setFilterSponsor("all"); }}
+                style={{
+                  height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
+                  borderRadius: 8,
+                  border: `1.5px solid ${hasFilters ? "#fecaca" : "#e2e8f0"}`,
+                  background: hasFilters ? "#fef2f2" : "#f8fafc",
+                  color: hasFilters ? "#ef4444" : "#cbd5e1",
+                  fontSize: 12, cursor: hasFilters ? "pointer" : "not-allowed",
+                  fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+                  transition: "all 0.15s",
+                }}>
+                <X size={12} /> Limpar filtros
+              </button>
+            </div>
           </div>
         );
       })()}

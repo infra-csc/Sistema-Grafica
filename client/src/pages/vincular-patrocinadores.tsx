@@ -609,7 +609,7 @@ export default function VincularPatrocinadores() {
     },
     onMutate: (itemIds: string[]) => {
       // Atualização otimista: marca visualmente como ENVIADO antes da resposta do servidor
-      setOptimisticSentIds(prev => new Set([...prev, ...itemIds]));
+      setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
     },
     onSuccess: (data) => {
       // Invalida em background — não bloqueia
@@ -1089,7 +1089,7 @@ export default function VincularPatrocinadores() {
         }
       }
       const itemIds = items.map(i => i.id);
-      setOptimisticSentIds(prev => new Set([...prev, ...itemIds]));
+      setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
       sendToArteMutation.mutate(itemIds);
     } catch (err: any) {
       toast({

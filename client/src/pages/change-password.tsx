@@ -35,7 +35,7 @@ export default function ChangePassword() {
   const { toast } = useToast();
 
   // Get current user to check if first login
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<{ mustChangePassword: boolean }>({
     queryKey: ["/api/auth/me"],
   });
 

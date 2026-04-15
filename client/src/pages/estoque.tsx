@@ -1011,28 +1011,28 @@ export default function Estoque() {
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 18, background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 16px 40px rgba(249,115,22,0.28)" }}>
-            <Archive size={24} color="#fff" />
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: "#c2610c", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 32px rgba(194,97,12,0.30)" }}>
+            <Archive size={22} color="#fff" strokeWidth={2.2} />
           </div>
           <div>
-            <h1 style={{ margin: "0 0 4px", fontSize: 30, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1 }}>
+            <h1 style={{ margin: "0 0 3px", fontSize: 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1 }}>
               Estoque
             </h1>
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em" }}>
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
               Gestão de ativos físicos de produção gráfica
             </p>
           </div>
         </div>
         <button data-testid="button-new-asset" onClick={() => setEditing(null)} style={{
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "14px 28px", borderRadius: 16, border: "none",
-          background: "#f97316", color: "#fff", fontSize: 13, cursor: "pointer",
-          fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, letterSpacing: "0.08em",
-          boxShadow: "0 8px 24px rgba(249,115,22,0.35)",
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "12px 24px", borderRadius: 12, border: "none",
+          background: "#c2610c", color: "#fff", fontSize: 13, cursor: "pointer",
+          fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, letterSpacing: "0.06em",
+          boxShadow: "0 8px 24px rgba(194,97,12,0.38)",
         }}>
-          <Plus size={16} />
-          + NOVO ATIVO
+          <span style={{ fontSize: 15, fontWeight: 900, letterSpacing: "-0.03em" }}>++</span>
+          NOVO ATIVO
         </button>
       </div>
 

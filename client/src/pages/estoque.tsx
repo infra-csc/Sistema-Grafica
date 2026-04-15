@@ -1031,7 +1031,7 @@ export default function Estoque() {
           fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, letterSpacing: "0.06em",
           boxShadow: "0 8px 24px rgba(194,97,12,0.38)",
         }}>
-          <span style={{ fontSize: 15, fontWeight: 900, letterSpacing: "-0.03em" }}>++</span>
+          <span style={{ fontSize: 15, fontWeight: 900 }}>+</span>
           NOVO ATIVO
         </button>
       </div>

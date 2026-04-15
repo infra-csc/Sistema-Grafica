@@ -142,48 +142,72 @@ export function TriagemModal({
                 width: 1, background: "rgba(255,255,255,0.08)",
               }} />
 
-              {/* Step 1 — Saída do Estoque */}
-              <div style={{ position: "relative", marginBottom: 24 }}>
+              {/* Step 1 — Produção / Origem */}
+              <div style={{ position: "relative", marginBottom: 28 }}>
                 <div style={{
-                  position: "absolute", left: -21, top: 0,
+                  position: "absolute", left: -21, top: 2,
                   width: 22, height: 22, borderRadius: "50%",
-                  background: "#1f2937", border: "1px solid #374151",
+                  background: "#f97316",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <Archive size={11} color="#9ca3af" />
+                  <Package2 size={11} color="#fff" />
                 </div>
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 13, color: "#e5e7eb" }}>
-                  Saída do Estoque
-                </div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#6b7280", marginTop: 2 }}>
-                  {asset.eventDate
-                    ? format(new Date(asset.eventDate), "dd MMM, HH:mm", { locale: ptBR })
-                    : "—"}
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
+                    {linkedItem?.type ? `Produção · ${linkedItem.type}` : "Produção Gráfica"}
+                  </div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Auto-cadastrado · {asset.autoAdded ? "Gráfica" : "Manual"}
+                  </div>
                 </div>
               </div>
 
-              {/* Step 2 — Em Uso no Evento */}
-              <div style={{ position: "relative", marginBottom: 24 }}>
+              {/* Step 2 — Saída do Estoque */}
+              <div style={{ position: "relative", marginBottom: 28 }}>
                 <div style={{
-                  position: "absolute", left: -21, top: 0,
+                  position: "absolute", left: -21, top: 2,
                   width: 22, height: 22, borderRadius: "50%",
-                  background: "#1f2937", border: "1px solid #374151",
+                  background: "#f97316",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <Truck size={11} color="#9ca3af" />
+                  <Archive size={11} color="#fff" />
                 </div>
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 13, color: "#e5e7eb" }}>
-                  {asset.eventName || "Em Uso no Evento"}
-                </div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#6b7280", marginTop: 2 }}>
-                  {asset.eventName ? (asset.eventDate ? format(new Date(asset.eventDate), "dd MMM yyyy", { locale: ptBR }) : "—") : "—"}
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
+                    Saída do Estoque
+                  </div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {asset.eventDate
+                      ? format(new Date(asset.eventDate), "dd MMM yyyy · HH:mm", { locale: ptBR })
+                      : "Data não registrada"}
+                  </div>
                 </div>
               </div>
 
-              {/* Step 3 — Aguardando Triagem (active) */}
-              <div style={{ position: "relative" }}>
+              {/* Step 3 — Em Uso no Evento */}
+              <div style={{ position: "relative", marginBottom: 28 }}>
                 <div style={{
-                  position: "absolute", left: -21, top: 0,
+                  position: "absolute", left: -21, top: 2,
+                  width: 22, height: 22, borderRadius: "50%",
+                  background: "#f97316",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Truck size={11} color="#fff" />
+                </div>
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
+                    {asset.eventName || "Em Uso no Evento"}
+                  </div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {asset.eventDate ? format(new Date(asset.eventDate), "dd MMM yyyy", { locale: ptBR }) : "—"} · Concluído
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 4 — Aguardando Triagem (active) */}
+              <div style={{ position: "relative", marginBottom: 28 }}>
+                <div style={{
+                  position: "absolute", left: -21, top: 2,
                   width: 22, height: 22, borderRadius: "50%",
                   background: "rgba(249,115,22,0.15)", border: "1.5px solid #f97316",
                   display: "flex", alignItems: "center", justifyContent: "center",
@@ -191,11 +215,33 @@ export function TriagemModal({
                 }}>
                   <ClipboardCheck size={11} color="#f97316" />
                 </div>
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 13, color: "#f97316" }}>
-                  Aguardando Triagem
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 12, color: "#f97316" }}>
+                    Aguardando Triagem
+                  </div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Agora · Em análise
+                  </div>
                 </div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#6b7280", marginTop: 2 }}>
-                  Agora • Em análise
+              </div>
+
+              {/* Step 5 — Destino Final (pending) */}
+              <div style={{ position: "relative" }}>
+                <div style={{
+                  position: "absolute", left: -21, top: 2,
+                  width: 22, height: 22, borderRadius: "50%",
+                  background: "#1f2937", border: "1px solid #374151",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Warehouse size={11} color="#6b7280" />
+                </div>
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#4b5563" }}>
+                    Destino Final
+                  </div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#4b5563", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Aguardando decisão
+                  </div>
                 </div>
               </div>
             </div>

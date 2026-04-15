@@ -306,49 +306,94 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
               Rastreabilidade
             </div>
             <div style={{ position: "relative", paddingLeft: 30 }}>
-              {/* vertical connector line — between step1 top and step4 bottom */}
-              <div style={{ position: "absolute", left: 9, top: 10, bottom: 10, width: 1, background: "rgba(255,255,255,0.08)" }} />
+              <div style={{ position: "absolute", left: 9, top: 12, bottom: 12, width: 1, background: "rgba(255,255,255,0.08)" }} />
 
-              {/* Step 1 — Entrada no Estoque */}
-              <div style={{ position: "relative", marginBottom: 20 }}>
+              {/* Step 1 — Produção & Cadastro */}
+              <div style={{ position: "relative", marginBottom: 28 }}>
+                {sidebarDot(true, false, <Package size={10} color="#9ca3af" />)}
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#f9f9f8" }}>
+                    {linkedItem?.type ? `Produção · ${linkedItem.type}` : "Produção Gráfica"}
+                  </div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Auto-cadastrado · {asset.autoAdded ? "Gráfica" : "Manual"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2 — Entrada no Estoque */}
+              <div style={{ position: "relative", marginBottom: 28 }}>
                 {sidebarDot(true, false, <Archive size={10} color="#9ca3af" />)}
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#f9f9f8", lineHeight: 1.3 }}>Entrada no Estoque</div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>Produzido · Auto-cadastrado</div>
-              </div>
-
-              {/* Step 2 — Em Uso no Evento */}
-              <div style={{ position: "relative", marginBottom: 20 }}>
-                {sidebarDot(step2Done && !step2Active, step2Active, <Truck size={10} color={step2Active ? "#f97316" : "#9ca3af"} />)}
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 12, color: step2Active ? "#f97316" : "#d1d5db", lineHeight: 1.3 }}>
-                  {eventName ?? "Em Uso no Evento"}
-                </div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : (step2Active ? "Em andamento" : "Concluído")}
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#f9f9f8" }}>Entrada no Estoque</div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "Cadastrado"}
+                  </div>
                 </div>
               </div>
 
-              {/* Step 3 — Triagem de Retorno */}
-              <div style={{ position: "relative", marginBottom: 20 }}>
+              {/* Dynamic allocation steps — one per event */}
+              {allocations.length > 0 ? allocations.map((alloc: any, i: number) => {
+                const isLast = i === allocations.length - 1;
+                const isCurrent = ts === "EM_USO" && isLast;
+                const isDone = !isCurrent;
+                const evDate = alloc.event?.startDate;
+                return (
+                  <div key={alloc.id} style={{ position: "relative", marginBottom: 28 }}>
+                    {sidebarDot(isDone, isCurrent, <Truck size={10} color={isCurrent ? "#f97316" : "#9ca3af"} />)}
+                    <div style={{ paddingTop: 3 }}>
+                      <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: isCurrent ? 700 : 600, fontSize: 12, color: isCurrent ? "#f97316" : "#d1d5db" }}>
+                        {alloc.event?.name ?? "Evento"}
+                      </div>
+                      <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        {evDate ? format(new Date(evDate), "dd MMM yyyy", { locale: ptBR }) : "—"} · {isCurrent ? "Em uso" : "Concluído"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }) : (
+                /* No allocations yet — show generic step */
+                eventName && (
+                  <div style={{ position: "relative", marginBottom: 28 }}>
+                    {sidebarDot(step2Done && !step2Active, step2Active, <Truck size={10} color={step2Active ? "#f97316" : "#9ca3af"} />)}
+                    <div style={{ paddingTop: 3 }}>
+                      <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 12, color: step2Active ? "#f97316" : "#d1d5db" }}>
+                        {eventName}
+                      </div>
+                      <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—"} · {step2Active ? "Em uso" : "Concluído"}
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Triagem de Retorno */}
+              <div style={{ position: "relative", marginBottom: 28 }}>
                 {sidebarDot(step3Done, step3Active, <ClipboardCheck size={10} color={step3Active ? "#f97316" : "#9ca3af"} />)}
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 12, color: step3Active ? "#f97316" : step3Done ? "#d1d5db" : "#6b7280", lineHeight: 1.3 }}>
-                  Triagem de Retorno
-                </div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  {step3Active ? "Em análise" : step3Done ? "Concluído" : "Pendente"}
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 12, color: step3Active ? "#f97316" : step3Done ? "#d1d5db" : "#6b7280" }}>
+                    Triagem de Retorno
+                  </div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {step3Active ? "Em análise" : step3Done ? "Concluído" : "Pendente"}
+                  </div>
                 </div>
               </div>
 
-              {/* Step 4 — Situação Atual */}
+              {/* Situação Atual */}
               <div style={{ position: "relative" }}>
                 {sidebarDot(false, step4Active, ts === "DESCARTADO"
-                  ? <Trash2 size={10} color="#ef4444" />
-                  : <Warehouse size={10} color={step4Active ? "#f97316" : "#9ca3af"} />
+                  ? <Trash2 size={10} color={step4Active ? "#ef4444" : "#6b7280"} />
+                  : <Warehouse size={10} color={step4Active ? "#f97316" : "#6b7280"} />
                 )}
-                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step4Active ? 700 : 600, fontSize: 12, color: step4Active ? "#f97316" : "#6b7280", lineHeight: 1.3 }}>
-                  {ts === "DESCARTADO" ? "Descartado" : ts === "NO_GALPAO" ? "No Galpão" : "Destino Final"}
-                </div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  {step4Active ? "Estado atual" : "Aguardando triagem"}
+                <div style={{ paddingTop: 3 }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step4Active ? 700 : 600, fontSize: 12, color: step4Active ? "#f97316" : "#6b7280" }}>
+                    {ts === "DESCARTADO" ? "Descartado" : ts === "NO_GALPAO" ? "No Galpão" : "Destino Final"}
+                  </div>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {step4Active ? "Estado atual" : "Aguardando triagem"}
+                  </div>
                 </div>
               </div>
             </div>

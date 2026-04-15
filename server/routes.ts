@@ -3161,15 +3161,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // ── Triage: at midnight of the event's startDate → AGUARDANDO_TRIAGEM ─
-        // "meia-noite quando virar o dia do evento" = 00:00:00 of startDate.
-        // Assets created by gráfica (entregue/produzido) are caught here,
-        // including those still in NO_GALPAO if EM_USO transition was missed.
+        // ── Triage: midnight of the day AFTER the event's startDate → AGUARDANDO_TRIAGEM ─
+        // Only assets currently EM_USO transition — assets not in use are never pulled into triage.
         if (event.startDate) {
-          const eventMidnight = new Date(event.startDate);
-          eventMidnight.setHours(0, 0, 0, 0);
+          const dayAfterEvent = new Date(event.startDate);
+          dayAfterEvent.setDate(dayAfterEvent.getDate() + 1);
+          dayAfterEvent.setHours(0, 0, 0, 0);
 
-          if (now >= eventMidnight) {
+          if (now >= dayAfterEvent) {
             const count = await storage.markAssetsAwaitingTriageForEvent(event.id);
             if (count > 0) {
               broadcast({

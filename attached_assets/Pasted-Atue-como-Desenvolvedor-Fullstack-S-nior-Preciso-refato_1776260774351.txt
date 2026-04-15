@@ -1,0 +1,42 @@
+Atue como Desenvolvedor Fullstack Sênior. Preciso refatorar a página de "Triagem de Retorno" (/triagem-retorno) do sistema NORTE, focando em produtividade extrema (teclado) e clareza visual (paleta Titanium).
+
+### 1. Configurações de Estado e Tipagem
+- Use `type Condition = "PERFEITO" | "AVARIA_LEVE" | "SUCATA"`
+- Use `type TriagemResult = "NO_GALPAO" | "MANUTENCAO" | "DESCARTADO"`
+- Implemente `smartUpdateSplit(id, splitIdx, condition)`:
+  - PERFEITO -> auto-seleciona NO_GALPAO
+  - AVARIA_LEVE -> auto-seleciona MANUTENCAO
+  - SUCATA -> auto-seleciona DESCARTADO
+- O usuário deve poder alterar o destino manualmente após o preenchimento automático.
+
+### 2. Navegação Pro por Teclado (Mouse-free)
+- Implemente atalhos globais (dentro de um useEffect):
+  - 'ArrowDown' ou 'j': Move o `focusedId` para o próximo item em `pendingAssets`.
+  - 'ArrowUp' ou 'k': Move o `focusedId` para o item anterior em `pendingAssets`.
+  - '1', '2', '3': Aplica a condição correspondente (Perfeito, Avaria, Sucata) ao split[0] da linha focada e dispara o smartUpdateSplit.
+  - 'Enter': Dispara o `handleSingle(focusedId)`. Se o save for bem-sucedido, move o foco automaticamente para o próximo item disponível.
+- Bloqueie os atalhos se o usuário estiver digitando em um input de texto ou textarea.
+
+### 3. Refinamento de UI da Tabela (Paleta Titanium)
+- **Linha Focada (`focusedId`):** Adicione `border-left: 3px solid #f97316` e `backgroundColor: #f3f4f3`.
+- **Linha Salva (`savedIds`):** Aplique `opacity: 0.45`, `filter: grayscale(1)`, e `pointer-events: none`. Ordene a tabela para que as linhas salvas desçam para o fim da lista.
+- **Coluna Evento:** - Linha 1: Ícone `<CalendarDays size={14} />` em container azul claro + nome do evento (bold, #0f172a).
+  - Linha 2: Data em fonte mono (DM Mono, 11px) com padding-left de 34px para alinhar sob o nome, não sob o ícone.
+- **Coluna Ação:** - Remova o clique da linha para abrir modal. 
+  - Adicione um botão de ícone `<Eye size={14}>` (ghost) que é o único gatilho para `setSelectedAsset(asset)` (Modal).
+  - Adicione um botão "Salvar" (Laranja #f97316) visível apenas na linha pendente.
+
+### 4. Lógica de "Manutenção" e Toggles
+- Atualize os `LabeledTriageToggles` para incluir o terceiro destino: **MANUTENCAO**.
+- **Botão Manutenção:** Cor ativa `#fef3c7` (fundo) e `#92400e` (texto) com ícone `<Wrench size={9}>`.
+- Mapeamento para API: Ao salvar, use uma função `toDbStatus(result)` que converte "DESCARTADO" para "DESCARTADO" e ambos "NO_GALPAO" ou "MANUTENCAO" para "NO_GALPAO" (a distinção fica na condição gravada).
+
+### 5. Modo Split (Lotes)
+- O container expandido de split deve ter fundo `rgba(248,250,252,0.7)` e uma borda esquerda conectora `4px solid #e2e8f0` com margem à esquerda.
+- Implemente `addSplit` com preenchimento automático: o novo lote deve nascer com a quantidade restante (`totalQty - currentSplitSum`).
+
+### 6. Floating Pill e Estatísticas
+- A Pill flutuante (quando há selecionados) deve incluir o preset: `[Wrench] Avaria -> Manutenção` com estilo âmbar.
+- Garanta que os Stat Cards sigam o padrão: Border-radius 0 (flat), borda 1px sólida `#e7e5e4`, com o dot colorido de status.
+
+Use Tailwind CSS, Lucide React e Shadcn UI. Mantenha o código limpo e performático.

@@ -311,7 +311,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
               {/* Step 1 — Produção & Cadastro */}
               <div style={{ position: "relative", marginBottom: 28 }}>
                 {sidebarDot(true, false, <Package size={10} color="#9ca3af" />)}
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#f9f9f8" }}>
                     {linkedItem?.type ? `Produção · ${linkedItem.type}` : "Produção Gráfica"}
                   </div>
@@ -324,7 +324,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
               {/* Step 2 — Entrada no Estoque */}
               <div style={{ position: "relative", marginBottom: 28 }}>
                 {sidebarDot(true, false, <Archive size={10} color="#9ca3af" />)}
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#f9f9f8" }}>Entrada no Estoque</div>
                   <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "Cadastrado"}
@@ -341,7 +341,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                 return (
                   <div key={alloc.id} style={{ position: "relative", marginBottom: 28 }}>
                     {sidebarDot(isDone, isCurrent, <Truck size={10} color={isCurrent ? "#f97316" : "#9ca3af"} />)}
-                    <div style={{ paddingTop: 3 }}>
+                    <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                       <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: isCurrent ? 700 : 600, fontSize: 12, color: isCurrent ? "#f97316" : "#d1d5db" }}>
                         {alloc.event?.name ?? "Evento"}
                       </div>
@@ -356,7 +356,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                 eventName && (
                   <div style={{ position: "relative", marginBottom: 28 }}>
                     {sidebarDot(step2Done && !step2Active, step2Active, <Truck size={10} color={step2Active ? "#f97316" : "#9ca3af"} />)}
-                    <div style={{ paddingTop: 3 }}>
+                    <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                       <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 12, color: step2Active ? "#f97316" : "#d1d5db" }}>
                         {eventName}
                       </div>
@@ -371,7 +371,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
               {/* Triagem de Retorno */}
               <div style={{ position: "relative", marginBottom: 28 }}>
                 {sidebarDot(step3Done, step3Active, <ClipboardCheck size={10} color={step3Active ? "#f97316" : "#9ca3af"} />)}
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 12, color: step3Active ? "#f97316" : step3Done ? "#d1d5db" : "#6b7280" }}>
                     Triagem de Retorno
                   </div>
@@ -387,7 +387,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                   ? <Trash2 size={10} color={step4Active ? "#ef4444" : "#6b7280"} />
                   : <Warehouse size={10} color={step4Active ? "#f97316" : "#6b7280"} />
                 )}
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step4Active ? 700 : 600, fontSize: 12, color: step4Active ? "#f97316" : "#6b7280" }}>
                     {ts === "DESCARTADO" ? "Descartado" : ts === "NO_GALPAO" ? "No Galpão" : "Destino Final"}
                   </div>

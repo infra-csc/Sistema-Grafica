@@ -152,7 +152,7 @@ export function TriagemModal({
                 }}>
                   <Package2 size={11} color="#fff" />
                 </div>
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
                     {linkedItem?.type ? `Produção · ${linkedItem.type}` : "Produção Gráfica"}
                   </div>
@@ -172,7 +172,7 @@ export function TriagemModal({
                 }}>
                   <Archive size={11} color="#fff" />
                 </div>
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
                     Saída do Estoque
                   </div>
@@ -194,7 +194,7 @@ export function TriagemModal({
                 }}>
                   <Truck size={11} color="#fff" />
                 </div>
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
                     {asset.eventName || "Em Uso no Evento"}
                   </div>
@@ -215,7 +215,7 @@ export function TriagemModal({
                 }}>
                   <ClipboardCheck size={11} color="#f97316" />
                 </div>
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 12, color: "#f97316" }}>
                     Aguardando Triagem
                   </div>
@@ -235,7 +235,7 @@ export function TriagemModal({
                 }}>
                   <Warehouse size={11} color="#6b7280" />
                 </div>
-                <div style={{ paddingTop: 3 }}>
+                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#4b5563" }}>
                     Destino Final
                   </div>

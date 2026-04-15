@@ -5,7 +5,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor } from "@shared/schema";
 import {
   ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save,
-  CalendarDays, Tag, X, Scissors, Sparkles, Hammer, Trash2, Eye,
+  CalendarDays, Tag, X, Scissors, Sparkles, Hammer, Trash2, Eye, Wrench,
+  MapPin,
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
 import { useAuth } from "@/contexts/auth-context";
@@ -21,10 +22,11 @@ const CONDITION_META: Record<Condition, { label: string; color: string; bg: stri
   SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "#fff1f2", border: "#fca5a5", key: "3", Icon: Trash2   },
 };
 
-type TriagemResult = "NO_GALPAO" | "DESCARTADO";
-const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string; border: string }> = {
-  NO_GALPAO:  { label: "Galpão",    color: "#1e40af", bg: "#eff6ff", border: "#93c5fd" },
-  DESCARTADO: { label: "Descartar", color: "#991b1b", bg: "#fff1f2", border: "#fca5a5" },
+type TriagemResult = "NO_GALPAO" | "MANUTENCAO" | "DESCARTADO";
+const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string; border: string; activeBg: string; activeColor: string }> = {
+  NO_GALPAO:  { label: "Galpão",       color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", activeBg: "#1e40af", activeColor: "#fff" },
+  MANUTENCAO: { label: "Manutenção",   color: "#92400e", bg: "#fffbeb", border: "#fcd34d", activeBg: "#fef3c7", activeColor: "#92400e" },
+  DESCARTADO: { label: "Descartar",    color: "#991b1b", bg: "#fff1f2", border: "#fca5a5", activeBg: "#dc2626", activeColor: "#fff" },
 };
 
 interface SplitLine { qty: number; condition: Condition | null; result: TriagemResult; }
@@ -154,10 +156,11 @@ function ResultToggles({ result, onResult, disabled, grayscale }: {
               fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
               letterSpacing: "0.04em", textTransform: "uppercase",
               whiteSpace: "nowrap", transition: "all 0.12s",
-              background: active ? (val === "DESCARTADO" ? "#dc2626" : "#1e40af") : "transparent",
-              color: active ? "#fff" : "#94a3b8",
+              background: active ? meta.activeBg : "transparent",
+              color: active ? meta.activeColor : "#94a3b8",
               boxShadow: active ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
             }}>
+            {val === "MANUTENCAO" && <Wrench size={9} />}
             {meta.label}
           </button>
         );
@@ -351,8 +354,9 @@ export default function TriagemRetorno() {
   // Smart condition update: auto-sets result based on condition (user can override after)
   const smartUpdateSplit = (id: string, splitIdx: number, condition: Condition) => {
     const patch: Partial<SplitLine> = { condition };
-    if (condition === "PERFEITO") patch.result = "NO_GALPAO";
-    if (condition === "SUCATA") patch.result = "DESCARTADO";
+    if (condition === "PERFEITO")    patch.result = "NO_GALPAO";
+    if (condition === "AVARIA_LEVE") patch.result = "MANUTENCAO";
+    if (condition === "SUCATA")      patch.result = "DESCARTADO";
     updateSplit(id, splitIdx, patch);
   };
 
@@ -360,19 +364,22 @@ export default function TriagemRetorno() {
     entry.splits.reduce((s, l) => s + l.qty, 0) === totalQty &&
     entry.splits.every(l => l.condition !== null);
 
+  // MANUTENCAO é um conceito de UI — no banco mapeia para NO_GALPAO (condição AVARIA_LEVE indica a necessidade de reparo)
+  const toDbStatus = (r: TriagemResult): string => r === "DESCARTADO" ? "DESCARTADO" : "NO_GALPAO";
+
   const doTriage = async (assetId: string, totalQty: number) => {
     const entry = getEntry(assetId, totalQty);
     if (entry.splits.length === 1) {
       await apiRequest("PATCH", `/api/inventory/${assetId}/triage`, {
         condition: entry.splits[0].condition,
         notes: entry.notes,
-        trackingStatus: entry.splits[0].result,
+        trackingStatus: toDbStatus(entry.splits[0].result),
       });
     } else {
       await apiRequest("POST", `/api/inventory/${assetId}/triage-split`, {
         splits: entry.splits.map(s => ({
           qty: s.qty, condition: s.condition,
-          trackingStatus: s.result,
+          trackingStatus: toDbStatus(s.result),
           notes: entry.notes,
         })),
       });
@@ -405,26 +412,54 @@ export default function TriagemRetorno() {
     }
   }, [entries, savedIds, awaitingAssets]);
 
+  // ── Helpers: navigate focus through pending list ─────────────────────────────
+  const moveFocus = useCallback((dir: 1 | -1) => {
+    if (pendingAssets.length === 0) return;
+    const idx = focusedId ? pendingAssets.findIndex(a => a.id === focusedId) : -1;
+    let next = idx + dir;
+    if (next < 0) next = pendingAssets.length - 1;
+    if (next >= pendingAssets.length) next = 0;
+    setFocusedId(pendingAssets[next]?.id ?? null);
+  }, [focusedId, pendingAssets]);
+
   // ── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!focusedId || savedIds.has(focusedId)) return;
-      const asset = awaitingAssets.find(a => a.id === focusedId);
-      if (!asset) return;
-      // Only apply shortcuts when not typing in an input/textarea
       const tag = (document.activeElement as HTMLElement)?.tagName;
-      if (tag === "INPUT" && (document.activeElement as HTMLInputElement).type === "number") return;
-      if (e.key === "1") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "PERFEITO"); }
-      if (e.key === "2") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "AVARIA_LEVE"); }
-      if (e.key === "3") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "SUCATA"); }
-      if (e.key === "Enter" && !e.repeat && tag !== "INPUT" && tag !== "TEXTAREA") {
+      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+
+      // Arrow / vim navigation always works (unless typing in text input)
+      const isTextInput = tag === "INPUT" && (document.activeElement as HTMLInputElement).type !== "number"
+        || tag === "TEXTAREA";
+      if (!isTextInput) {
+        if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); moveFocus(1); return; }
+        if (e.key === "ArrowUp"   || e.key === "k") { e.preventDefault(); moveFocus(-1); return; }
+      }
+
+      if (!focusedId || savedIds.has(focusedId)) return;
+      const asset = pendingAssets.find(a => a.id === focusedId);
+      if (!asset) return;
+
+      // Condition shortcuts — skip when in any input
+      if (!isTyping) {
+        if (e.key === "1") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "PERFEITO"); return; }
+        if (e.key === "2") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "AVARIA_LEVE"); return; }
+        if (e.key === "3") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "SUCATA"); return; }
+      }
+
+      // Enter saves and auto-advances to next pending
+      if (e.key === "Enter" && !e.repeat && !isTyping) {
         e.preventDefault();
-        handleSingle(asset);
+        const currentIdx = pendingAssets.findIndex(a => a.id === focusedId);
+        const nextAsset = pendingAssets.find((a, i) => i > currentIdx);
+        handleSingle(asset).then(() => {
+          if (nextAsset) setFocusedId(nextAsset.id);
+        });
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [focusedId, savedIds, awaitingAssets, entries, handleSingle]);
+  }, [focusedId, savedIds, pendingAssets, entries, handleSingle, moveFocus]);
 
   const selectedIds = Object.entries(entries).filter(([, e]) => e.selected).map(([id]) => id);
 
@@ -454,12 +489,13 @@ export default function TriagemRetorno() {
 
   const hasFilters = filterEvent !== "all" || filterSponsor !== "all";
 
-  const pendingAssets = awaitingAssets.filter(a => {
+  const pendingAssets = useMemo(() => awaitingAssets.filter(a => {
     if (savedIds.has(a.id)) return false;
     const me = filterEvent === "all" || a.eventName === filterEvent;
     const msp = filterSponsor === "all" || (a.sponsors ?? []).some(s => s.id === filterSponsor);
     return me && msp;
-  });
+  }), [awaitingAssets, savedIds, filterEvent, filterSponsor]);
+
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
   const filterLabel: React.CSSProperties = {
@@ -631,7 +667,12 @@ export default function TriagemRetorno() {
                   const baseRowBg = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
                   return (
                     <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
-                      onClick={() => { if (!isSaved) { setFocusedId(asset.id); setSelectedAsset(asset); } }}
+                      onClick={() => {
+                        if (!isSaved) {
+                          setFocusedId(asset.id);
+                          updateEntry(asset.id, { selected: !entry.selected });
+                        }
+                      }}
                       style={{
                         opacity: isSaved ? 0.45 : 1,
                         filter: isSaved ? "grayscale(1)" : "none",
@@ -691,28 +732,41 @@ export default function TriagemRetorno() {
                       </td>
 
                       {/* Evento */}
-                      <td style={{ padding: "10px 14px", verticalAlign: "middle", maxWidth: 160 }}>
+                      <td style={{ padding: "10px 14px", verticalAlign: "middle", minWidth: 190 }}>
                         {asset.eventName ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                            <span
-                              style={{
-                                fontSize: 12, fontWeight: 700, color: "#0f172a",
-                                fontFamily: "Plus Jakarta Sans, sans-serif",
-                                lineHeight: 1.35,
-                              }}
-                            >
-                              {asset.eventName}
-                            </span>
-                            {asset.eventDate && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            {/* Linha 1: ícone + nome */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{
-                                display: "flex", alignItems: "center", gap: 3,
-                                fontSize: 10, color: "#64748b",
-                                fontFamily: "DM Mono, monospace", letterSpacing: "0.02em",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                padding: 6, background: "#eff6ff", borderRadius: 6, flexShrink: 0,
                               }}>
-                                <CalendarDays size={10} color="#94a3b8" />
-                                {new Date(asset.eventDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "")}
+                                <CalendarDays size={14} color="#2563eb" />
                               </span>
-                            )}
+                              <span style={{
+                                fontSize: 13, fontWeight: 700, color: "#0f172a",
+                                fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.25,
+                              }}>
+                                {asset.eventName}
+                              </span>
+                            </div>
+                            {/* Linha 2: data + local mockado */}
+                            <div style={{ paddingLeft: 34, display: "flex", alignItems: "center", gap: 6 }}>
+                              {asset.eventDate && (
+                                <span style={{
+                                  fontFamily: "DM Mono, monospace", fontSize: 11,
+                                  color: "#64748b", letterSpacing: "-0.02em",
+                                }}>
+                                  {new Date(asset.eventDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "")}
+                                </span>
+                              )}
+                              <span style={{ color: "#cbd5e1", fontSize: 10 }}>•</span>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, color: "#94a3b8",
+                                fontFamily: "Space Grotesk, sans-serif",
+                                textTransform: "uppercase", letterSpacing: "0.06em",
+                              }}>Galpão SP</span>
+                            </div>
                           </div>
                         ) : <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>—</span>}
                       </td>
@@ -767,7 +821,7 @@ export default function TriagemRetorno() {
                                 />
                               </div>
                             ) : (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgba(248,250,252,0.8)", borderRadius: 10, padding: "8px 8px 8px 14px", borderLeft: "2px solid #e2e8f0" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgba(248,250,252,0.7)", borderRadius: 10, padding: "8px 8px 8px 16px", borderLeft: "4px solid #e2e8f0", marginLeft: 6 }}>
                                 {/* Presets rápidos */}
                                 <div style={{ display: "flex", gap: 5, marginBottom: 2 }}>
                                   <button data-testid={`button-preset-perfeito-${asset.id}`} onClick={() => applyPreset(asset.id, "PERFEITO", "NO_GALPAO", qty)}
@@ -949,7 +1003,7 @@ export default function TriagemRetorno() {
         padding: "8px 32px", gap: 24,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-          {[["1", "Perfeito"], ["2", "Avaria"], ["3", "Sucata"], ["ENT", "Salvar linha"]].map(([key, label]) => (
+          {[["↑/K", "Anterior"], ["↓/J", "Próximo"], ["1", "Perfeito"], ["2", "Avaria"], ["3", "Sucata"], ["ENT", "Salvar linha"]].map(([key, label]) => (
             <span key={key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
               <kbd style={{
                 background: key === "ENT" ? "#0f172a" : "#f1f5f9",

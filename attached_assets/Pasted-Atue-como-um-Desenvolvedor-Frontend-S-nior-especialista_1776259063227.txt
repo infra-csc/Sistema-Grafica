@@ -1,0 +1,40 @@
+Atue como um Desenvolvedor Frontend Sênior especialista em React, Tailwind CSS, Shadcn UI, Framer Motion e Lucide Icons.
+
+Preciso aplicar refinamentos críticos de UX/UI e Lógica na tela de "Triagem de Retorno" (/triagem-retorno) do sistema NORTE. O sistema segue o tema "Titanium" (cores slate/gray, bg #f8fafc, acento primário laranja #f97316 e azul #2563eb).
+
+Por favor, atualize o componente principal da Tabela de Triagem implementando rigorosamente as seguintes 6 melhorias:
+
+### 1. Refatoração da Coluna "Evento" (Alta Escaneabilidade)
+Substitua o layout antigo por esta estrutura alinhada:
+- Container principal: `flex flex-col gap-1 min-w-[180px]`
+- Linha 1 (Ícone + Nome): `flex items-center gap-2`. O ícone `<CalendarDays size={14}>` deve ficar dentro de um bloco `p-1.5 bg-blue-50 text-blue-600 rounded-md`. O nome do evento usa `text-sm font-bold text-slate-900 leading-tight`.
+- Linha 2 (Data + Local): `pl-[34px] flex items-center gap-2`. A data **deve** usar a fonte mono (`font-mono text-[11px] text-slate-500 tracking-tighter`). Adicione um separador `<span className="text-slate-300">•</span>` e um texto mockado de local (`text-[10px] uppercase font-bold text-slate-400`).
+
+### 2. Navegação Pro por Teclado (Mouse-free)
+Atualize o `useEffect` de atalhos de teclado (`keydown`) para incluir navegação direcional:
+- `ArrowDown` (Seta para Baixo) ou `J`: Move o estado `focusedId` para a próxima linha da tabela que **não esteja salva**.
+- `ArrowUp` (Seta para Cima) ou `K`: Move o `focusedId` para a linha anterior não salva.
+- Ao pressionar `Enter` e salvar a linha atual, o `focusedId` deve pular **automaticamente** para a próxima linha pendente.
+
+### 3. Ajuste de Interação da Linha (Evitar Modal Acidental)
+- Remova o `onClick` genérico da tag `<tr>` que abria o modal.
+- O clique em qualquer área vazia da linha deve apenas **marcar o checkbox de seleção em lote** e definir o `focusedId` daquela linha.
+- Na coluna "AÇÃO" (à direita), adicione um botão de ícone `<Button variant="ghost" size="icon">` com o ícone `<Maximize2 size={14}>` ou `<Eye>`. Apenas o clique neste botão deve abrir o `TriagemModal`.
+
+### 4. Terceiro Destino: "Manutenção"
+Na coluna "Condição · Destino", atualize o `ResultToggles`:
+- Adicione a opção "Manutenção" entre "Galpão" e "Descartar".
+- Estilo do botão "Manutenção" ativo: `bg-amber-100 text-amber-800 border-amber-300 shadow-sm`. (As outras continuam Galpão: Azul Índigo, Descartar: Vermelho).
+- Regra do Smart Toggle: Ao marcar a Condição "Avaria Leve", o sistema deve auto-selecionar o destino "Manutenção".
+
+### 5. Estilo de Linha Focada e Salva
+Atualize a tag `<tr>` (ou o componente de linha) para reagir visualmente aos estados:
+- **Linha Focada (`isFocused === true`):** Aplique `border-l-4 border-l-orange-500 bg-slate-50 shadow-inner`. O resto das bordas continuam normais.
+- **Linha Salva (`isSaved === true`):** Aplique `opacity-40 grayscale pointer-events-none`. Se possível, envolva as linhas em um `<AnimatePresence>` do framer-motion para que as linhas salvas desçam suavemente para o final da tabela (usando ordenação de array: pendentes primeiro, salvas por último).
+
+### 6. Contraste do Modo Split (Lotes)
+Quando um item com `qty > 1` estiver no modo `split` (expandido):
+- O container que engloba os "Cards de Lote" (Split lines) deve ganhar um fundo `bg-slate-50/70`.
+- Adicione uma borda esquerda conectora grossa `border-l-4 border-l-slate-200 ml-2 pl-4` para mostrar visualmente que aqueles sublotes pertencem ao item principal acima.
+
+Gere o código limpo, componentizado, utilizando os padrões do Shadcn UI (cn, utils) e ícones do lucide-react. Certifique-se de não quebrar a lógica de estado existente.

@@ -3,7 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   X, Sparkles, Hammer, Trash2, Warehouse, Package2,
   Tag, Calendar, Ruler, Layers, CheckCircle2,
-  Archive, Truck, ClipboardCheck, Image,
+  Archive, Truck, ClipboardCheck, Image, Wrench,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -11,7 +11,7 @@ import { ptBR } from "date-fns/locale";
 // ─── Types ────────────────────────────────────────────────────────────────────
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 type Condition = typeof CONDITIONS[number];
-type TriagemResult = "NO_GALPAO" | "DESCARTADO";
+type TriagemResult = "NO_GALPAO" | "MANUTENCAO" | "DESCARTADO";
 
 interface SplitLine { qty: number; condition: Condition | null; result: TriagemResult; }
 interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; }
@@ -63,8 +63,9 @@ const CONDITION_META: Record<Condition, {
 const RESULT_META: Record<TriagemResult, {
   label: string; subLabel: string; color: string; bg: string; border: string; Icon: React.ElementType;
 }> = {
-  NO_GALPAO:  { label: "Galpão Central", subLabel: "Retorna ao estoque",    color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", Icon: Warehouse },
-  DESCARTADO: { label: "Descartar",       subLabel: "Remover do inventário", color: "#991b1b", bg: "#fef2f2", border: "#fca5a5", Icon: Trash2 },
+  NO_GALPAO:  { label: "Galpão Central", subLabel: "Retorna ao estoque",       color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", Icon: Warehouse },
+  MANUTENCAO: { label: "Manutenção",     subLabel: "Encaminhar para reparo",    color: "#92400e", bg: "#fffbeb", border: "#fcd34d", Icon: Wrench    },
+  DESCARTADO: { label: "Descartar",      subLabel: "Remover do inventário",     color: "#991b1b", bg: "#fef2f2", border: "#fca5a5", Icon: Trash2    },
 };
 
 export function TriagemModal({
@@ -369,7 +370,7 @@ export function TriagemModal({
                       Destino do Fluxo
                     </label>
                     <div style={{ display: "flex", gap: 8 }}>
-                      {(["NO_GALPAO", "DESCARTADO"] as TriagemResult[]).map(r => {
+                      {(["NO_GALPAO", "MANUTENCAO", "DESCARTADO"] as TriagemResult[]).map(r => {
                         const m = RESULT_META[r];
                         const active = result === r;
                         return (

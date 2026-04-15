@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
 import {
   Archive, Plus, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
-  XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame, CalendarDays,
+  XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame, Calendar, CalendarDays,
   TrendingUp, Grid3X3, Eye, Check, Sparkles, Hammer, Layers, ClipboardCheck,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -441,45 +441,50 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
               )}
             </div>
 
-            {/* Info grid */}
+            {/* Info grid — same layout as triagem-modal */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              {/* Event info */}
-              <div style={{ background: "#fff", borderRadius: 10, padding: "20px 22px", border: "1px solid rgba(226,226,226,0.8)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                  <h4 style={{ margin: 0, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, color: "#374151", textTransform: "uppercase", letterSpacing: "0.08em" }}>Informações do Evento</h4>
-                  <CalendarDays size={15} color="#94a3b8" />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+
+              {/* Evento e Datas — light card */}
+              <div style={{ background: "#f3f4f3", borderRadius: 10, padding: "20px 22px" }}>
+                <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 13, color: "#374151" }}>
+                  <Calendar size={15} color="#6b7280" />
+                  Informações do Evento
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {[
                     { label: "Evento",      value: eventName ?? "—" },
                     { label: "Data",        value: eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—" },
-                    { label: "Qtd. Total",  value: `${asset.quantity ?? 1} un.` },
+                    { label: "Qtd Total",   value: `${asset.quantity ?? 1} un.` },
                     { label: "Localização", value: asset.location ?? "—" },
-                  ].map(({ label, value }, i, arr) => (
-                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, padding: "9px 0", borderBottom: i < arr.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#9ca3af" }}>{label}</span>
                       <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937", textAlign: "right" }}>{value}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Specs */}
-              <div style={{ background: "#fff", borderRadius: 10, padding: "20px 22px", border: "1px solid rgba(226,226,226,0.8)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                  <h4 style={{ margin: 0, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, color: "#374151", textTransform: "uppercase", letterSpacing: "0.08em" }}>Especificações Técnicas</h4>
-                  <Layers size={15} color="#94a3b8" />
-                </div>
+              {/* Especificações Técnicas — dark card */}
+              <div style={{ background: "#111827", borderRadius: 10, padding: "20px 22px" }}>
+                <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 13, color: "#f9fafb" }}>
+                  <Layers size={15} color="#f97316" />
+                  Especificações Técnicas
+                </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                   {[
-                    { label: "Tipo",       value: linkedItem?.type ?? "—" },
-                    { label: "Material",   value: linkedItem?.material ?? "—" },
-                    { label: "Medida",     value: linkedItem?.measurement ?? "—" },
-                    { label: "Dimensões",  value: linkedItem?.visualWidth && linkedItem?.visualHeight ? `${linkedItem.visualWidth} × ${linkedItem.visualHeight}` : "—" },
+                    { label: "TIPO",        value: linkedItem?.type ?? "—" },
+                    { label: "MATERIAL",    value: linkedItem?.material ?? "—" },
+                    { label: "ACABAMENTO",  value: linkedItem?.finish ?? "—" },
+                    { label: "MEDIDA",      value: linkedItem?.measurement ?? "—" },
+                    { label: "DIMENSÕES",   value: linkedItem?.visualWidth && linkedItem?.visualHeight ? `${linkedItem.visualWidth} × ${linkedItem.visualHeight} m` : "—" },
+                    { label: "M² TOTAL",    value: linkedItem?.calculatedM2 ? `${linkedItem.calculatedM2} m²` : "—" },
+                    { label: "QUANTIDADE",  value: linkedItem?.quantity ? `${linkedItem.quantity} un.` : `${asset.quantity ?? 1} un.` },
+                    { label: "PATROCINADORES", value: assetSponsors.length > 0 ? assetSponsors.map(s => s.name).join(", ") : "—" },
                   ].map(({ label, value }, i, arr) => (
-                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, padding: "9px 0", borderBottom: i < arr.length - 1 ? "1px solid #f1f5f9" : "none" }}>
-                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
-                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937", textAlign: "right" }}>{value}</span>
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, padding: "9px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                      <span style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em", flexShrink: 0 }}>{label}</span>
+                      <span style={{ fontFamily: "DM Mono, monospace", fontWeight: 500, fontSize: 10, color: "#e5e7eb", textAlign: "right" }}>{value}</span>
                     </div>
                   ))}
                 </div>

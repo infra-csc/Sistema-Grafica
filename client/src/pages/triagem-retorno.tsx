@@ -412,6 +412,14 @@ export default function TriagemRetorno() {
     }
   }, [entries, savedIds, awaitingAssets]);
 
+  // ── pendingAssets — declared early so moveFocus and keyboard handler can use it ──
+  const pendingAssets = useMemo(() => awaitingAssets.filter(a => {
+    if (savedIds.has(a.id)) return false;
+    const me = filterEvent === "all" || a.eventName === filterEvent;
+    const msp = filterSponsor === "all" || (a.sponsors ?? []).some(s => s.id === filterSponsor);
+    return me && msp;
+  }), [awaitingAssets, savedIds, filterEvent, filterSponsor]);
+
   // ── Helpers: navigate focus through pending list ─────────────────────────────
   const moveFocus = useCallback((dir: 1 | -1) => {
     if (pendingAssets.length === 0) return;
@@ -488,13 +496,6 @@ export default function TriagemRetorno() {
   };
 
   const hasFilters = filterEvent !== "all" || filterSponsor !== "all";
-
-  const pendingAssets = useMemo(() => awaitingAssets.filter(a => {
-    if (savedIds.has(a.id)) return false;
-    const me = filterEvent === "all" || a.eventName === filterEvent;
-    const msp = filterSponsor === "all" || (a.sponsors ?? []).some(s => s.id === filterSponsor);
-    return me && msp;
-  }), [awaitingAssets, savedIds, filterEvent, filterSponsor]);
 
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 

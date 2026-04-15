@@ -7,9 +7,10 @@ import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
 import {
   Archive, Plus, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
   XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame, CalendarDays,
-  TrendingUp, Grid3X3, Eye,
+  TrendingUp, Grid3X3, Eye, Check, Sparkles, Hammer, Layers, ClipboardCheck,
 } from "lucide-react";
-import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -224,6 +225,363 @@ function DeleteModal({ asset, onClose, onConfirm }: {
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
             }}>Sim, Excluir</button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Asset Detail Modal (Eye button) ─────────────────────────────────────────
+function AssetDetailModal({ asset, linkedItem, sponsors, onClose, onSaved }: {
+  asset: InventoryAsset;
+  linkedItem?: any;
+  sponsors: Sponsor[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [condition, setCondition] = useState<Condition>((asset.condition as Condition) ?? "PERFEITO");
+  const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>((asset.trackingStatus as TrackingStatus) ?? "NO_GALPAO");
+  const [notes, setNotes] = useState(asset.notes ?? "");
+  const [saved, setSaved] = useState(false);
+
+  const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean) as Sponsor[];
+  const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
+  const ts = asset.trackingStatus;
+
+  const step2Done = ts === "EM_USO" || ts === "AGUARDANDO_TRIAGEM" || ts === "DESCARTADO" || ts === "NO_GALPAO";
+  const step2Active = ts === "EM_USO";
+  const step3Active = ts === "AGUARDANDO_TRIAGEM";
+  const step3Done = ts === "DESCARTADO" || ts === "NO_GALPAO";
+
+  const eventName = linkedItem?.event?.name ?? null;
+  const eventDate = linkedItem?.event?.startDate ?? null;
+
+  const mutation = useMutation({
+    mutationFn: () => apiRequest("PATCH", `/api/inventory/${asset.id}`, { condition, trackingStatus, notes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      setSaved(true);
+      toast({ title: "Ativo atualizado com sucesso." });
+      setTimeout(() => onSaved(), 800);
+    },
+    onError: () => toast({ title: "Erro ao salvar.", variant: "destructive" }),
+  });
+
+  const conditionBtns: { key: Condition; label: string; Icon: React.ElementType; color: string; bg: string; border: string }[] = [
+    { key: "PERFEITO",    label: "Perfeito",    Icon: Sparkles, color: "#16a34a", bg: "#dcfce7", border: "#86efac" },
+    { key: "AVARIA_LEVE", label: "Avaria Leve", Icon: Hammer,   color: "#d97706", bg: "#fef3c7", border: "#fcd34d" },
+    { key: "SUCATA",      label: "Sucata",      Icon: Trash2,   color: "#dc2626", bg: "#fee2e2", border: "#fca5a5" },
+  ];
+
+  const destBtns: { key: TrackingStatus; label: string; Icon: React.ElementType; color: string; bg: string; border: string }[] = [
+    { key: "NO_GALPAO",  label: "Galpão Central", Icon: Warehouse, color: "#1e40af", bg: "#eff6ff", border: "#93c5fd" },
+    { key: "EM_USO",     label: "Em Uso",         Icon: Truck,     color: "#ea580c", bg: "#fff7ed", border: "#fdba74" },
+    { key: "DESCARTADO", label: "Descartar",      Icon: Trash2,    color: "#991b1b", bg: "#fef2f2", border: "#fca5a5" },
+  ];
+
+  const sidebarDot = (done: boolean, active: boolean, icon: React.ReactElement) => (
+    <div style={{
+      position: "absolute", left: -21, top: 0,
+      width: 22, height: 22, borderRadius: "50%",
+      background: done ? "#f97316" : active ? "rgba(249,115,22,0.15)" : "#1f2937",
+      border: active ? "1.5px solid #f97316" : done ? "none" : "1px solid #374151",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      boxShadow: active ? "0 0 0 4px rgba(249,115,22,0.08)" : "none",
+    }}>
+      {done ? <Check size={11} color="#fff" strokeWidth={3} /> : icon}
+    </div>
+  );
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ display: "flex", flexDirection: "row", width: "min(1040px, calc(100vw - 48px))", maxHeight: "90vh", borderRadius: 16, overflow: "hidden", boxShadow: "0 32px 64px -12px rgba(0,0,0,0.45)" }}>
+
+        {/* ── Sidebar ── */}
+        <aside style={{ width: 280, flexShrink: 0, background: "#1c1917", display: "flex", flexDirection: "column", padding: "28px 24px" }}>
+          {/* Brand */}
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 900, fontSize: 24, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1 }}>NORTE</div>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.2em", marginTop: 3 }}>LOGISTICS APEX</div>
+          </div>
+
+          {/* Rastreabilidade */}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 20 }}>
+              Rastreabilidade
+            </div>
+            <div style={{ position: "relative", paddingLeft: 32 }}>
+              <div style={{ position: "absolute", left: 11, top: 12, bottom: 24, width: 1, background: "rgba(255,255,255,0.1)" }} />
+
+              {/* Saída do Estoque */}
+              <div style={{ position: "relative", marginBottom: 24 }}>
+                {sidebarDot(true, false, <Archive size={11} color="#9ca3af" />)}
+                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 13, color: "#f9f9f8" }}>Saída do Estoque</div>
+                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 2, textTransform: "uppercase" }}>
+                  {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—"}
+                </div>
+              </div>
+
+              {/* Em Uso no Evento */}
+              <div style={{ position: "relative", marginBottom: 24 }}>
+                {sidebarDot(step2Done, step2Active, <Truck size={11} color="#9ca3af" />)}
+                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 13, color: step2Active ? "#f97316" : "#e5e7eb" }}>
+                  {eventName ?? "Em Uso no Evento"}
+                </div>
+                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 2, textTransform: "uppercase" }}>
+                  {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—"}
+                </div>
+              </div>
+
+              {/* Aguardando Triagem */}
+              <div style={{ position: "relative" }}>
+                {sidebarDot(step3Done, step3Active, <ClipboardCheck size={11} color={step3Active ? "#f97316" : "#9ca3af"} />)}
+                <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 13, color: step3Active ? "#f97316" : "#e5e7eb" }}>
+                  Aguardando Triagem
+                </div>
+                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 2, textTransform: "uppercase" }}>
+                  {step3Active ? "Agora · Em análise" : step3Done ? "Concluído" : "Pendente"}
+                </div>
+              </div>
+            </div>
+
+            {/* Sponsors */}
+            {assetSponsors.length > 0 && (
+              <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 12 }}>Patrocinadores</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {assetSponsors.map(s => (
+                    <div key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", background: "#292524", borderRadius: 4, border: "1px solid rgba(255,255,255,0.07)" }}>
+                      <Tag size={8} color="#6b7280" />
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#d1d5db", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer card — Localização Técnica */}
+          <div style={{ background: "rgba(255,255,255,0.05)", padding: 16, borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", marginTop: 20, flexShrink: 0 }}>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: 6 }}>
+              Localização Técnica
+            </div>
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 15, color: "#f9f9f8", letterSpacing: "-0.03em", wordBreak: "break-word" }}>
+              {asset.location ?? "—"}
+            </div>
+            <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase" }}>Condição</span>
+              <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "DM Mono, monospace", color: CONDITION_META[asset.condition ?? "PERFEITO"].color }}>
+                {CONDITION_META[asset.condition ?? "PERFEITO"].label.toUpperCase()}
+              </span>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── Main content ── */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: "#f9f9f8", maxHeight: "90vh" }}>
+
+          {/* Dark header */}
+          <header style={{ background: "#1a1c1c", padding: "20px 28px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                <span style={{ background: "#f97316", color: "#1a1c1c", fontFamily: "Space Grotesk, sans-serif", fontWeight: 900, fontSize: 9, letterSpacing: "-0.02em", padding: "3px 8px", borderRadius: 4 }}>
+                  {asset.displayId}
+                </span>
+                {eventName && (
+                  <span style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.07)", padding: "3px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {eventName}
+                  </span>
+                )}
+                {asset.autoAdded && (
+                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.06)", padding: "3px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Auto-Adicionado
+                  </span>
+                )}
+              </div>
+              <h1 style={{ margin: 0, color: "#ffffff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 24, letterSpacing: "-0.05em", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "calc(100% - 8px)" }}>
+                {asset.name.toUpperCase()}
+              </h1>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, marginLeft: 16 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 6, background: sm.color, color: "#fff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+                <Warehouse size={13} />{sm.label}
+              </span>
+              <button onClick={onClose} data-testid="button-close-asset-detail"
+                style={{ background: "rgba(255,255,255,0.06)", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.5)", padding: 8, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.color = "#fff"; e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}>
+                <X size={20} />
+              </button>
+            </div>
+          </header>
+
+          {/* Scrollable body */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "28px 28px 0", display: "flex", flexDirection: "column", gap: 24 }}>
+
+            {/* Classification section */}
+            <section style={{ position: "relative" }}>
+              <div style={{ position: "absolute", top: -10, left: 20, zIndex: 2, background: "#9d4300", color: "#fff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.18em", padding: "3px 10px", borderRadius: 4 }}>
+                Classificação do Ativo
+              </div>
+              <div style={{ background: "#fff", border: "2px solid #9d4300", borderRadius: 10, padding: "28px 24px 24px", boxShadow: "0 4px 24px rgba(157,67,0,0.08)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+
+                  {/* Condição */}
+                  <div>
+                    <label style={{ display: "block", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10 }}>
+                      Condição do Item
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {conditionBtns.map(btn => {
+                        const active = condition === btn.key;
+                        return (
+                          <button key={btn.key} onClick={() => setCondition(btn.key)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 6px", borderRadius: 8, border: active ? `2px solid ${btn.border}` : "1.5px solid #e2e8f0", background: active ? btn.bg : "#f8fafc", cursor: "pointer", transition: "all 0.15s" }}>
+                            <btn.Icon size={18} color={active ? btn.color : "#94a3b8"} />
+                            <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: active ? btn.color : "#64748b" }}>{btn.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Destino / Status */}
+                  <div>
+                    <label style={{ display: "block", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10 }}>
+                      Status / Destino
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {destBtns.map(btn => {
+                        const active = trackingStatus === btn.key;
+                        return (
+                          <button key={btn.key} onClick={() => setTrackingStatus(btn.key)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 8px", borderRadius: 8, border: active ? `2px solid ${btn.border}` : "1.5px solid #e2e8f0", background: active ? btn.bg : "#f8fafc", cursor: "pointer", transition: "all 0.15s", flexDirection: "column" }}>
+                            <btn.Icon size={16} color={active ? btn.color : "#94a3b8"} />
+                            <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: active ? btn.color : "#64748b", whiteSpace: "nowrap", textAlign: "center" }}>{btn.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Observações */}
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <label style={{ display: "block", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8 }}>
+                      Observações
+                    </label>
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)}
+                      placeholder="Informações adicionais sobre o estado do ativo..."
+                      style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#f8fafc", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 13, color: "#1e293b", resize: "vertical", minHeight: 72, outline: "none", lineHeight: 1.5 }}
+                      onFocus={e => { e.currentTarget.style.borderColor = "#f97316"; e.currentTarget.style.background = "#fff"; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#f8fafc"; }}
+                    />
+                  </div>
+                </div>
+
+                {/* Save row */}
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+                  {saved && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <CheckCircle2 size={14} color="#16a34a" />
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, color: "#16a34a" }}>Salvo!</span>
+                    </div>
+                  )}
+                  <button onClick={() => mutation.mutate()} disabled={mutation.isPending || saved}
+                    data-testid="button-save-asset-detail"
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 28px", borderRadius: 8, border: "none", background: saved ? "#f1f5f9" : "#9d4300", color: saved ? "#94a3b8" : "#fff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", cursor: (mutation.isPending || saved) ? "default" : "pointer", boxShadow: saved ? "none" : "0 4px 16px rgba(157,67,0,0.28)", transition: "all 0.15s", opacity: mutation.isPending ? 0.7 : 1 }}>
+                    {mutation.isPending ? "Salvando..." : saved ? "Salvo" : "Salvar Alterações"}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* Info grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              {/* Event info */}
+              <div style={{ background: "#fff", borderRadius: 10, padding: "20px 22px", border: "1px solid rgba(226,226,226,0.8)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <h4 style={{ margin: 0, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, color: "#374151", textTransform: "uppercase", letterSpacing: "0.08em" }}>Informações do Evento</h4>
+                  <CalendarDays size={15} color="#94a3b8" />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {[
+                    { label: "Evento",      value: eventName ?? "—" },
+                    { label: "Data",        value: eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—" },
+                    { label: "Qtd. Total",  value: `${asset.quantity ?? 1} un.` },
+                    { label: "Localização", value: asset.location ?? "—" },
+                  ].map(({ label, value }, i, arr) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, padding: "9px 0", borderBottom: i < arr.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
+                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937", textAlign: "right" }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Specs */}
+              <div style={{ background: "#fff", borderRadius: 10, padding: "20px 22px", border: "1px solid rgba(226,226,226,0.8)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <h4 style={{ margin: 0, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, color: "#374151", textTransform: "uppercase", letterSpacing: "0.08em" }}>Especificações Técnicas</h4>
+                  <Layers size={15} color="#94a3b8" />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                  {[
+                    { label: "Tipo",       value: linkedItem?.type ?? "—" },
+                    { label: "Material",   value: linkedItem?.material ?? "—" },
+                    { label: "Medida",     value: linkedItem?.measurement ?? "—" },
+                    { label: "Dimensões",  value: linkedItem?.visualWidth && linkedItem?.visualHeight ? `${linkedItem.visualWidth} × ${linkedItem.visualHeight}` : "—" },
+                  ].map(({ label, value }, i, arr) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, padding: "9px 0", borderBottom: i < arr.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
+                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937", textAlign: "right" }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Approval thumb reference */}
+            {asset.approvalThumbUrl && (
+              <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "21/9" }}>
+                <img src={asset.approvalThumbUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: "grayscale(0.25)", opacity: 0.85 }}
+                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(28,25,23,0.8) 0%, transparent 55%)", display: "flex", alignItems: "flex-end", padding: "20px 24px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(28,25,23,0.7)", border: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Eye size={16} color="#f97316" />
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, color: "#f9f9f8" }}>Arte de Referência</div>
+                      <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#9ca3af", marginTop: 2 }}>Arte aprovada · Montagem original</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ height: 8 }} />
+          </div>
+
+          {/* Footer */}
+          <footer style={{ flexShrink: 0, background: "#f3f4f3", borderTop: "1px solid #e2e8f0", padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+              <div style={{ lineHeight: 1.3 }}>
+                <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.12em" }}>ID do Ativo</div>
+                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 12, color: "#374151", fontWeight: 500, marginTop: 1 }}>{asset.displayId}</div>
+              </div>
+              {asset.autoAdded && (
+                <div style={{ lineHeight: 1.3, borderLeft: "1px solid #d1d5db", paddingLeft: 20 }}>
+                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.12em" }}>Origem</div>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 12, color: "#374151", fontWeight: 600, marginTop: 1 }}>Gráfica (Auto)</div>
+                </div>
+              )}
+            </div>
+            <button onClick={onClose}
+              style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em", transition: "color 0.15s" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#111827")}
+              onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}>
+              Fechar
+            </button>
+          </footer>
         </div>
       </div>
     </div>
@@ -490,7 +848,7 @@ export default function Estoque() {
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
   const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" | "status" } | null>(null);
-  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [viewingAsset, setViewingAsset] = useState<InventoryAsset | null>(null);
 
   useEffect(() => {
     if (!quickEdit) return;
@@ -503,12 +861,10 @@ export default function Estoque() {
   const { data: sponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
   const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: allEvents = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
 
-  const openItemDialog = (asset: InventoryAsset) => {
-    if (!asset.originalItemId) return;
-    const item = allItems.find((i: any) => i.id === asset.originalItemId);
-    if (item) setSelectedItem(item);
+  const getLinkedItem = (asset: InventoryAsset) => {
+    if (!asset.originalItemId) return undefined;
+    return allItems.find((i: any) => i.id === asset.originalItemId);
   };
 
   // Map assetId → eventName via originalItemId → item → event
@@ -768,7 +1124,7 @@ export default function Estoque() {
                   return (
                     <tr key={asset.id} data-testid={`row-asset-${asset.id}`}
                       className="group"
-                      onClick={() => openItemDialog(asset)}
+                      onClick={() => setViewingAsset(asset)}
                       onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "rgba(248,250,252,0.6)"}
                       onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ""}
                       style={{ transition: "background 0.1s", cursor: "pointer" }}
@@ -860,15 +1216,13 @@ export default function Estoque() {
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
 
                           {/* View detail */}
-                          {asset.originalItemId && (
                           <button data-testid={`button-view-asset-${asset.id}`}
-                            onClick={e => { e.stopPropagation(); openItemDialog(asset); }}
+                            onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
                             style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
                             <Eye size={14} />
                           </button>
-                          )}
 
                           {/* Edit */}
                           <button data-testid={`button-edit-asset-${asset.id}`}
@@ -914,12 +1268,15 @@ export default function Estoque() {
       {deleting && (
         <DeleteModal asset={deleting} onClose={() => setDeleting(null)} onConfirm={() => deleteMutation.mutate(deleting.id)} />
       )}
-      <ItemDetailsDialog
-        item={selectedItem}
-        auditLogs={auditLogs}
-        open={!!selectedItem}
-        onOpenChange={(open) => !open && setSelectedItem(null)}
-      />
+      {viewingAsset && (
+        <AssetDetailModal
+          asset={viewingAsset}
+          linkedItem={getLinkedItem(viewingAsset)}
+          sponsors={sponsors}
+          onClose={() => setViewingAsset(null)}
+          onSaved={() => setViewingAsset(null)}
+        />
+      )}
     </div>
   );
 }

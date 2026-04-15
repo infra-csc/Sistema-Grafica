@@ -469,9 +469,9 @@ export default function TriagemRetorno() {
   };
 
   const TH: React.CSSProperties = {
-    padding: "16px 20px", fontSize: 10, fontWeight: 700, letterSpacing: "0.2em",
-    textTransform: "uppercase", color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif",
-    textAlign: "left", background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
+    padding: "14px 20px", fontSize: 10, fontWeight: 800, letterSpacing: "0.14em",
+    textTransform: "uppercase", color: "#fff", fontFamily: "Space Grotesk, sans-serif",
+    textAlign: "left", background: "#0f172a", borderBottom: "none",
     whiteSpace: "nowrap",
   };
 
@@ -519,60 +519,57 @@ export default function TriagemRetorno() {
 
       {/* ── Filter bar ── */}
       <div style={{
-        background: "#fff", padding: "12px 16px", borderRadius: 16,
+        background: "#fff", padding: "16px 20px", borderRadius: 12,
         border: "1px solid #e2e8f0",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+        display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap",
       }}>
+        {/* Evento */}
         {eventOptions.length > 0 && (
-          <Select value={filterEvent} onValueChange={setFilterEvent}>
-            <SelectTrigger data-testid="select-triage-filter-event" style={{
-              border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700,
-              fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.08em",
-              background: filterEvent !== "all" ? "#f0f4ff" : "#f8fafc",
-              color: filterEvent !== "all" ? "#4338ca" : "#475569",
-              height: 38, minWidth: 180, textTransform: "uppercase", outline: "none",
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Evento</span>
+            <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={{
+              height: 36, border: `1px solid ${filterEvent !== "all" ? "#c2610c" : "#e2e8f0"}`,
+              borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+              padding: "0 10px", background: "#fff", color: filterEvent !== "all" ? "#c2610c" : "#475569",
+              cursor: "pointer", outline: "none", minWidth: 180,
             }}>
-              <SelectValue placeholder="EVENTO: TODOS" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Evento: Todos</SelectItem>
-              {eventOptions.map(([val, label]) => <SelectItem key={val} value={val}>{label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+              <option value="all">Todos os eventos</option>
+              {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+            </select>
+          </div>
         )}
 
-        <Select value={filterSponsor} onValueChange={setFilterSponsor}>
-          <SelectTrigger data-testid="select-triage-filter-sponsor" style={{
-            border: "none", borderRadius: 10, fontSize: 11, fontWeight: 700,
-            fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.08em",
-            background: filterSponsor !== "all" ? "#faf5ff" : "#f8fafc",
-            color: filterSponsor !== "all" ? "#7c3aed" : "#475569",
-            height: 38, minWidth: 200, textTransform: "uppercase", outline: "none",
+        {/* Patrocinador */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <span style={{ fontSize: 9, fontWeight: 800, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.14em" }}>Patrocinador</span>
+          <select data-testid="select-triage-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)} style={{
+            height: 36, border: `1px solid ${filterSponsor !== "all" ? "#c2610c" : "#e2e8f0"}`,
+            borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+            padding: "0 10px", background: "#fff", color: filterSponsor !== "all" ? "#c2610c" : "#475569",
+            cursor: "pointer", outline: "none", minWidth: 200,
           }}>
-            <SelectValue placeholder="PATROCINADOR: TODOS" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Patrocinador: Todos</SelectItem>
-            {sponsorOptions.map(sp => <SelectItem key={sp.id} value={sp.id}>{sp.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+            <option value="all">Todos os patrocinadores</option>
+            {sponsorOptions.map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+          </select>
+        </div>
 
-        {hasFilters && (
-          <button data-testid="button-triage-clear-filters"
-            onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
-            style={{
-              display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", borderRadius: 10,
-              border: "none", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer",
-              fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-            }}>
-            <X size={11} /> Limpar
-          </button>
-        )}
-
-        <span style={{ fontSize: 10, color: "#cbd5e1", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, marginLeft: "auto", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          {pendingAssets.length} pendentes · {savedIds.size} triados
-        </span>
+        {/* Limpar + contador */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", paddingBottom: 1 }}>
+          {hasFilters && (
+            <button data-testid="button-triage-clear-filters"
+              onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", borderRadius: 6,
+                border: "1px solid #fecaca", background: "#fef2f2", color: "#ef4444", fontSize: 11, cursor: "pointer",
+                fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, height: 36,
+              }}>
+              <X size={11} /> Limpar
+            </button>
+          )}
+          <span style={{ fontSize: 10, color: "#cbd5e1", fontFamily: "DM Mono, monospace", fontWeight: 600, whiteSpace: "nowrap" }}>
+            {pendingAssets.length} pendentes · {savedIds.size} triados
+          </span>
+        </div>
       </div>
 
       {/* ── Table ── */}

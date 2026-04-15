@@ -297,7 +297,6 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
           {/* Brand */}
           <div style={{ marginBottom: 28 }}>
             <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 900, fontSize: 22, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1 }}>NORTE</div>
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.2em", marginTop: 3 }}>LOGISTICS APEX</div>
           </div>
 
           {/* Rastreabilidade */}

@@ -115,13 +115,6 @@ export function TriagemModal({
             }}>
               NORTE
             </div>
-            <div style={{
-              fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-              fontSize: 9, color: "#f97316", textTransform: "uppercase",
-              letterSpacing: "0.2em", marginTop: 3,
-            }}>
-              LOGISTICS APEX
-            </div>
           </div>
 
           {/* Rastreabilidade */}

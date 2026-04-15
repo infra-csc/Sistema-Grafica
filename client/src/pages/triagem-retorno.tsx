@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -412,62 +412,13 @@ export default function TriagemRetorno() {
     }
   }, [entries, savedIds, awaitingAssets]);
 
-  // ── pendingAssets — declared early so moveFocus and keyboard handler can use it ──
+  // ── pendingAssets ──────────────────────────────────────────────────────────────
   const pendingAssets = useMemo(() => awaitingAssets.filter(a => {
     if (savedIds.has(a.id)) return false;
     const me = filterEvent === "all" || a.eventName === filterEvent;
     const msp = filterSponsor === "all" || (a.sponsors ?? []).some(s => s.id === filterSponsor);
     return me && msp;
   }), [awaitingAssets, savedIds, filterEvent, filterSponsor]);
-
-  // ── Helpers: navigate focus through pending list ─────────────────────────────
-  const moveFocus = useCallback((dir: 1 | -1) => {
-    if (pendingAssets.length === 0) return;
-    const idx = focusedId ? pendingAssets.findIndex(a => a.id === focusedId) : -1;
-    let next = idx + dir;
-    if (next < 0) next = pendingAssets.length - 1;
-    if (next >= pendingAssets.length) next = 0;
-    setFocusedId(pendingAssets[next]?.id ?? null);
-  }, [focusedId, pendingAssets]);
-
-  // ── Keyboard shortcuts ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (document.activeElement as HTMLElement)?.tagName;
-      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-
-      // Arrow / vim navigation always works (unless typing in text input)
-      const isTextInput = tag === "INPUT" && (document.activeElement as HTMLInputElement).type !== "number"
-        || tag === "TEXTAREA";
-      if (!isTextInput) {
-        if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); moveFocus(1); return; }
-        if (e.key === "ArrowUp"   || e.key === "k") { e.preventDefault(); moveFocus(-1); return; }
-      }
-
-      if (!focusedId || savedIds.has(focusedId)) return;
-      const asset = pendingAssets.find(a => a.id === focusedId);
-      if (!asset) return;
-
-      // Condition shortcuts — skip when in any input
-      if (!isTyping) {
-        if (e.key === "1") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "PERFEITO"); return; }
-        if (e.key === "2") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "AVARIA_LEVE"); return; }
-        if (e.key === "3") { e.preventDefault(); smartUpdateSplit(focusedId, 0, "SUCATA"); return; }
-      }
-
-      // Enter saves and auto-advances to next pending
-      if (e.key === "Enter" && !e.repeat && !isTyping) {
-        e.preventDefault();
-        const currentIdx = pendingAssets.findIndex(a => a.id === focusedId);
-        const nextAsset = pendingAssets.find((a, i) => i > currentIdx);
-        handleSingle(asset).then(() => {
-          if (nextAsset) setFocusedId(nextAsset.id);
-        });
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [focusedId, savedIds, pendingAssets, entries, handleSingle, moveFocus]);
 
   const selectedIds = Object.entries(entries).filter(([, e]) => e.selected).map(([id]) => id);
 
@@ -998,34 +949,6 @@ export default function TriagemRetorno() {
           </div>
         </div>
       )}
-
-      {/* ── Fixed footer shortcuts ── */}
-      <footer style={{
-        position: "fixed", bottom: 0, left: 260, right: 0, zIndex: 40,
-        background: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)",
-        borderTop: "1px solid #f1f5f9",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "8px 32px", gap: 24,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-          {[["↑/K", "Anterior"], ["↓/J", "Próximo"], ["1", "Perfeito"], ["2", "Avaria"], ["3", "Sucata"], ["ENT", "Salvar linha"]].map(([key, label]) => (
-            <span key={key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              <kbd style={{
-                background: key === "ENT" ? "#0f172a" : "#f1f5f9",
-                border: key === "ENT" ? "1px solid #0f172a" : "1px solid #e2e8f0",
-                borderRadius: 4, padding: "2px 6px", fontSize: 10,
-                fontFamily: "DM Mono, monospace",
-                color: key === "ENT" ? "#fff" : "#0f172a",
-                fontWeight: 700,
-              }}>{key}</kbd>
-              {label}
-            </span>
-          ))}
-        </div>
-        <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "DM Mono, monospace", whiteSpace: "nowrap" }}>
-          NORTE Assets · Módulo Triagem
-        </span>
-      </footer>
 
       <TriagemModal
         asset={selectedAsset}

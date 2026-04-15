@@ -3154,7 +3154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // ── Departure: truck left → mark assets EM_USO ──────────────────────
         const departure = new Date(event.truckDepartureDate);
         if (now >= departure) {
-          const count = await storage.markAssetsInUseForEvent(event.id);
+          const count = await storage.markAssetsInUseForEvent(event.id, departure);
           if (count > 0) {
             broadcast({ type: 'inventory_in_use', eventId: event.id, eventName: event.name, count });
             console.log(`[inventory-cron] ${count} asset(s) → EM_USO for event "${event.name}"`);
@@ -3373,7 +3373,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Manual trigger: mark event assets EM_USO
   app.post("/api/events/:id/dispatch-inventory", requireAuth, async (req, res) => {
     try {
-      const count = await storage.markAssetsInUseForEvent(req.params.id);
+      const event = await storage.getEvent(req.params.id);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+      const departure = event.truckDepartureDate ? new Date(event.truckDepartureDate) : new Date();
+      const count = await storage.markAssetsInUseForEvent(req.params.id, departure);
       res.json({ count });
     } catch (error) {
       res.status(500).json({ error: "Erro ao processar despacho" });

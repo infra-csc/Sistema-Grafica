@@ -45,7 +45,7 @@ import {
   type EventInventoryAllocation,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, or } from "drizzle-orm";
+import { eq, and, desc, sql, or, lt } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -144,7 +144,7 @@ export interface IStorage {
   createInventoryAssets(assets: Array<Omit<InsertInventoryAsset, 'displayId'> & { displayId: string }>): Promise<InventoryAsset[]>;
   updateInventoryAsset(id: string, data: Partial<InsertInventoryAsset>): Promise<InventoryAsset | undefined>;
   deleteInventoryAsset(id: string): Promise<boolean>;
-  markAssetsInUseForEvent(eventId: string): Promise<number>;
+  markAssetsInUseForEvent(eventId: string, departureDate: Date): Promise<number>;
   markAssetsAwaitingTriageForEvent(eventId: string): Promise<number>;
 
   // Event Inventory Allocations
@@ -891,32 +891,41 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
-  async markAssetsInUseForEvent(eventId: string): Promise<number> {
-    // Find all items for this event that are produced/delivered
+  async markAssetsInUseForEvent(eventId: string, departureDate: Date): Promise<number> {
+    // Find all items for this event
     const eventItems = await db.select({ id: items.id }).from(items)
       .where(eq(items.eventId, eventId));
     const itemIds = eventItems.map(i => i.id);
     if (itemIds.length === 0) return 0;
 
     let updated = 0;
+    // Only dispatch assets that:
+    // 1. Are currently NO_GALPAO (in warehouse, ready to go)
+    // 2. Were last updated BEFORE departure (haven't been through the event cycle yet)
+    // This prevents re-dispatching assets that were already triaged back to NO_GALPAO.
     for (const itemId of itemIds) {
       const result = await db.update(inventoryAssets)
         .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
         .where(and(
           eq(inventoryAssets.originalItemId, itemId),
-          eq(inventoryAssets.trackingStatus, 'NO_GALPAO')
+          eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
+          lt(inventoryAssets.updatedAt as any, departureDate)
         ));
       updated += result.rowCount ?? 0;
     }
 
-    // Also update manually allocated assets
+    // Manually allocated assets: same guards
     const allocs = await db.select({ assetId: eventInventoryAllocations.assetId })
       .from(eventInventoryAllocations)
       .where(eq(eventInventoryAllocations.eventId, eventId));
     for (const alloc of allocs) {
       const result = await db.update(inventoryAssets)
         .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
-        .where(eq(inventoryAssets.id, alloc.assetId));
+        .where(and(
+          eq(inventoryAssets.id, alloc.assetId),
+          eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
+          lt(inventoryAssets.updatedAt as any, departureDate)
+        ));
       updated += result.rowCount ?? 0;
     }
     return updated;

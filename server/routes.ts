@@ -2594,6 +2594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Extract numeric part from item displayId (e.g. "#0062" → "0062")
         const itemNum = item.displayId.replace(/[^0-9]/g, '').padStart(4, '0');
 
+        const producedBy = (req as any).userName || 'Gráfica';
         if (existingAssets.length === 0) {
           // Create N individual records (1 per unit)
           const records = Array.from({ length: quantityProduced }, (_, i) => ({
@@ -2610,7 +2611,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             notes: `Gráfica — Evento: ${event?.name ?? '—'}`,
             autoAdded: true,
           }));
-          await storage.createInventoryAssets(records);
+          const created = await storage.createInventoryAssets(records);
+          for (const a of created) {
+            await createAuditLog(producedBy, 'cadastrado', 'inventory_asset', a.id,
+              JSON.stringify({ evento: event?.name ?? '—', itemId: item.id }));
+          }
         } else if (existingAssets.length < quantityProduced) {
           // Add missing units
           const currentMax = existingAssets.length;
@@ -2628,7 +2633,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             notes: `Gráfica — Evento: ${event?.name ?? '—'}`,
             autoAdded: true,
           }));
-          await storage.createInventoryAssets(additional);
+          const created = await storage.createInventoryAssets(additional);
+          for (const a of created) {
+            await createAuditLog(producedBy, 'cadastrado', 'inventory_asset', a.id,
+              JSON.stringify({ evento: event?.name ?? '—', itemId: item.id }));
+          }
         }
         // Run lifecycle cron immediately so assets with past event dates
         // transition straight to EM_USO / AGUARDANDO_TRIAGEM without waiting for the next tick.
@@ -3311,6 +3320,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         notes: notes ?? asset.notes,
         trackingStatus: newStatus,
       } as any);
+      const triagedBy = (req as any).userName || 'Sistema';
+      await createAuditLog(triagedBy, 'triagem', 'inventory_asset', req.params.id,
+        JSON.stringify({ destino: newStatus, condicao: condition ?? asset.condition }));
       broadcast({ type: 'inventory_triaged', assetId: req.params.id, trackingStatus: newStatus });
       res.json(updated);
     } catch (error) {
@@ -3361,6 +3373,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } as any);
       }
 
+      const triagedBy = (req as any).userName || 'Sistema';
+      await createAuditLog(triagedBy, 'triagem', 'inventory_asset', req.params.id,
+        JSON.stringify({ destino: firstStatus, condicao: splits[0].condition, lotes: splits.length }));
       broadcast({ type: 'inventory_triaged', assetId: req.params.id, trackingStatus: firstStatus });
       res.json({ ok: true, splits: splits.length });
     } catch (error) {

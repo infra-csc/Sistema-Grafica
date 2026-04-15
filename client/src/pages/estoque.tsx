@@ -254,6 +254,13 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   const currentAlloc = ts === "EM_USO" ? allocations[allocations.length - 1] : null;
   const pastAllocs = ts === "EM_USO" ? allocations.slice(0, -1) : allocations;
 
+  const { data: assetLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs", "inventory_asset", asset.id],
+    queryFn: () => fetch(`/api/audit-logs?entityType=inventory_asset&entityId=${asset.id}`, { credentials: "include" }).then(r => r.json()),
+  });
+  const productionLog = assetLogs.find((l: any) => l.action === 'cadastrado');
+  const triageLog = assetLogs.find((l: any) => l.action === 'triagem');
+
   // Timeline logic — 4 steps
   // 1. Entrada no Estoque: always done
   // 2. Em Uso no Evento: done once dispatched
@@ -315,7 +322,9 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                     {linkedItem?.type ? `Produção · ${linkedItem.type}` : "Produção Gráfica"}
                   </div>
                   <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    Auto-cadastrado · {asset.autoAdded ? "Gráfica" : "Manual"}
+                    {productionLog
+                      ? `${productionLog.userName} · ${format(new Date(productionLog.createdAt), "dd MMM yyyy", { locale: ptBR })}`
+                      : `Auto-cadastrado · ${asset.autoAdded ? "Gráfica" : "Manual"}`}
                   </div>
                 </div>
               </div>
@@ -375,7 +384,11 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                     Triagem de Retorno
                   </div>
                   <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    {step3Active ? "Em análise" : step3Done ? "Concluído" : "Pendente"}
+                    {step3Active
+                      ? "Em análise"
+                      : step3Done && triageLog
+                        ? `${triageLog.userName} · ${format(new Date(triageLog.createdAt), "dd MMM yyyy", { locale: ptBR })}`
+                        : step3Done ? "Concluído" : "Pendente"}
                   </div>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 
 type UserRole = "admin" | "solicitacao" | "arte" | "grafica";
 
@@ -41,7 +42,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ exchangeToken }),
       credentials: "include",
-    }).finally(() => setSsoReady(true));
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((user: User | null) => {
+        if (user?.id) {
+          // Hydrate auth cache directly — avoids a second /api/auth/me round-trip
+          // and sidesteps any cookie timing issues on the first load
+          queryClient.setQueryData(["/api/auth/me"], user);
+        }
+      })
+      .finally(() => setSsoReady(true));
   }, []);
 
   const { data: user, isLoading, refetch } = useQuery<User>({

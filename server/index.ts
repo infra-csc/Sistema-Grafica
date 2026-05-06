@@ -37,6 +37,7 @@ async function seedUsers() {
 }
 
 const app = express();
+app.set("trust proxy", 1); // Replit sits behind a reverse proxy — needed for secure cookies
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -109,13 +110,25 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
   }
   ssoTokens.delete(exchangeToken); // single-use
 
+  // Fetch full user data so the frontend can hydrate auth state without a second request
+  const { rows: fullUser } = await pool.query<{
+    id: string; name: string; email: string; role: string; must_change_password: boolean;
+  }>("SELECT id, name, email, role, must_change_password FROM users WHERE id = $1 LIMIT 1", [entry.userId]);
+  if (!fullUser[0]) return res.status(404).json({ error: "Usuário não encontrado" });
+
   req.session.userId   = entry.userId;
   req.session.userName = entry.userName;
   req.session.userRole = entry.userRole;
   await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
 
   log(`[SSO] sessão criada via exchange para userId: ${entry.userId}`);
-  res.json({ id: entry.userId, name: entry.userName, role: entry.userRole });
+  res.json({
+    id: fullUser[0].id,
+    name: fullUser[0].name,
+    email: fullUser[0].email,
+    role: fullUser[0].role,
+    mustChangePassword: fullUser[0].must_change_password,
+  });
 });
 // ────────────────────────────────────────────────────────────────────────────
 

@@ -595,60 +595,89 @@ export default function Eventos() {
                   </div>
 
                   {/* Prazos colapsável */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                    <button
-                      type="button"
-                      onClick={() => setPrazosExpanded(!prazosExpanded)}
-                      data-testid="button-toggle-prazos"
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', backgroundColor: '#f0efee', border: 'none', borderRadius: prazosExpanded ? '8px 8px 0 0' : '8px', padding: '10px 14px', cursor: 'pointer', transition: 'background-color 0.15s' }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e8e7e6'; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f0efee'; }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Clock style={{ width: '13px', height: '13px', color: '#f97316' }} />
-                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
-                        <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(dias antes do evento)</span>
-                      </div>
-                      {prazosExpanded
-                        ? <ChevronUp style={{ width: '14px', height: '14px', color: '#78716c' }} />
-                        : <ChevronDown style={{ width: '14px', height: '14px', color: '#78716c' }} />
-                      }
-                    </button>
-                    {prazosExpanded && (
-                      <div style={{ backgroundColor: '#f0efee', borderRadius: '0 0 8px 8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                        {[
-                          { key: 'deadlineListaImagens', label: 'Lista de Imagens', desc: 'Criação dos itens do evento', color: '#8b5cf6' },
-                          { key: 'deadlineEntregaLayouts', label: 'Entrega de Layouts', desc: 'Arte entrega os arquivos finais', color: '#3b82f6' },
-                          { key: 'deadlineAprovacaoLayout', label: 'Aprovação de Layout', desc: 'Aprovação pelo patrocinador', color: '#f59e0b' },
-                          { key: 'deadlineRevisaoLista', label: 'Revisão de Lista', desc: 'Criador revisa e lança todos os itens', color: '#10b981' },
-                          { key: 'deadlineProducaoGrafica', label: 'Produção Gráfica', desc: 'Prazo da gráfica para produzir', color: '#f97316' },
-                        ].map(({ key, label, desc, color }) => (
-                          <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: '12px', fontWeight: '600', color: '#1a1c1c', lineHeight: 1.2 }}>{label}</div>
-                                <div style={{ fontSize: '10px', color: '#a8a29e', lineHeight: 1.2, marginTop: '1px' }}>{desc}</div>
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                              <input
-                                type="number"
-                                max={-1}
-                                value={formData[key as keyof typeof formData]}
-                                onChange={(e) => setFormData({ ...formData, [key]: parseInt(e.target.value) || 0 })}
-                                data-testid={`input-${key}`}
-                                style={{ width: '72px', backgroundColor: '#ffffff', border: '1px solid #d4d0cc', borderRadius: '6px', padding: '6px 10px', fontSize: '13px', fontWeight: '700', color: '#1a1c1c', textAlign: 'right', outline: 'none', transition: 'box-shadow 0.15s, border-color 0.15s' }}
-                                onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.borderColor = '#f97316'; }}
-                                onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-                              />
-                              <span style={{ fontSize: '11px', color: '#78716c', fontWeight: '500' }}>dias</span>
-                            </div>
+                  {(() => {
+                    // Converte offset (dias) em YYYY-MM-DD para o input date
+                    const offsetToDateStr = (days: number): string => {
+                      if (!formData.startDate) return "";
+                      const d = new Date(formData.startDate + "T12:00:00");
+                      d.setDate(d.getDate() + days);
+                      return d.toISOString().slice(0, 10);
+                    };
+                    // Converte data escolhida de volta em offset (dias)
+                    const dateStrToOffset = (dateStr: string): number => {
+                      if (!formData.startDate || !dateStr) return 0;
+                      const start = new Date(formData.startDate + "T12:00:00");
+                      const target = new Date(dateStr + "T12:00:00");
+                      return Math.round((target.getTime() - start.getTime()) / 86400000);
+                    };
+                    const noStart = !formData.startDate;
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                        <button
+                          type="button"
+                          onClick={() => setPrazosExpanded(!prazosExpanded)}
+                          data-testid="button-toggle-prazos"
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', backgroundColor: '#f0efee', border: 'none', borderRadius: prazosExpanded ? '8px 8px 0 0' : '8px', padding: '10px 14px', cursor: 'pointer', transition: 'background-color 0.15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e8e7e6'; }}
+                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f0efee'; }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Clock style={{ width: '13px', height: '13px', color: '#f97316' }} />
+                            <span style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
+                            {noStart && <span style={{ fontSize: '10px', color: '#f97316', fontWeight: '500', textTransform: 'none', letterSpacing: 0 }}>preencha a data de início primeiro</span>}
                           </div>
-                        ))}
+                          {prazosExpanded
+                            ? <ChevronUp style={{ width: '14px', height: '14px', color: '#78716c' }} />
+                            : <ChevronDown style={{ width: '14px', height: '14px', color: '#78716c' }} />
+                          }
+                        </button>
+                        {prazosExpanded && (
+                          <div style={{ backgroundColor: '#f0efee', borderRadius: '0 0 8px 8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                            {[
+                              { key: 'deadlineListaImagens', label: 'Lista de Imagens', desc: 'Criação dos itens do evento', color: '#8b5cf6' },
+                              { key: 'deadlineEntregaLayouts', label: 'Entrega de Layouts', desc: 'Arte entrega os arquivos finais', color: '#3b82f6' },
+                              { key: 'deadlineAprovacaoLayout', label: 'Aprovação de Layout', desc: 'Aprovação pelo patrocinador', color: '#f59e0b' },
+                              { key: 'deadlineRevisaoLista', label: 'Revisão de Lista', desc: 'Criador revisa e lança todos os itens', color: '#10b981' },
+                              { key: 'deadlineProducaoGrafica', label: 'Produção Gráfica', desc: 'Prazo da gráfica para produzir', color: '#f97316' },
+                            ].map(({ key, label, desc, color }) => {
+                              const currentDays = formData[key as keyof typeof formData] as number;
+                              const dateVal = offsetToDateStr(currentDays);
+                              return (
+                                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+                                    <div style={{ minWidth: 0 }}>
+                                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#1a1c1c', lineHeight: 1.2 }}>{label}</div>
+                                      <div style={{ fontSize: '10px', color: '#a8a29e', lineHeight: 1.2, marginTop: '1px' }}>{desc}</div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                    <input
+                                      type="date"
+                                      disabled={noStart}
+                                      max={formData.startDate || undefined}
+                                      value={dateVal}
+                                      onChange={(e) => {
+                                        const offset = dateStrToOffset(e.target.value);
+                                        setFormData({ ...formData, [key]: offset });
+                                      }}
+                                      data-testid={`input-${key}`}
+                                      style={{ backgroundColor: noStart ? '#e8e7e6' : '#ffffff', border: '1px solid #d4d0cc', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', fontWeight: '600', color: noStart ? '#a8a29e' : '#1a1c1c', outline: 'none', cursor: noStart ? 'not-allowed' : 'pointer', transition: 'box-shadow 0.15s, border-color 0.15s' }}
+                                      onFocus={e => { if (!noStart) { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.borderColor = '#f97316'; } }}
+                                      onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+                                    />
+                                    {!noStart && dateVal && (
+                                      <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '500', minWidth: '32px' }}>{currentDays}d</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
 
                 </div>
 

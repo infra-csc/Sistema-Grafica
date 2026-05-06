@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
@@ -57,6 +58,41 @@ app.use(
     },
   })
 );
+
+// ── Portal SSO middleware ────────────────────────────────────────────────────
+// Portal redirects here with ?portal_sso=<JWT>&portal_return=<URL>
+// JWT is signed with SESSION_SECRET, issuer "norte-portal", payload { email }
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  const token = req.query.portal_sso as string | undefined;
+  if (!token) return next();
+
+  const secret  = process.env.SESSION_SECRET || "norte-grafica-secret-key-change-in-production";
+  const returnUrl = (req.query.portal_return as string | undefined) || "/";
+
+  try {
+    const payload = jwt.verify(token, secret, { issuer: "norte-portal" }) as { email?: string };
+    if (!payload?.email) { log("[SSO] payload sem email"); return res.redirect("/login?error=sso_invalid_payload"); }
+
+    const { rows } = await pool.query<{ id: string; name: string; role: string }>(
+      "SELECT id, name, role FROM users WHERE email = $1 LIMIT 1",
+      [payload.email]
+    );
+    const user = rows[0];
+    if (!user) { log(`[SSO] usuário não encontrado: ${payload.email}`); return res.redirect("/login?error=sso_user_not_found"); }
+
+    req.session.userId   = user.id;
+    req.session.userName = user.name;
+    req.session.userRole = user.role;
+    await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
+
+    log(`[SSO] login automático: ${payload.email}`);
+    return res.redirect(returnUrl.startsWith("/") ? returnUrl : "/");
+  } catch (err: any) {
+    log(`[SSO] token inválido: ${err.message}`);
+    return res.redirect("/login?error=sso_invalid_token");
+  }
+});
+// ────────────────────────────────────────────────────────────────────────────
 
 app.use((req, res, next) => {
   const start = Date.now();

@@ -1,9 +1,12 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
+
+const PgSession = connectPgSimple(session);
 
 async function seedUsers() {
   const users = [
@@ -38,6 +41,11 @@ app.use(express.urlencoded({ extended: false }));
 // Session configuration
 app.use(
   session({
+    store: new PgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || "norte-grafica-secret-key-change-in-production",
     resave: false,
     saveUninitialized: false,

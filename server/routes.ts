@@ -179,33 +179,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
-  // ============ TEMP: RESET PRODUCTION DATA (ADMIN ONLY) ============
-  app.post("/api/admin/reset-production-data", requireAdmin, async (req, res) => {
-    try {
-      await pool.query(`
-        TRUNCATE TABLE
-          event_inventory_allocations,
-          inventory_assets,
-          item_sponsor_approvals,
-          item_sponsors,
-          event_sponsors,
-          delivery_photos,
-          production_updates,
-          comments,
-          notifications,
-          audit_logs,
-          items,
-          events,
-          sponsors,
-          standard_items
-        RESTART IDENTITY CASCADE
-      `);
-      res.json({ ok: true, message: "Dados de produção zerados com sucesso." });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   // ============ AUTHENTICATION ============
 
   // Register new user (admin only)

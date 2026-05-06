@@ -66,7 +66,8 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   const token = req.query.portal_sso as string | undefined;
   if (!token) return next();
 
-  const secret  = process.env.SESSION_SECRET || "norte-grafica-secret-key-change-in-production";
+  // Use SSO_SECRET if set (shared with portal); fallback to SESSION_SECRET
+  const secret  = process.env.SSO_SECRET || process.env.SESSION_SECRET || "norte-grafica-secret-key-change-in-production";
   const returnUrl = (req.query.portal_return as string | undefined) || "/";
 
   try {

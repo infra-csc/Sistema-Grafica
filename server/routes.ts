@@ -23,9 +23,12 @@ import {
   type ItemSponsorApproval
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { db } from "./db";
 import { events } from "@shared/schema";
 import { z } from "zod";
+
+const SSO_SECRET = process.env.SSO_SECRET || "";
 
 // Extend Express Request type to include userName and userId
 declare global {
@@ -278,6 +281,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(userWithoutPassword);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // SSO — portal redirects here with a signed JWT: GET /api/auth/sso?token=<jwt>
+  // JWT payload: { email: string }  signed with SSO_SECRET (HS256)
+  app.get("/api/auth/sso", async (req, res) => {
+    const { token } = req.query as { token?: string };
+
+    if (!token) {
+      return res.redirect("/login?error=sso_token_missing");
+    }
+
+    if (!SSO_SECRET) {
+      console.error("[SSO] SSO_SECRET env var not set");
+      return res.redirect("/login?error=sso_not_configured");
+    }
+
+    try {
+      const payload = jwt.verify(token, SSO_SECRET) as { email: string };
+
+      if (!payload?.email) {
+        return res.redirect("/login?error=sso_invalid_payload");
+      }
+
+      const user = await storage.getUserByEmail(payload.email);
+      if (!user) {
+        return res.redirect("/login?error=sso_user_not_found");
+      }
+
+      // Create session exactly like normal login
+      req.session.userId   = user.id;
+      req.session.userName = user.name;
+      req.session.userRole = user.role;
+
+      await new Promise<void>((resolve, reject) =>
+        req.session.save((err) => (err ? reject(err) : resolve()))
+      );
+
+      res.redirect("/");
+    } catch (err: any) {
+      console.error("[SSO] token verification failed:", err.message);
+      res.redirect("/login?error=sso_invalid_token");
     }
   });
 

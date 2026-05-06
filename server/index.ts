@@ -87,10 +87,17 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
 
     log(`[SSO] login automático: ${payload.email}`);
-    return res.redirect(returnUrl.startsWith("/") ? returnUrl : "/");
+    const dest = returnUrl.startsWith("/") ? returnUrl : "/";
+    // Respond with HTML redirect so the session cookie is accepted as first-party
+    // (avoids SameSite=Lax restrictions on cross-site redirect responses)
+    return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>window.location.replace(${JSON.stringify(dest)});</script>
+</head><body></body></html>`);
   } catch (err: any) {
     log(`[SSO] token inválido: ${err.message}`);
-    return res.redirect("/login?error=sso_invalid_token");
+    return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>window.location.replace("/login?error=sso_invalid_token");</script>
+</head><body></body></html>`);
   }
 });
 // ────────────────────────────────────────────────────────────────────────────

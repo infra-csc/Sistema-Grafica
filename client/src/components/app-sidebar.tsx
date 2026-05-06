@@ -27,29 +27,36 @@ type MenuItem = {
   roles?: string[];
 };
 
+// roles: undefined = todos os perfis autenticados
 const productionItems: MenuItem[] = [
   { title: "Painel Geral",            url: "/",                        icon: LayoutDashboard },
   { title: "Eventos",                 url: "/eventos",                 icon: Home },
-  { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "admin"] },
-  { title: "Arte",                    url: "/arte",                    icon: CheckCircle },
-  { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "admin"] },
+  { title: "Arte",                    url: "/arte",                    icon: CheckCircle,    roles: ["arte", "atendimento", "admin"] },
+  { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
+  { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "admin"] },
   { title: "Solicitação",             url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
-  { title: "Gráfica",                 url: "/grafica",                 icon: Factory },
-  { title: "Modelos",                 url: "/modelos",                 icon: Layers },
+  { title: "Gráfica",                 url: "/grafica",                 icon: Factory,        roles: ["grafica", "solicitacao", "admin"] },
+  { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"] },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
   { title: "Histórico",               url: "/historico",               icon: Activity },
-  { title: "Análises",                url: "/analises",                icon: BarChart3 },
+  { title: "Análises",                url: "/analises",                icon: BarChart3,      roles: ["admin"] },
 ];
 
+// Patrocinadores: visível p/ solicitação, atendimento e admin
+const sponsorItems: MenuItem[] = [
+  { title: "Patrocinadores", url: "/patrocinadores", icon: Building2, roles: ["solicitacao", "atendimento", "admin"] },
+];
+
+// Estoque: apenas admin
 const stockItems: MenuItem[] = [
-  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch },
-  { title: "Estoque",            url: "/estoque",          icon: Archive },
+  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch, roles: ["admin"] },
+  { title: "Estoque",            url: "/estoque",          icon: Archive,    roles: ["admin"] },
 ];
 
+// Administração: apenas admin
 const adminItems: MenuItem[] = [
-  { title: "Usuários",         url: "/usuarios",      icon: Users },
-  { title: "Logs do Sistema",  url: "/logs-sistema",  icon: ScrollText, roles: ["admin"] },
-  { title: "Patrocinadores",   url: "/patrocinadores", icon: Building2 },
+  { title: "Usuários",        url: "/usuarios",     icon: Users },
+  { title: "Logs do Sistema", url: "/logs-sistema", icon: ScrollText },
 ];
 
 // ─── Section label ────────────────────────────────────────
@@ -140,9 +147,13 @@ export function AppSidebar() {
     },
   });
 
-  const filteredProduction = productionItems.filter((item) =>
-    item.roles ? item.roles.includes(user?.role || "") : true
-  );
+  const role = user?.role || "";
+  const filterByRole = (items: MenuItem[]) =>
+    items.filter((item) => (item.roles ? item.roles.includes(role) : true));
+
+  const filteredProduction = filterByRole(productionItems);
+  const filteredSponsor   = filterByRole(sponsorItems);
+  const filteredStock     = filterByRole(stockItems);
 
   return (
     <Sidebar
@@ -202,31 +213,49 @@ export function AppSidebar() {
       >
         <style>{`::-webkit-scrollbar { display: none; }`}</style>
 
-        {/* Production */}
-        <SidebarGroup style={{ padding: "8px 0 4px" }}>
-          <span style={sectionLabelStyle}>Produção</span>
-          <SidebarGroupContent>
-            <SidebarMenu style={{ gap: 1 }}>
-              {filteredProduction.map((item) => (
-                <NavItem key={item.title} item={item} isActive={location === item.url} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Produção */}
+        {filteredProduction.length > 0 && (
+          <SidebarGroup style={{ padding: "8px 0 4px" }}>
+            <span style={sectionLabelStyle}>Produção</span>
+            <SidebarGroupContent>
+              <SidebarMenu style={{ gap: 1 }}>
+                {filteredProduction.map((item) => (
+                  <NavItem key={item.title} item={item} isActive={location === item.url} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
-        {/* Estoque & Logística */}
-        <SidebarGroup style={{ padding: "20px 0 4px" }}>
-          <span style={sectionLabelStyle}>Estoque &amp; Logística</span>
-          <SidebarGroupContent>
-            <SidebarMenu style={{ gap: 1 }}>
-              {stockItems.map((item) => (
-                <NavItem key={item.title} item={item} isActive={location === item.url} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Patrocinadores — visível p/ solicitação, atendimento e admin */}
+        {filteredSponsor.length > 0 && (
+          <SidebarGroup style={{ padding: "20px 0 4px" }}>
+            <span style={sectionLabelStyle}>Parceiros</span>
+            <SidebarGroupContent>
+              <SidebarMenu style={{ gap: 1 }}>
+                {filteredSponsor.map((item) => (
+                  <NavItem key={item.title} item={item} isActive={location === item.url} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
-        {/* Administração */}
+        {/* Estoque & Logística — apenas admin */}
+        {filteredStock.length > 0 && (
+          <SidebarGroup style={{ padding: "20px 0 4px" }}>
+            <span style={sectionLabelStyle}>Estoque &amp; Logística</span>
+            <SidebarGroupContent>
+              <SidebarMenu style={{ gap: 1 }}>
+                {filteredStock.map((item) => (
+                  <NavItem key={item.title} item={item} isActive={location === item.url} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Administração — apenas admin */}
         {hasPermission("admin") && (
           <SidebarGroup style={{ padding: "20px 0 4px" }}>
             <span style={sectionLabelStyle}>Administração</span>

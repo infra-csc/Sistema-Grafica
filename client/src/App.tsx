@@ -116,7 +116,7 @@ function Router() {
         {() => <ProtectedRoute component={PainelGeral} />}
       </Route>
       <Route path="/analises">
-        {() => <ProtectedRoute component={DashboardAnalises} />}
+        {() => <RoleProtectedRoute component={DashboardAnalises} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/eventos">
         {() => <ProtectedRoute component={Eventos} />}
@@ -125,22 +125,22 @@ function Router() {
         {() => <ProtectedRoute component={EventDetail} />}
       </Route>
       <Route path="/arte">
-        {() => <ProtectedRoute component={Arte} />}
+        {() => <RoleProtectedRoute component={Arte} allowedRoles={["arte", "atendimento", "admin"]} />}
       </Route>
       <Route path="/vincular-patrocinadores">
-        {() => <RoleProtectedRoute component={VincularPatrocinadores} allowedRoles={["arte", "admin"]} />}
+        {() => <RoleProtectedRoute component={VincularPatrocinadores} allowedRoles={["arte", "solicitacao", "atendimento", "admin"]} />}
       </Route>
       <Route path="/atendimento">
-        {() => <RoleProtectedRoute component={Atendimento} allowedRoles={["atendimento", "admin"]} />}
+        {() => <RoleProtectedRoute component={Atendimento} allowedRoles={["atendimento", "arte", "admin"]} />}
       </Route>
       <Route path="/solicitacao">
         {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={["solicitacao", "admin"]} />}
       </Route>
       <Route path="/grafica">
-        {() => <ProtectedRoute component={Grafica} />}
+        {() => <RoleProtectedRoute component={Grafica} allowedRoles={["grafica", "solicitacao", "admin"]} />}
       </Route>
       <Route path="/modelos">
-        {() => <ProtectedRoute component={Modelos} />}
+        {() => <RoleProtectedRoute component={Modelos} allowedRoles={["solicitacao", "admin"]} />}
       </Route>
       <Route path="/calendario">
         {() => <ProtectedRoute component={Calendario} />}
@@ -149,19 +149,19 @@ function Router() {
         {() => <ProtectedRoute component={Historico} />}
       </Route>
       <Route path="/usuarios">
-        {() => <ProtectedRoute component={Usuarios} />}
+        {() => <RoleProtectedRoute component={Usuarios} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/patrocinadores">
-        {() => <ProtectedRoute component={Patrocinadores} />}
+        {() => <RoleProtectedRoute component={Patrocinadores} allowedRoles={["solicitacao", "atendimento", "admin"]} />}
       </Route>
       <Route path="/logs-sistema">
         {() => <RoleProtectedRoute component={LogsSistema} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/estoque">
-        {() => <ProtectedRoute component={Estoque} />}
+        {() => <RoleProtectedRoute component={Estoque} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/triagem-retorno">
-        {() => <ProtectedRoute component={TriagemRetorno} />}
+        {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={["admin"]} />}
       </Route>
       <Route component={NotFound} />
     </Switch>

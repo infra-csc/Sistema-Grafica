@@ -23,7 +23,7 @@ import {
   type ItemSponsorApproval
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { events } from "@shared/schema";
 import { z } from "zod";
 

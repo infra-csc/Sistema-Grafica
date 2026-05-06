@@ -1,7 +1,29 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import bcrypt from "bcryptjs";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { pool } from "./db";
+
+async function seedUsers() {
+  const users = [
+    { name: "Pedro Telles",                       email: "pedro@nortemkt.com",                role: "admin",       mustChange: false },
+    { name: "Guilherme Coelho do Nascimento",     email: "guilherme.nascimento@nortemkt.com", role: "admin",       mustChange: false },
+    { name: "Agatha Nadolsky",                    email: "agatha.nadolsky@nortemkt.com",       role: "atendimento", mustChange: true  },
+    { name: "Fernanda Sanhudo de Oliveira Penna", email: "fernanda.oliveira@ttkmarketing",     role: "solicitacao", mustChange: true  },
+    { name: "Jan Felipe",                         email: "jan.felipe@nortemkt.com",             role: "arte",        mustChange: true  },
+    { name: "Enzo Pedote Ascoli",                 email: "enzo.ascoli@nortemkt.com",            role: "atendimento", mustChange: true  },
+  ];
+  const hash = await bcrypt.hash("norte2026", 10);
+  for (const u of users) {
+    await pool.query(
+      `INSERT INTO users (name, email, password_hash, role, must_change_password)
+       VALUES ($1,$2,$3,$4,$5) ON CONFLICT (email) DO NOTHING`,
+      [u.name, u.email, hash, u.role, u.mustChange]
+    );
+  }
+  log("seed-users: done");
+}
 
 const app = express();
 app.use(express.json());

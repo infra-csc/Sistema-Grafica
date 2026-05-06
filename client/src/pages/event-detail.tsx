@@ -1009,25 +1009,40 @@ export default function EventDetail() {
         {/* Prazos do evento */}
         {(() => {
           const start = new Date(event.startDate);
+          // Ajusta fim de semana: sábado→sexta, domingo→segunda (exceto Produção Gráfica)
+          const adjustWeekend = (date: Date, skipAdjust: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
+            if (skipAdjust) return { date, adjusted: null };
+            const dow = date.getDay();
+            if (dow === 6) { // sábado → sexta
+              const d = new Date(date); d.setDate(d.getDate() - 1); return { date: d, adjusted: 'fri' };
+            }
+            if (dow === 0) { // domingo → segunda
+              const d = new Date(date); d.setDate(d.getDate() + 1); return { date: d, adjusted: 'mon' };
+            }
+            return { date, adjusted: null };
+          };
           const deadlines = [
-            { label: 'Lista de Imagens', days: event.deadlineListaImagens ?? -25, color: '#8b5cf6' },
-            { label: 'Entrega de Layouts', days: event.deadlineEntregaLayouts ?? -20, color: '#3b82f6' },
-            { label: 'Aprovação de Layout', days: event.deadlineAprovacaoLayout ?? -12, color: '#f59e0b' },
-            { label: 'Revisão de Lista', days: event.deadlineRevisaoLista ?? -8, color: '#10b981' },
-            { label: 'Produção Gráfica', days: event.deadlineProducaoGrafica ?? -1, color: '#f97316' },
+            { label: 'Lista de Imagens', days: event.deadlineListaImagens ?? -25, color: '#8b5cf6', allDays: false },
+            { label: 'Entrega de Layouts', days: event.deadlineEntregaLayouts ?? -20, color: '#3b82f6', allDays: false },
+            { label: 'Aprovação de Layout', days: event.deadlineAprovacaoLayout ?? -12, color: '#f59e0b', allDays: false },
+            { label: 'Revisão de Lista', days: event.deadlineRevisaoLista ?? -8, color: '#10b981', allDays: false },
+            { label: 'Produção Gráfica', days: event.deadlineProducaoGrafica ?? -1, color: '#f97316', allDays: true },
           ];
           return (
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-              {deadlines.map(({ label, days, color }) => {
-                const date = new Date(start);
-                date.setDate(date.getDate() + days);
+              {deadlines.map(({ label, days, color, allDays }) => {
+                const raw = new Date(start);
+                raw.setDate(raw.getDate() + days);
+                const { date, adjusted } = adjustWeekend(raw, allDays);
                 return (
-                  <div key={label} title={label} style={{ backgroundColor: '#f3f4f3', borderRadius: '99px', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div key={label} title={adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label} style={{ backgroundColor: '#f3f4f3', borderRadius: '99px', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
                     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
                       <span style={{ fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#78716c' }}>{label}</span>
                       <span style={{ fontSize: '12px', fontWeight: '700', color: '#1a1c1c', marginTop: '1px' }}>
                         {date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                        {adjusted === 'fri' && <span style={{ fontSize: '9px', fontWeight: '600', color: '#f59e0b', marginLeft: '4px' }}>sex</span>}
+                        {adjusted === 'mon' && <span style={{ fontSize: '9px', fontWeight: '600', color: '#f59e0b', marginLeft: '4px' }}>seg</span>}
                         <span style={{ fontSize: '10px', fontWeight: '500', color: '#a8a29e', marginLeft: '4px' }}>({days}d)</span>
                       </span>
                     </div>

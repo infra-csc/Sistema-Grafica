@@ -985,7 +985,7 @@ export default function EventDetail() {
         </div>
 
         {/* Chips de data — pill rounded-full */}
-        <div style={{ display: 'flex', gap: '16px', marginTop: '0' }}>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '0', flexWrap: 'wrap' }}>
           <div style={{ backgroundColor: '#f3f4f3', borderRadius: '99px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Calendar className="h-4 w-4 flex-shrink-0" style={{ color: '#f97316' }} />
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
@@ -1005,6 +1005,38 @@ export default function EventDetail() {
             </div>
           </div>
         </div>
+
+        {/* Prazos do evento */}
+        {(() => {
+          const start = new Date(event.startDate);
+          const deadlines = [
+            { label: 'Lista de Imagens', days: event.deadlineListaImagens ?? -25, color: '#8b5cf6' },
+            { label: 'Entrega de Layouts', days: event.deadlineEntregaLayouts ?? -20, color: '#3b82f6' },
+            { label: 'Aprovação de Layout', days: event.deadlineAprovacaoLayout ?? -12, color: '#f59e0b' },
+            { label: 'Revisão de Lista', days: event.deadlineRevisaoLista ?? -8, color: '#10b981' },
+            { label: 'Produção Gráfica', days: event.deadlineProducaoGrafica ?? -1, color: '#f97316' },
+          ];
+          return (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+              {deadlines.map(({ label, days, color }) => {
+                const date = new Date(start);
+                date.setDate(date.getDate() + days);
+                return (
+                  <div key={label} title={label} style={{ backgroundColor: '#f3f4f3', borderRadius: '99px', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+                      <span style={{ fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#78716c' }}>{label}</span>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#1a1c1c', marginTop: '1px' }}>
+                        {date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                        <span style={{ fontSize: '10px', fontWeight: '500', color: '#a8a29e', marginLeft: '4px' }}>({days}d)</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Card de Peças em Rascunho */}

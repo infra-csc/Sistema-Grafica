@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
@@ -47,7 +47,13 @@ export default function Eventos() {
     name: "",
     startDate: "",
     truckDepartureDate: "",
+    deadlineListaImagens: -25,
+    deadlineEntregaLayouts: -20,
+    deadlineAprovacaoLayout: -12,
+    deadlineRevisaoLista: -8,
+    deadlineProducaoGrafica: -1,
   });
+  const [prazosExpanded, setPrazosExpanded] = useState(false);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
@@ -88,8 +94,9 @@ export default function Eventos() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setOpen(false);
-      setFormData({ name: "", startDate: "", truckDepartureDate: "" });
+      setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
       setSelectedSponsorIds([]);
+      setPrazosExpanded(false);
       toast({
         title: "Evento criado",
         description: "O evento foi criado com sucesso",
@@ -141,8 +148,9 @@ export default function Eventos() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setEditingEvent(null);
-      setFormData({ name: "", startDate: "", truckDepartureDate: "" });
+      setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
       setSelectedSponsorIds([]);
+      setPrazosExpanded(false);
       toast({
         title: "Evento atualizado",
         description: "O evento foi atualizado com sucesso",
@@ -233,6 +241,11 @@ export default function Eventos() {
       name: event.name || "",
       startDate: event.startDate ? new Date(event.startDate).toISOString().slice(0, 10) : "",
       truckDepartureDate: event.truckDepartureDate ? new Date(event.truckDepartureDate).toISOString().slice(0, 16) : "",
+      deadlineListaImagens: event.deadlineListaImagens ?? -25,
+      deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? -20,
+      deadlineAprovacaoLayout: event.deadlineAprovacaoLayout ?? -12,
+      deadlineRevisaoLista: event.deadlineRevisaoLista ?? -8,
+      deadlineProducaoGrafica: event.deadlineProducaoGrafica ?? -1,
     });
     setOpen(true);
   };
@@ -243,11 +256,20 @@ export default function Eventos() {
     setDeletingEventId(id);
   };
 
+  const defaultDeadlines = {
+    deadlineListaImagens: -25,
+    deadlineEntregaLayouts: -20,
+    deadlineAprovacaoLayout: -12,
+    deadlineRevisaoLista: -8,
+    deadlineProducaoGrafica: -1,
+  };
+
   const handleCloseDialog = () => {
     setOpen(false);
     setEditingEvent(null);
-    setFormData({ name: "", startDate: "", truckDepartureDate: "" });
+    setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
     setSelectedSponsorIds([]);
+    setPrazosExpanded(false);
   };
 
   // Buscar patrocinadores vinculados ao editar evento
@@ -571,6 +593,63 @@ export default function Eventos() {
                       </div>
                     )}
                   </div>
+
+                  {/* Prazos colapsável */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPrazosExpanded(!prazosExpanded)}
+                      data-testid="button-toggle-prazos"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', backgroundColor: '#f0efee', border: 'none', borderRadius: prazosExpanded ? '8px 8px 0 0' : '8px', padding: '10px 14px', cursor: 'pointer', transition: 'background-color 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e8e7e6'; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f0efee'; }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Clock style={{ width: '13px', height: '13px', color: '#f97316' }} />
+                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
+                        <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(dias antes do evento)</span>
+                      </div>
+                      {prazosExpanded
+                        ? <ChevronUp style={{ width: '14px', height: '14px', color: '#78716c' }} />
+                        : <ChevronDown style={{ width: '14px', height: '14px', color: '#78716c' }} />
+                      }
+                    </button>
+                    {prazosExpanded && (
+                      <div style={{ backgroundColor: '#f0efee', borderRadius: '0 0 8px 8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                        {[
+                          { key: 'deadlineListaImagens', label: 'Lista de Imagens', desc: 'Criação dos itens do evento', color: '#8b5cf6' },
+                          { key: 'deadlineEntregaLayouts', label: 'Entrega de Layouts', desc: 'Arte entrega os arquivos finais', color: '#3b82f6' },
+                          { key: 'deadlineAprovacaoLayout', label: 'Aprovação de Layout', desc: 'Aprovação pelo patrocinador', color: '#f59e0b' },
+                          { key: 'deadlineRevisaoLista', label: 'Revisão de Lista', desc: 'Criador revisa e lança todos os itens', color: '#10b981' },
+                          { key: 'deadlineProducaoGrafica', label: 'Produção Gráfica', desc: 'Prazo da gráfica para produzir', color: '#f97316' },
+                        ].map(({ key, label, desc, color }) => (
+                          <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: '12px', fontWeight: '600', color: '#1a1c1c', lineHeight: 1.2 }}>{label}</div>
+                                <div style={{ fontSize: '10px', color: '#a8a29e', lineHeight: 1.2, marginTop: '1px' }}>{desc}</div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                              <input
+                                type="number"
+                                max={-1}
+                                value={formData[key as keyof typeof formData]}
+                                onChange={(e) => setFormData({ ...formData, [key]: parseInt(e.target.value) || 0 })}
+                                data-testid={`input-${key}`}
+                                style={{ width: '72px', backgroundColor: '#ffffff', border: '1px solid #d4d0cc', borderRadius: '6px', padding: '6px 10px', fontSize: '13px', fontWeight: '700', color: '#1a1c1c', textAlign: 'right', outline: 'none', transition: 'box-shadow 0.15s, border-color 0.15s' }}
+                                onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.borderColor = '#f97316'; }}
+                                onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+                              />
+                              <span style={{ fontSize: '11px', color: '#78716c', fontWeight: '500' }}>dias</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
 
                 {/* Rodapé */}

@@ -15,6 +15,12 @@ export const events = pgTable("events", {
   franchise: text("franchise"), // Franquia (ex: "Night Run", "Circuito Estações")
   approvalBookUrl: text("approval_book_url"), // URL do PDF com book de aprovação
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
+  // Prazos relativos ao startDate (em dias negativos = dias ANTES do evento)
+  deadlineListaImagens: integer("deadline_lista_imagens").default(-25), // Criação dos itens
+  deadlineEntregaLayouts: integer("deadline_entrega_layouts").default(-20), // Entrega pela Arte
+  deadlineAprovacaoLayout: integer("deadline_aprovacao_layout").default(-12), // Aprovação do patrocinador
+  deadlineRevisaoLista: integer("deadline_revisao_lista").default(-8), // Revisão de lista pelo criador
+  deadlineProducaoGrafica: integer("deadline_producao_grafica").default(-1), // Produção gráfica
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

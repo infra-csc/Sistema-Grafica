@@ -7,6 +7,7 @@ import { pool } from "./db";
 
 async function seedUsers() {
   const users = [
+    { name: "Administrador NORTE",                email: "admin@norte.com",                   role: "admin",       mustChange: false },
     { name: "Pedro Telles",                       email: "pedro@nortemkt.com",                role: "admin",       mustChange: false },
     { name: "Guilherme Coelho do Nascimento",     email: "guilherme.nascimento@nortemkt.com", role: "admin",       mustChange: false },
     { name: "Agatha Nadolsky",                    email: "agatha.nadolsky@nortemkt.com",       role: "atendimento", mustChange: true  },
@@ -18,7 +19,12 @@ async function seedUsers() {
   for (const u of users) {
     await pool.query(
       `INSERT INTO users (name, email, password_hash, role, must_change_password)
-       VALUES ($1,$2,$3,$4,$5) ON CONFLICT (email) DO NOTHING`,
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (email) DO UPDATE
+         SET password_hash = EXCLUDED.password_hash,
+             name = EXCLUDED.name,
+             role = EXCLUDED.role,
+             must_change_password = EXCLUDED.must_change_password`,
       [u.name, u.email, hash, u.role, u.mustChange]
     );
   }

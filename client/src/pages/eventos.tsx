@@ -530,7 +530,10 @@ export default function Eventos() {
                         id="startDate"
                         type="date"
                         value={formData.startDate}
-                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                        onChange={(e) => {
+                          setFormData({ ...formData, startDate: e.target.value });
+                          if (e.target.value) setPrazosExpanded(true);
+                        }}
                         required
                         data-testid="input-start-date"
                         style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '13px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
@@ -624,7 +627,7 @@ export default function Eventos() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Clock style={{ width: '13px', height: '13px', color: '#f97316' }} />
                             <span style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
-                            {noStart && <span style={{ fontSize: '10px', color: '#f97316', fontWeight: '500', textTransform: 'none', letterSpacing: 0 }}>preencha a data de início primeiro</span>}
+                            <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>{noStart ? 'preencha a data de início primeiro' : 'datas calculadas automaticamente'}</span>
                           </div>
                           {prazosExpanded
                             ? <ChevronUp style={{ width: '14px', height: '14px', color: '#78716c' }} />

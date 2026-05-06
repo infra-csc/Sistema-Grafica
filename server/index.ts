@@ -110,6 +110,9 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
   }
   ssoTokens.delete(exchangeToken); // single-use
 
+  // SSO users authenticate via Microsoft — clear any pending password-change requirement
+  await pool.query("UPDATE users SET must_change_password = false WHERE id = $1", [entry.userId]);
+
   // Fetch full user data so the frontend can hydrate auth state without a second request
   const { rows: fullUser } = await pool.query<{
     id: string; name: string; email: string; role: string; must_change_password: boolean;

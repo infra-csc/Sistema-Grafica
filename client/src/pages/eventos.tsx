@@ -530,10 +530,7 @@ export default function Eventos() {
                         id="startDate"
                         type="date"
                         value={formData.startDate}
-                        onChange={(e) => {
-                          setFormData({ ...formData, startDate: e.target.value });
-                          if (e.target.value) setPrazosExpanded(true);
-                        }}
+                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                         required
                         data-testid="input-start-date"
                         style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '13px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
@@ -549,7 +546,10 @@ export default function Eventos() {
                         id="truckDepartureDate"
                         type="datetime-local"
                         value={formData.truckDepartureDate}
-                        onChange={(e) => setFormData({ ...formData, truckDepartureDate: e.target.value })}
+                        onChange={(e) => {
+                          setFormData({ ...formData, truckDepartureDate: e.target.value });
+                          if (e.target.value) setPrazosExpanded(true);
+                        }}
                         required
                         data-testid="input-truck-date"
                         style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '13px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
@@ -600,20 +600,22 @@ export default function Eventos() {
                   {/* Prazos colapsável */}
                   {(() => {
                     // Converte offset (dias) em YYYY-MM-DD para o input date
+                    // truckDepartureDate é datetime-local (YYYY-MM-DDTHH:MM), pegamos só a data
+                    const truckDateOnly = formData.truckDepartureDate ? formData.truckDepartureDate.slice(0, 10) : "";
                     const offsetToDateStr = (days: number): string => {
-                      if (!formData.startDate) return "";
-                      const d = new Date(formData.startDate + "T12:00:00");
+                      if (!truckDateOnly) return "";
+                      const d = new Date(truckDateOnly + "T12:00:00");
                       d.setDate(d.getDate() + days);
                       return d.toISOString().slice(0, 10);
                     };
                     // Converte data escolhida de volta em offset (dias)
                     const dateStrToOffset = (dateStr: string): number => {
-                      if (!formData.startDate || !dateStr) return 0;
-                      const start = new Date(formData.startDate + "T12:00:00");
+                      if (!truckDateOnly || !dateStr) return 0;
+                      const base = new Date(truckDateOnly + "T12:00:00");
                       const target = new Date(dateStr + "T12:00:00");
-                      return Math.round((target.getTime() - start.getTime()) / 86400000);
+                      return Math.round((target.getTime() - base.getTime()) / 86400000);
                     };
-                    const noStart = !formData.startDate;
+                    const noStart = !truckDateOnly;
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                         <button
@@ -627,7 +629,7 @@ export default function Eventos() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Clock style={{ width: '13px', height: '13px', color: '#f97316' }} />
                             <span style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
-                            <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>{noStart ? 'preencha a data de início primeiro' : 'datas calculadas automaticamente'}</span>
+                            <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>{noStart ? 'preencha a saída do caminhão primeiro' : 'relativo à saída do caminhão'}</span>
                           </div>
                           {prazosExpanded
                             ? <ChevronUp style={{ width: '14px', height: '14px', color: '#78716c' }} />
@@ -658,7 +660,7 @@ export default function Eventos() {
                                     <input
                                       type="date"
                                       disabled={noStart}
-                                      max={formData.startDate || undefined}
+                                      max={truckDateOnly || undefined}
                                       value={dateVal}
                                       onChange={(e) => {
                                         const offset = dateStrToOffset(e.target.value);

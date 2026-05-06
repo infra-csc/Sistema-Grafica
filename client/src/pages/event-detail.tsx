@@ -1008,7 +1008,7 @@ export default function EventDetail() {
 
         {/* Prazos do evento */}
         {(() => {
-          const start = new Date(event.startDate);
+          const start = new Date(event.truckDepartureDate);
           // Ajusta fim de semana: sábado→sexta, domingo→segunda (exceto Produção Gráfica)
           const adjustWeekend = (date: Date, skipAdjust: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
             if (skipAdjust) return { date, adjusted: null };

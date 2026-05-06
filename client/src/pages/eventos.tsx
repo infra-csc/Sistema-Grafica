@@ -493,7 +493,7 @@ export default function Eventos() {
             </DialogTrigger>
 
             {/* ── MODAL CRIAR / EDITAR ── */}
-            <DialogContent className="sm:max-w-[512px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 16px 32px -12px rgba(26,28,28,0.18)' }}>
+            <DialogContent className="sm:max-w-[512px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 16px 32px -12px rgba(26,28,28,0.18)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' }}>
               {/* Cabeçalho */}
               <div style={{ padding: '24px', borderBottom: '1px solid rgba(224,192,177,0.2)', backgroundColor: '#fafaf9', borderRadius: '16px 16px 0 0' }}>
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em', lineHeight: 1 }}>
@@ -504,8 +504,8 @@ export default function Eventos() {
                 </DialogDescription>
               </div>
 
-              <form onSubmit={handleSubmit}>
-                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
                   {/* Nome */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -712,7 +712,7 @@ export default function Eventos() {
                 </div>
 
                 {/* Rodapé */}
-                <div style={{ padding: '24px', backgroundColor: '#fafaf9', borderTop: '1px solid rgba(224,192,177,0.2)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', borderRadius: '0 0 16px 16px' }}>
+                <div style={{ padding: '24px', backgroundColor: '#fafaf9', borderTop: '1px solid rgba(224,192,177,0.2)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', borderRadius: '0 0 16px 16px', flexShrink: 0 }}>
                   <button
                     type="button"
                     onClick={handleCloseDialog}

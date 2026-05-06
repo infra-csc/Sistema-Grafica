@@ -488,9 +488,9 @@ export default function Eventos() {
             </DialogTrigger>
 
             {/* ── MODAL CRIAR / EDITAR ── */}
-            <DialogContent className="sm:max-w-[512px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'hidden', boxShadow: '0 16px 32px -12px rgba(26,28,28,0.18)' }}>
+            <DialogContent className="sm:max-w-[512px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 16px 32px -12px rgba(26,28,28,0.18)' }}>
               {/* Cabeçalho */}
-              <div style={{ padding: '24px', borderBottom: '1px solid rgba(224,192,177,0.2)', backgroundColor: '#fafaf9' }}>
+              <div style={{ padding: '24px', borderBottom: '1px solid rgba(224,192,177,0.2)', backgroundColor: '#fafaf9', borderRadius: '16px 16px 0 0' }}>
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em', lineHeight: 1 }}>
                   {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
                 </DialogTitle>
@@ -692,7 +692,7 @@ export default function Eventos() {
                 </div>
 
                 {/* Rodapé */}
-                <div style={{ padding: '24px', backgroundColor: '#fafaf9', borderTop: '1px solid rgba(224,192,177,0.2)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
+                <div style={{ padding: '24px', backgroundColor: '#fafaf9', borderTop: '1px solid rgba(224,192,177,0.2)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', borderRadius: '0 0 16px 16px' }}>
                   <button
                     type="button"
                     onClick={handleCloseDialog}

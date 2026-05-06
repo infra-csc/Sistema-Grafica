@@ -22,28 +22,50 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // If ?sso_exchange= is in the URL, block /api/auth/me until exchange completes
+  const [ssoReady, setSsoReady] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return !new URLSearchParams(window.location.search).has("sso_exchange");
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const exchangeToken = params.get("sso_exchange");
+    if (!exchangeToken) return;
+
+    // Remove token from URL immediately (clean up before async work)
+    window.history.replaceState({}, "", window.location.pathname);
+
+    fetch("/api/auth/sso-exchange", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ exchangeToken }),
+      credentials: "include",
+    }).finally(() => setSsoReady(true));
+  }, []);
+
   const { data: user, isLoading, refetch } = useQuery<User>({
     queryKey: ["/api/auth/me"],
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: ssoReady, // don't fetch until SSO exchange is done
   });
 
   const hasPermission = (requiredRole: UserRole | UserRole[]) => {
     if (!user) return false;
     if (user.role === "admin") return true;
-    
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     return roles.includes(user.role);
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user: user || null, 
-        isLoading,
+    <AuthContext.Provider
+      value={{
+        user: user || null,
+        isLoading: !ssoReady || isLoading,
         isAuthenticated: !!user,
         hasPermission,
-        refetchUser: () => refetch()
+        refetchUser: () => refetch(),
       }}
     >
       {children}

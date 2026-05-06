@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock, HelpCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link } from "wouter";
@@ -17,6 +17,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -633,7 +638,22 @@ export default function Eventos() {
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Clock style={{ width: '13px', height: '13px', color: '#f97316' }} />
-                            <span style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Prazos</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ display: 'inline-flex', alignItems: 'center', cursor: 'help' }}
+                                  >
+                                    <HelpCircle style={{ width: '12px', height: '12px', color: '#a8a29e' }} />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" style={{ maxWidth: '220px', fontSize: '12px', lineHeight: '1.5' }}>
+                                  Prazos que caírem no <strong>sábado</strong> são antecipados para <strong>sexta-feira</strong>. Os que caírem no <strong>domingo</strong> são adiados para <strong>segunda-feira</strong>. Exceção: Produção Gráfica funciona todos os dias.
+                                </TooltipContent>
+                              </Tooltip>
+                            </span>
                             <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>{noStart ? 'preencha a saída do caminhão primeiro' : 'relativo à saída do caminhão'}</span>
                           </div>
                           {prazosExpanded

@@ -142,7 +142,7 @@ export function AppSidebar() {
     },
     onSuccess: () => {
       queryClient.clear();
-      window.location.href = "/login";
+      window.location.href = "https://norte-app-hub.replit.app/";
       toast({ title: "Logout realizado", description: "Até logo!" });
     },
   });

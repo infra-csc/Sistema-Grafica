@@ -602,10 +602,15 @@ export default function Eventos() {
                     // Converte offset (dias) em YYYY-MM-DD para o input date
                     // truckDepartureDate é datetime-local (YYYY-MM-DDTHH:MM), pegamos só a data
                     const truckDateOnly = formData.truckDepartureDate ? formData.truckDepartureDate.slice(0, 10) : "";
-                    const offsetToDateStr = (days: number): string => {
+                    const offsetToDateStr = (days: number, allDays = false): string => {
                       if (!truckDateOnly) return "";
                       const d = new Date(truckDateOnly + "T12:00:00");
                       d.setDate(d.getDate() + days);
+                      if (!allDays) {
+                        const dow = d.getDay();
+                        if (dow === 6) d.setDate(d.getDate() - 1); // sábado → sexta
+                        else if (dow === 0) d.setDate(d.getDate() + 1); // domingo → segunda
+                      }
                       return d.toISOString().slice(0, 10);
                     };
                     // Converte data escolhida de volta em offset (dias)
@@ -639,14 +644,14 @@ export default function Eventos() {
                         {prazosExpanded && (
                           <div style={{ backgroundColor: '#f0efee', borderRadius: '0 0 8px 8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                             {[
-                              { key: 'deadlineListaImagens', label: 'Lista de Imagens', desc: 'Criação dos itens do evento', color: '#8b5cf6' },
-                              { key: 'deadlineEntregaLayouts', label: 'Entrega de Layouts', desc: 'Arte entrega os arquivos finais', color: '#3b82f6' },
-                              { key: 'deadlineAprovacaoLayout', label: 'Aprovação de Layout', desc: 'Aprovação pelo patrocinador', color: '#f59e0b' },
-                              { key: 'deadlineRevisaoLista', label: 'Revisão de Lista', desc: 'Criador revisa e lança todos os itens', color: '#10b981' },
-                              { key: 'deadlineProducaoGrafica', label: 'Produção Gráfica', desc: 'Prazo da gráfica para produzir', color: '#f97316' },
-                            ].map(({ key, label, desc, color }) => {
+                              { key: 'deadlineListaImagens', label: 'Lista de Imagens', desc: 'Criação dos itens do evento', color: '#8b5cf6', allDays: false },
+                              { key: 'deadlineEntregaLayouts', label: 'Entrega de Layouts', desc: 'Arte entrega os arquivos finais', color: '#3b82f6', allDays: false },
+                              { key: 'deadlineAprovacaoLayout', label: 'Aprovação de Layout', desc: 'Aprovação pelo patrocinador', color: '#f59e0b', allDays: false },
+                              { key: 'deadlineRevisaoLista', label: 'Revisão de Lista', desc: 'Criador revisa e lança todos os itens', color: '#10b981', allDays: false },
+                              { key: 'deadlineProducaoGrafica', label: 'Produção Gráfica', desc: 'Prazo da gráfica para produzir', color: '#f97316', allDays: true },
+                            ].map(({ key, label, desc, color, allDays }) => {
                               const currentDays = formData[key as keyof typeof formData] as number;
-                              const dateVal = offsetToDateStr(currentDays);
+                              const dateVal = offsetToDateStr(currentDays, allDays);
                               return (
                                 <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>

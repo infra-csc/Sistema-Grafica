@@ -3,6 +3,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomBytes } from "crypto";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
@@ -84,7 +85,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     if (!user) { log(`[SSO] usuário não encontrado: ${payload.email}`); return res.redirect("/login?error=sso_user_not_found"); }
 
     // Create one-time exchange token (valid 60s)
-    const exchangeToken = require("crypto").randomBytes(32).toString("hex");
+    const exchangeToken = randomBytes(32).toString("hex");
     ssoTokens.set(exchangeToken, { userId: user.id, userName: user.name, userRole: user.role, expires: Date.now() + 60_000 });
 
     log(`[SSO] exchange token gerado para: ${payload.email}`);

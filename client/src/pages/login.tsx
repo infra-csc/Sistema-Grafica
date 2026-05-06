@@ -1,12 +1,30 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, ArrowRight, Lock, Loader2 } from "lucide-react";
+import { CheckCircle, ArrowRight, Lock, Loader2, AlertTriangle } from "lucide-react";
+
+const SSO_ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
+  sso_user_not_found: {
+    title: "Acesso não autorizado",
+    description:
+      "Seu e-mail não está cadastrado no sistema. Entre em contato com o administrador para solicitar acesso.",
+  },
+  sso_invalid_token: {
+    title: "Token SSO inválido",
+    description:
+      "O link de autenticação expirou ou é inválido. Tente novamente ou solicite um novo link ao administrador.",
+  },
+  sso_exchange_failed: {
+    title: "Falha na autenticação SSO",
+    description:
+      "Não foi possível completar a autenticação. Tente novamente ou entre em contato com o administrador.",
+  },
+};
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -17,8 +35,20 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { toast } = useToast();
   const [btnHover, setBtnHover] = useState(false);
+
+  const [ssoError] = useState(() => {
+    const code = new URLSearchParams(search).get("error") ?? "";
+    return SSO_ERROR_MESSAGES[code] ?? null;
+  });
+
+  useEffect(() => {
+    if (ssoError) {
+      window.history.replaceState({}, "", "/login");
+    }
+  }, []);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -197,6 +227,32 @@ export default function Login() {
               Acesse sua conta para gerenciar as operações.
             </p>
           </header>
+
+          {ssoError && (
+            <div
+              data-testid="banner-sso-error"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 12,
+                backgroundColor: '#fef2f2',
+                border: '1.5px solid #fecaca',
+                borderRadius: 8,
+                padding: '14px 16px',
+                marginBottom: 24,
+              }}
+            >
+              <AlertTriangle style={{ width: 18, height: 18, color: '#dc2626', flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: '#991b1b' }}>
+                  {ssoError.title}
+                </p>
+                <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#b91c1c', lineHeight: 1.5 }}>
+                  {ssoError.description}
+                </p>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={form.handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 

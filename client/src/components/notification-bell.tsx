@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck } from "lucide-react";
+import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock } from "lucide-react";
 
 interface Notification {
   id: string;
@@ -61,6 +61,12 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     border: "#06b6d4", bgRow: "transparent",
     bgIcon: "#cffafe", iconColor: "#0891b2",
     label: "Evento",
+  },
+  prazoAlert: {
+    Icon: CalendarClock,
+    border: "#f59e0b", bgRow: "rgba(245,158,11,0.06)",
+    bgIcon: "#fef3c7", iconColor: "#d97706",
+    label: "Prazo",
   },
 };
 

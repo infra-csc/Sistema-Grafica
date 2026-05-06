@@ -1,7 +1,7 @@
 import {
   Calendar, CheckCircle, Factory, Home, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, ScrollText, Archive, ScanSearch,
+  Link2, LogOut, ScrollText, Archive, ScanSearch, Compass,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
@@ -20,7 +20,6 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
-// ─── Item type ────────────────────────────────────────────
 type MenuItem = {
   title: string;
   url: string;
@@ -28,19 +27,18 @@ type MenuItem = {
   roles?: string[];
 };
 
-// ─── Menu items ───────────────────────────────────────────
 const productionItems: MenuItem[] = [
-  { title: "Painel Geral",             url: "/",                        icon: LayoutDashboard },
-  { title: "Eventos",                  url: "/eventos",                 icon: Home },
-  { title: "Vincular Patrocinadores",  url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "admin"] },
-  { title: "Arte",                     url: "/arte",                    icon: CheckCircle },
-  { title: "Atendimento",              url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "admin"] },
-  { title: "Solicitação",              url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
-  { title: "Gráfica",                  url: "/grafica",                 icon: Factory },
-  { title: "Modelos",                  url: "/modelos",                 icon: Layers },
-  { title: "Calendário",               url: "/calendario",              icon: Calendar },
-  { title: "Histórico",                url: "/historico",               icon: Activity },
-  { title: "Análises",                 url: "/analises",                icon: BarChart3 },
+  { title: "Painel Geral",            url: "/",                        icon: LayoutDashboard },
+  { title: "Eventos",                 url: "/eventos",                 icon: Home },
+  { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "admin"] },
+  { title: "Arte",                    url: "/arte",                    icon: CheckCircle },
+  { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "admin"] },
+  { title: "Solicitação",             url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
+  { title: "Gráfica",                 url: "/grafica",                 icon: Factory },
+  { title: "Modelos",                 url: "/modelos",                 icon: Layers },
+  { title: "Calendário",              url: "/calendario",              icon: Calendar },
+  { title: "Histórico",               url: "/historico",               icon: Activity },
+  { title: "Análises",                url: "/analises",                icon: BarChart3 },
 ];
 
 const stockItems: MenuItem[] = [
@@ -49,20 +47,22 @@ const stockItems: MenuItem[] = [
 ];
 
 const adminItems: MenuItem[] = [
-  { title: "Usuários",       url: "/usuarios",       icon: Users },
-  { title: "Logs do Sistema", url: "/logs-sistema",  icon: ScrollText, roles: ["admin"] },
-  { title: "Patrocinadores", url: "/patrocinadores", icon: Building2 },
+  { title: "Usuários",         url: "/usuarios",      icon: Users },
+  { title: "Logs do Sistema",  url: "/logs-sistema",  icon: ScrollText, roles: ["admin"] },
+  { title: "Patrocinadores",   url: "/patrocinadores", icon: Building2 },
 ];
 
-// ─── Section label style ─────────────────────────────────
-const sectionLabel: React.CSSProperties = {
-  fontSize: 11,
+// ─── Section label ────────────────────────────────────────
+const sectionLabelStyle: React.CSSProperties = {
+  fontFamily: "'Space Grotesk', sans-serif",
+  fontSize: 10,
   fontWeight: 700,
   textTransform: "uppercase",
-  letterSpacing: "0.07em",
-  color: "#a8a29e",
+  letterSpacing: "0.15em",
+  color: "#94a3b8",
   padding: "0 12px",
-  marginBottom: 16,
+  marginBottom: 4,
+  marginTop: 4,
   display: "block",
 };
 
@@ -71,41 +71,46 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
   const Icon = item.icon;
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={isActive} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+      <SidebarMenuButton
+        asChild
+        isActive={isActive}
+        data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+      >
         <Link
           href={item.url}
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 12,
-            padding: "10px 12px",
-            borderRadius: 8,
-            fontSize: 13.5,
-            fontWeight: isActive ? 700 : 400,
-            color: isActive ? "#ea580c" : "#78716c",
-            backgroundColor: isActive ? "#f5f5f4" : "transparent",
+            gap: 10,
+            padding: "8px 12px 8px 9px",
+            borderRadius: 7,
+            fontSize: 13,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: isActive ? 600 : 500,
+            color: isActive ? "#f97316" : "#475569",
+            backgroundColor: isActive ? "#fff7ed" : "transparent",
             textDecoration: "none",
-            borderRight: isActive ? "3px solid #f97316" : "3px solid transparent",
-            transition: "background-color 0.15s ease, color 0.15s ease",
+            borderLeft: isActive ? "3px solid #f97316" : "3px solid transparent",
+            transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
           }}
           onMouseEnter={(e) => {
             if (!isActive) {
-              (e.currentTarget as HTMLElement).style.backgroundColor = "#f5f5f4";
-              (e.currentTarget as HTMLElement).style.color = "#1c1917";
+              (e.currentTarget as HTMLElement).style.backgroundColor = "#f8fafc";
+              (e.currentTarget as HTMLElement).style.color = "#1e293b";
             }
           }}
           onMouseLeave={(e) => {
             if (!isActive) {
               (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-              (e.currentTarget as HTMLElement).style.color = "#78716c";
+              (e.currentTarget as HTMLElement).style.color = "#475569";
             }
           }}
         >
           <Icon
             style={{
-              width: 16, height: 16, flexShrink: 0,
-              color: isActive ? "#f97316" : "#a8a29e",
+              width: 18, height: 18, flexShrink: 0,
+              color: isActive ? "#f97316" : "#94a3b8",
             }}
           />
           <span>{item.title}</span>
@@ -115,7 +120,7 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
   );
 }
 
-// ─── Sidebar ─────────────────────────────────────────────
+// ─── AppSidebar ───────────────────────────────────────────
 export function AppSidebar() {
   const [location] = useLocation();
   const { hasPermission, user } = useAuth();
@@ -138,36 +143,39 @@ export function AppSidebar() {
   );
 
   return (
-    <Sidebar style={{ backgroundColor: "#f9f9f8", borderRight: "none" }}>
-
+    <Sidebar
+      style={{
+        backgroundColor: "#ffffff",
+        borderRight: "1px solid #e2e8f0",
+        height: "100vh",
+      }}
+    >
       {/* ── Header ── */}
-      <SidebarHeader style={{ padding: "32px 16px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 4px" }}>
-          <div style={{
-            width: 40, height: 40,
-            backgroundColor: "#f97316",
-            borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
-          }}>
+      <SidebarHeader style={{ padding: "28px 20px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 2px" }}>
+          <Compass
+            style={{ width: 22, height: 22, color: "#f97316", flexShrink: 0, strokeWidth: 2 }}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
             <span style={{
               fontFamily: "'Space Grotesk', sans-serif",
-              fontWeight: 700, fontSize: 20, color: "white", lineHeight: 1,
-            }}>N</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 13, fontWeight: 700,
-              letterSpacing: "-0.02em",
-              textTransform: "uppercase",
-              color: "#1c1917",
-              lineHeight: 1.2,
+              fontSize: 16,
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+              color: "#0f172a",
+              lineHeight: 1,
             }}>
               NORTE
             </span>
-            <span style={{ fontSize: 11, color: "#a8a29e", fontWeight: 500, lineHeight: 1.3 }}>
+            <span style={{
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 10,
+              fontWeight: 500,
+              textTransform: "uppercase",
+              letterSpacing: "0.12em",
+              color: "#94a3b8",
+              lineHeight: 1,
+            }}>
               Marketing Esportivo
             </span>
           </div>
@@ -175,13 +183,23 @@ export function AppSidebar() {
       </SidebarHeader>
 
       {/* ── Content ── */}
-      <SidebarContent style={{ padding: "0 8px", display: "flex", flexDirection: "column", gap: 32 }}>
+      <SidebarContent
+        style={{
+          padding: "4px 10px 0",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+          overflowY: "auto",
+          scrollbarWidth: "none",
+        }}
+      >
+        <style>{`::-webkit-scrollbar { display: none; }`}</style>
 
-        {/* Production group */}
+        {/* Production */}
         <SidebarGroup style={{ padding: 0 }}>
-          <span style={sectionLabel}>Produção</span>
+          <span style={sectionLabelStyle}>Produção</span>
           <SidebarGroupContent>
-            <SidebarMenu style={{ gap: 2 }}>
+            <SidebarMenu style={{ gap: 1 }}>
               {filteredProduction.map((item) => (
                 <NavItem key={item.title} item={item} isActive={location === item.url} />
               ))}
@@ -189,11 +207,11 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Estoque group */}
+        {/* Estoque & Logística */}
         <SidebarGroup style={{ padding: 0 }}>
-          <span style={sectionLabel}>Estoque &amp; Logística</span>
+          <span style={sectionLabelStyle}>Estoque &amp; Logística</span>
           <SidebarGroupContent>
-            <SidebarMenu style={{ gap: 2 }}>
+            <SidebarMenu style={{ gap: 1 }}>
               {stockItems.map((item) => (
                 <NavItem key={item.title} item={item} isActive={location === item.url} />
               ))}
@@ -201,12 +219,12 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Admin group */}
+        {/* Administração */}
         {hasPermission("admin") && (
           <SidebarGroup style={{ padding: 0 }}>
-            <span style={sectionLabel}>Administração</span>
+            <span style={sectionLabelStyle}>Administração</span>
             <SidebarGroupContent>
-              <SidebarMenu style={{ gap: 2 }}>
+              <SidebarMenu style={{ gap: 1 }}>
                 {adminItems.map((item) => (
                   <NavItem key={item.title} item={item} isActive={location === item.url} />
                 ))}
@@ -217,12 +235,18 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* ── Footer: user + logout ── */}
-      <SidebarFooter style={{ padding: "12px 16px 24px", borderTop: "1px solid #e7e5e4", marginTop: "auto" }}>
+      <SidebarFooter
+        style={{
+          padding: "12px 16px 20px",
+          borderTop: "1px solid #e2e8f0",
+          marginTop: "auto",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Avatar circle */}
+          {/* Avatar */}
           <div style={{
             width: 34, height: 34, borderRadius: "50%",
-            backgroundColor: "#1c1917",
+            backgroundColor: "#0f172a",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
@@ -233,22 +257,31 @@ export function AppSidebar() {
 
           {/* Name + role */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", margin: 0, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <p style={{
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 13, fontWeight: 700,
+              color: "#0f172a", margin: 0, lineHeight: 1.3,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
               {user?.name ?? "Usuário"}
             </p>
-            <p style={{ fontSize: 10, color: "#a8a29e", margin: 0, lineHeight: 1.3, textTransform: "capitalize" }}>
+            <p style={{
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 11, color: "#94a3b8",
+              margin: 0, lineHeight: 1.3, textTransform: "capitalize",
+            }}>
               {user?.role ?? ""}
             </p>
           </div>
 
-          {/* Logout button */}
+          {/* Logout */}
           <button
             onClick={() => logoutMutation.mutate()}
             data-testid="button-logout-sidebar"
             title="Sair"
             style={{
               background: "none", border: "none", cursor: "pointer",
-              padding: 6, borderRadius: 6, color: "#a8a29e",
+              padding: 6, borderRadius: 6, color: "#94a3b8",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "color 0.15s ease, background-color 0.15s ease",
               flexShrink: 0,
@@ -258,7 +291,7 @@ export function AppSidebar() {
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fef2f2";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#a8a29e";
+              (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8";
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
             }}
           >
@@ -266,7 +299,6 @@ export function AppSidebar() {
           </button>
         </div>
       </SidebarFooter>
-
     </Sidebar>
   );
 }

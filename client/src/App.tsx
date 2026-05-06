@@ -32,6 +32,34 @@ import LogsSistema from "@/pages/logs-sistema";
 import Estoque from "@/pages/estoque";
 import TriagemRetorno from "@/pages/triagem-retorno";
 
+// Handles ?sso_exchange=TOKEN — calls exchange API (same-origin) to create session
+function SsoExchangeHandler() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const exchangeToken = params.get("sso_exchange");
+    if (!exchangeToken) return;
+
+    // Remove token from URL immediately
+    window.history.replaceState({}, "", window.location.pathname);
+
+    apiRequest("POST", "/api/auth/sso-exchange", { exchangeToken })
+      .then(r => r.json())
+      .then(user => {
+        if (user?.id) {
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+          setLocation("/");
+        } else {
+          setLocation("/login?error=sso_exchange_failed");
+        }
+      })
+      .catch(() => setLocation("/login?error=sso_exchange_failed"));
+  }, [setLocation]);
+
+  return null;
+}
+
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType; path?: string }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [location, setLocation] = useLocation();
@@ -295,6 +323,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
+          <SsoExchangeHandler />
           <SidebarProvider style={sidebarStyle as React.CSSProperties}>
             <AppContent />
           </SidebarProvider>

@@ -59,16 +59,18 @@ app.use(
   })
 );
 
-// ── Portal SSO middleware ────────────────────────────────────────────────────
-// Portal redirects here with ?portal_sso=<JWT>&portal_return=<URL>
-// JWT is signed with SESSION_SECRET, issuer "norte-portal", payload { email }
+// ── Portal SSO ───────────────────────────────────────────────────────────────
+// One-time exchange tokens: { userId, userName, userRole, expires }
+const ssoTokens = new Map<string, { userId: string; userName: string; userRole: string; expires: number }>();
+setInterval(() => { const now = Date.now(); ssoTokens.forEach((v, k) => { if (v.expires < now) ssoTokens.delete(k); }); }, 30_000);
+
+// Step 1 — Portal redirects here with ?portal_sso=<JWT>&portal_return=<URL>
+// We validate the JWT, create a one-time token, and redirect to /?sso_exchange=TOKEN
 app.use(async (req: Request, res: Response, next: NextFunction) => {
   const token = req.query.portal_sso as string | undefined;
   if (!token) return next();
 
-  // Use SSO_SECRET if set (shared with portal); fallback to SESSION_SECRET
-  const secret  = process.env.SSO_SECRET || process.env.SESSION_SECRET || "norte-grafica-secret-key-change-in-production";
-  const returnUrl = (req.query.portal_return as string | undefined) || "/";
+  const secret = process.env.SSO_SECRET || process.env.SESSION_SECRET || "norte-grafica-secret-key-change-in-production";
 
   try {
     const payload = jwt.verify(token, secret, { issuer: "norte-portal" }) as { email?: string };
@@ -81,24 +83,38 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     const user = rows[0];
     if (!user) { log(`[SSO] usuário não encontrado: ${payload.email}`); return res.redirect("/login?error=sso_user_not_found"); }
 
-    req.session.userId   = user.id;
-    req.session.userName = user.name;
-    req.session.userRole = user.role;
-    await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
+    // Create one-time exchange token (valid 60s)
+    const exchangeToken = require("crypto").randomBytes(32).toString("hex");
+    ssoTokens.set(exchangeToken, { userId: user.id, userName: user.name, userRole: user.role, expires: Date.now() + 60_000 });
 
-    log(`[SSO] login automático: ${payload.email}`);
-    const dest = returnUrl.startsWith("/") ? returnUrl : "/";
-    // Respond with HTML redirect so the session cookie is accepted as first-party
-    // (avoids SameSite=Lax restrictions on cross-site redirect responses)
-    return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
-<script>window.location.replace(${JSON.stringify(dest)});</script>
-</head><body></body></html>`);
+    log(`[SSO] exchange token gerado para: ${payload.email}`);
+    return res.redirect(`/?sso_exchange=${exchangeToken}`);
   } catch (err: any) {
     log(`[SSO] token inválido: ${err.message}`);
-    return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
-<script>window.location.replace("/login?error=sso_invalid_token");</script>
-</head><body></body></html>`);
+    return res.redirect("/login?error=sso_invalid_token");
   }
+});
+
+// Step 2 — Frontend calls POST /api/auth/sso-exchange (same-origin AJAX)
+// Server creates a proper session and returns the user — cookie is set same-origin, no SameSite issues
+app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
+  const { exchangeToken } = req.body as { exchangeToken?: string };
+  if (!exchangeToken) return res.status(400).json({ error: "Token ausente" });
+
+  const entry = ssoTokens.get(exchangeToken);
+  if (!entry || entry.expires < Date.now()) {
+    ssoTokens.delete(exchangeToken);
+    return res.status(401).json({ error: "Token expirado ou inválido" });
+  }
+  ssoTokens.delete(exchangeToken); // single-use
+
+  req.session.userId   = entry.userId;
+  req.session.userName = entry.userName;
+  req.session.userRole = entry.userRole;
+  await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
+
+  log(`[SSO] sessão criada via exchange para userId: ${entry.userId}`);
+  res.json({ id: entry.userId, name: entry.userName, role: entry.userRole });
 });
 // ────────────────────────────────────────────────────────────────────────────
 

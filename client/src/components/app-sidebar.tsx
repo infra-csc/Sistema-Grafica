@@ -54,12 +54,12 @@ const adminItems: MenuItem[] = [
 
 // ─── Section label ────────────────────────────────────────
 const sectionLabelStyle: React.CSSProperties = {
-  fontFamily: "'Space Grotesk', sans-serif",
+  fontFamily: "'Plus Jakarta Sans', sans-serif",
   fontSize: 10,
   fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.2em",
-  color: "#94a3b8",
+  color: "#cbd5e1",
   padding: "0 14px",
   marginBottom: 4,
   marginTop: 0,
@@ -153,30 +153,35 @@ export function AppSidebar() {
       }}
     >
       {/* ── Header ── */}
-      <SidebarHeader style={{ padding: "32px 20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 2px" }}>
+      <SidebarHeader style={{ padding: "32px 24px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Compass
-            style={{ width: 22, height: 22, color: "#f97316", flexShrink: 0, strokeWidth: 2.2 }}
+            style={{
+              width: 20, height: 20, color: "#f97316", flexShrink: 0, strokeWidth: 2.2,
+              filter: "drop-shadow(0 2px 4px rgba(249,115,22,0.15))",
+            }}
           />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             <span style={{
-              fontFamily: "'Space Grotesk', sans-serif",
+              fontFamily: "'Outfit', sans-serif",
               fontSize: 16,
               fontWeight: 800,
               letterSpacing: "-0.05em",
+              textTransform: "uppercase",
               color: "#0f172a",
-              lineHeight: 1,
+              lineHeight: 0.9,
             }}>
               NORTE
             </span>
             <span style={{
               fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontSize: 9,
-              fontWeight: 500,
+              fontWeight: 700,
               textTransform: "uppercase",
-              letterSpacing: "0.2em",
+              letterSpacing: "0.25em",
               color: "#94a3b8",
               lineHeight: 1,
+              marginTop: 3,
             }}>
               Marketing Esportivo
             </span>

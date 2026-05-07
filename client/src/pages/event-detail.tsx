@@ -611,30 +611,30 @@ export default function EventDetail() {
   const sortedTypes = Object.keys(groupedItems).sort();
 
   return (
-    <div style={{ padding: '40px', minHeight: '100vh' }}>
+    <div style={{ padding: '28px 40px', minHeight: '100vh', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Breadcrumb */}
       <Link href="/eventos">
         <a
           data-testid="button-back"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '500', color: '#78716c', marginBottom: '16px', textDecoration: 'none', transition: 'color 0.15s' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '500', color: '#c4b8af', marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.01em' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#f97316')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#c4b8af')}
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3 w-3" />
           Voltar para eventos
         </a>
       </Link>
 
       {/* Header principal */}
-      <div style={{ marginBottom: '48px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px' }}>
+      <div style={{ marginBottom: '40px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
           <div>
-            <p style={{ color: '#a8a29e', fontSize: '11px', fontWeight: '600', letterSpacing: '0.04em', marginBottom: '6px', margin: 0 }}>
+            <p style={{ color: '#b8b0a8', fontSize: '11px', fontWeight: '500', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 7px 0' }}>
               Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <h1
               data-testid="title-event-name"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '32px', fontWeight: '800', letterSpacing: '-0.04em', color: '#1a1c1c', lineHeight: 1.1, margin: '4px 0 0 0' }}
+              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '36px', fontWeight: '800', letterSpacing: '-0.04em', color: '#18181b', lineHeight: 1.05, margin: 0 }}
             >
               {event.name}
             </h1>
@@ -647,10 +647,10 @@ export default function EventDetail() {
                 setOpen(true);
               }}
               data-testid="button-add-item"
-              style={{ backgroundColor: '#1c1917', color: '#ffffff', padding: '10px 24px', borderRadius: '6px', fontWeight: '700', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', cursor: 'pointer', transition: 'background-color 0.15s, transform 0.1s' }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#292524')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#1c1917')}
-              onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.96)')}
+              style={{ backgroundColor: '#f97316', color: '#ffffff', padding: '10px 22px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.15s, transform 0.1s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0 }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#ea6c0a')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#f97316')}
+              onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
               onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
             >
               <Plus className="h-4 w-4" />
@@ -1008,111 +1008,181 @@ export default function EventDetail() {
             return { date, adjusted: null };
           };
 
-          const deadlines = [
-            { label: 'Lista de Imagens',    shortLabel: 'Lista\nImagens',    days: event.deadlineListaImagens    ?? -25, color: '#8b5cf6', allDays: false },
-            { label: 'Entrega de Layouts',  shortLabel: 'Entrega\nLayouts',  days: event.deadlineEntregaLayouts  ?? -20, color: '#3b82f6', allDays: false },
-            { label: 'Aprovação de Layout', shortLabel: 'Aprovação\nLayout', days: event.deadlineAprovacaoLayout ?? -12, color: '#f59e0b', allDays: false },
-            { label: 'Revisão de Lista',    shortLabel: 'Revisão\nLista',    days: event.deadlineRevisaoLista    ?? -8,  color: '#10b981', allDays: false },
-            { label: 'Produção Gráfica',    shortLabel: 'Produção\nGráfica', days: event.deadlineProducaoGrafica ?? -1,  color: '#f97316', allDays: true  },
+          const rawDeadlines = [
+            { label: 'Lista de Imagens',    days: event.deadlineListaImagens    ?? -25, color: '#8b5cf6', allDays: false },
+            { label: 'Entrega de Layouts',  days: event.deadlineEntregaLayouts  ?? -20, color: '#3b82f6', allDays: false },
+            { label: 'Aprovação de Layout', days: event.deadlineAprovacaoLayout ?? -12, color: '#f59e0b', allDays: false },
+            { label: 'Revisão de Lista',    days: event.deadlineRevisaoLista    ?? -8,  color: '#10b981', allDays: false },
+            { label: 'Produção Gráfica',    days: event.deadlineProducaoGrafica ?? -1,  color: '#f97316', allDays: true  },
           ];
+
+          const milestones = rawDeadlines.map(({ label, days, color, allDays }) => {
+            const raw = new Date(departure); raw.setDate(raw.getDate() + days);
+            const { date, adjusted } = adjustWeekend(raw, allDays);
+            const isPast = date < today;
+            return { label, color, date, adjusted, isPast };
+          });
+
+          // First non-past milestone = "current / active"
+          const nextIndex = milestones.findIndex(m => !m.isPast);
+          // Fraction of the connecting line that is "filled"
+          const progressFrac = nextIndex === -1 ? 1 : nextIndex === 0 ? 0 : nextIndex / (milestones.length - 1);
 
           return (
             <div style={{ marginTop: '20px' }}>
 
               {/* ── Dois cards principais de data ── */}
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '28px' }}>
 
                 {/* Card: SAÍDA DO CAMINHÃO */}
                 <div style={{
-                  backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px',
-                  padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '14px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)', minWidth: '220px',
+                  backgroundColor: '#ffffff', border: '1px solid #e8e5e2', borderRadius: '12px',
+                  padding: '16px 22px', display: 'flex', alignItems: 'center', gap: '16px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)', flex: '0 0 auto',
                 }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '9px', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Truck size={18} color="#f97316" />
+                  <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Truck size={20} color="#f97316" />
                   </div>
-                  <div>
-                    <span style={{ display: 'block', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a8a29e', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#c0b8b0', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Saída do Caminhão
                     </span>
-                    <span style={{ display: 'block', fontSize: '18px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'DM Mono', 'JetBrains Mono', monospace", lineHeight: 1.25, marginTop: '4px' }}>
+                    <span style={{ fontSize: '20px', fontWeight: '700', color: '#18181b', fontFamily: "'DM Mono', monospace", lineHeight: 1.2 }}>
                       {depLabel}
-                      <span style={{ fontSize: '13px', color: '#78716c', marginLeft: '6px' }}>{depTime}</span>
                     </span>
-                    <span style={{ display: 'block', fontSize: '11px', fontWeight: '700', marginTop: '4px', color: countdownDays < 0 ? '#dc2626' : countdownDays <= 3 ? '#f97316' : '#64748b', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                      {countdownDays < 0 ? `Atrasado ${Math.abs(countdownDays)}d` : countdownDays === 0 ? 'Hoje!' : `Faltam ${countdownDays} dia${countdownDays !== 1 ? 's' : ''}`}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px' }}>
+                      <span style={{ fontSize: '12px', color: '#a8a29e', fontFamily: "'DM Mono', monospace" }}>{depTime}</span>
+                      <span style={{
+                        fontSize: '11px', fontWeight: '700',
+                        color: countdownDays < 0 ? '#dc2626' : countdownDays <= 3 ? '#f97316' : '#64748b',
+                        letterSpacing: '0.01em',
+                      }}>
+                        {countdownDays < 0
+                          ? `Atrasado ${Math.abs(countdownDays)}d`
+                          : countdownDays === 0 ? 'Hoje!'
+                          : `Faltam ${countdownDays}d`}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Card: INÍCIO DA MONTAGEM */}
                 <div style={{
-                  backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px',
-                  padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '14px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)', minWidth: '200px',
+                  backgroundColor: '#ffffff', border: '1px solid #e8e5e2', borderRadius: '12px',
+                  padding: '16px 22px', display: 'flex', alignItems: 'center', gap: '16px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)', flex: '0 0 auto',
                 }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '9px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Calendar size={18} color="#2563eb" />
+                  <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Calendar size={20} color="#2563eb" />
                   </div>
-                  <div>
-                    <span style={{ display: 'block', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a8a29e', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#c0b8b0', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Início da Montagem
                     </span>
-                    <span style={{ display: 'block', fontSize: '18px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'DM Mono', 'JetBrains Mono', monospace", lineHeight: 1.25, marginTop: '4px' }}>
+                    <span style={{ fontSize: '20px', fontWeight: '700', color: '#18181b', fontFamily: "'DM Mono', monospace", lineHeight: 1.2 }}>
                       {startLabel}
                     </span>
+                    <span style={{ fontSize: '12px', color: '#a8a29e', marginTop: '2px', letterSpacing: '0.01em' }}>Início do evento</span>
                   </div>
                 </div>
               </div>
 
               {/* ── Timeline de Marcos ── */}
-              <div style={{ position: 'relative', display: 'flex' }}>
-                {/* Connecting line */}
-                <div style={{
-                  position: 'absolute', top: '8px',
-                  left: `calc(100% / ${deadlines.length} / 2)`,
-                  right: `calc(100% / ${deadlines.length} / 2)`,
-                  height: '2px', backgroundColor: '#f1f5f9', zIndex: 0,
-                }} />
+              <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+                <div style={{ position: 'relative', display: 'flex', minWidth: '500px' }}>
 
-                {deadlines.map(({ label, shortLabel, days, color, allDays }) => {
-                  const raw = new Date(departure); raw.setDate(raw.getDate() + days);
-                  const { date, adjusted } = adjustWeekend(raw, allDays);
-                  const isPast = date < today;
-                  const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                  const lines = shortLabel.split('\n');
-                  return (
-                    <div
-                      key={label}
-                      title={adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label}
-                      style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 1 }}
-                    >
-                      {/* Dot */}
-                      <div style={{
-                        width: '17px', height: '17px', borderRadius: '50%', flexShrink: 0,
-                        backgroundColor: isPast ? '#fee2e2' : '#ffffff',
-                        border: `2.5px solid ${isPast ? '#dc2626' : color}`,
-                        marginBottom: '8px',
-                      }} />
-                      {/* Labels */}
-                      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-                        {lines.map((l, i) => (
-                          <span key={i} style={{ display: 'block', fontSize: '9px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#94a3b8', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.2 }}>
-                            {l}
-                          </span>
-                        ))}
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: isPast ? '#dc2626' : '#64748b', fontFamily: "'DM Mono', 'JetBrains Mono', monospace", marginTop: '1px' }}>
+                  {/* Base line (grey track) */}
+                  <div style={{
+                    position: 'absolute', top: '13px',
+                    left: `calc(100% / ${milestones.length} / 2)`,
+                    right: `calc(100% / ${milestones.length} / 2)`,
+                    height: '2px', backgroundColor: '#f1f5f9', zIndex: 0,
+                  }} />
+                  {/* Filled progress line */}
+                  {progressFrac > 0 && (
+                    <div style={{
+                      position: 'absolute', top: '13px',
+                      left: `calc(100% / ${milestones.length} / 2)`,
+                      width: `calc(${progressFrac} * (100% - 100% / ${milestones.length}))`,
+                      height: '2px', backgroundColor: '#cbd5e1', zIndex: 1,
+                    }} />
+                  )}
+
+                  {milestones.map(({ label, color, date, adjusted, isPast }, i) => {
+                    const isNext = i === nextIndex;
+                    const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
+                    // Visual state
+                    let dotBg: string;
+                    let dotBorder: string;
+                    let dotSize: number;
+                    let labelCol: string;
+                    let dateCol: string;
+                    let showRing = false;
+
+                    if (isPast) {
+                      // Completed — neutral grey
+                      dotBg = '#e2e8f0'; dotBorder = '#94a3b8'; dotSize = 14;
+                      labelCol = '#b0bbc8'; dateCol = '#94a3b8';
+                    } else if (isNext) {
+                      // Current / active — colored, larger, with outer ring
+                      dotBg = color; dotBorder = color; dotSize = 18;
+                      labelCol = '#18181b'; dateCol = '#18181b'; showRing = true;
+                    } else {
+                      // Future — color outline, white fill
+                      dotBg = '#ffffff'; dotBorder = color; dotSize = 14;
+                      labelCol = '#64748b'; dateCol = '#64748b';
+                    }
+
+                    return (
+                      <div
+                        key={label}
+                        title={adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label}
+                        style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 2 }}
+                      >
+                        {/* Dot container — fixed 28px so centers align on the connecting line */}
+                        <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: '8px' }}>
+                          {showRing && (
+                            <div style={{
+                              position: 'absolute', inset: '-4px', borderRadius: '50%',
+                              border: `2px solid ${color}`, opacity: 0.22,
+                            }} />
+                          )}
+                          <div style={{
+                            width: `${dotSize}px`, height: `${dotSize}px`, borderRadius: '50%',
+                            backgroundColor: dotBg, border: `2.5px solid ${dotBorder}`,
+                            position: 'relative', zIndex: 1,
+                          }} />
+                        </div>
+
+                        {/* Milestone label */}
+                        <span style={{
+                          fontSize: '9px', fontWeight: '700', textTransform: 'uppercase',
+                          letterSpacing: '0.07em', color: labelCol,
+                          textAlign: 'center', lineHeight: 1.3,
+                          fontFamily: "'Plus Jakarta Sans', sans-serif",
+                          maxWidth: '84px', display: 'block',
+                        }}>
+                          {label}
+                        </span>
+
+                        {/* Date */}
+                        <span style={{
+                          fontSize: '11px', fontWeight: isNext ? '700' : '600',
+                          color: dateCol, fontFamily: "'DM Mono', monospace",
+                          marginTop: '4px', display: 'block',
+                        }}>
                           {dateStr}
                           {adjusted && (
-                            <span style={{ fontSize: '9px', fontWeight: '600', color: '#f59e0b', marginLeft: '3px' }}>
+                            <span style={{ fontSize: '9px', color: '#f59e0b', marginLeft: '3px' }}>
                               {adjusted === 'fri' ? 'sex' : 'seg'}
                             </span>
                           )}
                         </span>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
 
             </div>

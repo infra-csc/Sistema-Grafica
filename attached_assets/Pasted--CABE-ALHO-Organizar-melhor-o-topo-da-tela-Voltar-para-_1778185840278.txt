@@ -1,0 +1,50 @@
+. CABEÇALHO
+- Organizar melhor o topo da tela
+- “Voltar para eventos” deve ficar leve e elegante, com ícone discreto
+- “Criado em 07/05/2026” deve ser um metadata label menor e com pouco contraste
+- O título “Teste” precisa ter mais destaque visual
+- O botão “Adicionar Peça” deve ficar mais refinado, com melhor altura, padding, borda arredondada e hover elegante
+- Em telas maiores, alinhar melhor conteúdo à esquerda e ação à direita
+
+2. CARDS DE DATAS
+- Melhorar os cards “Saída do caminhão” e “Início da montagem”
+- Deixar ambos com mesma altura, melhor padding e melhor hierarquia de informação
+- O ícone deve ficar em um container sutil com fundo suave
+- O rótulo do card deve estar em caixa alta discreta
+- A data principal deve ser o foco visual
+- Informações secundárias como horário e “Faltam 6 dias” devem ficar abaixo com menor peso visual
+- Aplicar borda suave e sombra discreta
+- Garantir visual consistente entre os cards
+
+3. TIMELINE / ETAPAS
+- Redesenhar a linha do tempo horizontal para parecer mais moderna e clara
+- Cada etapa deve ter:
+  - marcador circular mais refinado
+  - título da etapa
+  - data
+  - estado visual claro
+- Estados:
+  - etapa concluída
+  - etapa atual
+  - etapa futura
+  - etapa em atenção/atraso
+- A linha que conecta as etapas deve ter melhor acabamento
+- Destacar visualmente a etapa atual
+- Etapas concluídas podem ter cor mais neutra com acento elegante
+- Etapas em atenção podem usar uma cor de alerta sutil
+- Melhorar alinhamento vertical entre círculo, título e data
+- Em telas menores, a timeline deve ser responsiva, podendo virar vertical ou permitir scroll horizontal elegante sem quebrar o layout
+
+4. ESPAÇAMENTO E GRID
+- Melhorar espaçamento geral entre seções
+- Criar uma largura máxima para o conteúdo e evitar sensação de tela vazia
+- Ajustar paddings laterais
+- Alinhar visualmente cards, cabeçalho e timeline no mesmo grid
+- Criar mais equilíbrio no uso do espaço em branco
+
+5. TIPOGRAFIA
+- Título principal com bastante destaque
+- Labels e metadados em tom secundário
+- Datas importantes com peso médio/alto
+- Títulos das etapas legíveis mas compactos
+- Evitar excesso de contraste em textos secundários

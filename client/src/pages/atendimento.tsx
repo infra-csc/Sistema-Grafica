@@ -1195,7 +1195,7 @@ export default function Atendimento() {
 
       {/* ─── MODAL DE REVISÃO (3 colunas) ───────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[92vh] p-0 gap-0 rounded-2xl overflow-hidden flex flex-col" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-6xl max-h-[92vh] p-0 gap-0 rounded-2xl overflow-hidden flex flex-col [&>button:last-child]:hidden" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogTitle className="sr-only">Revisão de Ativo</DialogTitle>
           <DialogDescription className="sr-only">Revise os detalhes e aprove ou reprove o ativo</DialogDescription>
 

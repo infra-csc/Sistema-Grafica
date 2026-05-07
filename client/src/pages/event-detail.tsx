@@ -1088,8 +1088,8 @@ export default function EventDetail() {
               </div>
 
               {/* ── Timeline de Marcos ── */}
-              <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
-                <div style={{ position: 'relative', display: 'flex', minWidth: '500px' }}>
+              <div style={{ overflowX: 'hidden' }}>
+                <div style={{ position: 'relative', display: 'flex' }}>
 
                   {/* Base line (grey track) */}
                   <div style={{

@@ -10,6 +10,11 @@ import { pool } from "./db";
 
 const PgSession = connectPgSimple(session);
 
+// Ensure no SSO user is stuck with mustChangePassword=true (all access via Microsoft)
+async function fixSsoMustChangePassword() {
+  await pool.query("UPDATE users SET must_change_password = false WHERE must_change_password = true");
+}
+
 async function seedUsers() {
   const users = [
     { name: "Administrador NORTE",                email: "admin@norte.com",                   role: "admin",       mustChange: false },
@@ -167,6 +172,7 @@ app.use((req, res, next) => {
 
 (async () => {
   await seedUsers();
+  await fixSsoMustChangePassword();
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -96,6 +96,15 @@ function createEmptyRow(): BulkItemRow {
 
 export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
+  const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
+
+  function getReplicateCount(id: string) {
+    return replicateCounts[id] ?? 1;
+  }
+
+  function setReplicateCount(id: string, n: number) {
+    setReplicateCounts(prev => ({ ...prev, [id]: Math.max(1, Math.min(99, n)) }));
+  }
 
   function updateRow(id: string, field: keyof BulkItemRow, value: string) {
     setRows(prev =>
@@ -143,13 +152,19 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
   function duplicateRow(id: string) {
     const src = rows.find(r => r.id === id);
     if (!src) return;
-    const newRow = { ...src, id: Math.random().toString(36).substring(7) };
+    const count = getReplicateCount(id);
+    const newRows = Array.from({ length: count }, () => ({
+      ...src,
+      id: Math.random().toString(36).substring(7),
+    }));
     setRows(prev => {
       const idx = prev.findIndex(r => r.id === id);
       const next = [...prev];
-      next.splice(idx + 1, 0, newRow);
+      next.splice(idx + 1, 0, ...newRows);
       return next;
     });
+    // reset count back to 1 after duplicating
+    setReplicateCount(id, 1);
   }
 
   function handleSubmit() {
@@ -404,12 +419,24 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   <td style={{ padding: '4px 8px', textAlign: 'center' }}>
                     <div
                       className="opacity-0 group-hover:opacity-100"
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', transition: 'opacity 0.15s' }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', transition: 'opacity 0.15s' }}
                     >
+                      {/* Replicate count input */}
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={getReplicateCount(row.id)}
+                        onChange={e => setReplicateCount(row.id, parseInt(e.target.value) || 1)}
+                        onClick={e => (e.target as HTMLInputElement).select()}
+                        title="Quantidade de cópias"
+                        data-testid={`input-replicate-count-${index}`}
+                        style={{ width: '36px', height: '24px', backgroundColor: '#f0efee', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#57534e', outline: 'none', padding: '0 2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                      />
                       <button
                         type="button"
                         onClick={() => duplicateRow(row.id)}
-                        title="Duplicar"
+                        title={`Replicar ${getReplicateCount(row.id)}x`}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', color: '#a8a29e', transition: 'color 0.15s' }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
                         onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}

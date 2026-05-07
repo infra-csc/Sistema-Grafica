@@ -102,12 +102,17 @@ export default function Modelos() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const toNum = (v: string) => (v === "" || v === null || v === undefined) ? null : parseFloat(v);
     const dataToSubmit: any = {
       ...formData,
       material: formData.material || null,
       finish: formData.finish || null,
-      area: formData.area || null,
-      visual: formData.visual || null,
+      area: toNum(formData.area),
+      visual: toNum(formData.visual),
+      visualWidth: toNum(formData.visualWidth),
+      visualHeight: toNum(formData.visualHeight),
+      fileWidth: toNum(formData.fileWidth),
+      fileHeight: toNum(formData.fileHeight),
     };
     createStandardItemMutation.mutate(dataToSubmit);
   };

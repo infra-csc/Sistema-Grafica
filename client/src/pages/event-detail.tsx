@@ -713,6 +713,7 @@ export default function EventDetail() {
                     eventId={eventId!}
                     standardItems={standardItems}
                     sponsors={sponsors}
+                    existingItems={items}
                     onSubmit={(items) => createBulkItemsMutation.mutate(items)}
                     onCancel={() => setOpen(false)}
                     isPending={createBulkItemsMutation.isPending}

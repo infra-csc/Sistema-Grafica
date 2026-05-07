@@ -383,50 +383,6 @@ export default function Modelos() {
                 />
               </div>
 
-              {/* Tipo */}
-              <div>
-                <label style={labelStyle}>Tipo de Item</label>
-                <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      data-testid="button-type-combobox"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.type ? "#1c1917" : "#a8a29e" }}
-                    >
-                      <span>{formData.type || "Selecione o Tipo..."}</span>
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0 }} />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent style={{ width: 280, padding: 0 }} align="start">
-                    <Command>
-                      <CommandInput placeholder="Buscar ou adicionar tipo..." value={customTypeInput} onValueChange={setCustomTypeInput} />
-                      <CommandList>
-                        <CommandEmpty>
-                          <div style={{ padding: "8px 12px" }}>
-                            <p style={{ fontSize: 12, color: "#78716c", margin: "0 0 8px" }}>Nenhum tipo encontrado.</p>
-                            {customTypeInput && (
-                              <button type="button" onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}
-                                style={{ width: "100%", padding: "6px 12px", backgroundColor: "#1c1917", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                                <Plus style={{ width: 12, height: 12 }} /> Adicionar "{customTypeInput}"
-                              </button>
-                            )}
-                          </div>
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {itemTypes.map(type => (
-                            <CommandItem key={type} value={type}
-                              onSelect={() => { setFormData({ ...formData, type }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
-                              <Check className={cn("mr-2 h-4 w-4", formData.type === type ? "opacity-100" : "opacity-0")} />
-                              {type}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-
               {/* Toggle Medida Variável */}
               <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 12 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>

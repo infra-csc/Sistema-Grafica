@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  UserPlus, Pencil, Trash2, Search, Eye, EyeOff,
+  UserPlus, Pencil, Trash2, Search,
   ChevronLeft, ChevronRight, X, AlertTriangle, ShieldCheck,
 } from "lucide-react";
 
@@ -35,10 +35,9 @@ const ROLE_CFG: Record<string, { label: string; bg: string; color: string; avata
 };
 
 const userSchema = z.object({
-  name:     z.string().min(1, "Nome obrigatório"),
-  email:    z.string().email("Email inválido"),
-  role:     z.enum(["admin", "solicitacao", "arte", "grafica", "atendimento"], { required_error: "Selecione um perfil" }),
-  password: z.string().min(6, "Mínimo 6 caracteres").optional().or(z.literal("")),
+  name:  z.string().min(1, "Nome obrigatório"),
+  email: z.string().email("Email inválido"),
+  role:  z.enum(["admin", "solicitacao", "arte", "grafica", "atendimento"], { required_error: "Selecione um perfil" }),
 });
 type UserForm = z.infer<typeof userSchema>;
 
@@ -75,7 +74,6 @@ export default function Usuarios() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [page, setPage] = useState(1);
@@ -85,18 +83,17 @@ export default function Usuarios() {
 
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
-    defaultValues: { name: "", email: "", role: "solicitacao", password: "" },
+    defaultValues: { name: "", email: "", role: "solicitacao" },
   });
   const createMutation = useMutation({
     mutationFn: async (data: UserForm) => {
-      const { password, ...rest } = data;
-      const res = await apiRequest("POST", "/api/auth/register", { ...rest, password: password || "123456" });
+      const res = await apiRequest("POST", "/api/auth/register", data);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setModalOpen(false); form.reset();
-      toast({ title: "Usuário criado com sucesso", description: "O usuário deve trocar a senha no primeiro acesso" });
+      toast({ title: "Usuário criado com sucesso", description: "O usuário já pode acessar o sistema via Microsoft" });
     },
     onError: (e: any) => toast({ variant: "destructive", title: "Erro ao criar usuário", description: e.message }),
   });
@@ -129,15 +126,13 @@ export default function Usuarios() {
 
   const openCreate = () => {
     setEditingUser(null);
-    form.reset({ name: "", email: "", role: "solicitacao", password: "" });
-    setShowPassword(false);
+    form.reset({ name: "", email: "", role: "solicitacao" });
     setModalOpen(true);
   };
 
   const openEdit = (u: User) => {
     setEditingUser(u);
-    form.reset({ name: u.name, email: u.email, role: u.role as any, password: "" });
-    setShowPassword(false);
+    form.reset({ name: u.name, email: u.email, role: u.role as any });
     setModalOpen(true);
   };
 
@@ -147,7 +142,6 @@ export default function Usuarios() {
       if (data.name !== editingUser.name) update.name = data.name;
       if (data.email !== editingUser.email) update.email = data.email;
       if (data.role !== editingUser.role) update.role = data.role;
-      if (data.password && data.password.length > 0) update.password = data.password;
       updateMutation.mutate({ id: editingUser.id, update });
     } else {
       createMutation.mutate(data);
@@ -559,31 +553,6 @@ export default function Usuarios() {
                     </FormItem>
                   )} />
                 </div>
-
-                {/* Senha com show/hide */}
-                <FormField control={form.control} name="password" render={({ field }) => (
-                  <FormItem>
-                    <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>
-                      {editingUser ? "Nova Senha (opcional)" : "Senha"}
-                    </div>
-                    <FormControl>
-                      <div style={{ position: "relative" }}>
-                        <input {...field} type={showPassword ? "text" : "password"}
-                          placeholder={editingUser ? "Deixe em branco para manter a atual" : "Mínimo 6 caracteres (padrão: 123456)"}
-                          data-testid="input-password"
-                          style={{ ...tiInput, paddingRight: 40 }}
-                          onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                          onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                        />
-                        <button type="button" onClick={() => setShowPassword(v => !v)}
-                          style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: T.muted, display: "flex", alignItems: "center" }}>
-                          {showPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
-                        </button>
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
 
                 {/* Buttons */}
                 <div style={{ display: "flex", gap: 10, paddingTop: 6 }}>

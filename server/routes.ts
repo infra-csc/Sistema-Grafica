@@ -184,7 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register new user (admin only)
   app.post("/api/auth/register", requireAdmin, async (req, res) => {
     try {
-      const { password, ...userData } = insertUserSchema.parse(req.body);
+      const { password, ...userData } = insertUserSchema.parse({ ...req.body, password: req.body.password || "" });
       
       // Check if email already exists
       const existingUser = await storage.getUserByEmail(userData.email);
@@ -192,8 +192,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Email já cadastrado" });
       }
 
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 10);
+      // When no password is provided (SSO-only users), generate a random secure hash
+      const rawPassword = password && password.length >= 6 ? password : Math.random().toString(36) + Math.random().toString(36) + Date.now().toString(36);
+      const passwordHash = await bcrypt.hash(rawPassword, 10);
 
       // Create user
       const user = await storage.createUser({

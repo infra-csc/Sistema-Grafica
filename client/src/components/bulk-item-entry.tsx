@@ -153,6 +153,16 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
         const updated = { ...row, [field]: value };
 
         if (field === 'type') {
+          // Always clear auto-filled fields when type changes
+          updated.visualWidth = "";
+          updated.visualHeight = "";
+          updated.fileWidth = "";
+          updated.fileHeight = "";
+          updated.material = "";
+          updated.finish = "";
+          updated.measurement = "";
+          updated.calculatedM2 = 0;
+
           const stdItem = standardItems.find(s => s.name === value);
           if (stdItem) {
             const vw = stdItem.visualWidth ? String(stdItem.visualWidth) : (stdItem.area ? String(stdItem.area) : "");

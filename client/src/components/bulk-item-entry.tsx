@@ -264,7 +264,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
   const allTypeOptions = [
     ...standardItems.map(s => s.name),
     ...itemTypes.filter(t => !standardItems.find(s => s.name === t)),
-  ];
+  ].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>

@@ -664,7 +664,7 @@ export default function EventDetail() {
                 setOpen(true);
               }
             }}>
-              <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh] p-0 overflow-hidden gap-0" : "sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0"}>
+              <DialogContent className={bulkMode && !editingItem ? "max-w-[95vw] max-h-[90vh] p-0 overflow-hidden gap-0" : "sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0"} onInteractOutside={(e) => e.preventDefault()}>
                 {/* HEADER */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', backgroundColor: '#f9f9f8', borderBottom: '1px solid rgba(231,229,228,0.5)' }}>
                   <div>

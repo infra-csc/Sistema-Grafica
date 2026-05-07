@@ -609,7 +609,7 @@ export default function Solicitacao() {
 
       {/* ── 5. REVIEW MODAL ────────────────────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) { setShowReturnForm(false); setReturnObservations(""); } }}>
-        <DialogContent className="max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col" style={{ height: "87vh", maxHeight: 900 }}>
+        <DialogContent className="max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col" style={{ height: "87vh", maxHeight: 900 }} onInteractOutside={(e) => e.preventDefault()}>
           <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
 
             {/* Left column — art visualizer (40%) */}

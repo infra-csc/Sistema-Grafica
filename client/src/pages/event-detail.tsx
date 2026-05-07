@@ -707,7 +707,7 @@ export default function EventDetail() {
                 </div>
                 
                 {bulkMode && !editingItem ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
                   <BulkItemEntry
                     eventId={eventId!}
                     standardItems={standardItems}

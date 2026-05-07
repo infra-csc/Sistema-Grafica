@@ -327,7 +327,7 @@ export default function Modelos() {
                         {/* Ações (admin) */}
                         {isAdmin && (
                           <td style={{ padding: "18px 24px", textAlign: "right", whiteSpace: "nowrap" }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, opacity: isHovered ? 1 : 0, transition: "opacity 0.15s" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                               <HoverIconBtn
                                 icon={<Pencil style={{ width: 16, height: 16 }} />}
                                 hoverBg="#fff7ed" hoverColor="#f97316"

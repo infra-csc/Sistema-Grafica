@@ -269,7 +269,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
 
       {/* TABLE AREA */}
       <div tabIndex={0} className="scrollbar-visible" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '20px', minWidth: 0, outline: 'none' }}>
-        <div style={{ minWidth: '970px' }}>
+        <div style={{ minWidth: '990px' }}>
 
         {/* EXISTING ITEMS PANEL */}
         {existingItems.length > 0 && (
@@ -303,7 +303,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
             <thead>
               <tr style={{ textAlign: 'left' }}>
                 {[
-                  { label: 'Tipo', w: '110px' },
+                  { label: 'Tipo', w: '130px' },
                   { label: 'Descrição', w: '140px' },
                   { label: 'Qtd', w: '54px' },
                   { label: 'Vis. L', w: '68px', orange: true },
@@ -348,15 +348,18 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
                 >
                   {/* Tipo */}
                   <td style={{ padding: '3px 5px' }}>
-                    <select
+                    <input
+                      list={`types-list-${row.id}`}
                       value={row.type}
                       onChange={e => updateRow(row.id, 'type', e.target.value)}
-                      style={selectStyle}
+                      placeholder="Buscar..."
+                      style={{ ...inputStyle, textOverflow: 'ellipsis' }}
                       data-testid={`select-type-${index}`}
-                    >
-                      <option value="">Selecione</option>
-                      {allTypeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                      autoComplete="off"
+                    />
+                    <datalist id={`types-list-${row.id}`}>
+                      {allTypeOptions.map(t => <option key={t} value={t} />)}
+                    </datalist>
                   </td>
 
                   {/* Descrição */}

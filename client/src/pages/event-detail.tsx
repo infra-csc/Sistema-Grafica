@@ -665,7 +665,8 @@ export default function EventDetail() {
               }
             }}>
               <DialogContent
-                className={`${bulkMode && !editingItem ? "max-w-[95vw] h-[90vh] p-0 overflow-hidden gap-0 flex flex-col" : "sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0"} [&>button:last-child]:hidden`}
+                className={`${bulkMode && !editingItem ? "max-w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" : "sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0"} [&>button:last-child]:hidden`}
+                style={bulkMode && !editingItem ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : undefined}
                 onInteractOutside={(e) => e.preventDefault()}
                 onEscapeKeyDown={(e) => e.preventDefault()}
               >

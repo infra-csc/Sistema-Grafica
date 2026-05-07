@@ -228,7 +228,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
       )}
 
       {/* TABLE AREA */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '32px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '32px', minWidth: 0 }}>
         <div style={{ minWidth: '1220px' }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
             <thead>

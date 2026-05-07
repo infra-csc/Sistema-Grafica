@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Copy, Trash2, Loader2, ArrowRight } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
+import { StatusBadge } from "@/components/status-badge";
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
 const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
@@ -60,35 +61,6 @@ interface BulkItemEntryProps {
   isPending?: boolean;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  draft: 'Rascunho',
-  requested: 'Solicitado',
-  awaiting_linking: 'Ag. Vinculação',
-  awaiting_submission: 'Ag. Envio',
-  awaiting_approval: 'Ag. Aprovação',
-  awaiting_finalization: 'Ag. Finalização',
-  awaiting_final_review: 'Ag. Revisão',
-  ready_for_production: 'Pronto p/ Prod.',
-  approved: 'Liberado',
-  inProduction: 'Em Produção',
-  produced: 'Produzido',
-  delivered: 'Entregue',
-};
-
-const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
-  draft:                  { bg: '#f0efee', color: '#78716c' },
-  requested:              { bg: '#fef3c7', color: '#92400e' },
-  awaiting_linking:       { bg: '#fef3c7', color: '#92400e' },
-  awaiting_submission:    { bg: '#fef3c7', color: '#92400e' },
-  awaiting_approval:      { bg: '#dbeafe', color: '#1e40af' },
-  awaiting_finalization:  { bg: '#dbeafe', color: '#1e40af' },
-  awaiting_final_review:  { bg: '#dbeafe', color: '#1e40af' },
-  ready_for_production:   { bg: '#d1fae5', color: '#065f46' },
-  approved:               { bg: '#d1fae5', color: '#065f46' },
-  inProduction:           { bg: '#ffedd5', color: '#9a3412' },
-  produced:               { bg: '#e0e7ff', color: '#3730a3' },
-  delivered:              { bg: '#d1fae5', color: '#065f46' },
-};
 
 function TipoSelect({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -337,28 +309,38 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
         {/* EXISTING ITEMS PANEL */}
         {existingItems.length > 0 && (
           <div style={{ marginBottom: '20px', border: '1px solid #e7e5e4', borderRadius: '8px', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4' }}>
               <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', fontFamily: "'Space Grotesk', sans-serif" }}>
                 Peças já no evento
               </span>
-              <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#e7e5e4', color: '#57534e', borderRadius: '99px', padding: '1px 8px' }}>
+              <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: '#e7e5e4', color: '#57534e', borderRadius: '99px', padding: '1px 7px' }}>
                 {existingItems.length}
               </span>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '10px 16px', backgroundColor: '#fafaf9' }}>
-              {existingItems.map(item => {
-                const sc = STATUS_COLOR[item.status] ?? { bg: '#f0efee', color: '#78716c' };
-                const sl = STATUS_LABEL[item.status] ?? item.status;
-                return (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: '6px', fontSize: '11px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    <span style={{ fontWeight: '700', color: '#a8a29e', fontSize: '10px', fontFamily: 'monospace' }}>{item.displayId}</span>
-                    <span style={{ fontWeight: '600', color: '#1a1c1c' }}>{item.type}</span>
-                    {item.quantity > 1 && <span style={{ color: '#a8a29e' }}>×{item.quantity}</span>}
-                    {item.material && <span style={{ color: '#a8a29e' }}>· {item.material}</span>}
-                    <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: sc.bg, color: sc.color, borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}>{sl}</span>
-                  </div>
-                );
-              })}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', padding: '10px 14px', backgroundColor: '#fafaf9' }}>
+              {existingItems.map(item => (
+                <div key={item.id} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '5px',
+                  padding: '4px 8px 4px 6px',
+                  backgroundColor: '#ffffff', border: '1px solid #ebebea', borderRadius: '6px',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}>
+                  <span style={{ fontWeight: '700', color: '#c4bfbb', fontSize: '9px', fontFamily: 'monospace', letterSpacing: '0.02em' }}>
+                    {item.displayId}
+                  </span>
+                  <span style={{ fontWeight: '700', color: '#1a1c1c', fontSize: '11px' }}>{item.type}</span>
+                  {item.quantity > 1 && (
+                    <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '500' }}>×{item.quantity}</span>
+                  )}
+                  {item.material && (
+                    <span style={{ fontSize: '10px', color: '#c4bfbb' }}>·</span>
+                  )}
+                  {item.material && (
+                    <span style={{ fontSize: '10px', color: '#78716c' }}>{item.material}</span>
+                  )}
+                  <StatusBadge status={item.status} className="text-[9px] px-1.5 py-0" />
+                </div>
+              ))}
             </div>
           </div>
         )}

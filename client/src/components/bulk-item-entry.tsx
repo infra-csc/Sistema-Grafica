@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from "react";
-import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check } from "lucide-react";
+import { useState, useRef, useCallback, useMemo } from "react";
+import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
@@ -60,6 +60,7 @@ interface BulkItemEntryProps {
   standardItems?: StandardItem[];
   sponsors?: Sponsor[];
   existingItems?: ExistingItem[];
+  onDeleteExistingItem?: (id: string) => void;
   onSubmit: (items: any[]) => void;
   onCancel: () => void;
   isPending?: boolean;
@@ -244,10 +245,184 @@ function createEmptyRow(): BulkItemRow {
   };
 }
 
+/* ── ExistingItemsPanel ─────────────────────────────────────────────── */
+interface ExistingItemsPanelProps {
+  items: ExistingItem[];
+  onDelete?: (id: string) => void;
+}
+
+function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      it =>
+        it.displayId.toLowerCase().includes(q) ||
+        it.type.toLowerCase().includes(q) ||
+        (it.description ?? "").toLowerCase().includes(q)
+    );
+  }, [items, query]);
+
+  // Split filtered list into two equal columns
+  const half = Math.ceil(filtered.length / 2);
+  const col1 = filtered.slice(0, half);
+  const col2 = filtered.slice(half);
+
+  function ItemRow({ item }: { item: ExistingItem }) {
+    const [hovered, setHovered] = useState(false);
+    return (
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '5px 8px',
+          borderBottom: '1px solid #f1f5f9',
+          backgroundColor: hovered ? '#fff7ed' : 'transparent',
+          transition: 'background-color 0.1s',
+          minWidth: 0,
+        }}
+      >
+        {/* ID */}
+        <span style={{
+          fontSize: '10px', fontWeight: '700', color: '#f97316',
+          fontFamily: "'DM Mono', 'JetBrains Mono', monospace",
+          minWidth: '52px', flexShrink: 0,
+        }}>
+          {item.displayId}
+        </span>
+        {/* Tipo */}
+        <span style={{
+          fontSize: '11px', fontWeight: '700', color: '#1e293b',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          minWidth: '110px', flexShrink: 0,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {item.type}
+          {item.quantity > 1 && (
+            <span style={{ fontWeight: '500', color: '#94a3b8', marginLeft: '3px' }}>×{item.quantity}</span>
+          )}
+        </span>
+        {/* Descrição */}
+        <span style={{
+          fontSize: '11px', color: '#64748b',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          flex: 1, minWidth: 0,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {item.description || item.material || '—'}
+        </span>
+        {/* Trash — visible only on hover */}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(item.id)}
+            title="Excluir item"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '2px', borderRadius: '4px', lineHeight: 0,
+              color: '#fca5a5', flexShrink: 0,
+              visibility: hovered ? 'visible' : 'hidden',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#fca5a5')}
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: '24px', border: '1px solid #e7e5e4', borderRadius: '10px', overflow: 'hidden' }}>
+      {/* ── Sticky header ── */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 10,
+        display: 'flex', alignItems: 'center', gap: '8px',
+        padding: '7px 12px',
+        backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4',
+      }}>
+        <span style={{
+          fontSize: '9px', fontWeight: '800', textTransform: 'uppercase',
+          letterSpacing: '0.14em', color: '#78716c',
+          fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
+        }}>
+          Peças já lançadas
+        </span>
+        <span style={{
+          fontSize: '9px', fontWeight: '800',
+          backgroundColor: '#1c1917', color: '#fff',
+          borderRadius: '99px', padding: '1px 7px',
+          fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
+        }}>
+          {items.length}
+        </span>
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Quick search */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <Search size={11} color="#a8a29e" style={{ position: 'absolute', left: 7, pointerEvents: 'none' }} />
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Filtrar..."
+            style={{
+              fontSize: '11px', fontFamily: "'Plus Jakarta Sans', sans-serif",
+              backgroundColor: '#ebe9e7', border: 'none', outline: 'none',
+              borderRadius: '6px', padding: '4px 24px 4px 24px',
+              color: '#1a1c1c', width: '140px',
+            }}
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              style={{ position: 'absolute', right: 6, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0, padding: 0, color: '#a8a29e' }}
+            >
+              <X size={10} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Split 2-column list ── */}
+      <div
+        className="scrollbar-visible"
+        style={{ maxHeight: '176px', overflowY: 'auto', backgroundColor: '#fafaf9' }}
+      >
+        {filtered.length === 0 ? (
+          <div style={{ padding: '12px 16px', fontSize: '11px', color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {query ? 'Nenhum item encontrado para esta busca.' : 'Nenhuma peça lançada ainda.'}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+            {/* Column 1 */}
+            <div style={{ borderRight: '1px solid #f1f5f9' }}>
+              {col1.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
+            </div>
+            {/* Column 2 */}
+            <div>
+              {col2.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Column headers (after scroll area to stay in context) */}
+    </div>
+  );
+}
+
 /* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({
   eventId, standardItems = [], sponsors = [], existingItems = [],
-  onSubmit, onCancel, isPending,
+  onDeleteExistingItem, onSubmit, onCancel, isPending,
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
@@ -416,82 +591,7 @@ export function BulkItemEntry({
 
           {/* ══ SEÇÃO: PEÇAS JÁ LANÇADAS ══ */}
           {existingItems.length > 0 && (
-            <div style={{ marginBottom: '24px', border: '1px solid #e7e5e4', borderRadius: '10px', overflow: 'hidden' }}>
-              {/* Header */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 14px', backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4',
-              }}>
-                <span style={{
-                  fontSize: '9px', fontWeight: '800', textTransform: 'uppercase',
-                  letterSpacing: '0.14em', color: '#78716c', fontFamily: "'Space Grotesk', sans-serif",
-                }}>
-                  Peças já lançadas
-                </span>
-                <span style={{
-                  fontSize: '9px', fontWeight: '800',
-                  backgroundColor: '#1c1917', color: '#fff',
-                  borderRadius: '99px', padding: '1px 7px',
-                  fontFamily: "'Space Grotesk', sans-serif",
-                }}>
-                  {existingItems.length}
-                </span>
-              </div>
-
-              {/* 3-column mini-grid */}
-              <div
-                className="scrollbar-visible"
-                style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-                  gap: '6px', padding: '10px 14px',
-                  backgroundColor: '#fafaf9', maxHeight: '148px', overflowY: 'auto',
-                }}
-              >
-                {existingItems.map(item => (
-                  <div
-                    key={item.id}
-                    style={{
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '7px',
-                      padding: '6px 10px',
-                      minWidth: 0,
-                    }}
-                  >
-                    {/* Header row: ID + type */}
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', minWidth: 0 }}>
-                      <span style={{
-                        fontSize: '10px', fontWeight: '700', color: '#f97316',
-                        fontFamily: "'DM Mono', 'JetBrains Mono', monospace",
-                        flexShrink: 0,
-                      }}>
-                        {item.displayId}
-                      </span>
-                      <span style={{
-                        fontSize: '12px', fontWeight: '700', color: '#1a1c1c',
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        flex: 1, minWidth: 0,
-                      }}>
-                        {item.type}
-                        {item.quantity > 1 && (
-                          <span style={{ fontWeight: '500', color: '#94a3b8', marginLeft: '4px' }}>×{item.quantity}</span>
-                        )}
-                      </span>
-                    </div>
-                    {/* Subline: description */}
-                    <div style={{
-                      fontSize: '11px', color: '#64748b',
-                      fontFamily: "'Plus Jakarta Sans', sans-serif",
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      marginTop: '1px',
-                    }}>
-                      {item.description || item.material || <span style={{ color: '#cbd5e1' }}>—</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ExistingItemsPanel items={existingItems} onDelete={onDeleteExistingItem} />
           )}
 
           {/* ══ SEÇÃO: GRID DE LOTE ══ */}

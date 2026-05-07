@@ -418,8 +418,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   {/* Ações */}
                   <td style={{ padding: '4px 8px', textAlign: 'center' }}>
                     <div
-                      className="opacity-0 group-hover:opacity-100"
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', transition: 'opacity 0.15s' }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
                     >
                       {/* Replicate count input */}
                       <input

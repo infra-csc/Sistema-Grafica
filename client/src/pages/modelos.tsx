@@ -247,7 +247,7 @@ export default function Modelos() {
               <p style={{ fontSize: 13, color: "#78716c" }}>Tente buscar com outro termo</p>
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div className="scrollbar-visible" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 260px)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "rgba(243,244,243,0.5)", borderBottom: "1px solid #e7e5e4" }}>

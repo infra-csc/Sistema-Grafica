@@ -1,8 +1,6 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, Copy, Trash2, Loader2, ArrowRight } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
-
-const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
 const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
@@ -91,6 +89,64 @@ const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
   produced:               { bg: '#e0e7ff', color: '#3730a3' },
   delivered:              { bg: '#d1fae5', color: '#065f46' },
 };
+
+function TipoSelect({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState(value);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setSearch(value); }, [value]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <input
+        value={search}
+        onChange={e => { setSearch(e.target.value); setOpen(true); onChange(e.target.value); }}
+        onFocus={() => setOpen(true)}
+        placeholder="Buscar..."
+        style={{ ...inputStyle, textOverflow: 'ellipsis' }}
+      />
+      {open && filtered.length > 0 && (
+        <div
+          className="scrollbar-visible"
+          style={{
+            position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 200,
+            backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8,
+            boxShadow: '0 4px 14px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto',
+            minWidth: 160,
+          }}
+        >
+          {filtered.map(opt => (
+            <div
+              key={opt}
+              onMouseDown={() => { onChange(opt); setSearch(opt); setOpen(false); }}
+              style={{
+                padding: '7px 12px', fontSize: 12, color: '#1c1917', cursor: 'pointer',
+                backgroundColor: opt === value ? '#fff7ed' : undefined,
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+              }}
+              onMouseEnter={e => { if (opt !== value) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f5f5f4'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = opt === value ? '#fff7ed' : ''; }}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -261,10 +317,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
     parseFloat(r.fileHeight) > 0 && r.material && r.finish
   ).length;
 
-  const allTypeOptions = [
-    ...standardItems.map(s => s.name),
-    ...itemTypes.filter(t => !standardItems.find(s => s.name === t)),
-  ].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const allTypeOptions = standardItems.map(s => s.name).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
@@ -357,19 +410,12 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   {/* Tipo */}
-                  <td style={{ padding: '3px 5px' }}>
-                    <input
-                      list={`types-list-${row.id}`}
+                  <td style={{ padding: '3px 5px' }} data-testid={`select-type-${index}`}>
+                    <TipoSelect
                       value={row.type}
-                      onChange={e => updateRow(row.id, 'type', e.target.value)}
-                      placeholder="Buscar..."
-                      style={{ ...inputStyle, textOverflow: 'ellipsis' }}
-                      data-testid={`select-type-${index}`}
-                      autoComplete="off"
+                      options={allTypeOptions}
+                      onChange={v => updateRow(row.id, 'type', v)}
                     />
-                    <datalist id={`types-list-${row.id}`}>
-                      {allTypeOptions.map(t => <option key={t} value={t} />)}
-                    </datalist>
                   </td>
 
                   {/* Descrição */}

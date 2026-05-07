@@ -1379,7 +1379,7 @@ export default function EventDetail() {
             }}
             style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
           >
-            <div style={{ flex: 1, overflowY: "auto", padding: "32px 28px", display: "flex", flexDirection: "column", gap: "24px" }}>
+            <div className="scrollbar-visible" style={{ flex: 1, overflowY: "auto", padding: "32px 28px", display: "flex", flexDirection: "column", gap: "24px" }}>
 
               {/* Linha 1: Tipo (3fr) | Qtd. (1fr) | M2 Total (1fr) */}
               <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: "16px" }}>

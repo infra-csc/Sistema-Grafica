@@ -629,15 +629,15 @@ export default function EventDetail() {
       <div style={{ marginBottom: '48px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px' }}>
           <div>
+            <p style={{ color: '#a8a29e', fontSize: '11px', fontWeight: '600', letterSpacing: '0.04em', marginBottom: '6px', margin: 0 }}>
+              Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </p>
             <h1
               data-testid="title-event-name"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '48px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', lineHeight: 1.05, margin: 0 }}
+              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '32px', fontWeight: '800', letterSpacing: '-0.04em', color: '#1a1c1c', lineHeight: 1.1, margin: '4px 0 0 0' }}
             >
               {event.name}
             </h1>
-            <p style={{ color: '#a8a29e', fontSize: '14px', fontWeight: '500', letterSpacing: '0.02em', marginTop: '8px' }}>
-              Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-            </p>
           </div>
           <div className="flex gap-2">
             <button
@@ -990,71 +990,131 @@ export default function EventDetail() {
           </div>
         </div>
 
-        {/* Chips de data — pill rounded-full */}
-        <div style={{ display: 'flex', gap: '16px', marginTop: '0', flexWrap: 'wrap' }}>
-          <div style={{ backgroundColor: '#f3f4f3', borderRadius: '99px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Calendar className="h-4 w-4 flex-shrink-0" style={{ color: '#f97316' }} />
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-              <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '-0.02em', color: '#78716c' }}>Início</span>
-              <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1c1c', marginTop: '2px' }}>
-                {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </span>
-            </div>
-          </div>
-          <div style={{ backgroundColor: '#f3f4f3', borderRadius: '99px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Truck className="h-4 w-4 flex-shrink-0" style={{ color: '#f97316' }} />
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-              <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '-0.02em', color: '#78716c' }}>Saída</span>
-              <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1c1c', marginTop: '2px' }}>
-                {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })} · {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Prazos do evento */}
+        {/* ── Dashboard Logístico ─────────────────────────────── */}
         {(() => {
-          const start = new Date(event.truckDepartureDate);
-          // Ajusta fim de semana: sábado→sexta, domingo→segunda (exceto Produção Gráfica)
-          const adjustWeekend = (date: Date, skipAdjust: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
-            if (skipAdjust) return { date, adjusted: null };
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const departure = new Date(event.truckDepartureDate);
+          const depDay = new Date(departure); depDay.setHours(0, 0, 0, 0);
+          const countdownDays = Math.ceil((depDay.getTime() - today.getTime()) / 86400000);
+          const depLabel = departure.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const depTime = departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          const startLabel = new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+          const adjustWeekend = (date: Date, skip: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
+            if (skip) return { date, adjusted: null };
             const dow = date.getDay();
-            if (dow === 6) { // sábado → sexta
-              const d = new Date(date); d.setDate(d.getDate() - 1); return { date: d, adjusted: 'fri' };
-            }
-            if (dow === 0) { // domingo → segunda
-              const d = new Date(date); d.setDate(d.getDate() + 1); return { date: d, adjusted: 'mon' };
-            }
+            if (dow === 6) { const d = new Date(date); d.setDate(d.getDate() - 1); return { date: d, adjusted: 'fri' }; }
+            if (dow === 0) { const d = new Date(date); d.setDate(d.getDate() + 1); return { date: d, adjusted: 'mon' }; }
             return { date, adjusted: null };
           };
+
           const deadlines = [
-            { label: 'Lista de Imagens', days: event.deadlineListaImagens ?? -25, color: '#8b5cf6', allDays: false },
-            { label: 'Entrega de Layouts', days: event.deadlineEntregaLayouts ?? -20, color: '#3b82f6', allDays: false },
-            { label: 'Aprovação de Layout', days: event.deadlineAprovacaoLayout ?? -12, color: '#f59e0b', allDays: false },
-            { label: 'Revisão de Lista', days: event.deadlineRevisaoLista ?? -8, color: '#10b981', allDays: false },
-            { label: 'Produção Gráfica', days: event.deadlineProducaoGrafica ?? -1, color: '#f97316', allDays: true },
+            { label: 'Lista de Imagens',    shortLabel: 'Lista\nImagens',    days: event.deadlineListaImagens    ?? -25, color: '#8b5cf6', allDays: false },
+            { label: 'Entrega de Layouts',  shortLabel: 'Entrega\nLayouts',  days: event.deadlineEntregaLayouts  ?? -20, color: '#3b82f6', allDays: false },
+            { label: 'Aprovação de Layout', shortLabel: 'Aprovação\nLayout', days: event.deadlineAprovacaoLayout ?? -12, color: '#f59e0b', allDays: false },
+            { label: 'Revisão de Lista',    shortLabel: 'Revisão\nLista',    days: event.deadlineRevisaoLista    ?? -8,  color: '#10b981', allDays: false },
+            { label: 'Produção Gráfica',    shortLabel: 'Produção\nGráfica', days: event.deadlineProducaoGrafica ?? -1,  color: '#f97316', allDays: true  },
           ];
+
           return (
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
-              {deadlines.map(({ label, days, color, allDays }) => {
-                const raw = new Date(start);
-                raw.setDate(raw.getDate() + days);
-                const { date, adjusted } = adjustWeekend(raw, allDays);
-                return (
-                  <div key={label} title={adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label} style={{ backgroundColor: '#f3f4f3', borderRadius: '99px', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-                      <span style={{ fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#78716c' }}>{label}</span>
-                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#1a1c1c', marginTop: '1px' }}>
-                        {date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                        {adjusted === 'fri' && <span style={{ fontSize: '9px', fontWeight: '600', color: '#f59e0b', marginLeft: '4px' }}>sex</span>}
-                        {adjusted === 'mon' && <span style={{ fontSize: '9px', fontWeight: '600', color: '#f59e0b', marginLeft: '4px' }}>seg</span>}
-                        <span style={{ fontSize: '10px', fontWeight: '500', color: '#a8a29e', marginLeft: '4px' }}>({days}d)</span>
-                      </span>
-                    </div>
+            <div style={{ marginTop: '20px' }}>
+
+              {/* ── Dois cards principais de data ── */}
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
+
+                {/* Card: SAÍDA DO CAMINHÃO */}
+                <div style={{
+                  backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px',
+                  padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)', minWidth: '220px',
+                }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '9px', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Truck size={18} color="#f97316" />
                   </div>
-                );
-              })}
+                  <div>
+                    <span style={{ display: 'block', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a8a29e', fontFamily: "'Space Grotesk', sans-serif" }}>
+                      Saída do Caminhão
+                    </span>
+                    <span style={{ display: 'block', fontSize: '18px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'DM Mono', 'JetBrains Mono', monospace", lineHeight: 1.25, marginTop: '4px' }}>
+                      {depLabel}
+                      <span style={{ fontSize: '13px', color: '#78716c', marginLeft: '6px' }}>{depTime}</span>
+                    </span>
+                    <span style={{ display: 'block', fontSize: '11px', fontWeight: '700', marginTop: '4px', color: countdownDays < 0 ? '#dc2626' : countdownDays <= 3 ? '#f97316' : '#64748b', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {countdownDays < 0 ? `Atrasado ${Math.abs(countdownDays)}d` : countdownDays === 0 ? 'Hoje!' : `Faltam ${countdownDays} dia${countdownDays !== 1 ? 's' : ''}`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card: INÍCIO DA MONTAGEM */}
+                <div style={{
+                  backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '10px',
+                  padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)', minWidth: '200px',
+                }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '9px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Calendar size={18} color="#2563eb" />
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#a8a29e', fontFamily: "'Space Grotesk', sans-serif" }}>
+                      Início da Montagem
+                    </span>
+                    <span style={{ display: 'block', fontSize: '18px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'DM Mono', 'JetBrains Mono', monospace", lineHeight: 1.25, marginTop: '4px' }}>
+                      {startLabel}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Timeline de Marcos ── */}
+              <div style={{ position: 'relative', display: 'flex' }}>
+                {/* Connecting line */}
+                <div style={{
+                  position: 'absolute', top: '8px',
+                  left: `calc(100% / ${deadlines.length} / 2)`,
+                  right: `calc(100% / ${deadlines.length} / 2)`,
+                  height: '2px', backgroundColor: '#f1f5f9', zIndex: 0,
+                }} />
+
+                {deadlines.map(({ label, shortLabel, days, color, allDays }) => {
+                  const raw = new Date(departure); raw.setDate(raw.getDate() + days);
+                  const { date, adjusted } = adjustWeekend(raw, allDays);
+                  const isPast = date < today;
+                  const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                  const lines = shortLabel.split('\n');
+                  return (
+                    <div
+                      key={label}
+                      title={adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label}
+                      style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 1 }}
+                    >
+                      {/* Dot */}
+                      <div style={{
+                        width: '17px', height: '17px', borderRadius: '50%', flexShrink: 0,
+                        backgroundColor: isPast ? '#fee2e2' : '#ffffff',
+                        border: `2.5px solid ${isPast ? '#dc2626' : color}`,
+                        marginBottom: '8px',
+                      }} />
+                      {/* Labels */}
+                      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                        {lines.map((l, i) => (
+                          <span key={i} style={{ display: 'block', fontSize: '9px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#94a3b8', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.2 }}>
+                            {l}
+                          </span>
+                        ))}
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: isPast ? '#dc2626' : '#64748b', fontFamily: "'DM Mono', 'JetBrains Mono', monospace", marginTop: '1px' }}>
+                          {dateStr}
+                          {adjusted && (
+                            <span style={{ fontSize: '9px', fontWeight: '600', color: '#f59e0b', marginLeft: '3px' }}>
+                              {adjusted === 'fri' ? 'sex' : 'seg'}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
             </div>
           );
         })()}

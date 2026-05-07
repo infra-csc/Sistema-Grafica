@@ -228,24 +228,24 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
       )}
 
       {/* TABLE AREA */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '32px', minWidth: 0 }}>
-        <div style={{ minWidth: '1220px' }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '20px', minWidth: 0 }}>
+        <div style={{ minWidth: '970px' }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px' }}>
             <thead>
               <tr style={{ textAlign: 'left' }}>
                 {[
-                  { label: 'Tipo', w: '140px' },
-                  { label: 'Descrição', w: '180px' },
-                  { label: 'Qtd', w: '68px' },
-                  { label: 'Vis. L', w: '86px', orange: true },
-                  { label: 'Vis. A', w: '86px', orange: true },
-                  { label: 'Arq. L', w: '86px' },
-                  { label: 'Arq. A', w: '86px' },
-                  { label: 'M²', w: '80px', accent: true },
-                  { label: 'Material', w: '115px' },
-                  { label: 'Acabamento', w: '115px' },
-                  { label: 'Obs', w: '110px' },
-                  { label: '', w: '64px' },
+                  { label: 'Tipo', w: '110px' },
+                  { label: 'Descrição', w: '140px' },
+                  { label: 'Qtd', w: '54px' },
+                  { label: 'Vis. L', w: '68px', orange: true },
+                  { label: 'Vis. A', w: '68px', orange: true },
+                  { label: 'Arq. L', w: '68px' },
+                  { label: 'Arq. A', w: '68px' },
+                  { label: 'M²', w: '62px', accent: true },
+                  { label: 'Material', w: '90px' },
+                  { label: 'Acabamento', w: '90px' },
+                  { label: 'Obs', w: '86px' },
+                  { label: '', w: '66px' },
                 ].map((col, i) => (
                   <th
                     key={i}
@@ -278,7 +278,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   {/* Tipo */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <select
                       value={row.type}
                       onChange={e => updateRow(row.id, 'type', e.target.value)}
@@ -291,7 +291,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Descrição */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <input
                       type="text"
                       value={row.description}
@@ -303,7 +303,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Qtd */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <input
                       type="number"
                       min="1"
@@ -315,7 +315,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Visual Largura */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <input
                       type="number"
                       step="0.01"
@@ -329,7 +329,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Visual Altura */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <input
                       type="number"
                       step="0.01"
@@ -343,7 +343,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Arquivo Largura */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <input
                       type="number"
                       step="0.01"
@@ -357,7 +357,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Arquivo Altura */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <input
                       type="number"
                       step="0.01"
@@ -371,14 +371,14 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* M² calculado */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <div style={{ backgroundColor: '#fdeee4', borderRadius: '6px', padding: '8px 10px', fontSize: '12px', fontWeight: '700', color: '#fd761a', textAlign: 'center', fontFamily: 'monospace' }}>
                       {row.calculatedM2 > 0 ? row.calculatedM2.toFixed(2) : '—'}
                     </div>
                   </td>
 
                   {/* Material */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <select
                       value={row.material}
                       onChange={e => updateRow(row.id, 'material', e.target.value)}
@@ -391,7 +391,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Acabamento */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <select
                       value={row.finish}
                       onChange={e => updateRow(row.id, 'finish', e.target.value)}
@@ -404,7 +404,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Obs */}
-                  <td style={{ padding: '4px 8px' }}>
+                  <td style={{ padding: '3px 5px' }}>
                     <input
                       type="text"
                       value={row.observations}
@@ -416,7 +416,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
                   </td>
 
                   {/* Ações */}
-                  <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                  <td style={{ padding: '3px 5px', textAlign: 'center' }}>
                     <div
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
                     >
@@ -462,7 +462,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
           </table>
 
           {/* Adicionar linha + total */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px' }}>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button
                 type="button"

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, Copy, Trash2, Loader2, ArrowRight } from "lucide-react";
+import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 import { StatusBadge } from "@/components/status-badge";
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
@@ -64,56 +64,104 @@ interface BulkItemEntryProps {
 
 function TipoSelect({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState(value);
+  const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { setSearch(value); }, [value]);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+  const filtered = search
+    ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  const displayValue = open ? search : value;
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <input
-        value={search}
-        onChange={e => { setSearch(e.target.value); setOpen(true); onChange(e.target.value); }}
-        onFocus={() => setOpen(true)}
-        placeholder="Buscar..."
-        style={{ ...inputStyle, textOverflow: 'ellipsis' }}
-      />
-      {open && filtered.length > 0 && (
+      {/* Trigger */}
+      <div style={{ position: 'relative' }}>
+        <input
+          value={displayValue}
+          onChange={e => { setSearch(e.target.value); onChange(e.target.value); if (!open) setOpen(true); }}
+          onFocus={() => { setSearch(""); setOpen(true); }}
+          placeholder={value || "Selecionar..."}
+          style={{
+            ...inputStyle,
+            paddingRight: '26px',
+            textOverflow: 'ellipsis',
+            cursor: 'pointer',
+            backgroundColor: open ? '#e8e8e7' : '#f0efee',
+            transition: 'background-color 0.1s',
+          }}
+        />
+        <ChevronDown
+          size={11}
+          color="#a8a29e"
+          style={{
+            position: 'absolute', right: 8, top: '50%',
+            transform: open ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)',
+            transition: 'transform 0.15s', pointerEvents: 'none',
+          }}
+        />
+      </div>
+
+      {/* Dropdown */}
+      {open && (
         <div
           className="scrollbar-visible"
           style={{
-            position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 200,
-            backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8,
-            boxShadow: '0 4px 14px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto',
-            minWidth: 160,
+            position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 500,
+            backgroundColor: '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            maxHeight: 220, overflowY: 'auto',
+            minWidth: 180,
+            padding: '4px',
           }}
         >
-          {filtered.map(opt => (
-            <div
-              key={opt}
-              onMouseDown={() => { onChange(opt); setSearch(opt); setOpen(false); }}
-              style={{
-                padding: '7px 12px', fontSize: 12, color: '#1c1917', cursor: 'pointer',
-                backgroundColor: opt === value ? '#fff7ed' : undefined,
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
-              }}
-              onMouseEnter={e => { if (opt !== value) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f5f5f4'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = opt === value ? '#fff7ed' : ''; }}
-            >
-              {opt}
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Nenhum resultado
             </div>
-          ))}
+          ) : (
+            filtered.map(opt => {
+              const selected = opt === value;
+              return (
+                <div
+                  key={opt}
+                  onMouseDown={() => { onChange(opt); setSearch(""); setOpen(false); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '7px 10px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: selected ? 700 : 500,
+                    color: selected ? '#f97316' : '#1c1917',
+                    backgroundColor: selected ? '#fff7ed' : 'transparent',
+                    cursor: 'pointer',
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    transition: 'background-color 0.08s',
+                    gap: 6,
+                  }}
+                  onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f5f5f4'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = selected ? '#fff7ed' : ''; }}
+                >
+                  <span style={{ flex: 1 }}>{opt}</span>
+                  {selected && <Check size={11} color="#f97316" />}
+                </div>
+              );
+            })
+          )}
         </div>
       )}
     </div>

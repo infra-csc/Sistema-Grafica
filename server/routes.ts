@@ -196,11 +196,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawPassword = password && password.length >= 6 ? password : Math.random().toString(36) + Math.random().toString(36) + Date.now().toString(36);
       const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-      // Create user
+      // Create user (SSO-only: no password change required)
       const user = await storage.createUser({
         ...userData,
         passwordHash,
-        mustChangePassword: true,
+        mustChangePassword: false,
       });
 
       // Create audit log

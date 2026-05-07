@@ -268,7 +268,7 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
       )}
 
       {/* TABLE AREA */}
-      <div tabIndex={0} style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '20px', minWidth: 0, outline: 'none' }}>
+      <div tabIndex={0} className="scrollbar-visible" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '20px', minWidth: 0, outline: 'none' }}>
         <div style={{ minWidth: '970px' }}>
 
         {/* EXISTING ITEMS PANEL */}

@@ -430,4 +430,27 @@
   .border-status-production {
     border-color: hsl(var(--status-production));
   }
+
+  .scrollbar-visible {
+    scrollbar-width: thin;
+    scrollbar-color: #d6d3d1 #f5f5f4;
+  }
+  .scrollbar-visible::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-visible::-webkit-scrollbar-track {
+    background: #f5f5f4;
+    border-radius: 4px;
+  }
+  .scrollbar-visible::-webkit-scrollbar-thumb {
+    background: #d6d3d1;
+    border-radius: 4px;
+  }
+  .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: #a8a29e;
+  }
+  .scrollbar-visible::-webkit-scrollbar-corner {
+    background: #f5f5f4;
+  }
 }

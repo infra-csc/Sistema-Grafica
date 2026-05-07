@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
-import { StatusBadge } from "@/components/status-badge";
+
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
 const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 
@@ -61,11 +61,18 @@ interface BulkItemEntryProps {
   isPending?: boolean;
 }
 
-
-function TipoSelect({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
+/* ── TipoSelect ─────────────────────────────────────────────────────── */
+function TipoSelect({ value, options, onChange, rowId, onFocusIn }: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  rowId?: string;
+  onFocusIn?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -87,46 +94,48 @@ function TipoSelect({ value, options, onChange }: { value: string; options: stri
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      {/* Trigger */}
       <div style={{ position: 'relative' }}>
         <input
+          ref={inputRef}
           value={displayValue}
           onChange={e => { setSearch(e.target.value); onChange(e.target.value); if (!open) setOpen(true); }}
-          onFocus={() => { setSearch(""); setOpen(true); }}
+          onFocus={() => { setSearch(""); setOpen(true); onFocusIn?.(); }}
+          onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; }}
           placeholder={value || "Selecionar..."}
+          data-row-id={rowId}
+          data-field="type"
           style={{
-            ...inputStyle,
-            paddingRight: '26px',
+            ...fieldStyle,
+            paddingRight: '24px',
             textOverflow: 'ellipsis',
             cursor: 'pointer',
-            backgroundColor: open ? '#e8e8e7' : '#f0efee',
-            transition: 'background-color 0.1s',
+            backgroundColor: open ? '#e8e8e7' : '#f3f4f3',
           }}
+          onMouseDown={() => { if (!open) { setSearch(""); setOpen(true); } }}
         />
         <ChevronDown
-          size={11}
+          size={10}
           color="#a8a29e"
           style={{
-            position: 'absolute', right: 8, top: '50%',
+            position: 'absolute', right: 7, top: '50%',
             transform: open ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)',
             transition: 'transform 0.15s', pointerEvents: 'none',
           }}
         />
       </div>
-
-      {/* Dropdown */}
       {open && (
         <div
-          className="scrollbar-visible"
           style={{
             position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 500,
             backgroundColor: '#ffffff',
             border: '1px solid #e7e5e4',
             borderRadius: 8,
             boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-            maxHeight: 220, overflowY: 'auto',
-            minWidth: 180,
+            maxHeight: 200, overflowY: 'auto',
+            minWidth: 190,
             padding: '4px',
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#d6d3d1 #f5f5f4',
           }}
         >
           {filtered.length === 0 ? (
@@ -142,22 +151,17 @@ function TipoSelect({ value, options, onChange }: { value: string; options: stri
                   onMouseDown={() => { onChange(opt); setSearch(""); setOpen(false); }}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '7px 10px',
-                    borderRadius: 6,
-                    fontSize: 12,
+                    padding: '7px 10px', borderRadius: 6, fontSize: 12,
                     fontWeight: selected ? 700 : 500,
                     color: selected ? '#f97316' : '#1c1917',
                     backgroundColor: selected ? '#fff7ed' : 'transparent',
-                    cursor: 'pointer',
-                    fontFamily: "'Plus Jakarta Sans', sans-serif",
-                    transition: 'background-color 0.08s',
-                    gap: 6,
+                    cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", gap: 6,
                   }}
                   onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f5f5f4'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = selected ? '#fff7ed' : ''; }}
                 >
                   <span style={{ flex: 1 }}>{opt}</span>
-                  {selected && <Check size={11} color="#f97316" />}
+                  {selected && <Check size={10} color="#f97316" />}
                 </div>
               );
             })
@@ -168,107 +172,90 @@ function TipoSelect({ value, options, onChange }: { value: string; options: stri
   );
 }
 
-const inputStyle: React.CSSProperties = {
+/* ── Styles ─────────────────────────────────────────────────────────── */
+const fieldStyle: React.CSSProperties = {
   width: '100%',
-  backgroundColor: '#f0efee',
-  border: 'none',
+  backgroundColor: '#f3f4f3',
+  border: '1.5px solid transparent',
   borderRadius: '6px',
   fontSize: '12px',
-  padding: '8px 10px',
+  padding: '5px 8px',
   outline: 'none',
   fontFamily: "'Plus Jakarta Sans', sans-serif",
   color: '#1a1c1c',
   boxSizing: 'border-box',
+  transition: 'border-color 0.12s',
+};
+
+const orangeFocus = {
+  onFocus: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.currentTarget.style.borderColor = '#f97316'; },
+  onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => { e.currentTarget.style.borderColor = 'transparent'; },
 };
 
 const selectStyle: React.CSSProperties = {
-  ...inputStyle,
+  ...fieldStyle,
   cursor: 'pointer',
   appearance: 'none' as any,
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a8a29e' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a8a29e' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
   backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 8px center',
-  paddingRight: '28px',
+  backgroundPosition: 'right 7px center',
+  paddingRight: '24px',
 };
 
 function createEmptyRow(): BulkItemRow {
   return {
     id: Math.random().toString(36).substring(7),
-    type: "",
-    description: "",
-    quantity: "1",
-    visualWidth: "",
-    visualHeight: "",
-    fileWidth: "",
-    fileHeight: "",
-    material: "",
-    finish: "",
-    measurement: "",
-    observations: "",
-    calculatedM2: 0,
-    sponsorId: "",
+    type: "", description: "", quantity: "1",
+    visualWidth: "", visualHeight: "", fileWidth: "", fileHeight: "",
+    material: "", finish: "", measurement: "", observations: "",
+    calculatedM2: 0, sponsorId: "",
   };
 }
 
+/* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], existingItems = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
+  const tableRef = useRef<HTMLDivElement>(null);
 
-  function getReplicateCount(id: string) {
-    return replicateCounts[id] ?? 1;
-  }
-
+  function getReplicateCount(id: string) { return replicateCounts[id] ?? 1; }
   function setReplicateCount(id: string, n: number) {
     setReplicateCounts(prev => ({ ...prev, [id]: Math.max(1, Math.min(99, n)) }));
   }
 
   function updateRow(id: string, field: keyof BulkItemRow, value: string) {
-    setRows(prev =>
-      prev.map(row => {
-        if (row.id !== id) return row;
-        const updated = { ...row, [field]: value };
-
-        if (field === 'type') {
-          // Always clear auto-filled fields when type changes
-          updated.visualWidth = "";
-          updated.visualHeight = "";
-          updated.fileWidth = "";
-          updated.fileHeight = "";
-          updated.material = "";
-          updated.finish = "";
-          updated.measurement = "";
-          updated.calculatedM2 = 0;
-
-          const stdItem = standardItems.find(s => s.name === value);
-          if (stdItem) {
-            const vw = stdItem.visualWidth ? String(stdItem.visualWidth) : (stdItem.area ? String(stdItem.area) : "");
-            const vh = stdItem.visualHeight ? String(stdItem.visualHeight) : (stdItem.visual ? String(stdItem.visual) : "");
-            const fw = stdItem.fileWidth ? String(stdItem.fileWidth) : "";
-            const fh = stdItem.fileHeight ? String(stdItem.fileHeight) : "";
-            updated.visualWidth = vw;
-            updated.visualHeight = vh;
-            updated.fileWidth = fw;
-            updated.fileHeight = fh;
-            updated.material = stdItem.material || "";
-            updated.finish = stdItem.finish || "";
-            updated.measurement = fw && fh ? `${fw} × ${fh}` : "";
-            updated.calculatedM2 = calculateM2FromStrings(updated.quantity, fw, fh);
-          }
+    setRows(prev => prev.map(row => {
+      if (row.id !== id) return row;
+      const updated = { ...row, [field]: value };
+      if (field === 'type') {
+        updated.visualWidth = ""; updated.visualHeight = "";
+        updated.fileWidth = ""; updated.fileHeight = "";
+        updated.material = ""; updated.finish = "";
+        updated.measurement = ""; updated.calculatedM2 = 0;
+        const stdItem = standardItems.find(s => s.name === value);
+        if (stdItem) {
+          const vw = stdItem.visualWidth ? String(stdItem.visualWidth) : (stdItem.area ? String(stdItem.area) : "");
+          const vh = stdItem.visualHeight ? String(stdItem.visualHeight) : (stdItem.visual ? String(stdItem.visual) : "");
+          const fw = stdItem.fileWidth ? String(stdItem.fileWidth) : "";
+          const fh = stdItem.fileHeight ? String(stdItem.fileHeight) : "";
+          updated.visualWidth = vw; updated.visualHeight = vh;
+          updated.fileWidth = fw; updated.fileHeight = fh;
+          updated.material = stdItem.material || ""; updated.finish = stdItem.finish || "";
+          updated.measurement = fw && fh ? `${fw} × ${fh}` : "";
+          updated.calculatedM2 = calculateM2FromStrings(updated.quantity, fw, fh);
         }
-
-        if (field === 'quantity' || field === 'fileWidth' || field === 'fileHeight') {
-          updated.calculatedM2 = calculateM2FromStrings(updated.quantity, updated.fileWidth, updated.fileHeight);
-          updated.measurement = `${updated.fileWidth} × ${updated.fileHeight}`;
-        }
-
-        return updated;
-      })
-    );
+      }
+      if (field === 'quantity' || field === 'fileWidth' || field === 'fileHeight') {
+        updated.calculatedM2 = calculateM2FromStrings(updated.quantity, updated.fileWidth, updated.fileHeight);
+        updated.measurement = `${updated.fileWidth} × ${updated.fileHeight}`;
+      }
+      return updated;
+    }));
   }
 
-  function addRow() {
+  const addRow = useCallback(() => {
     setRows(prev => [...prev, createEmptyRow()]);
-  }
+  }, []);
 
   function removeRow(id: string) {
     if (rows.length === 1) return;
@@ -279,54 +266,46 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
     const src = rows.find(r => r.id === id);
     if (!src) return;
     const count = getReplicateCount(id);
-    const newRows = Array.from({ length: count }, () => ({
-      ...src,
-      id: Math.random().toString(36).substring(7),
-    }));
+    const newRows = Array.from({ length: count }, () => ({ ...src, id: Math.random().toString(36).substring(7) }));
     setRows(prev => {
       const idx = prev.findIndex(r => r.id === id);
       const next = [...prev];
       next.splice(idx + 1, 0, ...newRows);
       return next;
     });
-    // reset count back to 1 after duplicating
     setReplicateCount(id, 1);
+  }
+
+  /* Tab from last field of last row → add new row + focus */
+  function handleLastFieldTab(e: React.KeyboardEvent, rowIndex: number) {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      if (rowIndex === rows.length - 1) {
+        e.preventDefault();
+        addRow();
+        setTimeout(() => {
+          const inputs = tableRef.current?.querySelectorAll<HTMLElement>(`[data-field="type"]`);
+          if (inputs && inputs[rowIndex + 1]) inputs[rowIndex + 1].focus();
+        }, 40);
+      }
+    }
   }
 
   function handleSubmit() {
     const valid = rows
-      .filter(r =>
-        r.type &&
-        parseFloat(r.quantity) > 0 &&
-        parseFloat(r.visualWidth) > 0 &&
-        parseFloat(r.visualHeight) > 0 &&
-        parseFloat(r.fileWidth) > 0 &&
-        parseFloat(r.fileHeight) > 0 &&
-        r.material &&
-        r.finish
-      )
+      .filter(r => r.type && parseFloat(r.quantity) > 0 && parseFloat(r.visualWidth) > 0 &&
+        parseFloat(r.visualHeight) > 0 && parseFloat(r.fileWidth) > 0 &&
+        parseFloat(r.fileHeight) > 0 && r.material && r.finish)
       .map(r => ({
-        eventId,
-        type: r.type,
-        description: r.description || "",
+        eventId, type: r.type, description: r.description || "",
         quantity: parseInt(r.quantity),
-        area: parseFloat(r.visualWidth),
-        visual: parseFloat(r.visualHeight),
-        visualWidth: r.visualWidth,
-        visualHeight: r.visualHeight,
-        fileWidth: r.fileWidth,
-        fileHeight: r.fileHeight,
-        material: r.material,
-        finish: r.finish,
+        area: parseFloat(r.visualWidth), visual: parseFloat(r.visualHeight),
+        visualWidth: r.visualWidth, visualHeight: r.visualHeight,
+        fileWidth: r.fileWidth, fileHeight: r.fileHeight,
+        material: r.material, finish: r.finish,
         measurement: r.measurement || `${r.fileWidth} × ${r.fileHeight}`,
-        observations: r.observations || "",
-        calculatedM2: r.calculatedM2,
+        observations: r.observations || "", calculatedM2: r.calculatedM2,
       }));
-
-    if (valid.length === 0) {
-      alert("Preencha pelo menos uma peça completa antes de salvar.");
-      return;
-    }
+    if (valid.length === 0) { alert("Preencha pelo menos uma peça completa antes de salvar."); return; }
     onSubmit(valid);
   }
 
@@ -339,87 +318,98 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
 
   const allTypeOptions = standardItems.map(s => s.name).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
+  /* ── Column defs ── */
+  const cols = [
+    { label: 'Tipo',       w: '130px', orange: false },
+    { label: 'Descrição',  w: '130px', orange: false },
+    { label: 'Qtd',        w: '50px',  orange: false },
+    { label: 'VIS. L',     w: '64px',  orange: true  },
+    { label: 'VIS. A',     w: '64px',  orange: true  },
+    { label: 'ARQ. L',     w: '64px',  orange: true  },
+    { label: 'ARQ. A',     w: '64px',  orange: true  },
+    { label: 'M²',         w: '58px',  orange: true  },
+    { label: 'Material',   w: '86px',  orange: false },
+    { label: 'Acabamento', w: '86px',  orange: false },
+    { label: 'Obs',        w: '82px',  orange: false },
+    { label: '',           w: '62px',  orange: false },
+  ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
+
+      {/* Pending overlay */}
       {isPending && (
-        <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(249,249,248,0.85)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
+        <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(249,249,248,0.88)', backdropFilter: 'blur(4px)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             <Loader2 className="h-10 w-10 animate-spin" style={{ color: '#fd761a' }} />
-            <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1c1c' }}>Salvando peças...</span>
+            <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif" }}>Salvando peças...</span>
           </div>
         </div>
       )}
 
-      {/* TABLE AREA */}
-      <div tabIndex={0} className="scrollbar-visible" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '20px', minWidth: 0, outline: 'none' }}>
-        <div style={{ minWidth: '990px' }}>
+      {/* ── SCROLL AREA ── */}
+      <div
+        ref={tableRef}
+        className="scrollbar-visible"
+        style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}
+      >
+        <div style={{ minWidth: '970px', padding: '16px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
 
-        {/* EXISTING ITEMS PANEL */}
-        {existingItems.length > 0 && (
-          <div style={{ marginBottom: '20px', border: '1px solid #e7e5e4', borderRadius: '8px', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4' }}>
-              <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', fontFamily: "'Space Grotesk', sans-serif" }}>
-                Peças já no evento
-              </span>
-              <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: '#e7e5e4', color: '#57534e', borderRadius: '99px', padding: '1px 7px' }}>
-                {existingItems.length}
-              </span>
+          {/* ── PEÇAS JÁ LANÇADAS ── */}
+          {existingItems.length > 0 && (
+            <div style={{ marginBottom: '14px', border: '1px solid #e7e5e4', borderRadius: '8px', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '7px 12px', backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4' }}>
+                <span style={{ fontSize: '9px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#78716c', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  Peças já lançadas
+                </span>
+                <span style={{ fontSize: '9px', fontWeight: '800', backgroundColor: '#1c1917', color: '#fff', borderRadius: '99px', padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  {existingItems.length}
+                </span>
+              </div>
+              {/* Mini-grid */}
+              <div
+                className="scrollbar-visible"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '8px 12px', backgroundColor: '#fafaf9', maxHeight: '120px', overflowY: 'auto' }}
+              >
+                {existingItems.map(item => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                      padding: '3px 8px',
+                      backgroundColor: '#ffffff', border: '1px solid #e2e8f0',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    <span style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8', fontFamily: "'DM Mono', 'JetBrains Mono', monospace" }}>
+                      {item.displayId}
+                    </span>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {item.type}
+                    </span>
+                    {item.quantity > 1 && (
+                      <span style={{ fontSize: '10px', color: '#94a3b8', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>×{item.quantity}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', padding: '10px 14px', backgroundColor: '#fafaf9' }}>
-              {existingItems.map(item => (
-                <div key={item.id} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '5px',
-                  padding: '4px 8px 4px 6px',
-                  backgroundColor: '#ffffff', border: '1px solid #ebebea', borderRadius: '6px',
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                }}>
-                  <span style={{ fontWeight: '700', color: '#c4bfbb', fontSize: '9px', fontFamily: 'monospace', letterSpacing: '0.02em' }}>
-                    {item.displayId}
-                  </span>
-                  <span style={{ fontWeight: '700', color: '#1a1c1c', fontSize: '11px' }}>{item.type}</span>
-                  {item.quantity > 1 && (
-                    <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '500' }}>×{item.quantity}</span>
-                  )}
-                  {item.material && (
-                    <span style={{ fontSize: '10px', color: '#c4bfbb' }}>·</span>
-                  )}
-                  {item.material && (
-                    <span style={{ fontSize: '10px', color: '#78716c' }}>{item.material}</span>
-                  )}
-                  <StatusBadge status={item.status} className="text-[9px] px-1.5 py-0" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px' }}>
+          )}
+
+          {/* ── GRID DE LOTE ── */}
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 4px' }}>
             <thead>
               <tr style={{ textAlign: 'left' }}>
-                {[
-                  { label: 'Tipo', w: '130px' },
-                  { label: 'Descrição', w: '140px' },
-                  { label: 'Qtd', w: '54px' },
-                  { label: 'Vis. L', w: '68px', orange: true },
-                  { label: 'Vis. A', w: '68px', orange: true },
-                  { label: 'Arq. L', w: '68px' },
-                  { label: 'Arq. A', w: '68px' },
-                  { label: 'M²', w: '62px', accent: true },
-                  { label: 'Material', w: '90px' },
-                  { label: 'Acabamento', w: '90px' },
-                  { label: 'Obs', w: '86px' },
-                  { label: '', w: '66px' },
-                ].map((col, i) => (
+                {cols.map((col, i) => (
                   <th
                     key={i}
                     style={{
-                      paddingBottom: '16px',
-                      paddingLeft: '8px',
-                      paddingRight: '8px',
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      color: col.orange ? '#f97316' : col.accent ? '#fd761a' : '#a8a29e',
+                      paddingBottom: '10px',
+                      paddingLeft: '5px', paddingRight: '5px',
+                      fontSize: '10px', fontWeight: '800',
+                      textTransform: 'uppercase', letterSpacing: '0.1em',
+                      color: col.orange ? '#f97316' : '#a8a29e',
                       whiteSpace: 'nowrap',
                       fontFamily: "'Space Grotesk', sans-serif",
                       width: col.w || undefined,
@@ -434,113 +424,117 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
               {rows.map((row, index) => (
                 <tr
                   key={row.id}
-                  className="group"
-                  style={{ transition: 'background-color 0.15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(243,244,243,0.6)')}
+                  style={{ transition: 'background-color 0.12s' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(243,244,243,0.7)')}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   {/* Tipo */}
-                  <td style={{ padding: '3px 5px' }} data-testid={`select-type-${index}`}>
+                  <td style={{ padding: '2px 4px' }}>
                     <TipoSelect
                       value={row.type}
                       options={allTypeOptions}
                       onChange={v => updateRow(row.id, 'type', v)}
+                      rowId={row.id}
                     />
                   </td>
 
                   {/* Descrição */}
-                  <td style={{ padding: '3px 5px' }}>
+                  <td style={{ padding: '2px 4px' }}>
                     <input
                       type="text"
                       value={row.description}
                       onChange={e => updateRow(row.id, 'description', e.target.value)}
                       placeholder="Opcional"
-                      style={inputStyle}
+                      style={fieldStyle}
+                      {...orangeFocus}
                       data-testid={`input-description-${index}`}
                     />
                   </td>
 
                   {/* Qtd */}
-                  <td style={{ padding: '3px 5px' }}>
+                  <td style={{ padding: '2px 4px' }}>
                     <input
-                      type="number"
-                      min="1"
+                      type="number" min="1"
                       value={row.quantity}
                       onChange={e => updateRow(row.id, 'quantity', e.target.value)}
-                      style={{ ...inputStyle, textAlign: 'center' }}
+                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      {...orangeFocus}
                       data-testid={`input-quantity-${index}`}
                     />
                   </td>
 
-                  {/* Visual Largura */}
-                  <td style={{ padding: '3px 5px' }}>
+                  {/* VIS. L */}
+                  <td style={{ padding: '2px 4px' }}>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      type="number" step="0.01" min="0"
                       value={row.visualWidth}
                       onChange={e => updateRow(row.id, 'visualWidth', e.target.value)}
                       placeholder="0.00"
-                      style={{ ...inputStyle, textAlign: 'center', borderLeft: '2px solid #f97316', borderRadius: '0 6px 6px 0' }}
+                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      {...orangeFocus}
                       data-testid={`input-visual-width-${index}`}
                     />
                   </td>
 
-                  {/* Visual Altura */}
-                  <td style={{ padding: '3px 5px' }}>
+                  {/* VIS. A */}
+                  <td style={{ padding: '2px 4px' }}>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      type="number" step="0.01" min="0"
                       value={row.visualHeight}
                       onChange={e => updateRow(row.id, 'visualHeight', e.target.value)}
                       placeholder="0.00"
-                      style={{ ...inputStyle, textAlign: 'center' }}
+                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      {...orangeFocus}
                       data-testid={`input-visual-height-${index}`}
                     />
                   </td>
 
-                  {/* Arquivo Largura */}
-                  <td style={{ padding: '3px 5px' }}>
+                  {/* ARQ. L */}
+                  <td style={{ padding: '2px 4px' }}>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      type="number" step="0.01" min="0"
                       value={row.fileWidth}
                       onChange={e => updateRow(row.id, 'fileWidth', e.target.value)}
                       placeholder="0.00"
-                      style={{ ...inputStyle, textAlign: 'center', borderLeft: '2px solid #d6d3d1', borderRadius: '0 6px 6px 0' }}
+                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      {...orangeFocus}
                       data-testid={`input-file-width-${index}`}
                     />
                   </td>
 
-                  {/* Arquivo Altura */}
-                  <td style={{ padding: '3px 5px' }}>
+                  {/* ARQ. A */}
+                  <td style={{ padding: '2px 4px' }}>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      type="number" step="0.01" min="0"
                       value={row.fileHeight}
                       onChange={e => updateRow(row.id, 'fileHeight', e.target.value)}
                       placeholder="0.00"
-                      style={{ ...inputStyle, textAlign: 'center' }}
+                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      {...orangeFocus}
                       data-testid={`input-file-height-${index}`}
                     />
                   </td>
 
-                  {/* M² calculado */}
-                  <td style={{ padding: '3px 5px' }}>
-                    <div style={{ backgroundColor: '#fdeee4', borderRadius: '6px', padding: '8px 10px', fontSize: '12px', fontWeight: '700', color: '#fd761a', textAlign: 'center', fontFamily: 'monospace' }}>
+                  {/* M² */}
+                  <td style={{ padding: '2px 4px' }}>
+                    <div style={{
+                      backgroundColor: '#fff7ed', borderRadius: '6px',
+                      padding: '5px 8px', fontSize: '12px', fontWeight: '800',
+                      color: row.calculatedM2 > 0 ? '#f97316' : '#fcd9b8',
+                      textAlign: 'center', fontFamily: 'monospace',
+                      border: '1.5px solid transparent',
+                    }}>
                       {row.calculatedM2 > 0 ? row.calculatedM2.toFixed(2) : '—'}
                     </div>
                   </td>
 
                   {/* Material */}
-                  <td style={{ padding: '3px 5px' }}>
+                  <td style={{ padding: '2px 4px' }}>
                     <select
                       value={row.material}
                       onChange={e => updateRow(row.id, 'material', e.target.value)}
                       style={selectStyle}
+                      {...orangeFocus}
                       data-testid={`select-material-${index}`}
                     >
                       <option value="">Material</option>
@@ -549,11 +543,12 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
                   </td>
 
                   {/* Acabamento */}
-                  <td style={{ padding: '3px 5px' }}>
+                  <td style={{ padding: '2px 4px' }}>
                     <select
                       value={row.finish}
                       onChange={e => updateRow(row.id, 'finish', e.target.value)}
                       style={selectStyle}
+                      {...orangeFocus}
                       data-testid={`select-finish-${index}`}
                     >
                       <option value="">Acabamento</option>
@@ -561,56 +556,53 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
                     </select>
                   </td>
 
-                  {/* Obs */}
-                  <td style={{ padding: '3px 5px' }}>
+                  {/* Obs — last field: Tab creates new row */}
+                  <td style={{ padding: '2px 4px' }}>
                     <input
                       type="text"
                       value={row.observations}
                       onChange={e => updateRow(row.id, 'observations', e.target.value)}
                       placeholder="..."
-                      style={inputStyle}
+                      style={fieldStyle}
+                      {...orangeFocus}
+                      onKeyDown={e => handleLastFieldTab(e, index)}
                       data-testid={`input-observations-${index}`}
                     />
                   </td>
 
                   {/* Ações */}
-                  <td style={{ padding: '3px 5px', textAlign: 'center' }}>
-                    <div
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}
-                    >
-                      {/* Replicate count input */}
+                  <td style={{ padding: '2px 4px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
                       <input
-                        type="number"
-                        min="1"
-                        max="99"
+                        type="number" min="1" max="99"
                         value={getReplicateCount(row.id)}
                         onChange={e => setReplicateCount(row.id, parseInt(e.target.value) || 1)}
                         onClick={e => (e.target as HTMLInputElement).select()}
-                        title="Quantidade de cópias"
+                        title="Cópias"
                         data-testid={`input-replicate-count-${index}`}
-                        style={{ width: '36px', height: '24px', backgroundColor: '#f0efee', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#57534e', outline: 'none', padding: '0 2px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                        style={{ width: '30px', height: '26px', backgroundColor: '#f0efee', border: 'none', borderRadius: '4px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#57534e', outline: 'none', padding: '0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                       />
                       <button
                         type="button"
                         onClick={() => duplicateRow(row.id)}
                         title={`Replicar ${getReplicateCount(row.id)}x`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', color: '#a8a29e', transition: 'color 0.15s' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '4px', color: '#c4bfbb', lineHeight: 0 }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#c4bfbb')}
                         data-testid={`button-duplicate-${index}`}
                       >
-                        <Copy className="h-3.5 w-3.5" />
+                        <Copy size={13} />
                       </button>
                       <button
                         type="button"
                         onClick={() => removeRow(row.id)}
                         title="Remover"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', color: '#d1cdc9', transition: 'color 0.15s' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '4px', color: '#ddd9d5', lineHeight: 0 }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#d1cdc9')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#ddd9d5')}
                         data-testid={`button-remove-${index}`}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 size={13} />
                       </button>
                     </div>
                   </td>
@@ -619,57 +611,84 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
             </tbody>
           </table>
 
-          {/* Adicionar linha + total */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px' }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={addRow}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 20px', border: '2px solid #e7e5e4', borderRadius: '6px', backgroundColor: 'transparent', color: '#57534e', fontSize: '12px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", transition: 'background-color 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f3f4f3')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                data-testid="button-add-row"
-              >
-                <Plus className="h-4 w-4" />
-                Adicionar Linha
-              </button>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-              <span style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: "'Space Grotesk', sans-serif" }}>
-                Total Estimado do Lote:
+          {/* ── ADICIONAR LINHA ── */}
+          <div style={{ marginTop: '8px' }}>
+            <button
+              type="button"
+              onClick={addRow}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '6px 16px',
+                border: '1.5px dashed #d6d3d1', borderRadius: '6px',
+                backgroundColor: 'transparent', color: '#78716c',
+                fontSize: '11px', fontWeight: '700',
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+                cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
+                transition: 'border-color 0.12s, color 0.12s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.color = '#f97316'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#d6d3d1'; e.currentTarget.style.color = '#78716c'; }}
+              data-testid="button-add-row"
+            >
+              <Plus size={13} />
+              Adicionar Linha
+            </button>
+          </div>
+
+          {/* ── TOTAL BAR (sticky bottom of scroll area) ── */}
+          <div style={{
+            position: 'sticky', bottom: 0,
+            marginTop: 'auto', paddingTop: '12px',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px',
+              padding: '10px 16px',
+              backgroundColor: '#fff7ed',
+              borderRadius: '8px',
+              border: '1px solid #fed7aa',
+            }}>
+              <span style={{ fontSize: '10px', fontWeight: '800', color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Space Grotesk', sans-serif" }}>
+                Total Estimado do Lote
               </span>
-              <span style={{ fontSize: '22px', fontWeight: '900', color: '#fd761a', fontFamily: "'Space Grotesk', sans-serif', letterSpacing: '-0.02em'" }}>
-                {totalM2.toFixed(2)} m²
+              <span style={{ fontSize: '22px', fontWeight: '900', color: '#f97316', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em', lineHeight: 1 }}>
+                {totalM2.toFixed(2)}<span style={{ fontSize: '13px', marginLeft: '3px' }}>m²</span>
               </span>
             </div>
           </div>
+
         </div>
       </div>
 
-      {/* FOOTER */}
-      <div style={{ padding: '20px 32px', backgroundColor: '#e8e8e7', borderTop: '1px solid #e7e5e4', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        {/* Left — status indicators */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '99px', backgroundColor: '#fd761a' }} />
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      {/* ── FOOTER ── */}
+      <div style={{
+        padding: '14px 24px',
+        backgroundColor: '#f5f5f4',
+        borderTop: '1px solid #e7e5e4',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        flexShrink: 0,
+      }}>
+        {/* Status chips */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '7px', height: '7px', borderRadius: '99px', backgroundColor: '#f97316' }} />
+            <span style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
               Cálculo Automático Ativo
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '99px', backgroundColor: '#d6d3d1' }} />
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '7px', height: '7px', borderRadius: '99px', backgroundColor: validCount > 0 ? '#22c55e' : '#d6d3d1' }} />
+            <span style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
               {validCount} {validCount === 1 ? 'Peça Válida' : 'Peças Válidas'}
             </span>
           </div>
         </div>
 
-        {/* Right — actions */}
+        {/* Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             type="button"
             onClick={onCancel}
-            style={{ padding: '10px 24px', background: 'none', border: 'none', color: '#78716c', fontSize: '14px', fontWeight: '700', cursor: 'pointer', transition: 'color 0.15s' }}
+            style={{ padding: '9px 20px', background: 'none', border: 'none', color: '#78716c', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'color 0.12s' }}
             onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
             onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
           >
@@ -679,15 +698,25 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], exis
             type="button"
             onClick={handleSubmit}
             disabled={isPending}
-            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 28px', backgroundColor: isPending ? '#57534e' : '#1c1917', color: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.06em', cursor: isPending ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", transition: 'background-color 0.15s' }}
-            onMouseEnter={e => { if (!isPending) e.currentTarget.style.backgroundColor = '#f97316'; }}
-            onMouseLeave={e => { if (!isPending) e.currentTarget.style.backgroundColor = '#1c1917'; }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '9px 22px',
+              backgroundColor: isPending ? '#57534e' : '#1c1917',
+              color: '#fff', borderRadius: '8px', border: 'none',
+              fontSize: '13px', fontWeight: '900',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              cursor: isPending ? 'not-allowed' : 'pointer',
+              fontFamily: "'Space Grotesk', sans-serif",
+              transition: 'background-color 0.12s',
+            }}
+            onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316'; }}
+            onMouseLeave={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917'; }}
             data-testid="button-submit-bulk"
           >
             {isPending ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</>
+              <><Loader2 size={15} className="animate-spin" /> Salvando...</>
             ) : (
-              <>Finalizar Lote <ArrowRight className="h-4 w-4" /></>
+              <>Finalizar Lote <ArrowRight size={15} /></>
             )}
           </button>
         </div>

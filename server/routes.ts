@@ -184,7 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register new user (admin only)
   app.post("/api/auth/register", requireAdmin, async (req, res) => {
     try {
-      const { password, ...userData } = insertUserSchema.parse({ ...req.body, password: req.body.password || "" });
+      const { password, ...userData } = insertUserSchema.parse({ ...req.body, password: req.body.password || "sso_placeholder_pw" });
       
       // Check if email already exists
       const existingUser = await storage.getUserByEmail(userData.email);

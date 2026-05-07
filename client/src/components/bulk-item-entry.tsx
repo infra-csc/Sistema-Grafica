@@ -43,14 +43,54 @@ interface Sponsor {
   company?: string | null;
 }
 
+interface ExistingItem {
+  id: string;
+  displayId: string;
+  type: string;
+  quantity: number;
+  material?: string | null;
+  status: string;
+}
+
 interface BulkItemEntryProps {
   eventId: string;
   standardItems?: StandardItem[];
   sponsors?: Sponsor[];
+  existingItems?: ExistingItem[];
   onSubmit: (items: any[]) => void;
   onCancel: () => void;
   isPending?: boolean;
 }
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Rascunho',
+  requested: 'Solicitado',
+  awaiting_linking: 'Ag. Vinculação',
+  awaiting_submission: 'Ag. Envio',
+  awaiting_approval: 'Ag. Aprovação',
+  awaiting_finalization: 'Ag. Finalização',
+  awaiting_final_review: 'Ag. Revisão',
+  ready_for_production: 'Pronto p/ Prod.',
+  approved: 'Liberado',
+  inProduction: 'Em Produção',
+  produced: 'Produzido',
+  delivered: 'Entregue',
+};
+
+const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
+  draft:                  { bg: '#f0efee', color: '#78716c' },
+  requested:              { bg: '#fef3c7', color: '#92400e' },
+  awaiting_linking:       { bg: '#fef3c7', color: '#92400e' },
+  awaiting_submission:    { bg: '#fef3c7', color: '#92400e' },
+  awaiting_approval:      { bg: '#dbeafe', color: '#1e40af' },
+  awaiting_finalization:  { bg: '#dbeafe', color: '#1e40af' },
+  awaiting_final_review:  { bg: '#dbeafe', color: '#1e40af' },
+  ready_for_production:   { bg: '#d1fae5', color: '#065f46' },
+  approved:               { bg: '#d1fae5', color: '#065f46' },
+  inProduction:           { bg: '#ffedd5', color: '#9a3412' },
+  produced:               { bg: '#e0e7ff', color: '#3730a3' },
+  delivered:              { bg: '#d1fae5', color: '#065f46' },
+};
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -94,7 +134,7 @@ function createEmptyRow(): BulkItemRow {
   };
 }
 
-export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
+export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], existingItems = [], onSubmit, onCancel, isPending }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
 
@@ -230,6 +270,35 @@ export function BulkItemEntry({ eventId, standardItems = [], sponsors = [], onSu
       {/* TABLE AREA */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '20px', minWidth: 0 }}>
         <div style={{ minWidth: '970px' }}>
+
+        {/* EXISTING ITEMS PANEL */}
+        {existingItems.length > 0 && (
+          <div style={{ marginBottom: '20px', border: '1px solid #e7e5e4', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4' }}>
+              <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', fontFamily: "'Space Grotesk', sans-serif" }}>
+                Peças já no evento
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#e7e5e4', color: '#57534e', borderRadius: '99px', padding: '1px 8px' }}>
+                {existingItems.length}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '10px 16px', backgroundColor: '#fafaf9' }}>
+              {existingItems.map(item => {
+                const sc = STATUS_COLOR[item.status] ?? { bg: '#f0efee', color: '#78716c' };
+                const sl = STATUS_LABEL[item.status] ?? item.status;
+                return (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: '6px', fontSize: '11px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    <span style={{ fontWeight: '700', color: '#a8a29e', fontSize: '10px', fontFamily: 'monospace' }}>{item.displayId}</span>
+                    <span style={{ fontWeight: '600', color: '#1a1c1c' }}>{item.type}</span>
+                    {item.quantity > 1 && <span style={{ color: '#a8a29e' }}>×{item.quantity}</span>}
+                    {item.material && <span style={{ color: '#a8a29e' }}>· {item.material}</span>}
+                    <span style={{ fontSize: '10px', fontWeight: '700', backgroundColor: sc.bg, color: sc.color, borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}>{sl}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px' }}>
             <thead>
               <tr style={{ textAlign: 'left' }}>

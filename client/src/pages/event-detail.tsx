@@ -1071,11 +1071,11 @@ export default function EventDetail() {
                     <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Saída do Caminhão
                     </div>
-                    <div style={{ fontSize: '22px', fontWeight: '700', color: TI.title, fontFamily: "'DM Mono', monospace", lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+                    <div style={{ fontSize: '23px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
                       {depLabel}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                      <span style={{ fontSize: '13px', color: TI.secondary, fontFamily: "'DM Mono', monospace", letterSpacing: '0.02em' }}>{depTime}</span>
+                      <span style={{ fontSize: '12px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>{depTime}</span>
                       <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: TI.line, display: 'inline-block', flexShrink: 0 }} />
                       <span style={{ fontSize: '12px', fontWeight: '600', color: countdownColor, letterSpacing: '0.01em' }}>
                         {countdownText}
@@ -1097,11 +1097,11 @@ export default function EventDetail() {
                     <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Início da Montagem
                     </div>
-                    <div style={{ fontSize: '22px', fontWeight: '700', color: TI.title, fontFamily: "'DM Mono', monospace", lineHeight: 1.1, letterSpacing: '-0.01em' }}>
+                    <div style={{ fontSize: '23px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
                       {startLabel}
                     </div>
                     <div style={{ marginTop: '6px' }}>
-                      <span style={{ fontSize: '12px', color: TI.secondary, letterSpacing: '0.01em' }}>Início do evento</span>
+                      <span style={{ fontSize: '12px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>Início do evento</span>
                     </div>
                   </div>
                 </div>

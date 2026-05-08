@@ -1,0 +1,75 @@
+Quero ajustar especificamente a tipografia dos cards “Saída do caminhão” e “Início da montagem”, porque a fonte atual das datas não está me agradando visualmente.
+
+OBJETIVO
+Refinar a aparência tipográfica desses dois cards para que fiquem mais elegantes, premium, legíveis e coerentes com um sistema corporativo sofisticado.
+
+PROBLEMA ATUAL
+- A fonte usada nas datas principais está com uma aparência que não passa sofisticação
+- O desenho dos números não está elegante
+- A data parece pesada demais ou com personalidade tipográfica inadequada para a proposta visual
+- O resultado não conversa tão bem com o restante da interface
+
+O QUE QUERO
+- Trocar a fonte das datas principais por uma tipografia mais refinada
+- Os números da data devem ficar mais bonitos, limpos e modernos
+- Quero uma aparência mais premium e menos “genérica”
+- A data deve continuar sendo o destaque do card, mas com mais elegância
+- O texto secundário (horário, “Faltam 5 dias”, “Início do evento”) deve continuar discreto e complementar
+
+DIREÇÃO TIPOGRÁFICA
+Quero usar uma combinação tipográfica mais nobre.
+
+Sugestão:
+- manter uma fonte sem serifa sofisticada para a interface
+- usar uma fonte com ótima leitura numérica para as datas
+- priorizar fontes modernas, elegantes e corporativas
+- evitar fontes com aparência infantil, excessivamente geométrica ou pesada
+
+SUGESTÕES DE GOOGLE FONTS PARA TESTAR
+Quero que você escolha a melhor combinação entre estas opções, priorizando elegância e legibilidade:
+
+Opção 1:
+- Interface e textos gerais: Inter
+- Datas principais: Manrope
+
+Opção 2:
+- Interface e textos gerais: Inter
+- Datas principais: Sora
+
+Opção 3:
+- Interface e textos gerais: Plus Jakarta Sans
+- Datas principais: Manrope
+
+Opção 4:
+- Interface e textos gerais: Plus Jakarta Sans
+- Datas principais: DM Sans
+
+Opção 5:
+- Interface e textos gerais: Inter
+- Datas principais: Instrument Sans
+
+PREFERÊNCIA VISUAL
+Quero que as datas principais tenham:
+- peso entre 700 e 800
+- tracking normal ou levemente negativo
+- excelente legibilidade
+- números bonitos e bem desenhados
+- aparência mais premium
+
+AJUSTES NOS CARDS
+Nos cards de “Saída do caminhão” e “Início da montagem”:
+- manter o label pequeno em uppercase
+- manter o ícone no bloco suave
+- trocar apenas a hierarquia tipográfica para ficar mais elegante
+- a data principal deve ter mais refinamento
+- o texto secundário deve usar um peso menor e contraste reduzido
+- se necessário, ajustar ligeiramente o tamanho da data para melhorar proporção e respiro
+
+IMPORTANTE
+- Não quero mudar a estrutura da tela
+- Não quero alterar a lógica
+- Quero apenas elevar a qualidade visual da tipografia desses cards
+- Foque principalmente na fonte e no styling da data principal
+
+RESULTADO ESPERADO
+Quero que os cards fiquem com aparência mais sofisticada, com datas mais bonitas, mais elegantes e mais coerentes com o restante da interface premium.

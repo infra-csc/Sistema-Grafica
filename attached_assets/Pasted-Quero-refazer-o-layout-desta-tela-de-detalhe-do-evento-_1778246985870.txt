@@ -1,0 +1,168 @@
+Quero refazer o layout desta tela de detalhe do evento com foco em excelência visual, clareza operacional e aparência premium de sistema corporativo. Pense como um designer sênior especialista em produtos SaaS, sistemas internos robustos e interfaces de operação.
+
+IMPORTANTE:
+- Não quero mudar a lógica de negócio da tela.
+- Não quero transformar isso em dashboard genérico.
+- Quero manter as mesmas informações, mas reorganizadas de forma muito mais elegante, profissional e funcional.
+- O principal problema atual está no bloco de logística/prazos: “Saída do caminhão”, “Início da montagem” e a timeline de etapas. Essa parte precisa ser redesenhada do zero.
+
+OBJETIVO
+Criar uma tela muito mais refinada, com:
+- melhor hierarquia visual
+- leitura mais rápida
+- sensação de produto premium
+- layout limpo, sofisticado e corporativo
+- cara de sistema de alto nível, não de tela improvisada
+
+ESTILO VISUAL
+- Clean, premium, elegante, corporativo
+- Minimalista, mas não frio
+- Muito respiro e organização
+- Tipografia forte e bem hierarquizada
+- Cartões e blocos com acabamento sofisticado
+- Visual inspirado em sistemas SaaS modernos de alto padrão
+- Paleta Titanium: neutra, refinada, com destaque pontual em laranja queimado/âmbar sofisticado
+
+PALETA TITANIUM
+Use uma paleta refinada:
+- Fundo principal: #F7F6F3
+- Superfícies/cards: #FFFFFF
+- Borda suave: #E7E3DC
+- Título principal: #1F1D1A
+- Texto secundário: #6F6A63
+- Texto auxiliar / labels: #9D978F
+- Grafite escuro / elementos principais: #2E2A26
+- Acento premium: #D97A1E
+- Hover do acento: #C96D16
+- Azul suave de apoio: #A9B7C8
+- Linha neutra timeline: #D8D4CE
+- Sucesso suave: #7F9B83
+- Atenção suave: #C97B4B
+
+REESTRUTURAÇÃO DA TELA
+
+1. CABEÇALHO SUPERIOR
+Quero um cabeçalho mais nobre e bem resolvido:
+- Link “Voltar para eventos” discreto, elegante, com ícone leve
+- Metadata “Criado em 07/05/2026” pequeno e sutil
+- Título do evento com muito mais presença visual
+- Botão “Adicionar Peça” mais premium, com altura melhor, padding generoso, cantos arredondados e hover elegante
+- Organizar tudo em um container com largura máxima e alinhamento consistente
+
+2. REDESENHAR COMPLETAMENTE O BLOCO DE LOGÍSTICA / PRAZOS
+A área com “Saída do caminhão” e “Início da montagem” está fraca visualmente. Quero substituir por um bloco de planejamento muito mais sofisticado.
+
+Nova proposta:
+- Criar uma seção chamada algo como “Planejamento e Prazos” ou “Agenda Operacional”
+- Dentro dela, usar uma composição mais robusta:
+  - dois cards principais lado a lado:
+    1) Saída do caminhão
+    2) Início da montagem
+- Cada card precisa ter:
+  - ícone dentro de um container suave
+  - título pequeno em uppercase e com tracking sutil
+  - data grande e com destaque
+  - horário, quando existir, como informação secundária
+  - texto de apoio contextual, como:
+    - “Faltam 5 dias”
+    - “Início do evento”
+    - “Prazo crítico”
+- Os cards devem ter o mesmo peso visual, mesma altura e muito mais sofisticação
+- Aplicar melhor padding interno, borda sutil, sombra leve e hierarquia clara
+
+Quero que essa área tenha cara de módulo importante da operação, e não de pequenos cards perdidos no topo.
+
+3. SUBSTITUIR A TIMELINE ATUAL POR UMA VERSÃO MAIS EXECUTIVA E MODERNA
+A timeline atual está visualmente fraca. Quero um componente muito mais bem desenhado.
+
+A nova timeline deve:
+- ficar logo abaixo dos cards de logística
+- parecer um fluxo de processo premium
+- ter linha conectando as etapas com acabamento sutil
+- ter marcadores melhores, com estados visuais claros
+- ter tipografia menor, mais organizada e mais elegante
+- destacar muito melhor a etapa atual
+- diferenciar de forma clara:
+  - etapa concluída
+  - etapa atual
+  - etapa futura
+  - etapa atrasada / em atenção
+
+Etapas:
+- Lista de imagens
+- Entrega de layouts
+- Aprovação de layout
+- Revisão de lista
+- Produção gráfica
+
+O que quero visualmente:
+- etapas concluídas com aparência sóbria e elegante
+- etapa atual com muito destaque, usando o acento laranja premium
+- etapas futuras mais suaves
+- se houver atraso, mostrar isso de forma refinada, sem poluir
+- data abaixo da etapa com menos peso
+- nome da etapa com boa legibilidade
+- alinhamento impecável entre marcador, linha, label e data
+- a timeline deve ficar muito melhor distribuída na horizontal
+- se necessário, permitir responsividade elegante em telas menores
+
+4. MELHORAR HIERARQUIA DA ÁREA DE CONTEÚDO
+A tabela/listagem de peças está aceitável, mas a parte superior ainda não “conversa” com ela.
+Quero:
+- mais separação entre a área de planejamento e a área das peças
+- uma divisão visual elegante entre blocos
+- ritmo melhor de espaçamento vertical
+- consistência entre títulos de seção, cards e tabela
+
+5. TIPOGRAFIA
+Quero uma hierarquia tipográfica mais sofisticada:
+- título principal com peso forte
+- labels pequenos em uppercase e com letter-spacing sutil
+- datas principais com muita presença
+- textos secundários com menos contraste
+- evitar aparência infantil ou visual “genérico de template”
+
+6. ESPAÇAMENTO E GRID
+- Criar um container central com largura máxima elegante
+- Ajustar paddings laterais
+- Melhorar o uso do espaço em branco
+- Evitar sensação de elementos soltos
+- Alinhar cabeçalho, cards, timeline e tabela no mesmo grid
+- A composição precisa parecer intencional e muito bem resolvida
+
+7. MICROINTERAÇÕES
+- Hover suave no botão principal
+- Hover leve nos cards
+- Timeline com acabamento refinado
+- Sem exagerar em animações
+- Tudo deve parecer sofisticado e discreto
+
+8. ACESSIBILIDADE E USABILIDADE
+- Contraste adequado
+- Estados não dependentes apenas de cor
+- Legibilidade alta
+- Layout responsivo
+- Boa leitura em resoluções comuns de desktop
+
+DIREÇÃO DE DESIGN
+Pense em uma interface digna de um sistema corporativo premium.
+Quero que a parte de “Saída do caminhão / Início da montagem / Prazos” vire o grande destaque visual do topo da tela, com aparência madura, limpa e extremamente bem resolvida.
+
+RESULTADO ESPERADO
+Entregar uma nova versão do layout com foco em:
+- redesign profissional da área de prazos
+- cards mais elegantes e robustos
+- timeline muito mais bonita e clara
+- hierarquia visual premium
+- sensação de produto 10/10
+
+IMPORTANTE
+- Não mudar a lógica da tela
+- Não inventar KPIs desnecessários
+- Não adicionar widgets irrelevantes
+- O foco é elevar o layout e a percepção de qualidade
+- Se fizer sentido, componentizar:
+  - Header do evento
+  - Bloco de planejamento/logística
+  - Timeline de etapas
+  - Seções da listagem

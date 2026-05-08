@@ -611,14 +611,14 @@ export default function EventDetail() {
   const sortedTypes = Object.keys(groupedItems).sort();
 
   return (
-    <div style={{ padding: '28px 40px', minHeight: '100vh', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '28px 40px', minHeight: '100vh', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
       {/* Breadcrumb */}
       <Link href="/eventos">
         <a
           data-testid="button-back"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '500', color: '#c4b8af', marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.01em' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#f97316')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#c4b8af')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '500', color: '#9D978F', marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.02em' }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#D97A1E')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#9D978F')}
         >
           <ArrowLeft className="h-3 w-3" />
           Voltar para eventos
@@ -629,12 +629,12 @@ export default function EventDetail() {
       <div style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
           <div>
-            <p style={{ color: '#b8b0a8', fontSize: '11px', fontWeight: '500', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 7px 0' }}>
+            <p style={{ color: '#9D978F', fontSize: '11px', fontWeight: '500', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 8px 0' }}>
               Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <h1
               data-testid="title-event-name"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, letterSpacing: '-0.04em', textTransform: 'uppercase', color: '#1c1917', lineHeight: 1.1, margin: 0 }}
+              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 800, letterSpacing: '-0.04em', textTransform: 'uppercase', color: '#1F1D1A', lineHeight: 1.05, margin: 0 }}
             >
               {event.name}
             </h1>
@@ -647,9 +647,9 @@ export default function EventDetail() {
                 setOpen(true);
               }}
               data-testid="button-add-item"
-              style={{ backgroundColor: '#f97316', color: '#ffffff', padding: '10px 22px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.15s, transform 0.1s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0 }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#ea6c0a')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#f97316')}
+              style={{ backgroundColor: '#D97A1E', color: '#ffffff', padding: '11px 24px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#C96D16'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#D97A1E'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
               onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
               onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
             >
@@ -990,8 +990,15 @@ export default function EventDetail() {
           </div>
         </div>
 
-        {/* ── Dashboard Logístico ─────────────────────────────── */}
+        {/* ── Agenda Operacional ───────────────────────────────── */}
         {(() => {
+          const TI = {
+            card: '#FFFFFF', border: '#E7E3DC',
+            title: '#1F1D1A', secondary: '#6F6A63', label: '#9D978F',
+            dark: '#2E2A26', accent: '#D97A1E',
+            line: '#D8D4CE', attention: '#C97B4B',
+          };
+
           const today = new Date(); today.setHours(0, 0, 0, 0);
           const departure = new Date(event.truckDepartureDate);
           const depDay = new Date(departure); depDay.setHours(0, 0, 0, 0);
@@ -1009,179 +1016,190 @@ export default function EventDetail() {
           };
 
           const rawDeadlines = [
-            { label: 'Lista de Imagens',    days: event.deadlineListaImagens    ?? -25, color: '#8b5cf6', allDays: false },
-            { label: 'Entrega de Layouts',  days: event.deadlineEntregaLayouts  ?? -20, color: '#3b82f6', allDays: false },
-            { label: 'Aprovação de Layout', days: event.deadlineAprovacaoLayout ?? -12, color: '#f59e0b', allDays: false },
-            { label: 'Revisão de Lista',    days: event.deadlineRevisaoLista    ?? -8,  color: '#10b981', allDays: false },
-            { label: 'Produção Gráfica',    days: event.deadlineProducaoGrafica ?? -1,  color: '#f97316', allDays: true  },
+            { label: 'Lista de Imagens',    days: event.deadlineListaImagens    ?? -25, allDays: false },
+            { label: 'Entrega de Layouts',  days: event.deadlineEntregaLayouts  ?? -20, allDays: false },
+            { label: 'Aprovação de Layout', days: event.deadlineAprovacaoLayout ?? -12, allDays: false },
+            { label: 'Revisão de Lista',    days: event.deadlineRevisaoLista    ?? -8,  allDays: false },
+            { label: 'Produção Gráfica',    days: event.deadlineProducaoGrafica ?? -1,  allDays: true  },
           ];
 
-          const milestones = rawDeadlines.map(({ label, days, color, allDays }) => {
+          const milestones = rawDeadlines.map(({ label, days, allDays }) => {
             const raw = new Date(departure); raw.setDate(raw.getDate() + days);
             const { date, adjusted } = adjustWeekend(raw, allDays);
             const isPast = date < today;
-            return { label, color, date, adjusted, isPast };
+            const isOverdue = isPast && countdownDays > 0;
+            return { label, date, adjusted, isPast, isOverdue };
           });
 
-          // First non-past milestone = "current / active"
           const nextIndex = milestones.findIndex(m => !m.isPast);
-          // Fraction of the connecting line that is "filled"
           const progressFrac = nextIndex === -1 ? 1 : nextIndex === 0 ? 0 : nextIndex / (milestones.length - 1);
 
-          return (
-            <div style={{ marginTop: '20px' }}>
+          const countdownColor = countdownDays < 0 ? '#B84040' : countdownDays <= 3 ? TI.attention : TI.secondary;
+          const countdownText = countdownDays < 0
+            ? `Atrasado ${Math.abs(countdownDays)}d`
+            : countdownDays === 0 ? 'Hoje'
+            : `Faltam ${countdownDays} dia${countdownDays !== 1 ? 's' : ''}`;
 
-              {/* ── Dois cards principais de data ── */}
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '28px' }}>
+          const cardHover = (el: HTMLDivElement, on: boolean) => {
+            el.style.boxShadow = on ? '0 6px 20px rgba(0,0,0,0.08)' : '0 1px 4px rgba(0,0,0,0.05)';
+          };
+
+          return (
+            <div style={{ marginTop: '8px' }}>
+
+              {/* Section divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
+                <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.16em', color: TI.label, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap' }}>
+                  Agenda Operacional
+                </span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: TI.border }} />
+              </div>
+
+              {/* ── Cards de logística ── */}
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'stretch' }}>
 
                 {/* Card: SAÍDA DO CAMINHÃO */}
-                <div style={{
-                  backgroundColor: '#ffffff', border: '1px solid #e8e5e2', borderRadius: '12px',
-                  padding: '16px 22px', display: 'flex', alignItems: 'center', gap: '16px',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)', flex: '0 0 auto',
-                }}>
-                  <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Truck size={20} color="#f97316" />
+                <div
+                  style={{ flex: '0 0 auto', minWidth: '210px', backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s' }}
+                  onMouseEnter={e => cardHover(e.currentTarget, true)}
+                  onMouseLeave={e => cardHover(e.currentTarget, false)}
+                >
+                  <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#FEF3E7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Truck size={22} color={TI.accent} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#c0b8b0', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  <div>
+                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Saída do Caminhão
-                    </span>
-                    <span style={{ fontSize: '20px', fontWeight: '700', color: '#18181b', fontFamily: "'DM Mono', monospace", lineHeight: 1.2 }}>
+                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: '700', color: TI.title, fontFamily: "'DM Mono', monospace", lineHeight: 1.1, letterSpacing: '-0.01em' }}>
                       {depLabel}
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px' }}>
-                      <span style={{ fontSize: '12px', color: '#a8a29e', fontFamily: "'DM Mono', monospace" }}>{depTime}</span>
-                      <span style={{
-                        fontSize: '11px', fontWeight: '700',
-                        color: countdownDays < 0 ? '#dc2626' : countdownDays <= 3 ? '#f97316' : '#64748b',
-                        letterSpacing: '0.01em',
-                      }}>
-                        {countdownDays < 0
-                          ? `Atrasado ${Math.abs(countdownDays)}d`
-                          : countdownDays === 0 ? 'Hoje!'
-                          : `Faltam ${countdownDays}d`}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                      <span style={{ fontSize: '13px', color: TI.secondary, fontFamily: "'DM Mono', monospace", letterSpacing: '0.02em' }}>{depTime}</span>
+                      <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: TI.line, display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: countdownColor, letterSpacing: '0.01em' }}>
+                        {countdownText}
                       </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Card: INÍCIO DA MONTAGEM */}
-                <div style={{
-                  backgroundColor: '#ffffff', border: '1px solid #e8e5e2', borderRadius: '12px',
-                  padding: '16px 22px', display: 'flex', alignItems: 'center', gap: '16px',
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.06)', flex: '0 0 auto',
-                }}>
-                  <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Calendar size={20} color="#2563eb" />
+                <div
+                  style={{ flex: '0 0 auto', minWidth: '210px', backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s' }}
+                  onMouseEnter={e => cardHover(e.currentTarget, true)}
+                  onMouseLeave={e => cardHover(e.currentTarget, false)}
+                >
+                  <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#EEF2F7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Calendar size={22} color="#7A93AC" />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#c0b8b0', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  <div>
+                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Início da Montagem
-                    </span>
-                    <span style={{ fontSize: '20px', fontWeight: '700', color: '#18181b', fontFamily: "'DM Mono', monospace", lineHeight: 1.2 }}>
+                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: '700', color: TI.title, fontFamily: "'DM Mono', monospace", lineHeight: 1.1, letterSpacing: '-0.01em' }}>
                       {startLabel}
-                    </span>
-                    <span style={{ fontSize: '12px', color: '#a8a29e', marginTop: '2px', letterSpacing: '0.01em' }}>Início do evento</span>
+                    </div>
+                    <div style={{ marginTop: '6px' }}>
+                      <span style={{ fontSize: '12px', color: TI.secondary, letterSpacing: '0.01em' }}>Início do evento</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* ── Timeline de Marcos ── */}
-              <div style={{ overflowX: 'auto', paddingBottom: '8px' }}>
-                <div style={{ position: 'relative', display: 'flex', minWidth: '480px' }}>
+              {/* ── Timeline de Prazos ── */}
+              <div style={{ backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: '22px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+                  <div style={{ position: 'relative', display: 'flex', minWidth: '480px' }}>
 
-                  {/* Base line (grey track) */}
-                  <div style={{
-                    position: 'absolute', top: '13px',
-                    left: `calc(100% / ${milestones.length} / 2)`,
-                    right: `calc(100% / ${milestones.length} / 2)`,
-                    height: '2px', backgroundColor: '#f1f5f9', zIndex: 0,
-                  }} />
-                  {/* Filled progress line */}
-                  {progressFrac > 0 && (
+                    {/* Track base */}
                     <div style={{
-                      position: 'absolute', top: '13px',
+                      position: 'absolute', top: '18px',
                       left: `calc(100% / ${milestones.length} / 2)`,
-                      width: `calc(${progressFrac} * (100% - 100% / ${milestones.length}))`,
-                      height: '2px', backgroundColor: '#cbd5e1', zIndex: 1,
+                      right: `calc(100% / ${milestones.length} / 2)`,
+                      height: '1.5px', backgroundColor: TI.line, zIndex: 0,
                     }} />
-                  )}
+                    {/* Progress fill */}
+                    {progressFrac > 0 && (
+                      <div style={{
+                        position: 'absolute', top: '18px',
+                        left: `calc(100% / ${milestones.length} / 2)`,
+                        width: `calc(${progressFrac} * (100% - 100% / ${milestones.length}))`,
+                        height: '1.5px', backgroundColor: '#C3B5A2', zIndex: 1,
+                      }} />
+                    )}
 
-                  {milestones.map(({ label, color, date, adjusted, isPast }, i) => {
-                    const isNext = i === nextIndex;
-                    const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                    {milestones.map(({ label, date, adjusted, isPast, isOverdue }, i) => {
+                      const isNext = i === nextIndex;
+                      const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
-                    // Visual state
-                    let dotBg: string;
-                    let dotBorder: string;
-                    let dotSize: number;
-                    let labelCol: string;
-                    let dateCol: string;
-                    let showRing = false;
+                      let dotBg: string, dotBorder: string, dotSize: number;
+                      let labelCol: string, dateCol: string, labelW: number;
+                      let glowColor = '';
 
-                    if (isPast) {
-                      // Completed — neutral grey
-                      dotBg = '#e2e8f0'; dotBorder = '#94a3b8'; dotSize = 14;
-                      labelCol = '#b0bbc8'; dateCol = '#94a3b8';
-                    } else if (isNext) {
-                      // Current / active — colored, larger, with outer ring
-                      dotBg = color; dotBorder = color; dotSize = 18;
-                      labelCol = '#18181b'; dateCol = '#18181b'; showRing = true;
-                    } else {
-                      // Future — color outline, white fill
-                      dotBg = '#ffffff'; dotBorder = color; dotSize = 14;
-                      labelCol = '#64748b'; dateCol = '#64748b';
-                    }
+                      if (isNext) {
+                        dotBg = TI.accent; dotBorder = TI.accent; dotSize = 22;
+                        labelCol = TI.dark; dateCol = TI.accent; labelW = 700;
+                        glowColor = 'rgba(217,122,30,0.18)';
+                      } else if (isOverdue) {
+                        dotBg = '#FDF0E8'; dotBorder = TI.attention; dotSize = 14;
+                        labelCol = TI.attention; dateCol = TI.attention; labelW = 600;
+                      } else if (isPast) {
+                        dotBg = '#D8D4CE'; dotBorder = '#D8D4CE'; dotSize = 10;
+                        labelCol = '#B8B2A8'; dateCol = '#B8B2A8'; labelW = 500;
+                      } else {
+                        dotBg = TI.card; dotBorder = TI.line; dotSize = 12;
+                        labelCol = TI.secondary; dateCol = TI.secondary; labelW = 500;
+                      }
 
-                    return (
-                      <div
-                        key={label}
-                        title={adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label}
-                        style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 2 }}
-                      >
-                        {/* Dot container — fixed 28px so centers align on the connecting line */}
-                        <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: '8px' }}>
-                          {showRing && (
+                      return (
+                        <div
+                          key={label}
+                          title={adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label}
+                          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 2 }}
+                        >
+                          {/* Dot — 40px container so all centers align on track */}
+                          <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: '10px' }}>
+                            {glowColor && (
+                              <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', backgroundColor: glowColor, filter: 'blur(6px)' }} />
+                            )}
                             <div style={{
-                              position: 'absolute', inset: '-4px', borderRadius: '50%',
-                              border: `2px solid ${color}`, opacity: 0.22,
+                              width: `${dotSize}px`, height: `${dotSize}px`, borderRadius: '50%',
+                              backgroundColor: dotBg,
+                              border: dotSize <= 10 ? 'none' : `2px solid ${dotBorder}`,
+                              boxShadow: isNext ? `0 0 0 5px rgba(217,122,30,0.12)` : 'none',
+                              position: 'relative', zIndex: 1,
                             }} />
-                          )}
-                          <div style={{
-                            width: `${dotSize}px`, height: `${dotSize}px`, borderRadius: '50%',
-                            backgroundColor: dotBg, border: `2.5px solid ${dotBorder}`,
-                            position: 'relative', zIndex: 1,
-                          }} />
+                          </div>
+
+                          {/* Label */}
+                          <span style={{
+                            fontSize: '9px', fontWeight: labelW, textTransform: 'uppercase',
+                            letterSpacing: '0.07em', color: labelCol,
+                            textAlign: 'center', lineHeight: 1.45,
+                            fontFamily: "'Space Grotesk', sans-serif",
+                            maxWidth: '88px', display: 'block',
+                          }}>
+                            {label}
+                          </span>
+
+                          {/* Date */}
+                          <span style={{
+                            fontSize: '11px', fontWeight: isNext ? 700 : 500,
+                            color: dateCol, fontFamily: "'DM Mono', monospace",
+                            marginTop: '5px', display: 'block', letterSpacing: '0.03em',
+                          }}>
+                            {dateStr}
+                            {adjusted && (
+                              <span style={{ fontSize: '9px', color: TI.attention, marginLeft: '3px' }}>
+                                {adjusted === 'fri' ? 'sex' : 'seg'}
+                              </span>
+                            )}
+                          </span>
                         </div>
-
-                        {/* Milestone label */}
-                        <span style={{
-                          fontSize: '9px', fontWeight: '700', textTransform: 'uppercase',
-                          letterSpacing: '0.07em', color: labelCol,
-                          textAlign: 'center', lineHeight: 1.3,
-                          fontFamily: "'Plus Jakarta Sans', sans-serif",
-                          maxWidth: '84px', display: 'block',
-                        }}>
-                          {label}
-                        </span>
-
-                        {/* Date */}
-                        <span style={{
-                          fontSize: '11px', fontWeight: isNext ? '700' : '600',
-                          color: dateCol, fontFamily: "'DM Mono', monospace",
-                          marginTop: '4px', display: 'block',
-                        }}>
-                          {dateStr}
-                          {adjusted && (
-                            <span style={{ fontSize: '9px', color: '#f59e0b', marginLeft: '3px' }}>
-                              {adjusted === 'fri' ? 'sex' : 'seg'}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

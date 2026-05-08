@@ -934,6 +934,26 @@ export default function Atendimento() {
                       </span>
                     )}
                   </h4>
+                  {ev?.truckDepartureDate && (() => {
+                    const days = ev.deadlineAprovacaoLayout ?? -12;
+                    const d = new Date(new Date(ev.truckDepartureDate).getTime() + days * 86400000);
+                    d.setHours(0,0,0,0);
+                    const tod = new Date(); tod.setHours(0,0,0,0);
+                    const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
+                    const ds = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                    const s = diff < 0
+                      ? { bg: '#FEE2E2', border: '#FECACA', text: '#B84040' }
+                      : diff === 0
+                      ? { bg: '#FEF3E7', border: '#FED7AA', text: '#D97A1E' }
+                      : diff <= 3
+                      ? { bg: '#FDF0E8', border: '#FDDBC4', text: '#C97B4B' }
+                      : { bg: '#F3F2F0', border: '#E7E3DC', text: '#6F6A63' };
+                    return (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: '3px 9px', fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                        Aprovação de Layout · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.7, fontWeight: 500 }}> ({diff}d)</span>}
+                      </span>
+                    );
+                  })()}
                   <span style={{
                     marginLeft: 'auto',
                     backgroundColor: '#fff7ed', border: '1px solid #fed7aa',

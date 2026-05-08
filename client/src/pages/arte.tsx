@@ -390,6 +390,31 @@ export default function Arte() {
                         Saída: {new Date(group.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(group.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     )}
+                    {group.eventObj?.truckDepartureDate && (() => {
+                      const dls = [
+                        { label: 'Entrega de Layouts',  days: group.eventObj.deadlineEntregaLayouts  ?? -20 },
+                        { label: 'Aprovação de Layout', days: group.eventObj.deadlineAprovacaoLayout ?? -12 },
+                      ];
+                      const tod = new Date(); tod.setHours(0,0,0,0);
+                      return dls.map(({ label, days }) => {
+                        const d = new Date(new Date(group.eventObj.truckDepartureDate).getTime() + days * 86400000);
+                        d.setHours(0,0,0,0);
+                        const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
+                        const ds = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                        const s = diff < 0
+                          ? { bg: 'rgba(255,80,80,0.22)', border: 'rgba(255,80,80,0.38)', text: '#ffb3b3' }
+                          : diff === 0
+                          ? { bg: 'rgba(255,200,80,0.28)', border: 'rgba(255,200,80,0.45)', text: '#ffe59c' }
+                          : diff <= 3
+                          ? { bg: 'rgba(255,160,50,0.22)', border: 'rgba(255,160,50,0.38)', text: '#ffc78a' }
+                          : { bg: 'rgba(255,255,255,0.12)', border: 'rgba(255,255,255,0.2)', text: 'rgba(255,255,255,0.72)' };
+                        return (
+                          <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: '3px 9px', fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                            {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
+                          </span>
+                        );
+                      });
+                    })()}
                     <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                       {group.items.length} {group.items.length === 1 ? 'Item' : 'Itens'}
                     </span>

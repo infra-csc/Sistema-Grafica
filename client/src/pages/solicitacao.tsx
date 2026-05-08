@@ -444,13 +444,38 @@ export default function Solicitacao() {
                               </span>
                             </div>
                             {event && (
-                              <div style={{ display: "flex", gap: 16, fontSize: 9, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                              <div style={{ display: "flex", gap: 12, fontSize: 9, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center" }}>
                                 {event.startDate && (
                                   <span>Início: <span style={{ color: "#d6d3d1" }}>{new Date(event.startDate).toLocaleDateString("pt-BR")}</span></span>
                                 )}
                                 {event.truckDepartureDate && (
                                   <span>Saída: <span style={{ color: "#d6d3d1" }}>{new Date(event.truckDepartureDate).toLocaleDateString("pt-BR")} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></span>
                                 )}
+                                {event.truckDepartureDate && (() => {
+                                  const dls = [
+                                    { label: "Lista de Imagens", days: event.deadlineListaImagens  ?? -25 },
+                                    { label: "Revisão de Lista", days: event.deadlineRevisaoLista   ?? -8  },
+                                  ];
+                                  const tod = new Date(); tod.setHours(0,0,0,0);
+                                  return dls.map(({ label, days }) => {
+                                    const d = new Date(new Date(event.truckDepartureDate).getTime() + days * 86400000);
+                                    d.setHours(0,0,0,0);
+                                    const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
+                                    const ds = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+                                    const s = diff < 0
+                                      ? { bg: "rgba(255,80,80,0.22)", border: "rgba(255,80,80,0.38)", text: "#ffb3b3" }
+                                      : diff === 0
+                                      ? { bg: "rgba(255,200,80,0.28)", border: "rgba(255,200,80,0.45)", text: "#ffe59c" }
+                                      : diff <= 3
+                                      ? { bg: "rgba(255,160,50,0.22)", border: "rgba(255,160,50,0.38)", text: "#ffc78a" }
+                                      : { bg: "rgba(255,255,255,0.12)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.72)" };
+                                    return (
+                                      <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}>
+                                        {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
+                                      </span>
+                                    );
+                                  });
+                                })()}
                               </div>
                             )}
                           </div>

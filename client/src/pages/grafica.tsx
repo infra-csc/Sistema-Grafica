@@ -445,7 +445,7 @@ export default function Grafica() {
                               </span>
                             </div>
                             {item.event && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
                                   <Calendar style={{ width: 12, height: 12 }} />
                                   Início: <strong style={{ color: "rgba(255,255,255,0.7)" }}>{new Date(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
@@ -457,6 +457,26 @@ export default function Grafica() {
                                     {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR")} às {new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                                   </strong>
                                 </div>
+                                {(() => {
+                                  const days = item.event.deadlineProducaoGrafica ?? -1;
+                                  const d = new Date(new Date(item.event.truckDepartureDate).getTime() + days * 86400000);
+                                  d.setHours(0,0,0,0);
+                                  const tod = new Date(); tod.setHours(0,0,0,0);
+                                  const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
+                                  const ds = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+                                  const s = diff < 0
+                                    ? { bg: "rgba(255,80,80,0.22)", border: "rgba(255,80,80,0.38)", text: "#ffb3b3" }
+                                    : diff === 0
+                                    ? { bg: "rgba(255,200,80,0.28)", border: "rgba(255,200,80,0.45)", text: "#ffe59c" }
+                                    : diff <= 3
+                                    ? { bg: "rgba(255,160,50,0.22)", border: "rgba(255,160,50,0.38)", text: "#ffc78a" }
+                                    : { bg: "rgba(255,255,255,0.12)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.72)" };
+                                  return (
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+                                      Produção Gráfica · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                             )}
                           </div>

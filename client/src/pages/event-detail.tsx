@@ -1190,11 +1190,6 @@ export default function EventDetail() {
                             marginTop: '5px', display: 'block', letterSpacing: '0.03em',
                           }}>
                             {dateStr}
-                            {adjusted && (
-                              <span style={{ fontSize: '9px', color: TI.attention, marginLeft: '3px' }}>
-                                {adjusted === 'fri' ? 'sex' : 'seg'}
-                              </span>
-                            )}
                           </span>
                         </div>
                       );

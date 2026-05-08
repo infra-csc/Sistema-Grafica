@@ -634,7 +634,7 @@ export default function EventDetail() {
             </p>
             <h1
               data-testid="title-event-name"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '36px', fontWeight: '800', letterSpacing: '-0.04em', color: '#18181b', lineHeight: 1.05, margin: 0 }}
+              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, letterSpacing: '-0.04em', textTransform: 'uppercase', color: '#1c1917', lineHeight: 1.1, margin: 0 }}
             >
               {event.name}
             </h1>

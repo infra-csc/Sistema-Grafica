@@ -799,7 +799,7 @@ export function BulkItemEntry({
                       Já existem no evento — {existingItems.length} {existingItems.length === 1 ? 'peça' : 'peças'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', maxHeight: '220px', overflowY: 'auto', border: '1px solid #E7E3DC', borderRadius: '8px', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: '1px solid #E7E3DC', borderRadius: '8px' }}>
                     {(() => {
                       const typeMap: Record<string, ExistingItem[]> = {};
                       for (const item of existingItems) {

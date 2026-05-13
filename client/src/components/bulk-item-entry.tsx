@@ -434,15 +434,8 @@ function isSameItem(
   b: { type: string; description?: string | null; quantity: number | string; visualWidth?: string | number | null; visualHeight?: string | number | null; fileWidth?: string | number | null; fileHeight?: string | number | null; material?: string | null; finish?: string | null }
 ): boolean {
   return (
-    (a.type || '').trim() === (b.type || '').trim() &&
-    (a.description || '').trim().toLowerCase() === (b.description || '').trim().toLowerCase() &&
-    normalize(a.quantity) === normalize(b.quantity) &&
-    normalize(a.visualWidth) === normalize(b.visualWidth) &&
-    normalize(a.visualHeight) === normalize(b.visualHeight) &&
-    normalize(a.fileWidth) === normalize(b.fileWidth) &&
-    normalize(a.fileHeight) === normalize(b.fileHeight) &&
-    (a.material || '').trim() === (b.material || '').trim() &&
-    (a.finish || '').trim() === (b.finish || '').trim()
+    (a.type || '').trim().toLowerCase() === (b.type || '').trim().toLowerCase() &&
+    (a.description || '').trim().toLowerCase() === (b.description || '').trim().toLowerCase()
   );
 }
 

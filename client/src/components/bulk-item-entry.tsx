@@ -587,12 +587,8 @@ export function BulkItemEntry({
       }
     }
 
-    if (warnings.length > 0) {
-      setDuplicateConfirm({ valid, warnings });
-      return;
-    }
-
-    onSubmit(valid);
+    // Always show summary modal (with duplicate info if applicable)
+    setDuplicateConfirm({ valid, warnings });
   }
 
   const validCount = rows.filter(r =>
@@ -637,82 +633,237 @@ export function BulkItemEntry({
         </div>
       )}
 
-      {/* Duplicate confirmation overlay */}
+      {/* ── RESUMO / CONFIRMAÇÃO DE LOTE ── */}
       {duplicateConfirm && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 60,
-          backgroundColor: 'rgba(28,25,23,0.55)', backdropFilter: 'blur(3px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px',
+          backgroundColor: 'rgba(28,25,23,0.60)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          borderRadius: '8px', padding: '16px',
         }}>
           <div style={{
-            backgroundColor: '#fff', borderRadius: '12px', padding: '28px 32px',
-            maxWidth: '440px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-            display: 'flex', flexDirection: 'column', gap: '20px',
+            backgroundColor: '#F7F6F3', borderRadius: '14px',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.28)',
+            width: '100%', maxWidth: '520px', maxHeight: '85vh',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
-                backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <span style={{ fontSize: '18px', lineHeight: 1 }}>⚠</span>
-              </div>
-              <div>
-                <p style={{ fontSize: '15px', fontWeight: '800', color: '#1c1917', fontFamily: "'Space Grotesk', sans-serif", margin: 0 }}>
-                  Peças duplicadas detectadas
-                </p>
-                <p style={{ fontSize: '12px', color: '#78716c', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '4px 0 0' }}>
-                  As seguintes peças são exatamente iguais a outras já lançadas:
-                </p>
-              </div>
-            </div>
 
-            {/* Warning list */}
+            {/* ── CABEÇALHO ── */}
             <div style={{
-              backgroundColor: '#fefce8', border: '1px solid #fde68a', borderRadius: '8px',
-              padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px',
-              maxHeight: '160px', overflowY: 'auto',
+              padding: '22px 28px 18px',
+              borderBottom: '1px solid #E7E3DC',
+              backgroundColor: '#fff',
+              borderRadius: '14px 14px 0 0',
             }}>
-              {duplicateConfirm.warnings.map((w, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  <span style={{ color: '#d97706', fontWeight: '700', flexShrink: 0, fontSize: '11px', marginTop: '1px' }}>•</span>
-                  <span style={{ fontSize: '12px', color: '#92400e', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: '1.5' }}>{w}</span>
+              <p style={{
+                margin: 0, fontSize: '11px', fontWeight: '700', letterSpacing: '0.10em',
+                textTransform: 'uppercase', color: '#9D978F',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}>
+                Revisão do Lote
+              </p>
+              <p style={{
+                margin: '4px 0 0', fontSize: '18px', fontWeight: '800', color: '#1F1D1A',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}>
+                Confirmar criação de peças
+              </p>
+            </div>
+
+            {/* ── CORPO SCROLLÁVEL ── */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+              {/* SEÇÃO 1 — O QUE SERÁ CRIADO */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <div style={{
+                    width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22c55e', flexShrink: 0,
+                  }} />
+                  <span style={{
+                    fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase',
+                    color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
+                  }}>
+                    Será criado — {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça' : 'peças'}
+                  </span>
                 </div>
-              ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {duplicateConfirm.valid.map((item, i) => {
+                    const isDup = duplicateConfirm.warnings.some(w =>
+                      w.includes(`Linha ${i + 1} e`) || w.includes(`Linha ${i + 1} `) ||
+                      (w.includes(`"${item.type}"`) && w.includes('já lançado'))
+                    );
+                    return (
+                      <div key={i} style={{
+                        backgroundColor: isDup ? '#fef9ec' : '#fff',
+                        border: `1px solid ${isDup ? '#fde68a' : '#E7E3DC'}`,
+                        borderRadius: '8px', padding: '10px 14px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                          {isDup && (
+                            <span style={{
+                              fontSize: '9px', fontWeight: '800', backgroundColor: '#fde68a',
+                              color: '#92400e', borderRadius: '4px', padding: '2px 6px',
+                              textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
+                              fontFamily: "'Space Grotesk', sans-serif",
+                            }}>
+                              Dup
+                            </span>
+                          )}
+                          <span style={{
+                            fontSize: '13px', fontWeight: '700', color: '#1F1D1A',
+                            fontFamily: "'Space Grotesk', sans-serif",
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                          }}>
+                            {item.type}
+                          </span>
+                          {item.description && (
+                            <span style={{ fontSize: '12px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.description}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                          <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                            {item.fileWidth} × {item.fileHeight}m
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                            {item.material}
+                          </span>
+                          <span style={{
+                            fontSize: '11px', fontWeight: '700', color: '#D97A1E',
+                            fontFamily: "'Space Grotesk', sans-serif",
+                            backgroundColor: '#FDF3E7', borderRadius: '4px', padding: '2px 7px',
+                          }}>
+                            {item.quantity}x
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SEÇÃO 2 — JÁ EXISTEM NO EVENTO */}
+              {existingItems.length > 0 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <div style={{
+                      width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#A9B7C8', flexShrink: 0,
+                    }} />
+                    <span style={{
+                      fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase',
+                      color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
+                    }}>
+                      Já existem no evento — {existingItems.length} {existingItems.length === 1 ? 'peça' : 'peças'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {existingItems.slice(0, 5).map((item) => (
+                      <div key={item.id} style={{
+                        backgroundColor: '#F7F6F3', border: '1px solid #E7E3DC',
+                        borderRadius: '7px', padding: '8px 14px',
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                      }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif" }}>
+                          #{item.displayId}
+                        </span>
+                        <span style={{ fontSize: '12px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1 }}>
+                          {item.type}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                          {item.quantity}x
+                        </span>
+                      </div>
+                    ))}
+                    {existingItems.length > 5 && (
+                      <p style={{ fontSize: '11px', color: '#9D978F', margin: '4px 0 0 14px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                        + {existingItems.length - 5} peças não exibidas
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SEÇÃO 3 — DUPLICATAS (só se houver) */}
+              {duplicateConfirm.warnings.length > 0 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <div style={{
+                      width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97A1E', flexShrink: 0,
+                    }} />
+                    <span style={{
+                      fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase',
+                      color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif",
+                    }}>
+                      Duplicatas detectadas — {duplicateConfirm.warnings.length} {duplicateConfirm.warnings.length === 1 ? 'conflito' : 'conflitos'}
+                    </span>
+                  </div>
+                  <div style={{
+                    backgroundColor: '#FEF9EC', border: '1px solid #FDE68A',
+                    borderRadius: '8px', padding: '12px 14px',
+                    display: 'flex', flexDirection: 'column', gap: '7px',
+                  }}>
+                    {duplicateConfirm.warnings.map((w, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <span style={{ color: '#D97A1E', fontWeight: '700', flexShrink: 0, fontSize: '12px', marginTop: '1px', fontFamily: "'Space Grotesk', sans-serif" }}>!</span>
+                        <span style={{ fontSize: '12px', color: '#92400e', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: '1.6' }}>{w}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#6F6A63', margin: '10px 0 0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Você ainda pode confirmar — as peças serão criadas mesmo assim.
+                  </p>
+                </div>
+              )}
+
             </div>
 
-            {/* Question */}
-            <p style={{ fontSize: '13px', color: '#44403c', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0, fontWeight: '600' }}>
-              Deseja salvar mesmo assim?
-            </p>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setDuplicateConfirm(null)}
-                style={{
-                  padding: '8px 18px', background: 'none', border: '1.5px solid #e7e5e4',
-                  borderRadius: '7px', color: '#57534e', fontSize: '13px', fontWeight: '600',
-                  cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => { setDuplicateConfirm(null); onSubmit(duplicateConfirm.valid); }}
-                style={{
-                  padding: '8px 18px', backgroundColor: '#1c1917', border: 'none',
-                  borderRadius: '7px', color: '#fff', fontSize: '13px', fontWeight: '800',
-                  cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
-                  textTransform: 'uppercase', letterSpacing: '0.05em',
-                }}
-                data-testid="button-confirm-duplicates"
-              >
-                Salvar mesmo assim
-              </button>
+            {/* ── RODAPÉ ── */}
+            <div style={{
+              padding: '16px 28px',
+              borderTop: '1px solid #E7E3DC',
+              backgroundColor: '#fff',
+              borderRadius: '0 0 14px 14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+            }}>
+              <p style={{ margin: 0, fontSize: '12px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça nova' : 'peças novas'} ·{' '}
+                {existingItems.length} existentes no evento
+              </p>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setDuplicateConfirm(null)}
+                  style={{
+                    padding: '9px 20px', background: 'none', border: '1.5px solid #E7E3DC',
+                    borderRadius: '8px', color: '#6F6A63', fontSize: '13px', fontWeight: '600',
+                    cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
+                    transition: 'border-color 0.15s',
+                  }}
+                >
+                  Voltar e revisar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDuplicateConfirm(null); onSubmit(duplicateConfirm.valid); }}
+                  style={{
+                    padding: '9px 22px',
+                    background: 'linear-gradient(135deg, #2E2A26 0%, #1F1D1A 100%)',
+                    border: 'none', borderRadius: '8px', color: '#fff',
+                    fontSize: '13px', fontWeight: '800', cursor: 'pointer',
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    textTransform: 'uppercase', letterSpacing: '0.07em',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                  }}
+                  data-testid="button-confirm-duplicates"
+                >
+                  <span>Confirmar Lote</span>
+                  <ArrowRight size={14} />
+                </button>
+              </div>
             </div>
+
           </div>
         </div>
       )}

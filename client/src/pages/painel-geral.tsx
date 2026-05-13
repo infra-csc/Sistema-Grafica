@@ -442,122 +442,169 @@ export default function PainelGeral() {
                       </tr>
                     </thead>
                     <tbody>
-                      {gd.items.map((item: any, idx: number) => (
-                        <Fragment key={item.id}>
-                          <tr
-                            data-testid={`item-row-${item.id}`}
-                            onClick={() => setSelectedItem(item)}
-                            style={{
-                              borderBottom: "1px solid #f0f0ef",
-                              backgroundColor: idx % 2 === 1 ? "#fafaf9" : "#ffffff",
-                              cursor: "pointer",
-                              transition: "transform 0.15s, background-color 0.15s",
-                            }}
-                            onMouseEnter={(e) => {
-                              (e.currentTarget as HTMLTableRowElement).style.transform = "translateY(-1px)";
-                              (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f3f4f3";
-                            }}
-                            onMouseLeave={(e) => {
-                              (e.currentTarget as HTMLTableRowElement).style.transform = "none";
-                              (e.currentTarget as HTMLTableRowElement).style.backgroundColor = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
-                            }}
-                          >
-                            {/* ID */}
-                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
-                              <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
-                                {item.displayId}
-                              </span>
-                            </td>
-
-                            {/* Item de Produção */}
-                            <td style={{ padding: "14px 20px", maxWidth: 220 }}>
-                              <p style={{ fontWeight: 700, fontSize: 13, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {item.type}
-                              </p>
-                            </td>
-
-                            {/* Descrição */}
-                            <td style={{ padding: "14px 20px", maxWidth: 260 }}>
-                              {item.description ? (
-                                <span style={{ fontSize: 12, color: "#78716c", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {item.description}
-                                </span>
-                              ) : (
-                                <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
-                              )}
-                            </td>
-
-                            {/* Medidas */}
-                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
-                              {(item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight) ? (
-                                <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#44403c" }}>
-                                  {item.visualWidth && item.visualHeight
-                                    ? `${item.visualWidth} × ${item.visualHeight}`
-                                    : `${item.fileWidth} × ${item.fileHeight}`}
-                                </span>
-                              ) : (
-                                <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
-                              )}
-                            </td>
-
-                            {/* Tipo */}
-                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
-                              <span style={{
-                                fontSize: 10, padding: "2px 8px",
-                                backgroundColor: "#f0f0ef",
-                                color: "#57534e",
-                                fontWeight: 700, textTransform: "uppercase",
-                                borderRadius: 2,
+                      {(() => {
+                        // Group items by type, preserving insertion order
+                        const typeMap: Record<string, any[]> = {};
+                        for (const item of gd.items) {
+                          if (!typeMap[item.type]) typeMap[item.type] = [];
+                          typeMap[item.type].push(item);
+                        }
+                        let globalIdx = 0;
+                        return Object.entries(typeMap).map(([type, typeItems]) => (
+                          <Fragment key={type}>
+                            {/* ── Type sub-header ── */}
+                            <tr>
+                              <td colSpan={8} style={{
+                                padding: "8px 20px",
+                                backgroundColor: "#f0ede8",
+                                borderTop: "1px solid #e2e2e2",
+                                borderBottom: "1px solid #e2e2e2",
                               }}>
-                                {item.type}
-                              </span>
-                            </td>
-
-                            {/* Patrocinador */}
-                            <td style={{ padding: "14px 20px", color: "#78716c", fontSize: 13 }}>
-                              {item.sponsors?.length > 0
-                                ? item.sponsors.map((s: any) => s.name).join(", ")
-                                : <span style={{ color: "#a8a29e" }}>—</span>}
-                            </td>
-
-                            {/* Status */}
-                            <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
-                              <StatusPill status={item.status} />
-                            </td>
-
-                            {/* Ação */}
-                            <td style={{ padding: "14px 20px", textAlign: "right" }}>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                data-testid={`button-view-${item.id}`}
-                                style={{
-                                  background: "none", border: "none", cursor: "pointer",
-                                  padding: 4, borderRadius: 4,
-                                  color: "#a8a29e",
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  transition: "color 0.15s",
-                                }}
-                                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
-                                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
-                              >
-                                <Eye style={{ width: 16, height: 16 }} />
-                              </button>
-                            </td>
-                          </tr>
-
-                          {/* Observations row */}
-                          {item.observations && (
-                            <tr style={{ backgroundColor: "rgba(251,191,36,0.08)", borderBottom: "1px solid rgba(251,191,36,0.2)" }}>
-                              <td colSpan={8} style={{ padding: "8px 20px" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#92400e" }}>
-                                  <AlertCircle style={{ width: 13, height: 13, flexShrink: 0 }} />
-                                  Observação: {item.observations}
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 900,
+                                    textTransform: "uppercase", letterSpacing: "0.10em",
+                                    color: "#57534e",
+                                    fontFamily: "'Space Grotesk', sans-serif",
+                                  }}>
+                                    {type}
+                                  </span>
+                                  <span style={{
+                                    fontSize: 9, fontWeight: 700,
+                                    color: "#a8a29e",
+                                    backgroundColor: "#e7e3de",
+                                    borderRadius: 999,
+                                    padding: "1px 7px",
+                                    textTransform: "uppercase", letterSpacing: "0.06em",
+                                  }}>
+                                    {typeItems.length} {typeItems.length === 1 ? "item" : "itens"}
+                                  </span>
                                 </div>
                               </td>
                             </tr>
-                          )}
-                        </Fragment>
-                      ))}
+
+                            {/* ── Items within this type ── */}
+                            {typeItems.map((item: any) => {
+                              const idx = globalIdx++;
+                              return (
+                                <Fragment key={item.id}>
+                                  <tr
+                                    data-testid={`item-row-${item.id}`}
+                                    onClick={() => setSelectedItem(item)}
+                                    style={{
+                                      borderBottom: "1px solid #f0f0ef",
+                                      backgroundColor: idx % 2 === 1 ? "#fafaf9" : "#ffffff",
+                                      cursor: "pointer",
+                                      transition: "transform 0.15s, background-color 0.15s",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      (e.currentTarget as HTMLTableRowElement).style.transform = "translateY(-1px)";
+                                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f3f4f3";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      (e.currentTarget as HTMLTableRowElement).style.transform = "none";
+                                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
+                                    }}
+                                  >
+                                    {/* ID */}
+                                    <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                                      <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
+                                        {item.displayId}
+                                      </span>
+                                    </td>
+
+                                    {/* Item de Produção */}
+                                    <td style={{ padding: "14px 20px", maxWidth: 220 }}>
+                                      <p style={{ fontWeight: 700, fontSize: 13, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {item.type}
+                                      </p>
+                                    </td>
+
+                                    {/* Descrição */}
+                                    <td style={{ padding: "14px 20px", maxWidth: 260 }}>
+                                      {item.description ? (
+                                        <span style={{ fontSize: 12, color: "#78716c", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                          {item.description}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
+                                      )}
+                                    </td>
+
+                                    {/* Medidas */}
+                                    <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                                      {(item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight) ? (
+                                        <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#44403c" }}>
+                                          {item.visualWidth && item.visualHeight
+                                            ? `${item.visualWidth} × ${item.visualHeight}`
+                                            : `${item.fileWidth} × ${item.fileHeight}`}
+                                        </span>
+                                      ) : (
+                                        <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
+                                      )}
+                                    </td>
+
+                                    {/* Tipo */}
+                                    <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                                      <span style={{
+                                        fontSize: 10, padding: "2px 8px",
+                                        backgroundColor: "#f0f0ef",
+                                        color: "#57534e",
+                                        fontWeight: 700, textTransform: "uppercase",
+                                        borderRadius: 2,
+                                      }}>
+                                        {item.type}
+                                      </span>
+                                    </td>
+
+                                    {/* Patrocinador */}
+                                    <td style={{ padding: "14px 20px", color: "#78716c", fontSize: 13 }}>
+                                      {item.sponsors?.length > 0
+                                        ? item.sponsors.map((s: any) => s.name).join(", ")
+                                        : <span style={{ color: "#a8a29e" }}>—</span>}
+                                    </td>
+
+                                    {/* Status */}
+                                    <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                                      <StatusPill status={item.status} />
+                                    </td>
+
+                                    {/* Ação */}
+                                    <td style={{ padding: "14px 20px", textAlign: "right" }}>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                        data-testid={`button-view-${item.id}`}
+                                        style={{
+                                          background: "none", border: "none", cursor: "pointer",
+                                          padding: 4, borderRadius: 4, color: "#a8a29e",
+                                          display: "flex", alignItems: "center", justifyContent: "center",
+                                          transition: "color 0.15s",
+                                        }}
+                                        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
+                                        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
+                                      >
+                                        <Eye style={{ width: 16, height: 16 }} />
+                                      </button>
+                                    </td>
+                                  </tr>
+
+                                  {/* Observations row */}
+                                  {item.observations && (
+                                    <tr style={{ backgroundColor: "rgba(251,191,36,0.08)", borderBottom: "1px solid rgba(251,191,36,0.2)" }}>
+                                      <td colSpan={8} style={{ padding: "8px 20px" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#92400e" }}>
+                                          <AlertCircle style={{ width: 13, height: 13, flexShrink: 0 }} />
+                                          Observação: {item.observations}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </Fragment>
+                              );
+                            })}
+                          </Fragment>
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>

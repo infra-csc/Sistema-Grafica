@@ -1206,6 +1206,7 @@ export default function EventDetail() {
 
       {/* Card de Peças em Rascunho */}
       {items.filter(item => item.status === 'draft').length > 0 && (
+        <>
         <Card className="border-2 border-dashed border-muted-foreground/30 bg-muted/20">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -1334,6 +1335,7 @@ export default function EventDetail() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        </>
       )}
 
       {/* Itens agrupados por tipo em seções */}

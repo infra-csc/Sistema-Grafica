@@ -1,19 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Determine WebSocket protocol based on current protocol
+  const connect = useCallback(() => {
+    if (unmountedRef.current) return;
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // Use window.location.host which includes port, or fallback to hostname with default port
     const host = window.location.host || window.location.hostname;
     const wsUrl = `${protocol}//${host}/ws`;
 
-    // Create WebSocket connection
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -24,18 +25,16 @@ export function useWebSocket() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
-        // Handle different message types
+
         switch (data.type) {
           case 'connected':
             console.log('WebSocket connection confirmed');
             break;
-            
+
           case 'event_created':
           case 'event_updated':
           case 'event_deleted':
           case 'event_urgent':
-            // Invalidate events queries
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             if (data.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
@@ -48,9 +47,8 @@ export function useWebSocket() {
               });
             }
             break;
-            
+
           case 'item_created':
-            // Invalidate specific event items query
             if (data.item?.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
             }
@@ -59,29 +57,25 @@ export function useWebSocket() {
               description: `Item ${data.item?.type} adicionado`,
             });
             break;
-            
+
           case 'item_updated':
-            // Invalidate specific event items query
             if (data.item?.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
             }
-            // Invalidate global items query (used by Painel Geral)
             queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             break;
-            
+
           case 'item_deleted':
-            // Invalidate specific event items query
             if (data.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
             }
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             break;
-            
+
           case 'items_bulk_created':
-            // Invalidate specific event items query
             queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
             if (data.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
@@ -91,9 +85,8 @@ export function useWebSocket() {
               description: `${data.items?.length || 0} peças adicionadas ao evento`,
             });
             break;
-            
+
           case 'items_submitted':
-            // Invalidate items queries when items are submitted for sponsor linking
             queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             if (data.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
@@ -103,9 +96,8 @@ export function useWebSocket() {
               description: `${data.count || 0} peças aguardando vinculação de patrocinadores`,
             });
             break;
-            
+
           case 'item_approved':
-            // Invalidate specific queries
             queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
             if (data.item?.eventId) {
@@ -118,10 +110,9 @@ export function useWebSocket() {
               description: `${data.item?.type} aprovada para produção`,
             });
             break;
-            
+
           case 'production_started':
           case 'production_updated':
-            // Invalidate specific queries
             queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
             if (data.item?.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
@@ -133,9 +124,8 @@ export function useWebSocket() {
               description: `Item ${data.item?.type} atualizado`,
             });
             break;
-            
+
           case 'deadline_alert':
-            // Invalidate events and show urgent notification
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             toast({
               title: '⚠️ Alerta de Prazo',
@@ -143,7 +133,7 @@ export function useWebSocket() {
               variant: 'destructive',
             });
             break;
-            
+
           case 'inventory_awaiting_triage':
             queryClient.invalidateQueries({ queryKey: ['/api/inventory/awaiting-triage'] });
             queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
@@ -165,15 +155,12 @@ export function useWebSocket() {
           case 'standard_item_created':
             queryClient.invalidateQueries({ queryKey: ['/api/standard-items'] });
             break;
-            
+
           case 'notification_created':
-            queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-            break;
-            
           case 'notification_read':
             queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
             break;
-            
+
           default:
             console.log('Unknown WebSocket message type:', data.type);
         }
@@ -188,22 +175,30 @@ export function useWebSocket() {
 
     ws.onclose = () => {
       console.log('WebSocket disconnected');
-      // Attempt to reconnect after 5 seconds
-      setTimeout(() => {
-        if (wsRef.current?.readyState === WebSocket.CLOSED) {
-          console.log('Attempting to reconnect WebSocket...');
-          window.location.reload();
+      if (unmountedRef.current) return;
+      reconnectTimerRef.current = setTimeout(() => {
+        if (!unmountedRef.current) {
+          console.log('Reconnecting WebSocket...');
+          connect();
         }
       }, 5000);
     };
+  }, [toast]);
 
-    // Cleanup on unmount
+  useEffect(() => {
+    unmountedRef.current = false;
+    connect();
+
     return () => {
+      unmountedRef.current = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, [toast]);
+  }, [connect]);
 
   return wsRef.current;
 }

@@ -739,54 +739,91 @@ export function BulkItemEntry({
                     Será criado — {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça' : 'peças'}
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
-                  {duplicateConfirm.valid.map((item, i) => {
-                    const dupMatch = duplicateConfirm.duplicates.find(d => isSameItem(d.newItem, item));
-                    const isDup = !!dupMatch;
-                    return (
-                      <div key={i} style={{
-                        backgroundColor: isDup ? '#fef9ec' : '#fff',
-                        border: `1px solid ${isDup ? '#fde68a' : '#E7E3DC'}`,
-                        borderRadius: '8px', padding: '10px 14px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                          {isDup && (
-                            <span style={{
-                              fontSize: '9px', fontWeight: '800', backgroundColor: '#fde68a',
-                              color: '#92400e', borderRadius: '4px', padding: '2px 6px',
-                              textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
-                              fontFamily: "'Space Grotesk', sans-serif",
-                            }}>Dup</span>
-                          )}
-                          {isDup && dupMatch?.existingItem.displayId && (
-                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
-                              {dupMatch.existingItem.displayId}
-                            </span>
-                          )}
-                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {item.type}
+                <div style={{ maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: '1px solid #E7E3DC', borderRadius: '8px' }}>
+                  {(() => {
+                    const typeMap: Record<string, any[]> = {};
+                    for (const item of duplicateConfirm.valid) {
+                      if (!typeMap[item.type]) typeMap[item.type] = [];
+                      typeMap[item.type].push(item);
+                    }
+                    return Object.entries(typeMap).map(([type, typeItems], gi) => (
+                      <div key={type}>
+                        {/* Type sub-header */}
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: '7px',
+                          padding: '5px 12px',
+                          backgroundColor: '#f0ede8',
+                          borderTop: gi === 0 ? 'none' : '1px solid #E7E3DC',
+                          borderBottom: '1px solid #E7E3DC',
+                        }}>
+                          <span style={{
+                            fontSize: '9px', fontWeight: '900',
+                            textTransform: 'uppercase', letterSpacing: '0.12em',
+                            color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
+                            flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {type}
                           </span>
-                          {item.description && (
-                            <span style={{ fontSize: '12px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.description}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                          <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                            {item.fileWidth} × {item.fileHeight}m
-                          </span>
-                          <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                            {item.material}
-                          </span>
-                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#FDF3E7', borderRadius: '4px', padding: '2px 7px' }}>
-                            {item.quantity}x
+                          <span style={{
+                            fontSize: '9px', fontWeight: '700',
+                            color: '#9D978F', backgroundColor: '#e7e3de',
+                            borderRadius: 999, padding: '1px 6px',
+                            fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
+                          }}>
+                            {typeItems.length}
                           </span>
                         </div>
+                        {/* Items within this type */}
+                        {typeItems.map((item, i) => {
+                          const dupMatch = duplicateConfirm.duplicates.find(d => isSameItem(d.newItem, item));
+                          const isDup = !!dupMatch;
+                          return (
+                            <div key={i} style={{
+                              backgroundColor: isDup ? '#fef9ec' : '#fff',
+                              borderBottom: '1px solid #E7E3DC',
+                              padding: '9px 12px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                {isDup && (
+                                  <span style={{
+                                    fontSize: '8px', fontWeight: '800', backgroundColor: '#fde68a',
+                                    color: '#92400e', borderRadius: '3px', padding: '1px 5px',
+                                    textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
+                                    fontFamily: "'Space Grotesk', sans-serif",
+                                  }}>Dup</span>
+                                )}
+                                {isDup && dupMatch?.existingItem.displayId && (
+                                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                                    {dupMatch.existingItem.displayId}
+                                  </span>
+                                )}
+                                <span style={{ fontSize: '12px', fontWeight: '700', color: isDup ? '#92400e' : '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.type}
+                                </span>
+                                {item.description && (
+                                  <span style={{ fontSize: '11px', color: isDup ? '#b45309' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {item.description}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                                <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                  {item.fileWidth} × {item.fileHeight}m
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                  {item.material}
+                                </span>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#FDF3E7', borderRadius: '4px', padding: '2px 7px' }}>
+                                  {item.quantity}x
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
               </div>
 

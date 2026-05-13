@@ -8,6 +8,7 @@ import { ptBR } from "date-fns/locale";
 
 // ─── Status config ────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; color: string; border: string }> = {
+  draft:                 { label: "Rascunho",           dot: "#78716c", bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
   requested:             { label: "Solicitado",         dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
   awaiting_linking:      { label: "Aguard. Vinculação", dot: "#78716c", bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
   awaiting_submission:   { label: "Aguard. Envio",      dot: "#0ea5e9", bg: "#f0f9ff", color: "#0ea5e9", border: "#e0f2fe" },

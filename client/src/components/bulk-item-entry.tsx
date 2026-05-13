@@ -636,10 +636,10 @@ export function BulkItemEntry({
       {/* ── RESUMO / CONFIRMAÇÃO DE LOTE ── */}
       {duplicateConfirm && (
         <div style={{
-          position: 'absolute', inset: 0, zIndex: 60,
-          backgroundColor: 'rgba(28,25,23,0.60)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, zIndex: 9999,
+          backgroundColor: 'rgba(28,25,23,0.65)', backdropFilter: 'blur(6px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          borderRadius: '8px', padding: '16px',
+          padding: '24px',
         }}>
           <div style={{
             backgroundColor: '#F7F6F3', borderRadius: '14px',

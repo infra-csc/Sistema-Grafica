@@ -581,7 +581,7 @@ export function BulkItemEntry({
     for (const newItem of valid) {
       for (const existing of existingItems) {
         if (isSameItem(newItem, existing)) {
-          const label = existing.displayId ? `#${existing.displayId}` : 'item existente';
+          const label = existing.displayId ? `${existing.displayId}` : 'item existente';
           warnings.push(`"${newItem.type}" é idêntica ao ${label} já lançado`);
         }
       }
@@ -766,7 +766,7 @@ export function BulkItemEntry({
                         display: 'flex', alignItems: 'center', gap: '10px',
                       }}>
                         <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif" }}>
-                          #{item.displayId}
+                          {item.displayId}
                         </span>
                         <span style={{ fontSize: '12px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1 }}>
                           {item.type}

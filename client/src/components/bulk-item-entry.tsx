@@ -799,31 +799,80 @@ export function BulkItemEntry({
                       Já existem no evento — {existingItems.length} {existingItems.length === 1 ? 'peça' : 'peças'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }}>
-                    {existingItems.map((item) => (
-                      <div key={item.id} style={{
-                        backgroundColor: '#F7F6F3', border: '1px solid #E7E3DC',
-                        borderRadius: '7px', padding: '8px 14px',
-                        display: 'flex', alignItems: 'center', gap: '10px',
-                      }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
-                          {item.displayId}
-                        </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '12px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {item.type}
-                          </span>
-                          {item.description && (
-                            <span style={{ fontSize: '11px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.description}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', maxHeight: '220px', overflowY: 'auto', border: '1px solid #E7E3DC', borderRadius: '8px', overflow: 'hidden' }}>
+                    {(() => {
+                      const typeMap: Record<string, ExistingItem[]> = {};
+                      for (const item of existingItems) {
+                        if (!typeMap[item.type]) typeMap[item.type] = [];
+                        typeMap[item.type].push(item);
+                      }
+                      return Object.entries(typeMap).map(([type, typeItems], gi) => (
+                        <div key={type}>
+                          {/* Type sub-header */}
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: '7px',
+                            padding: '5px 12px',
+                            backgroundColor: '#f0ede8',
+                            borderTop: gi === 0 ? 'none' : '1px solid #E7E3DC',
+                            borderBottom: '1px solid #E7E3DC',
+                          }}>
+                            <span style={{
+                              fontSize: '9px', fontWeight: '900',
+                              textTransform: 'uppercase', letterSpacing: '0.12em',
+                              color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
+                              flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            }}>
+                              {type}
                             </span>
-                          )}
+                            <span style={{
+                              fontSize: '9px', fontWeight: '700',
+                              color: '#9D978F', backgroundColor: '#e7e3de',
+                              borderRadius: 999, padding: '1px 6px',
+                              fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
+                            }}>
+                              {typeItems.length}
+                            </span>
+                          </div>
+                          {/* Items */}
+                          {typeItems.map((item) => {
+                            const isConflict = duplicateConfirm.duplicates.some(d => d.existingItem.id === item.id);
+                            return (
+                              <div key={item.id} style={{
+                                backgroundColor: isConflict ? '#FEF9EC' : '#F7F6F3',
+                                borderBottom: '1px solid #E7E3DC',
+                                padding: '7px 12px',
+                                display: 'flex', alignItems: 'center', gap: '10px',
+                              }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                                  {item.displayId}
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <span style={{ fontSize: '12px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#92400e' : '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {item.type}
+                                  </span>
+                                  {item.description && (
+                                    <span style={{ fontSize: '11px', color: isConflict ? '#b45309' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {item.description}
+                                    </span>
+                                  )}
+                                </div>
+                                <span style={{ fontSize: '11px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#D97A1E' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>
+                                  {item.quantity}x
+                                </span>
+                                {isConflict && (
+                                  <span style={{
+                                    fontSize: '8px', fontWeight: '800', backgroundColor: '#fde68a',
+                                    color: '#92400e', borderRadius: '3px', padding: '1px 5px',
+                                    textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
+                                    fontFamily: "'Space Grotesk', sans-serif",
+                                  }}>Dup</span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
-                        <span style={{ fontSize: '11px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>
-                          {item.quantity}x
-                        </span>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
               )}

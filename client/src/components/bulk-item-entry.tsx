@@ -51,7 +51,12 @@ interface ExistingItem {
   type: string;
   quantity: number;
   description?: string | null;
+  visualWidth?: string | number | null;
+  visualHeight?: string | number | null;
+  fileWidth?: string | number | null;
+  fileHeight?: string | number | null;
   material?: string | null;
+  finish?: string | null;
   status: string;
 }
 
@@ -419,6 +424,28 @@ function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
   );
 }
 
+/* ── Duplicate detection ─────────────────────────────────────────────── */
+function normalize(v: string | number | null | undefined): number {
+  return parseFloat(String(v ?? 0)) || 0;
+}
+
+function isSameItem(
+  a: { type: string; description?: string | null; quantity: number | string; visualWidth?: string | number | null; visualHeight?: string | number | null; fileWidth?: string | number | null; fileHeight?: string | number | null; material?: string | null; finish?: string | null },
+  b: { type: string; description?: string | null; quantity: number | string; visualWidth?: string | number | null; visualHeight?: string | number | null; fileWidth?: string | number | null; fileHeight?: string | number | null; material?: string | null; finish?: string | null }
+): boolean {
+  return (
+    (a.type || '').trim() === (b.type || '').trim() &&
+    (a.description || '').trim().toLowerCase() === (b.description || '').trim().toLowerCase() &&
+    normalize(a.quantity) === normalize(b.quantity) &&
+    normalize(a.visualWidth) === normalize(b.visualWidth) &&
+    normalize(a.visualHeight) === normalize(b.visualHeight) &&
+    normalize(a.fileWidth) === normalize(b.fileWidth) &&
+    normalize(a.fileHeight) === normalize(b.fileHeight) &&
+    (a.material || '').trim() === (b.material || '').trim() &&
+    (a.finish || '').trim() === (b.finish || '').trim()
+  );
+}
+
 /* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({
   eventId, standardItems = [], sponsors = [], existingItems = [],
@@ -426,6 +453,7 @@ export function BulkItemEntry({
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{ valid: any[]; warnings: string[] } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
   const getReplicateCount = (id: string) => replicateCounts[id] ?? 1;
@@ -536,6 +564,34 @@ export function BulkItemEntry({
       alert("Preencha pelo menos uma peça completa antes de salvar.");
       return;
     }
+
+    // Duplicate detection
+    const warnings: string[] = [];
+
+    // Within batch: compare each pair
+    for (let i = 0; i < valid.length; i++) {
+      for (let j = i + 1; j < valid.length; j++) {
+        if (isSameItem(valid[i], valid[j])) {
+          warnings.push(`Linha ${i + 1} e linha ${j + 1} são idênticas (${valid[i].type})`);
+        }
+      }
+    }
+
+    // Against already-saved items
+    for (const newItem of valid) {
+      for (const existing of existingItems) {
+        if (isSameItem(newItem, existing)) {
+          const label = existing.displayId ? `#${existing.displayId}` : 'item existente';
+          warnings.push(`"${newItem.type}" é idêntica ao ${label} já lançado`);
+        }
+      }
+    }
+
+    if (warnings.length > 0) {
+      setDuplicateConfirm({ valid, warnings });
+      return;
+    }
+
     onSubmit(valid);
   }
 
@@ -577,6 +633,86 @@ export function BulkItemEntry({
             <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif" }}>
               Salvando peças...
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate confirmation overlay */}
+      {duplicateConfirm && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 60,
+          backgroundColor: 'rgba(28,25,23,0.55)', backdropFilter: 'blur(3px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px',
+        }}>
+          <div style={{
+            backgroundColor: '#fff', borderRadius: '12px', padding: '28px 32px',
+            maxWidth: '440px', width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            display: 'flex', flexDirection: 'column', gap: '20px',
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
+                backgroundColor: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ fontSize: '18px', lineHeight: 1 }}>⚠</span>
+              </div>
+              <div>
+                <p style={{ fontSize: '15px', fontWeight: '800', color: '#1c1917', fontFamily: "'Space Grotesk', sans-serif", margin: 0 }}>
+                  Peças duplicadas detectadas
+                </p>
+                <p style={{ fontSize: '12px', color: '#78716c', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '4px 0 0' }}>
+                  As seguintes peças são exatamente iguais a outras já lançadas:
+                </p>
+              </div>
+            </div>
+
+            {/* Warning list */}
+            <div style={{
+              backgroundColor: '#fefce8', border: '1px solid #fde68a', borderRadius: '8px',
+              padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px',
+              maxHeight: '160px', overflowY: 'auto',
+            }}>
+              {duplicateConfirm.warnings.map((w, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <span style={{ color: '#d97706', fontWeight: '700', flexShrink: 0, fontSize: '11px', marginTop: '1px' }}>•</span>
+                  <span style={{ fontSize: '12px', color: '#92400e', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: '1.5' }}>{w}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Question */}
+            <p style={{ fontSize: '13px', color: '#44403c', fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0, fontWeight: '600' }}>
+              Deseja salvar mesmo assim?
+            </p>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setDuplicateConfirm(null)}
+                style={{
+                  padding: '8px 18px', background: 'none', border: '1.5px solid #e7e5e4',
+                  borderRadius: '7px', color: '#57534e', fontSize: '13px', fontWeight: '600',
+                  cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => { setDuplicateConfirm(null); onSubmit(duplicateConfirm.valid); }}
+                style={{
+                  padding: '8px 18px', backgroundColor: '#1c1917', border: 'none',
+                  borderRadius: '7px', color: '#fff', fontSize: '13px', fontWeight: '800',
+                  cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                }}
+                data-testid="button-confirm-duplicates"
+              >
+                Salvar mesmo assim
+              </button>
+            </div>
           </div>
         </div>
       )}

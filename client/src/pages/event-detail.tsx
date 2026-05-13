@@ -67,6 +67,7 @@ export default function EventDetail() {
   const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -1287,7 +1288,7 @@ export default function EventDetail() {
                 </div>
               </div>
               <Button
-                onClick={() => submitDraftsMutation.mutate()}
+                onClick={() => setSubmitConfirmOpen(true)}
                 disabled={submitDraftsMutation.isPending}
                 size="lg"
                 data-testid="button-submit-drafts"
@@ -1307,6 +1308,32 @@ export default function EventDetail() {
             </div>
           </CardContent>
         </Card>
+
+        <AlertDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar envio dos itens</AlertDialogTitle>
+              <AlertDialogDescription>
+                {(() => {
+                  const draftCount = items.filter(item => item.status === 'draft').length;
+                  return `${draftCount} ${draftCount === 1 ? 'item será enviado' : 'itens serão enviados'} para a fila de vinculação de patrocinadores. Esta ação não pode ser desfeita.`;
+                })()}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setSubmitConfirmOpen(false);
+                  submitDraftsMutation.mutate();
+                }}
+                data-testid="button-confirm-submit-drafts"
+              >
+                Enviar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
 
       {/* Itens agrupados por tipo em seções */}

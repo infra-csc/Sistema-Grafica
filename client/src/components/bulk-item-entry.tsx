@@ -446,7 +446,10 @@ export function BulkItemEntry({
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
-  const [duplicateConfirm, setDuplicateConfirm] = useState<{ valid: any[]; warnings: string[] } | null>(null);
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{
+    valid: any[];
+    duplicates: Array<{ newItem: any; existingItem: ExistingItem }>;
+  } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
   const getReplicateCount = (id: string) => replicateCounts[id] ?? 1;
@@ -558,14 +561,29 @@ export function BulkItemEntry({
       return;
     }
 
-    // Duplicate detection
-    const warnings: string[] = [];
+    // Duplicate detection — structured
+    const duplicates: Array<{ newItem: any; existingItem: ExistingItem }> = [];
+    const seen = new Set<string>();
 
-    // Within batch: compare each pair
+    // Within batch: compare each pair — represent as synthetic ExistingItem
     for (let i = 0; i < valid.length; i++) {
       for (let j = i + 1; j < valid.length; j++) {
         if (isSameItem(valid[i], valid[j])) {
-          warnings.push(`Linha ${i + 1} e linha ${j + 1} são idênticas (${valid[i].type})`);
+          const key = `batch-${i}-${j}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            duplicates.push({
+              newItem: valid[i],
+              existingItem: {
+                id: `batch-${j}`,
+                displayId: `Linha ${j + 1}`,
+                type: valid[j].type,
+                description: valid[j].description,
+                quantity: valid[j].quantity,
+                status: 'draft',
+              },
+            });
+          }
         }
       }
     }
@@ -574,14 +592,17 @@ export function BulkItemEntry({
     for (const newItem of valid) {
       for (const existing of existingItems) {
         if (isSameItem(newItem, existing)) {
-          const label = existing.displayId ? `${existing.displayId}` : 'item existente';
-          warnings.push(`"${newItem.type}" é idêntica ao ${label} já lançado`);
+          const key = `${newItem.type}::${newItem.description}::${existing.id}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            duplicates.push({ newItem, existingItem: existing });
+          }
         }
       }
     }
 
-    // Always show summary modal (with duplicate info if applicable)
-    setDuplicateConfirm({ valid, warnings });
+    // Always show summary modal
+    setDuplicateConfirm({ valid, duplicates });
   }
 
   const validCount = rows.filter(r =>
@@ -681,10 +702,7 @@ export function BulkItemEntry({
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {duplicateConfirm.valid.map((item, i) => {
-                    const isDup = duplicateConfirm.warnings.some(w =>
-                      w.includes(`Linha ${i + 1} e`) || w.includes(`Linha ${i + 1} `) ||
-                      (w.includes(`"${item.type}"`) && w.includes('já lançado'))
-                    );
+                    const isDup = duplicateConfirm.duplicates.some(d => isSameItem(d.newItem, item));
                     return (
                       <div key={i} style={{
                         backgroundColor: isDup ? '#fef9ec' : '#fff',
@@ -699,19 +717,13 @@ export function BulkItemEntry({
                               color: '#92400e', borderRadius: '4px', padding: '2px 6px',
                               textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
                               fontFamily: "'Space Grotesk', sans-serif",
-                            }}>
-                              Dup
-                            </span>
+                            }}>Dup</span>
                           )}
-                          <span style={{
-                            fontSize: '13px', fontWeight: '700', color: '#1F1D1A',
-                            fontFamily: "'Space Grotesk', sans-serif",
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          }}>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif" }}>
                             {item.type}
                           </span>
                           {item.description && (
-                            <span style={{ fontSize: '12px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <span style={{ fontSize: '12px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {item.description}
                             </span>
                           )}
@@ -723,11 +735,7 @@ export function BulkItemEntry({
                           <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                             {item.material}
                           </span>
-                          <span style={{
-                            fontSize: '11px', fontWeight: '700', color: '#D97A1E',
-                            fontFamily: "'Space Grotesk', sans-serif",
-                            backgroundColor: '#FDF3E7', borderRadius: '4px', padding: '2px 7px',
-                          }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#FDF3E7', borderRadius: '4px', padding: '2px 7px' }}>
                             {item.quantity}x
                           </span>
                         </div>
@@ -741,13 +749,8 @@ export function BulkItemEntry({
               {existingItems.length > 0 && (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <div style={{
-                      width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#A9B7C8', flexShrink: 0,
-                    }} />
-                    <span style={{
-                      fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase',
-                      color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
-                    }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#A9B7C8', flexShrink: 0 }} />
+                    <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Já existem no evento — {existingItems.length} {existingItems.length === 1 ? 'peça' : 'peças'}
                     </span>
                   </div>
@@ -761,9 +764,16 @@ export function BulkItemEntry({
                         <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
                           {item.displayId}
                         </span>
-                        <span style={{ fontSize: '12px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.type}
-                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '12px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.type}
+                          </span>
+                          {item.description && (
+                            <span style={{ fontSize: '11px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.description}
+                            </span>
+                          )}
+                        </div>
                         <span style={{ fontSize: '11px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>
                           {item.quantity}x
                         </span>
@@ -774,28 +784,37 @@ export function BulkItemEntry({
               )}
 
               {/* SEÇÃO 3 — DUPLICATAS (só se houver) */}
-              {duplicateConfirm.warnings.length > 0 && (
+              {duplicateConfirm.duplicates.length > 0 && (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <div style={{
-                      width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97A1E', flexShrink: 0,
-                    }} />
-                    <span style={{
-                      fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase',
-                      color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif",
-                    }}>
-                      Duplicatas detectadas — {duplicateConfirm.warnings.length} {duplicateConfirm.warnings.length === 1 ? 'conflito' : 'conflitos'}
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97A1E', flexShrink: 0 }} />
+                    <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif" }}>
+                      Duplicatas detectadas — {duplicateConfirm.duplicates.length} {duplicateConfirm.duplicates.length === 1 ? 'conflito' : 'conflitos'}
                     </span>
                   </div>
-                  <div style={{
-                    backgroundColor: '#FEF9EC', border: '1px solid #FDE68A',
-                    borderRadius: '8px', padding: '12px 14px',
-                    display: 'flex', flexDirection: 'column', gap: '7px',
-                  }}>
-                    {duplicateConfirm.warnings.map((w, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                        <span style={{ color: '#D97A1E', fontWeight: '700', flexShrink: 0, fontSize: '12px', marginTop: '1px', fontFamily: "'Space Grotesk', sans-serif" }}>!</span>
-                        <span style={{ fontSize: '12px', color: '#92400e', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: '1.6' }}>{w}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {duplicateConfirm.duplicates.map((dup, i) => (
+                      <div key={i} style={{
+                        backgroundColor: '#FEF9EC', border: '1px solid #FDE68A',
+                        borderRadius: '8px', padding: '10px 14px',
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                      }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                          {dup.existingItem.displayId}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: '12px', fontWeight: '600', color: '#92400e', fontFamily: "'Space Grotesk', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {dup.existingItem.type}
+                          </span>
+                          {dup.existingItem.description && (
+                            <span style={{ fontSize: '11px', color: '#b45309', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {dup.existingItem.description}
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#b45309', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>
+                          {dup.existingItem.quantity}x
+                        </span>
                       </div>
                     ))}
                   </div>

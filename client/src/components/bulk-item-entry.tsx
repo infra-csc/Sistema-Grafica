@@ -396,7 +396,7 @@ function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
         </div>
       </div>
 
-      {/* ── Split 2-column list ── */}
+      {/* ── Grouped by type list ── */}
       <div
         className="scrollbar-visible"
         style={{ maxHeight: '176px', overflowY: 'auto', backgroundColor: '#fafaf9' }}
@@ -405,18 +405,57 @@ function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
           <div style={{ padding: '12px 16px', fontSize: '11px', color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             {query ? 'Nenhum item encontrado para esta busca.' : 'Nenhuma peça lançada ainda.'}
           </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-            {/* Column 1 */}
-            <div style={{ borderRight: '1px solid #f1f5f9' }}>
-              {col1.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
-            </div>
-            {/* Column 2 */}
-            <div>
-              {col2.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
-            </div>
-          </div>
-        )}
+        ) : (() => {
+          // Group by type preserving order
+          const typeMap: Record<string, ExistingItem[]> = {};
+          for (const item of filtered) {
+            if (!typeMap[item.type]) typeMap[item.type] = [];
+            typeMap[item.type].push(item);
+          }
+          return Object.entries(typeMap).map(([type, typeItems]) => {
+            const half = Math.ceil(typeItems.length / 2);
+            const col1 = typeItems.slice(0, half);
+            const col2 = typeItems.slice(half);
+            return (
+              <div key={type}>
+                {/* Type sub-header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '7px',
+                  padding: '4px 8px',
+                  backgroundColor: '#f0ede8',
+                  borderTop: '1px solid #e7e3dc',
+                  borderBottom: '1px solid #e7e3dc',
+                }}>
+                  <span style={{
+                    fontSize: '9px', fontWeight: '900',
+                    textTransform: 'uppercase', letterSpacing: '0.12em',
+                    color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {type}
+                  </span>
+                  <span style={{
+                    fontSize: '9px', fontWeight: '700',
+                    color: '#9D978F', backgroundColor: '#e7e3de',
+                    borderRadius: 999, padding: '1px 6px',
+                    fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
+                  }}>
+                    {typeItems.length}
+                  </span>
+                </div>
+                {/* 2-col grid within this type */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                  <div style={{ borderRight: '1px solid #f1f5f9' }}>
+                    {col1.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
+                  </div>
+                  <div>
+                    {col2.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
+                  </div>
+                </div>
+              </div>
+            );
+          });
+        })()}
       </div>
 
       {/* Column headers (after scroll area to stay in context) */}

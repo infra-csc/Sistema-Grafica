@@ -700,9 +700,10 @@ export function BulkItemEntry({
                     Será criado — {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça' : 'peças'}
                   </span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '220px', overflowY: 'auto' }}>
                   {duplicateConfirm.valid.map((item, i) => {
-                    const isDup = duplicateConfirm.duplicates.some(d => isSameItem(d.newItem, item));
+                    const dupMatch = duplicateConfirm.duplicates.find(d => isSameItem(d.newItem, item));
+                    const isDup = !!dupMatch;
                     return (
                       <div key={i} style={{
                         backgroundColor: isDup ? '#fef9ec' : '#fff',
@@ -710,7 +711,7 @@ export function BulkItemEntry({
                         borderRadius: '8px', padding: '10px 14px',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                           {isDup && (
                             <span style={{
                               fontSize: '9px', fontWeight: '800', backgroundColor: '#fde68a',
@@ -719,7 +720,12 @@ export function BulkItemEntry({
                               fontFamily: "'Space Grotesk', sans-serif",
                             }}>Dup</span>
                           )}
-                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif" }}>
+                          {isDup && dupMatch?.existingItem.displayId && (
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                              {dupMatch.existingItem.displayId}
+                            </span>
+                          )}
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.type}
                           </span>
                           {item.description && (
@@ -792,7 +798,7 @@ export function BulkItemEntry({
                       Duplicatas detectadas — {duplicateConfirm.duplicates.length} {duplicateConfirm.duplicates.length === 1 ? 'conflito' : 'conflitos'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
                     {duplicateConfirm.duplicates.map((dup, i) => (
                       <div key={i} style={{
                         backgroundColor: '#FEF9EC', border: '1px solid #FDE68A',

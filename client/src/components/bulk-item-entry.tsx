@@ -758,29 +758,24 @@ export function BulkItemEntry({
                       Já existem no evento — {existingItems.length} {existingItems.length === 1 ? 'peça' : 'peças'}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {existingItems.slice(0, 5).map((item) => (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }}>
+                    {existingItems.map((item) => (
                       <div key={item.id} style={{
                         backgroundColor: '#F7F6F3', border: '1px solid #E7E3DC',
                         borderRadius: '7px', padding: '8px 14px',
                         display: 'flex', alignItems: 'center', gap: '10px',
                       }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif" }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
                           {item.displayId}
                         </span>
-                        <span style={{ fontSize: '12px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1 }}>
+                        <span style={{ fontSize: '12px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {item.type}
                         </span>
-                        <span style={{ fontSize: '11px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                        <span style={{ fontSize: '11px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>
                           {item.quantity}x
                         </span>
                       </div>
                     ))}
-                    {existingItems.length > 5 && (
-                      <p style={{ fontSize: '11px', color: '#9D978F', margin: '4px 0 0 14px', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                        + {existingItems.length - 5} peças não exibidas
-                      </p>
-                    )}
                   </div>
                 </div>
               )}

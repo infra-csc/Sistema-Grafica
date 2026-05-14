@@ -26,6 +26,7 @@ const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
 const EMPTY_FORM = {
   name: "",
   type: "",
+  group: "",
   area: "",
   visual: "",
   visualWidth: "",
@@ -105,6 +106,7 @@ export default function Modelos() {
     const toNum = (v: string) => (v === "" || v === null || v === undefined) ? null : parseFloat(v);
     const dataToSubmit: any = {
       ...formData,
+      group: formData.group || null,
       material: formData.material || null,
       finish: formData.finish || null,
       area: toNum(formData.area),
@@ -122,6 +124,7 @@ export default function Modelos() {
     setFormData({
       name: item.name,
       type: item.type,
+      group: item.group || "",
       area: item.area || "",
       visual: item.visual || "",
       visualWidth: item.visualWidth || "",
@@ -251,7 +254,7 @@ export default function Modelos() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "rgba(243,244,243,0.5)", borderBottom: "1px solid #e7e5e4" }}>
-                    {["Nome", "Tipo", "Medidas", "Material", "Acabamento", isAdmin ? "Ações" : ""].filter(Boolean).map(col => (
+                    {["Nome", "Grupo", "Tipo", "Medidas", "Material", "Acabamento", isAdmin ? "Ações" : ""].filter(Boolean).map(col => (
                       <th key={col} style={{
                         padding: "14px 24px",
                         textAlign: col === "Ações" ? "right" : "left",
@@ -281,6 +284,15 @@ export default function Modelos() {
                           {item.hasVariableMeasurement && (
                             <span style={{ fontSize: 10, color: "#a8a29e", marginTop: 2, display: "block" }}>Medida variável</span>
                           )}
+                        </td>
+
+                        {/* Grupo */}
+                        <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
+                          {item.group ? (
+                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 100, padding: "3px 10px", display: "inline-block", backgroundColor: "#f0f9ff", color: "#0369a1", whiteSpace: "nowrap" }}>
+                              {item.group}
+                            </span>
+                          ) : <span style={{ color: "#d4d0cc", fontSize: 13 }}>—</span>}
                         </td>
 
                         {/* Tipo */}
@@ -387,8 +399,8 @@ export default function Modelos() {
           <form onSubmit={handleSubmit}>
             <div style={{ padding: "28px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
 
-              {/* Nome — col-span-2 */}
-              <div style={{ gridColumn: "1 / -1" }}>
+              {/* Nome */}
+              <div>
                 <label style={labelStyle}>Nome do Modelo</label>
                 <input
                   value={formData.name}
@@ -398,6 +410,24 @@ export default function Modelos() {
                   data-testid="input-model-name"
                   style={fieldStyle}
                 />
+              </div>
+
+              {/* Grupo Pai */}
+              <div>
+                <label style={labelStyle}>Grupo Pai <span style={{ fontWeight: 400, color: "#a8a29e", textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
+                <input
+                  value={formData.group}
+                  onChange={e => setFormData({ ...formData, group: e.target.value })}
+                  placeholder="Ex: Pórtico, Backdrop, Testeira..."
+                  data-testid="input-model-group"
+                  list="group-suggestions"
+                  style={fieldStyle}
+                />
+                <datalist id="group-suggestions">
+                  {[...new Set(standardItems.map((s: any) => s.group).filter(Boolean))].map((g: any) => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
               </div>
 
               {/* Toggle Medida Variável — col-span-2 */}

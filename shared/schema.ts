@@ -121,6 +121,7 @@ export const standardItems = pgTable("standard_items", {
   visualHeight: decimal("visual_height", { precision: 10, scale: 2 }), // Altura da área visual
   fileWidth: decimal("file_width", { precision: 10, scale: 2 }), // Largura do arquivo em metros
   fileHeight: decimal("file_height", { precision: 10, scale: 2 }), // Altura do arquivo em metros
+  group: text("group"), // Grupo pai para agrupar tipos relacionados (ex: "Pórtico")
   material: text("material"), // Material único (opcional)
   finish: text("finish"), // Acabamento único (opcional)
   hasVariableMeasurement: boolean("has_variable_measurement").notNull().default(false),

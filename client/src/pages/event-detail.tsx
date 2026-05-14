@@ -603,13 +603,24 @@ export default function EventDetail() {
     );
   }
 
-  // Agrupar itens por tipo para renderização em seções
-  const groupedItems: Record<string, typeof items> = {};
-  items.forEach(item => {
-    if (!groupedItems[item.type]) groupedItems[item.type] = [];
-    groupedItems[item.type].push(item);
+  // Mapa tipo → grupo pai (a partir dos standardItems)
+  const typeToGroup: Record<string, string> = {};
+  (standardItems as any[]).forEach((s: any) => {
+    if (s.group) typeToGroup[s.name] = s.group;
   });
-  const sortedTypes = Object.keys(groupedItems).sort();
+
+  // Agrupar itens: Grupo Pai → Tipo → [itens]
+  const groupMap: Record<string, Record<string, typeof items>> = {};
+  items.forEach(item => {
+    const g = typeToGroup[item.type] || '';
+    if (!groupMap[g]) groupMap[g] = {};
+    if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
+    groupMap[g][item.type].push(item);
+  });
+  const sortedGroups = Object.keys(groupMap).sort((a, b) => {
+    if (a === '') return 1; if (b === '') return -1;
+    return a.localeCompare(b, 'pt-BR');
+  });
 
   return (
     <div style={{ padding: '28px 40px', minHeight: '100vh', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
@@ -1360,13 +1371,28 @@ export default function EventDetail() {
               <span>Atualizando...</span>
             </div>
           )}
-          {sortedTypes.map(type => {
-            const typeItems = groupedItems[type];
-            return (
-              <section key={type}>
-                {/* Cabeçalho do grupo */}
+          {sortedGroups.map(group => (
+            <Fragment key={group || '__nogroup'}>
+              {/* ── Grupo Pai header ── */}
+              {group && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', marginTop: '8px' }}>
+                  <span style={{
+                    backgroundColor: '#dbeafe', color: '#1d4ed8',
+                    fontSize: '11px', fontWeight: '900', letterSpacing: '0.12em',
+                    textTransform: 'uppercase', padding: '4px 14px', borderRadius: '99px',
+                    fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
+                  }}>
+                    {group}
+                  </span>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: '#bfdbfe' }} />
+                </div>
+              )}
+
+              {Object.entries(groupMap[group]).map(([type, typeItems]) => (
+              <section key={type} style={{ marginBottom: group ? '32px' : '48px' }}>
+                {/* Cabeçalho do tipo */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: group ? '16px' : '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                     {type}
                   </h2>
                   <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />

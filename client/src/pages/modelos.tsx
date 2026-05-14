@@ -54,6 +54,7 @@ export default function Modelos() {
   const [filterGroup, setFilterGroup] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterMaterial, setFilterMaterial] = useState("");
+  const [filterFinish, setFilterFinish] = useState("");
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
   const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
@@ -181,8 +182,8 @@ export default function Modelos() {
   // Unique values for filter chips
   const allGroups = [...new Set(standardItems.map((s: any) => s.group).filter(Boolean))].sort() as string[];
   const allTypes  = [...new Set(standardItems.map((s: any) => s.type).filter(Boolean))].sort() as string[];
-  const allMats     = [...new Set(standardItems.map((s: any) => s.material).filter(Boolean))].sort() as string[];
-  const allFinishes = [...new Set(standardItems.map((s: any) => s.finish).filter(Boolean))].sort() as string[];
+  const allMats     = [...new Set([...materials,  ...standardItems.map((s: any) => s.material).filter(Boolean)])].sort() as string[];
+  const allFinishes = [...new Set([...finishes,   ...standardItems.map((s: any) => s.finish).filter(Boolean)])].sort() as string[];
 
   const filteredItems = standardItems.filter((item) => {
     const q = searchTerm.toLowerCase();
@@ -190,14 +191,15 @@ export default function Modelos() {
     const matchGroup  = !filterGroup   || item.group    === filterGroup;
     const matchType   = !filterType    || item.type     === filterType;
     const matchMat    = !filterMaterial || item.material === filterMaterial;
-    return matchSearch && matchGroup && matchType && matchMat;
+    const matchFinish = !filterFinish   || item.finish   === filterFinish;
+    return matchSearch && matchGroup && matchType && matchMat && matchFinish;
   }).sort((a, b) => {
     const ga = (a.group || "").localeCompare(b.group || "", "pt-BR");
     if (ga !== 0) return ga;
     return a.name.localeCompare(b.name, "pt-BR");
   });
 
-  const activeFilters = [filterGroup, filterType, filterMaterial].filter(Boolean).length;
+  const activeFilters = [filterGroup, filterType, filterMaterial, filterFinish].filter(Boolean).length;
 
   const isAdmin = true; // all roles with page access can manage models
 
@@ -342,9 +344,25 @@ export default function Modelos() {
             </div>
           )}
 
+          {/* Acabamento */}
+          {allFinishes.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Acabamento</span>
+              {allFinishes.map(f => (
+                <button key={f} onClick={() => setFilterFinish(filterFinish === f ? "" : f)}
+                  data-testid={`filter-finish-${f}`}
+                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
+                    backgroundColor: filterFinish === f ? "#57534e" : "#f5f4f0",
+                    color: filterFinish === f ? "#ffffff" : "#78716c" }}>
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Clear all */}
           {activeFilters > 0 && (
-            <button onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); }}
+            <button onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
               style={{ fontSize: 11, fontWeight: 700, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 100, padding: "4px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
               <X style={{ width: 10, height: 10 }} />
               Limpar filtros ({activeFilters})

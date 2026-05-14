@@ -68,9 +68,6 @@ export default function Modelos() {
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
-  const [editingGroup, setEditingGroup] = useState<string | null>(null);
-  const [editGroupValue, setEditGroupValue] = useState("");
-  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   // Manage modal
   const [manageOpen, setManageOpen] = useState(false);
   const [manageTab, setManageTab] = useState<"group"|"material"|"finish">("group");
@@ -174,18 +171,6 @@ export default function Modelos() {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     },
   });
-
-  function startEditGroup(g: string) {
-    setEditingGroup(g);
-    setEditGroupValue(g);
-  }
-
-  function confirmEditGroup() {
-    const trimmed = editGroupValue.trim();
-    if (!trimmed || !editingGroup) return;
-    if (trimmed === editingGroup) { setEditingGroup(null); return; }
-    renameGroupMutation.mutate({ oldName: editingGroup, newName: trimmed });
-  }
 
   const createStandardItemMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -354,123 +339,89 @@ export default function Modelos() {
 
       {/* ── Filter Bar ── */}
       {!isLoading && standardItems.length > 0 && (
-        <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 6 }}>
 
-          {/* Grupo */}
-          {allGroups.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Grupo</span>
-              {allGroups.map(g => (
-                <div key={g}>
-                  {editingGroup === g ? (
-                    /* ── modo edição: input + botões ── */
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <input
-                        autoFocus
-                        value={editGroupValue}
-                        onChange={e => setEditGroupValue(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") confirmEditGroup(); if (e.key === "Escape") setEditingGroup(null); }}
-                        data-testid={`input-rename-group-${g}`}
-                        style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 10px", border: "1.5px solid #3b82f6", outline: "none", minWidth: 60, width: Math.max(60, editGroupValue.length * 8) + "px", color: "#1d4ed8", background: "#eff6ff" }}
-                      />
-                      <button onClick={confirmEditGroup} disabled={renameGroupMutation.isPending}
-                        data-testid={`button-confirm-rename-group-${g}`}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: "none", cursor: "pointer", background: "#3b82f6", color: "#fff", flexShrink: 0 }}>
-                        <Check style={{ width: 12, height: 12 }} />
-                      </button>
-                      <button onClick={() => setEditingGroup(null)}
-                        data-testid={`button-cancel-rename-group-${g}`}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: "none", cursor: "pointer", background: "#e2e8f0", color: "#64748b", flexShrink: 0 }}>
-                        <X style={{ width: 12, height: 12 }} />
-                      </button>
-                    </div>
-                  ) : (
-                    /* ── modo normal: chip com lápis embutido que aparece no hover ── */
-                    <div
-                      style={{ display: "inline-flex", alignItems: "center", borderRadius: 100, overflow: "hidden",
-                        backgroundColor: filterGroup === g ? "#0369a1" : "#e0f2fe",
-                        transition: "background-color 0.15s" }}
-                      onMouseEnter={() => setHoveredGroup(g)}
-                      onMouseLeave={() => setHoveredGroup(null)}
+          {/* Helper: renders one filter row */}
+          {(
+            [
+              allGroups.length > 0 && {
+                key: "group", label: "Grupo",
+                chips: allGroups,
+                active: filterGroup,
+                onToggle: (v: string) => setFilterGroup(filterGroup === v ? "" : v),
+                activeColor: "#0369a1", activeBg: "#0369a1",
+                idleColor: "#0369a1", idleBg: "#dbeafe",
+                testPrefix: "filter-group",
+              },
+              allMats.length > 0 && {
+                key: "material", label: "Material",
+                chips: allMats,
+                active: filterMaterial,
+                onToggle: (v: string) => setFilterMaterial(filterMaterial === v ? "" : v),
+                activeColor: "#ffffff", activeBg: "#c2410c",
+                idleColor: "#c2410c", idleBg: "#fff7ed",
+                testPrefix: "filter-material",
+              },
+              allFinishes.length > 0 && {
+                key: "finish", label: "Acabamento",
+                chips: allFinishes,
+                active: filterFinish,
+                onToggle: (v: string) => setFilterFinish(filterFinish === v ? "" : v),
+                activeColor: "#ffffff", activeBg: "#57534e",
+                idleColor: "#57534e", idleBg: "#f5f4f0",
+                testPrefix: "filter-finish",
+              },
+            ] as any[]
+          ).filter(Boolean).map((row: any) => (
+            <div key={row.key} style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
+              {/* Label column — fixed width so all chip rows align */}
+              <span style={{
+                width: 88, minWidth: 88, paddingTop: 5, paddingRight: 10,
+                fontSize: 10, fontWeight: 700, color: "#b7b3ae",
+                textTransform: "uppercase", letterSpacing: "0.1em",
+                textAlign: "right", flexShrink: 0,
+              }}>
+                {row.label}
+              </span>
+              {/* Chips */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 5px" }}>
+                {row.chips.map((chip: string) => {
+                  const isActive = row.active === chip;
+                  return (
+                    <button
+                      key={chip}
+                      onClick={() => row.onToggle(chip)}
+                      data-testid={`${row.testPrefix}-${chip}`}
+                      style={{
+                        fontSize: 11, fontWeight: 700,
+                        borderRadius: 100, padding: "4px 11px",
+                        border: "none", cursor: "pointer",
+                        transition: "background-color 0.15s, color 0.15s",
+                        backgroundColor: isActive ? row.activeBg : row.idleBg,
+                        color: isActive ? row.activeColor : row.idleColor,
+                        letterSpacing: "0.01em",
+                      }}
                     >
-                      <button
-                        onClick={() => setFilterGroup(filterGroup === g ? "" : g)}
-                        data-testid={`filter-group-${g}`}
-                        style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px 4px 12px", border: "none", cursor: "pointer", background: "transparent",
-                          color: filterGroup === g ? "#ffffff" : "#0369a1" }}>
-                        {g}
-                      </button>
-                      <button
-                        onClick={() => startEditGroup(g)}
-                        data-testid={`button-edit-group-${g}`}
-                        title={`Renomear "${g}"`}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, marginRight: 4, borderRadius: "50%", border: "none", cursor: "pointer", background: "transparent", padding: 0, flexShrink: 0, transition: "all 0.15s",
-                          visibility: hoveredGroup === g ? "visible" : "hidden",
-                          color: filterGroup === g ? "rgba(255,255,255,0.8)" : "#1d4ed8" }}>
-                        <Pencil style={{ width: 10, height: 10 }} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                      {chip}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
-
-          {/* Tipo */}
-          {allTypes.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Tipo</span>
-              {allTypes.map(t => (
-                <button key={t} onClick={() => setFilterType(filterType === t ? "" : t)}
-                  data-testid={`filter-type-${t}`}
-                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
-                    backgroundColor: filterType === t ? "#1c1917" : "#f0efee",
-                    color: filterType === t ? "#ffffff" : "#57534e" }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Material */}
-          {allMats.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Material</span>
-              {allMats.map(m => (
-                <button key={m} onClick={() => setFilterMaterial(filterMaterial === m ? "" : m)}
-                  data-testid={`filter-material-${m}`}
-                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
-                    backgroundColor: filterMaterial === m ? "#f97316" : "#fff7ed",
-                    color: filterMaterial === m ? "#ffffff" : "#c2410c" }}>
-                  {m}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Acabamento */}
-          {allFinishes.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Acabamento</span>
-              {allFinishes.map(f => (
-                <button key={f} onClick={() => setFilterFinish(filterFinish === f ? "" : f)}
-                  data-testid={`filter-finish-${f}`}
-                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
-                    backgroundColor: filterFinish === f ? "#57534e" : "#f5f4f0",
-                    color: filterFinish === f ? "#ffffff" : "#78716c" }}>
-                  {f}
-                </button>
-              ))}
-            </div>
-          )}
+          ))}
 
           {/* Clear all */}
           {activeFilters > 0 && (
-            <button onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
-              style={{ fontSize: 11, fontWeight: 700, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 100, padding: "4px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-              <X style={{ width: 10, height: 10 }} />
-              Limpar filtros ({activeFilters})
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+              <span style={{ width: 88, minWidth: 88, flexShrink: 0 }} />
+              <button
+                onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
+                style={{ fontSize: 11, fontWeight: 600, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 100, padding: "3px 11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+              >
+                <X style={{ width: 10, height: 10 }} />
+                Limpar filtros ({activeFilters})
+              </button>
+            </div>
           )}
         </div>
       )}

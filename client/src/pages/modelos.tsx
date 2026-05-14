@@ -216,7 +216,7 @@ export default function Modelos() {
           </button>
         </div>
       ) : (
-        <div style={{ backgroundColor: "#ffffff", borderRadius: 14, boxShadow: "0 4px 20px rgba(0,0,0,0.04)", overflow: "hidden" }}>
+        <div style={{ backgroundColor: "#ffffff", borderRadius: 14, boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
 
           {/* Tool strip */}
           <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.4)", borderBottom: "1px solid #e7e5e4" }}>

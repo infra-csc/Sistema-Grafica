@@ -64,6 +64,7 @@ export default function PainelGeral() {
   const { data: events = [] }           = useQuery<any[]>({ queryKey: ["/api/events"], placeholderData: [] });
   const { data: sponsors = [] }         = useQuery<any[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
   const { data: auditLogs = [] }        = useQuery<any[]>({ queryKey: ["/api/audit-logs"], placeholderData: [] });
+  const { data: standardItems = [] }    = useQuery<any[]>({ queryKey: ["/api/standard-items"], placeholderData: [] });
 
   const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort();
 
@@ -444,18 +445,41 @@ export default function PainelGeral() {
                     </thead>
                     <tbody>
                       {(() => {
-                        // Group items by type, preserving insertion order
-                        const typeMap: Record<string, any[]> = {};
-                        for (const item of gd.items) {
-                          if (!typeMap[item.type]) typeMap[item.type] = [];
-                          typeMap[item.type].push(item);
+                        // Build type → group map from standardItems
+                        const typeToGroup: Record<string, string> = {};
+                        for (const s of standardItems) {
+                          if (s.group) typeToGroup[s.name] = s.group;
                         }
+                        // Group by Grupo Pai first, then by type within each group
+                        const groupMap: Record<string, Record<string, any[]>> = {};
+                        for (const item of gd.items) {
+                          const g = typeToGroup[item.type] || '';
+                          if (!groupMap[g]) groupMap[g] = {};
+                          if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
+                          groupMap[g][item.type].push(item);
+                        }
+                        const sortedGroups = Object.keys(groupMap).sort((a, b) => {
+                          if (a === '') return 1; if (b === '') return -1;
+                          return a.localeCompare(b, 'pt-BR');
+                        });
                         let globalIdx = 0;
-                        return Object.entries(typeMap).map(([type, typeItems]) => (
+                        return sortedGroups.map(group => (
+                          <Fragment key={group || '__nogroup'}>
+                            {/* ── Grupo Pai header (only when group exists) ── */}
+                            {group && (
+                              <tr>
+                                <td colSpan={7} style={{ padding: "6px 20px", backgroundColor: "#dbeafe", borderTop: "1px solid #bfdbfe", borderBottom: "1px solid #bfdbfe" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif" }}>
+                                    {group}
+                                  </span>
+                                </td>
+                              </tr>
+                            )}
+                            {Object.entries(groupMap[group]).map(([type, typeItems]) => (
                           <Fragment key={type}>
                             {/* ── Type sub-header ── */}
                             <tr>
-                              <td colSpan={8} style={{
+                              <td colSpan={7} style={{
                                 padding: "8px 20px",
                                 backgroundColor: "#f0ede8",
                                 borderTop: "1px solid #e2e2e2",
@@ -590,6 +614,8 @@ export default function PainelGeral() {
                                 </Fragment>
                               );
                             })}
+                          </Fragment>
+                            ))}
                           </Fragment>
                         ));
                       })()}

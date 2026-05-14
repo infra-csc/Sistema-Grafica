@@ -886,17 +886,17 @@ export default function Eventos() {
                     <Flag style={{ width: '13px', height: '13px', fill: event.priority ? cardBorderHex : 'none' }} />
                   </button>
                 )}
+                {(hasPermission("admin") || hasPermission("solicitacao")) && (
+                  <button onClick={(e) => handleEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
+                    style={{ padding: '8px', backgroundColor: dark ? 'rgba(255,255,255,0.1)' : '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#d4d0cb' : '#78716c', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
+                    <Pencil style={{ width: '13px', height: '13px' }} />
+                  </button>
+                )}
                 {hasPermission("admin") && (
-                  <>
-                    <button onClick={(e) => handleEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
-                      style={{ padding: '8px', backgroundColor: dark ? 'rgba(255,255,255,0.1)' : '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#d4d0cb' : '#78716c', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
-                      <Pencil style={{ width: '13px', height: '13px' }} />
-                    </button>
-                    <button onClick={(e) => handleDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
-                      style={{ padding: '8px', backgroundColor: dark ? 'rgba(239,68,68,0.15)' : '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#f87171' : '#ef4444', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
-                      <Trash2 style={{ width: '13px', height: '13px' }} />
-                    </button>
-                  </>
+                  <button onClick={(e) => handleDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
+                    style={{ padding: '8px', backgroundColor: dark ? 'rgba(239,68,68,0.15)' : '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#f87171' : '#ef4444', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
+                    <Trash2 style={{ width: '13px', height: '13px' }} />
+                  </button>
                 )}
               </div>
             );

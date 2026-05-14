@@ -60,6 +60,7 @@ export default function EventDetail() {
   const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
   const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
   const [customTypeInput, setCustomTypeInput] = useState("");
+  const [editingTypeName, setEditingTypeName] = useState(false);
   const [customMaterialInput, setCustomMaterialInput] = useState("");
   const [customFinishInput, setCustomFinishInput] = useState("");
   const [linkItemsDialogOpen, setLinkItemsDialogOpen] = useState(false);
@@ -740,7 +741,32 @@ export default function EventDetail() {
                       <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
                         {/* Tipo de Item — flex-1 */}
                         <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Tipo de Peça</label>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>
+                            Tipo de Peça
+                          </label>
+                          {editingTypeName ? (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input
+                                autoFocus
+                                type="text"
+                                value={formData.type}
+                                onChange={e => setFormData({ ...formData, type: e.target.value })}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setEditingTypeName(false); } if (e.key === 'Escape') setEditingTypeName(false); }}
+                                onBlur={() => setEditingTypeName(false)}
+                                data-testid="input-type-name-edit"
+                                style={{ flex: 1, padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: '1.5px solid #f97316', outline: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                              />
+                              <button
+                                type="button"
+                                onMouseDown={() => setEditingTypeName(false)}
+                                data-testid="button-confirm-type-name"
+                                style={{ padding: '0 14px', backgroundColor: '#f97316', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}
+                              >
+                                OK
+                              </button>
+                            </div>
+                          ) : (
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                           <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
                             <PopoverTrigger asChild>
                               <button
@@ -748,7 +774,7 @@ export default function EventDetail() {
                                 role="combobox"
                                 aria-expanded={typePopoverOpen}
                                 data-testid="select-item-type"
-                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.type ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.type ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.type || "Selecione o tipo"}</span>
                                 <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
@@ -793,6 +819,21 @@ export default function EventDetail() {
                               </Command>
                             </PopoverContent>
                           </Popover>
+                          {formData.type && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingTypeName(true)}
+                              data-testid="button-edit-type-name"
+                              title="Editar nome do tipo"
+                              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#a8a29e' }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e7e5e4'; (e.currentTarget as HTMLButtonElement).style.color = '#f97316'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0efee'; (e.currentTarget as HTMLButtonElement).style.color = '#a8a29e'; }}
+                            >
+                              <Pencil style={{ width: 15, height: 15 }} />
+                            </button>
+                          )}
+                          </div>
+                          )}
                         </div>
                         {/* Quantidade — fixo 96px */}
                         <div style={{ width: '96px' }}>

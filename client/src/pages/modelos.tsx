@@ -73,12 +73,16 @@ export default function Modelos() {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
   // Manage modal
   const [manageOpen, setManageOpen] = useState(false);
+  const [manageTab, setManageTab] = useState<"group"|"material"|"finish">("group");
   const [mgEditingGroup, setMgEditingGroup] = useState<string | null>(null);
   const [mgEditGroupValue, setMgEditGroupValue] = useState("");
   const [mgEditingFinish, setMgEditingFinish] = useState<string | null>(null);
   const [mgEditFinishValue, setMgEditFinishValue] = useState("");
+  const [mgEditingMaterial, setMgEditingMaterial] = useState<string | null>(null);
+  const [mgEditMaterialValue, setMgEditMaterialValue] = useState("");
   const [mgDeleteGroupConfirm, setMgDeleteGroupConfirm] = useState<string | null>(null);
   const [mgDeleteFinishConfirm, setMgDeleteFinishConfirm] = useState<string | null>(null);
+  const [mgDeleteMaterialConfirm, setMgDeleteMaterialConfirm] = useState<string | null>(null);
 
   const { data: standardItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
@@ -136,6 +140,35 @@ export default function Modelos() {
       if (filterFinish === name) setFilterFinish("");
       setMgDeleteFinishConfirm(null);
       toast({ title: "Acabamento removido", description: `"${name}" foi removido de todos os modelos` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const renameMaterialMutation = useMutation({
+    mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) =>
+      await apiRequest("PATCH", "/api/standard-items/rename-material", { oldName, newName }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
+      if (filterMaterial === vars.oldName) setFilterMaterial(vars.newName);
+      setMgEditingMaterial(null);
+      setMgEditMaterialValue("");
+      toast({ title: "Material renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMaterialMutation = useMutation({
+    mutationFn: async (name: string) =>
+      await apiRequest("DELETE", "/api/standard-items/clear-material", { name }),
+    onSuccess: (_data, name) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
+      if (filterMaterial === name) setFilterMaterial("");
+      setMgDeleteMaterialConfirm(null);
+      toast({ title: "Material removido", description: `"${name}" foi removido de todos os modelos` });
     },
     onError: (error: Error) => {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -1020,170 +1053,183 @@ export default function Modelos() {
 
       {/* ── Manage Categories Modal ── */}
       {manageOpen && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
-          onClick={e => { if (e.target === e.currentTarget) { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); } }}>
-          <div style={{ backgroundColor: "#ffffff", borderRadius: 16, width: 560, maxWidth: "95vw", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}>
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(2px)" }}
+          onClick={e => { if (e.target === e.currentTarget) { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); } }}>
+          {/* ── Modal card ── */}
+          <div style={{ backgroundColor: "#ffffff", borderRadius: 20, width: 580, maxWidth: "95vw", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 32px 80px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)" }}>
+
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px 16px", borderBottom: "1px solid #f0efec" }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#1c1917" }}>Gerenciar Categorias</h2>
-                <p style={{ margin: "2px 0 0", fontSize: 12, color: "#a8a29e" }}>Renomeie ou remova grupos e acabamentos de todos os modelos</p>
+            <div style={{ padding: "24px 28px 0" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1c1917", letterSpacing: "-0.03em" }}>Gerenciar Categorias</h2>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#a8a29e" }}>Renomeie ou remova categorias dos modelos em lote</p>
+                </div>
+                <button onClick={() => { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
+                  style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid #e7e5e4", background: "#fafaf9", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#78716c", flexShrink: 0, marginTop: 2 }}>
+                  <X style={{ width: 15, height: 15 }} />
+                </button>
               </div>
-              <button onClick={() => { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); }}
-                style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "#f5f4f0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#78716c" }}>
-                <X style={{ width: 16, height: 16 }} />
-              </button>
+
+              {/* Tabs */}
+              {(() => {
+                const tabs: { key: "group"|"material"|"finish"; label: string; color: string; bg: string; count: number }[] = [
+                  { key: "group",    label: "Grupos Pai", color: "#0369a1", bg: "#e0f2fe", count: allGroups.length },
+                  { key: "material", label: "Material",   color: "#b45309", bg: "#fef3c7", count: allMats.length },
+                  { key: "finish",   label: "Acabamento", color: "#065f46", bg: "#d1fae5", count: allFinishes.length },
+                ];
+                return (
+                  <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #f0efec" }}>
+                    {tabs.map(t => (
+                      <button key={t.key} onClick={() => { setManageTab(t.key); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
+                        style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 16px", border: "none", borderRadius: "8px 8px 0 0", cursor: "pointer", fontSize: 13, fontWeight: manageTab === t.key ? 700 : 500, transition: "all 0.15s",
+                          backgroundColor: manageTab === t.key ? "#ffffff" : "transparent",
+                          color: manageTab === t.key ? t.color : "#a8a29e",
+                          borderBottom: manageTab === t.key ? `2px solid ${t.color}` : "2px solid transparent",
+                          marginBottom: -1,
+                        }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, backgroundColor: manageTab === t.key ? t.bg : "#f5f4f0", fontSize: 11, fontWeight: 800, color: manageTab === t.key ? t.color : "#a8a29e", flexShrink: 0 }}>
+                          {t.count}
+                        </span>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
-            {/* Body */}
-            <div style={{ overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 28 }}>
+            {/* Body — scrollable list */}
+            <div style={{ overflowY: "auto", padding: "16px 28px 24px", flex: 1 }}>
+              {(() => {
+                // Shared row renderer
+                function CatRow({ name, count, accentColor, accentBg,
+                  isEditing, editValue, onEditChange, onEditConfirm, onEditCancel, isPendingRename,
+                  isDeleting, onDeleteConfirm, onDeleteCancel, isPendingDelete,
+                  onStartEdit, onStartDelete,
+                }: {
+                  name: string; count: number; accentColor: string; accentBg: string;
+                  isEditing: boolean; editValue: string; onEditChange: (v: string) => void;
+                  onEditConfirm: () => void; onEditCancel: () => void; isPendingRename: boolean;
+                  isDeleting: boolean; onDeleteConfirm: () => void; onDeleteCancel: () => void; isPendingDelete: boolean;
+                  onStartEdit: () => void; onStartDelete: () => void;
+                }) {
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 10, backgroundColor: isDeleting ? "#fff5f5" : "#fafaf9", border: `1px solid ${isDeleting ? "#fecaca" : "#f0efec"}`, transition: "all 0.15s" }}>
+                      {/* Dot */}
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: accentColor, flexShrink: 0, opacity: isDeleting ? 0.4 : 1 }} />
 
-              {/* ── Grupos Pai ── */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#a8a29e", marginBottom: 10 }}>Grupos Pai</div>
-                {allGroups.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "#a8a29e", margin: 0 }}>Nenhum grupo cadastrado ainda.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {allGroups.map(g => {
-                      const count = (standardItems as any[]).filter(s => s.group === g).length;
+                      {isEditing ? (
+                        <>
+                          <input autoFocus value={editValue} onChange={e => onEditChange(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") onEditConfirm(); if (e.key === "Escape") onEditCancel(); }}
+                            style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 8, padding: "5px 10px", border: `1.5px solid ${accentColor}`, outline: "none", color: "#1c1917", background: accentBg }}
+                          />
+                          <button onClick={onEditConfirm} disabled={isPendingRename}
+                            style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: accentColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <Check style={{ width: 13, height: 13 }} />
+                          </button>
+                          <button onClick={onEditCancel}
+                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#ffffff", color: "#78716c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <X style={{ width: 13, height: 13 }} />
+                          </button>
+                        </>
+                      ) : isDeleting ? (
+                        <>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>Remover </span>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: "#dc2626" }}>"{name}"</span>
+                            <span style={{ fontSize: 12, color: "#ef4444" }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
+                          </div>
+                          <button onClick={onDeleteConfirm} disabled={isPendingDelete}
+                            style={{ padding: "5px 14px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                            Remover
+                          </button>
+                          <button onClick={onDeleteCancel}
+                            style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#fff", color: "#78716c", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{name}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "#a8a29e", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 8px", marginRight: 2 }}>
+                            {count} {count === 1 ? "modelo" : "modelos"}
+                          </span>
+                          <button onClick={onStartEdit} title={`Renomear "${name}"`}
+                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: "#c4bfbb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = accentBg; (e.currentTarget as HTMLButtonElement).style.color = accentColor; (e.currentTarget as HTMLButtonElement).style.borderColor = accentColor + "40"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#c4bfbb"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
+                            <Pencil style={{ width: 12, height: 12 }} />
+                          </button>
+                          <button onClick={onStartDelete} title={`Remover "${name}"`}
+                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: "#c4bfbb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#dc2626"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#fca5a540"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#c4bfbb"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
+                            <Trash2 style={{ width: 12, height: 12 }} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                }
+
+                const tabCfg = {
+                  group:    { items: allGroups,   color: "#0369a1", bg: "#e0f2fe", empty: "Nenhum grupo cadastrado." },
+                  material: { items: allMats,      color: "#b45309", bg: "#fef3c7", empty: "Nenhum material cadastrado." },
+                  finish:   { items: allFinishes,  color: "#065f46", bg: "#d1fae5", empty: "Nenhum acabamento cadastrado." },
+                }[manageTab];
+
+                if (tabCfg.items.length === 0) {
+                  return <p style={{ fontSize: 13, color: "#a8a29e", margin: "20px 0 0", textAlign: "center" }}>{tabCfg.empty}</p>;
+                }
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
+                    {tabCfg.items.map(name => {
+                      const count = manageTab === "group"
+                        ? (standardItems as any[]).filter(s => s.group === name).length
+                        : manageTab === "material"
+                        ? (standardItems as any[]).filter(s => s.material === name).length
+                        : (standardItems as any[]).filter(s => s.finish === name).length;
+
+                      if (manageTab === "group") return (
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg}
+                          isEditing={mgEditingGroup === name} editValue={mgEditGroupValue} onEditChange={setMgEditGroupValue}
+                          onEditConfirm={() => { const t = mgEditGroupValue.trim(); if (t && t !== name) renameGroupMutation.mutate({ oldName: name, newName: t }); else setMgEditingGroup(null); }}
+                          onEditCancel={() => setMgEditingGroup(null)} isPendingRename={renameGroupMutation.isPending}
+                          isDeleting={mgDeleteGroupConfirm === name}
+                          onDeleteConfirm={() => deleteGroupMutation.mutate(name)} onDeleteCancel={() => setMgDeleteGroupConfirm(null)} isPendingDelete={deleteGroupMutation.isPending}
+                          onStartEdit={() => { setMgEditingGroup(name); setMgEditGroupValue(name); setMgDeleteGroupConfirm(null); }}
+                          onStartDelete={() => { setMgDeleteGroupConfirm(name); setMgEditingGroup(null); }}
+                        />
+                      );
+                      if (manageTab === "material") return (
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg}
+                          isEditing={mgEditingMaterial === name} editValue={mgEditMaterialValue} onEditChange={setMgEditMaterialValue}
+                          onEditConfirm={() => { const t = mgEditMaterialValue.trim(); if (t && t !== name) renameMaterialMutation.mutate({ oldName: name, newName: t }); else setMgEditingMaterial(null); }}
+                          onEditCancel={() => setMgEditingMaterial(null)} isPendingRename={renameMaterialMutation.isPending}
+                          isDeleting={mgDeleteMaterialConfirm === name}
+                          onDeleteConfirm={() => deleteMaterialMutation.mutate(name)} onDeleteCancel={() => setMgDeleteMaterialConfirm(null)} isPendingDelete={deleteMaterialMutation.isPending}
+                          onStartEdit={() => { setMgEditingMaterial(name); setMgEditMaterialValue(name); setMgDeleteMaterialConfirm(null); }}
+                          onStartDelete={() => { setMgDeleteMaterialConfirm(name); setMgEditingMaterial(null); }}
+                        />
+                      );
                       return (
-                        <div key={g} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, backgroundColor: "#fafaf9", border: "1px solid #f0efec" }}>
-                          {mgEditingGroup === g ? (
-                            <>
-                              <input autoFocus value={mgEditGroupValue} onChange={e => setMgEditGroupValue(e.target.value)}
-                                onKeyDown={e => {
-                                  if (e.key === "Enter") {
-                                    const t = mgEditGroupValue.trim();
-                                    if (t && t !== g) renameGroupMutation.mutate({ oldName: g, newName: t });
-                                    else setMgEditingGroup(null);
-                                  }
-                                  if (e.key === "Escape") setMgEditingGroup(null);
-                                }}
-                                style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 6, padding: "4px 10px", border: "1.5px solid #3b82f6", outline: "none", color: "#1d4ed8", background: "#eff6ff" }}
-                              />
-                              <button onClick={() => { const t = mgEditGroupValue.trim(); if (t && t !== g) renameGroupMutation.mutate({ oldName: g, newName: t }); else setMgEditingGroup(null); }}
-                                disabled={renameGroupMutation.isPending}
-                                style={{ width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer", background: "#3b82f6", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                <Check style={{ width: 13, height: 13 }} />
-                              </button>
-                              <button onClick={() => setMgEditingGroup(null)}
-                                style={{ width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer", background: "#e2e8f0", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                <X style={{ width: 13, height: 13 }} />
-                              </button>
-                            </>
-                          ) : mgDeleteGroupConfirm === g ? (
-                            <>
-                              <span style={{ flex: 1, fontSize: 12, color: "#dc2626" }}>Remover "<strong>{g}</strong>" de {count} {count === 1 ? "modelo" : "modelos"}?</span>
-                              <button onClick={() => deleteGroupMutation.mutate(g)} disabled={deleteGroupMutation.isPending}
-                                style={{ fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", background: "#dc2626", color: "#fff" }}>
-                                Confirmar
-                              </button>
-                              <button onClick={() => setMgDeleteGroupConfirm(null)}
-                                style={{ fontSize: 11, fontWeight: 600, padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", background: "#e7e5e4", color: "#44403c" }}>
-                                Cancelar
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{g}</span>
-                              <span style={{ fontSize: 11, color: "#a8a29e", marginRight: 4 }}>{count} {count === 1 ? "modelo" : "modelos"}</span>
-                              <button onClick={() => { setMgEditingGroup(g); setMgEditGroupValue(g); setMgDeleteGroupConfirm(null); }}
-                                title="Renomear grupo"
-                                style={{ width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer", background: "transparent", color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center" }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#e0f2fe"; (e.currentTarget as HTMLButtonElement).style.color = "#0369a1"; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#a8a29e"; }}>
-                                <Pencil style={{ width: 13, height: 13 }} />
-                              </button>
-                              <button onClick={() => { setMgDeleteGroupConfirm(g); setMgEditingGroup(null); }}
-                                title="Remover grupo"
-                                style={{ width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer", background: "transparent", color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center" }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#dc2626"; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#a8a29e"; }}>
-                                <Trash2 style={{ width: 13, height: 13 }} />
-                              </button>
-                            </>
-                          )}
-                        </div>
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg}
+                          isEditing={mgEditingFinish === name} editValue={mgEditFinishValue} onEditChange={setMgEditFinishValue}
+                          onEditConfirm={() => { const t = mgEditFinishValue.trim(); if (t && t !== name) renameFinishMutation.mutate({ oldName: name, newName: t }); else setMgEditingFinish(null); }}
+                          onEditCancel={() => setMgEditingFinish(null)} isPendingRename={renameFinishMutation.isPending}
+                          isDeleting={mgDeleteFinishConfirm === name}
+                          onDeleteConfirm={() => deleteFinishMutation.mutate(name)} onDeleteCancel={() => setMgDeleteFinishConfirm(null)} isPendingDelete={deleteFinishMutation.isPending}
+                          onStartEdit={() => { setMgEditingFinish(name); setMgEditFinishValue(name); setMgDeleteFinishConfirm(null); }}
+                          onStartDelete={() => { setMgDeleteFinishConfirm(name); setMgEditingFinish(null); }}
+                        />
                       );
                     })}
                   </div>
-                )}
-              </div>
-
-              {/* ── Acabamentos ── */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#a8a29e", marginBottom: 10 }}>Acabamentos</div>
-                {allFinishes.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "#a8a29e", margin: 0 }}>Nenhum acabamento cadastrado ainda.</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {allFinishes.map(f => {
-                      const count = (standardItems as any[]).filter(s => s.finish === f).length;
-                      return (
-                        <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, backgroundColor: "#fafaf9", border: "1px solid #f0efec" }}>
-                          {mgEditingFinish === f ? (
-                            <>
-                              <input autoFocus value={mgEditFinishValue} onChange={e => setMgEditFinishValue(e.target.value)}
-                                onKeyDown={e => {
-                                  if (e.key === "Enter") {
-                                    const t = mgEditFinishValue.trim();
-                                    if (t && t !== f) renameFinishMutation.mutate({ oldName: f, newName: t });
-                                    else setMgEditingFinish(null);
-                                  }
-                                  if (e.key === "Escape") setMgEditingFinish(null);
-                                }}
-                                style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 6, padding: "4px 10px", border: "1.5px solid #3b82f6", outline: "none", color: "#1d4ed8", background: "#eff6ff" }}
-                              />
-                              <button onClick={() => { const t = mgEditFinishValue.trim(); if (t && t !== f) renameFinishMutation.mutate({ oldName: f, newName: t }); else setMgEditingFinish(null); }}
-                                disabled={renameFinishMutation.isPending}
-                                style={{ width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer", background: "#3b82f6", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                <Check style={{ width: 13, height: 13 }} />
-                              </button>
-                              <button onClick={() => setMgEditingFinish(null)}
-                                style={{ width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer", background: "#e2e8f0", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                <X style={{ width: 13, height: 13 }} />
-                              </button>
-                            </>
-                          ) : mgDeleteFinishConfirm === f ? (
-                            <>
-                              <span style={{ flex: 1, fontSize: 12, color: "#dc2626" }}>Remover "<strong>{f}</strong>" de {count} {count === 1 ? "modelo" : "modelos"}?</span>
-                              <button onClick={() => deleteFinishMutation.mutate(f)} disabled={deleteFinishMutation.isPending}
-                                style={{ fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", background: "#dc2626", color: "#fff" }}>
-                                Confirmar
-                              </button>
-                              <button onClick={() => setMgDeleteFinishConfirm(null)}
-                                style={{ fontSize: 11, fontWeight: 600, padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer", background: "#e7e5e4", color: "#44403c" }}>
-                                Cancelar
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{f}</span>
-                              <span style={{ fontSize: 11, color: "#a8a29e", marginRight: 4 }}>{count} {count === 1 ? "modelo" : "modelos"}</span>
-                              <button onClick={() => { setMgEditingFinish(f); setMgEditFinishValue(f); setMgDeleteFinishConfirm(null); }}
-                                title="Renomear acabamento"
-                                style={{ width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer", background: "transparent", color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center" }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#e0f2fe"; (e.currentTarget as HTMLButtonElement).style.color = "#0369a1"; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#a8a29e"; }}>
-                                <Pencil style={{ width: 13, height: 13 }} />
-                              </button>
-                              <button onClick={() => { setMgDeleteFinishConfirm(f); setMgEditingFinish(null); }}
-                                title="Remover acabamento"
-                                style={{ width: 28, height: 28, borderRadius: 6, border: "none", cursor: "pointer", background: "transparent", color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center" }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#dc2626"; }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#a8a29e"; }}>
-                                <Trash2 style={{ width: 13, height: 13 }} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
+                );
+              })()}
             </div>
           </div>
         </div>

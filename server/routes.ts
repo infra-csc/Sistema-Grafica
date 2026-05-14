@@ -2826,6 +2826,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rename a material across all standard items
+  app.patch("/api/standard-items/rename-material", async (req, res) => {
+    try {
+      const { oldName, newName } = req.body;
+      if (!oldName || !newName || !newName.trim()) {
+        return res.status(400).json({ error: "oldName e newName são obrigatórios" });
+      }
+      const count = await storage.renameStandardItemMaterial(oldName, newName.trim());
+      broadcast({ type: "standard_item_material_renamed", oldName, newName: newName.trim() });
+      res.json({ count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete (clear) a material from all standard items
+  app.delete("/api/standard-items/clear-material", async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name) return res.status(400).json({ error: "name é obrigatório" });
+      const count = await storage.deleteStandardItemMaterial(name);
+      broadcast({ type: "standard_item_material_deleted", name });
+      res.json({ count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Update standard item
   app.patch("/api/standard-items/:id", async (req, res) => {
     try {

@@ -514,6 +514,24 @@ export class DatabaseStorage implements IStorage {
     return result.length;
   }
 
+  async renameStandardItemMaterial(oldName: string, newName: string): Promise<number> {
+    const result = await db
+      .update(standardItems)
+      .set({ material: newName })
+      .where(eq(standardItems.material, oldName))
+      .returning();
+    return result.length;
+  }
+
+  async deleteStandardItemMaterial(name: string): Promise<number> {
+    const result = await db
+      .update(standardItems)
+      .set({ material: null })
+      .where(eq(standardItems.material, name))
+      .returning();
+    return result.length;
+  }
+
   // Notifications
   async getNotification(id: string): Promise<Notification | undefined> {
     const [notification] = await db.select().from(notifications).where(eq(notifications.id, id));

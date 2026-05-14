@@ -85,6 +85,12 @@ export default function Atendimento() {
   const { data: auditLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/audit-logs"],
   });
+  const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
+  const typeToGroup = useMemo(() => {
+    const map: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
+    return map;
+  }, [standardItems]);
 
   // Memoizar awaiting items para evitar fetches desnecessários
   const awaitingItems = useMemo(() =>
@@ -434,13 +440,17 @@ export default function Atendimento() {
   // Group pendingGroup by event - must be before any early return
   const itemsByEvent = useMemo(() => {
     const map = new Map<string, any[]>();
-    pendingGroup.forEach(item => {
+    const sorted = [...pendingGroup].sort((a, b) => {
+      const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
+      return ga.localeCompare(gb) || a.type.localeCompare(b.type);
+    });
+    sorted.forEach(item => {
       const eid = item.eventId || '__none__';
       if (!map.has(eid)) map.set(eid, []);
       map.get(eid)!.push(item);
     });
     return map;
-  }, [pendingGroup]);
+  }, [pendingGroup, typeToGroup]);
 
   useEffect(() => {
     setBatchSelectedItemIds(new Set(batchEligibleItems.map(i => i.id)));
@@ -966,16 +976,32 @@ export default function Atendimento() {
 
                 {/* Cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {eventItems.map(item => {
+                  {eventItems.map((item, idx) => {
                     const itemSps = itemSponsorsMap[item.id] || [];
                     const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
                     const isFullyApproved = isItemFullyApproved(item);
                     const hasArteBlock = approvals.some(a => a.status === 'awaiting_arte');
                     const hasThumb = !!item.approvalThumbUrl;
+                    const prevItem = idx > 0 ? eventItems[idx - 1] : null;
+                    const showTypeHeader = !prevItem || prevItem.type !== item.type;
+                    const itemGroupName = typeToGroup[item.type] || '';
+                    const prevItemGroupName = prevItem ? (typeToGroup[prevItem.type] || '') : '';
+                    const showGroupHeader = showTypeHeader && itemGroupName !== '' && itemGroupName !== prevItemGroupName;
 
                     return (
+                      <Fragment key={item.id}>
+                        {showGroupHeader && (
+                          <div style={{ backgroundColor: '#dbeafe', borderRadius: 6, padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
+                          </div>
+                        )}
+                        {showTypeHeader && (
+                          <div style={{ backgroundColor: '#f0ede8', borderRadius: 6, padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.type}</span>
+                          </div>
+                        )}
                       <div
-                        key={item.id}
+                        key={`card-${item.id}`}
                         data-testid={`row-item-${item.id}`}
                         className="group"
                         style={{
@@ -1128,6 +1154,7 @@ export default function Atendimento() {
                           </div>
                         </div>
                       </div>
+                      </Fragment>
                     );
                   })}
                 </div>

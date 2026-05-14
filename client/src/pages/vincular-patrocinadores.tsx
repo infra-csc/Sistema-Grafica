@@ -211,6 +211,12 @@ export default function VincularPatrocinadores() {
   const { data: sponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
   });
+  const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
+  const typeToGroup = useMemo(() => {
+    const map: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
+    return map;
+  }, [standardItems]);
 
   // Filtrar apenas eventos futuros (data de início >= hoje)
   const events = useMemo(() => {
@@ -1431,7 +1437,10 @@ export default function VincularPatrocinadores() {
           // Ordenar por tipo para que o agrupador funcione corretamente
           const displayedItems = filterItems(eventItems, event?.name)
             .slice()
-            .sort((a, b) => a.type.localeCompare(b.type, 'pt-BR'));
+            .sort((a, b) => {
+              const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
+              return ga.localeCompare(gb, 'pt-BR') || a.type.localeCompare(b.type, 'pt-BR');
+            });
 
           const progress = calculateProgress(displayedItems);
 
@@ -1510,9 +1519,22 @@ export default function VincularPatrocinadores() {
                         const isRascunho = uiStatus === 'RASCUNHO';
                         const prevItem = itemIndex > 0 ? displayedItems[itemIndex - 1] : null;
                         const showTypeGrouper = !prevItem || prevItem.type !== item.type;
+                        const groupName = typeToGroup[item.type] || '';
+                        const prevGroupName = prevItem ? (typeToGroup[prevItem.type] || '') : '';
+                        const showGroupGrouper = showTypeGrouper && groupName !== '' && groupName !== prevGroupName;
 
                         return (
                           <>
+                          {/* ── Agrupador de Grupo Pai ── */}
+                          {showGroupGrouper && (
+                            <tr key={`group-${groupName}-${itemIndex}`}>
+                              <td colSpan={6} style={{ padding: 0 }}>
+                                <div style={{ backgroundColor: '#dbeafe', padding: '5px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{groupName}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                           {/* ── Agrupador de Tipo ── */}
                           {showTypeGrouper && (
                             <tr key={`type-${item.type}-${itemIndex}`}>

@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Fragment, useState } from "react";
+import { Fragment, useState, useMemo } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -65,6 +65,12 @@ export default function Arte() {
   const { data: auditLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/audit-logs"],
   });
+  const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
+  const typeToGroup = useMemo(() => {
+    const map: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
+    return map;
+  }, [standardItems]);
 
   const submitForApprovalMutation = useMutation({
     mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
@@ -344,27 +350,38 @@ export default function Arte() {
       );
     }
 
-    const groups: { event: string; type: string; eventObj: any; items: any[] }[] = [];
+    const groups: { event: string; type: string; group: string; eventObj: any; items: any[] }[] = [];
     items.forEach(item => {
       const eventName = item.event?.name || 'Sem Evento';
       const typeName = item.type;
+      const groupName = typeToGroup[typeName] || '';
       const last = groups[groups.length - 1];
       if (last && last.event === eventName && last.type === typeName) {
         last.items.push(item);
       } else {
-        groups.push({ event: eventName, type: typeName, eventObj: item.event, items: [item] });
+        groups.push({ event: eventName, type: typeName, group: groupName, eventObj: item.event, items: [item] });
       }
     });
 
     let lastEventName = '';
+    let lastGroupName = '';
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {groups.map((group, gIdx) => {
           const showEventHeader = group.event !== lastEventName;
+          if (showEventHeader) lastGroupName = '';
+          const showGroupHeader = !showEventHeader && group.group !== '' && group.group !== lastGroupName;
           lastEventName = group.event;
+          lastGroupName = group.group;
           const allPendingInGroup = group.items.filter(i => i.status === 'requested' || i.status === 'awaiting_submission');
           return (
-            <div key={`${group.event}-${group.type}-${gIdx}`} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#ffffff', border: '1px solid #e7e5e4' }}>
+            <Fragment key={`${group.event}-${group.type}-${gIdx}`}>
+              {showGroupHeader && (
+                <div style={{ backgroundColor: '#dbeafe', borderRadius: 8, padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 8, marginTop: -8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{group.group}</span>
+                </div>
+              )}
+            <div style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#ffffff', border: '1px solid #e7e5e4' }}>
               {showEventHeader && (
                 <div style={{
                   padding: '14px 20px',
@@ -690,6 +707,7 @@ export default function Arte() {
                 </table>
               </div>
             </div>
+            </Fragment>
           );
         })}
       </div>

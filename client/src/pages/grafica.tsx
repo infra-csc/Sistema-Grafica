@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Fragment, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -91,6 +91,12 @@ export default function Grafica() {
   const { data: items = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+  const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
+  const typeToGroup = useMemo(() => {
+    const map: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
+    return map;
+  }, [standardItems]);
 
   const startProductionMutation = useMutation({
     mutationFn: async ({ itemId, data }: { itemId: string; data: any }) =>
@@ -435,6 +441,18 @@ export default function Grafica() {
                 return (
                   <Fragment key={item.id}>
                     {/* Cabeçalho de Evento */}
+                    {(() => {
+                      const groupName = typeToGroup[item.type] || '';
+                      const prevGroupName = prev ? (typeToGroup[(prev as any).type] || '') : '';
+                      const showGroupHeader = !showEvHeader && groupName !== '' && groupName !== prevGroupName;
+                      return showGroupHeader ? (
+                        <tr style={{ backgroundColor: '#dbeafe' }}>
+                          <td colSpan={9} style={{ padding: '5px 16px' }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{groupName}</span>
+                          </td>
+                        </tr>
+                      ) : null;
+                    })()}
                     {showEvHeader && (
                       <tr style={{ backgroundColor: "#292524" }}>
                         <td colSpan={9} style={{ padding: "10px 16px" }}>

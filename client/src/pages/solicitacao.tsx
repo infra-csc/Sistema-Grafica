@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 
 const TI = {
   bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
@@ -50,6 +50,12 @@ export default function Solicitacao() {
   const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: sponsors = [] } = useQuery<any[]>({ queryKey: ["/api/sponsors"] });
   const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+  const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
+  const typeToGroup = useMemo(() => {
+    const map: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
+    return map;
+  }, [standardItems]);
 
   const creatorReviewMutation = useMutation({
     mutationFn: async (itemId: string) => await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {}),
@@ -132,7 +138,8 @@ export default function Solicitacao() {
     const map = new Map<string, any[]>();
     const sorted = [...filteredItems].sort((a, b) => {
       const ea = a.event?.name || "", eb = b.event?.name || "";
-      return ea.localeCompare(eb) || a.type.localeCompare(b.type);
+      const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
+      return ea.localeCompare(eb) || ga.localeCompare(gb) || a.type.localeCompare(b.type);
     });
     sorted.forEach(item => {
       const key = item.eventId || "__none__";
@@ -140,7 +147,7 @@ export default function Solicitacao() {
       map.get(key)!.push(item);
     });
     return map;
-  }, [filteredItems]);
+  }, [filteredItems, typeToGroup]);
 
   const getEventInfo = (eventId: string) => events.find(e => e.id === eventId);
   const itemAuditLogs = useMemo(() => selectedItem
@@ -486,9 +493,29 @@ export default function Solicitacao() {
                       {eventItems.map((item, idx) => {
                         const isSelected = selectedItemIds.has(item.id);
                         const isLast = idx === eventItems.length - 1;
+                        const prevItem = idx > 0 ? eventItems[idx - 1] : null;
+                        const showTypeHeader = !prevItem || prevItem.type !== item.type;
+                        const itemGroupName = typeToGroup[item.type] || '';
+                        const prevItemGroupName = prevItem ? (typeToGroup[prevItem.type] || '') : '';
+                        const showGroupHeader = showTypeHeader && itemGroupName !== '' && itemGroupName !== prevItemGroupName;
                         return (
+                          <Fragment key={item.id}>
+                            {showGroupHeader && (
+                              <tr style={{ backgroundColor: '#dbeafe' }}>
+                                <td colSpan={8} style={{ padding: '5px 16px' }}>
+                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
+                                </td>
+                              </tr>
+                            )}
+                            {showTypeHeader && (
+                              <tr style={{ backgroundColor: '#f0ede8' }}>
+                                <td colSpan={8} style={{ padding: '5px 16px' }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.type}</span>
+                                </td>
+                              </tr>
+                            )}
                           <tr
-                            key={item.id}
+                            key={`row-${item.id}`}
                             data-testid={`row-item-${item.id}`}
                             style={{
                               borderBottom: isLast ? "none" : "1px solid #f0efee",
@@ -592,6 +619,7 @@ export default function Solicitacao() {
                               </div>
                             </td>
                           </tr>
+                          </Fragment>
                         );
                       })}
                     </>

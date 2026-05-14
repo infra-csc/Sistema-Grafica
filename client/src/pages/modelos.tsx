@@ -70,6 +70,7 @@ export default function Modelos() {
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [editGroupValue, setEditGroupValue] = useState("");
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
 
   const { data: standardItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
@@ -264,48 +265,55 @@ export default function Modelos() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Grupo</span>
               {allGroups.map(g => (
-                <div key={g} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <div key={g}>
                   {editingGroup === g ? (
-                    <>
+                    /* ── modo edição: input + botões ── */
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <input
                         autoFocus
                         value={editGroupValue}
                         onChange={e => setEditGroupValue(e.target.value)}
                         onKeyDown={e => { if (e.key === "Enter") confirmEditGroup(); if (e.key === "Escape") setEditingGroup(null); }}
                         data-testid={`input-rename-group-${g}`}
-                        style={{ fontSize: 11, fontWeight: 700, borderRadius: 6, padding: "3px 8px", border: "1.5px solid #3b82f6", outline: "none", width: Math.max(60, editGroupValue.length * 8) + "px", color: "#1d4ed8", background: "#eff6ff" }}
+                        style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 10px", border: "1.5px solid #3b82f6", outline: "none", minWidth: 60, width: Math.max(60, editGroupValue.length * 8) + "px", color: "#1d4ed8", background: "#eff6ff" }}
                       />
-                      <button
-                        onClick={confirmEditGroup}
-                        disabled={renameGroupMutation.isPending}
+                      <button onClick={confirmEditGroup} disabled={renameGroupMutation.isPending}
                         data-testid={`button-confirm-rename-group-${g}`}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer", background: "#3b82f6", color: "#fff" }}>
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: "none", cursor: "pointer", background: "#3b82f6", color: "#fff", flexShrink: 0 }}>
                         <Check style={{ width: 12, height: 12 }} />
                       </button>
-                      <button
-                        onClick={() => setEditingGroup(null)}
+                      <button onClick={() => setEditingGroup(null)}
                         data-testid={`button-cancel-rename-group-${g}`}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer", background: "#e2e8f0", color: "#64748b" }}>
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", border: "none", cursor: "pointer", background: "#e2e8f0", color: "#64748b", flexShrink: 0 }}>
                         <X style={{ width: 12, height: 12 }} />
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <>
+                    /* ── modo normal: chip com lápis embutido que aparece no hover ── */
+                    <div
+                      style={{ display: "inline-flex", alignItems: "center", borderRadius: 100, overflow: "hidden",
+                        backgroundColor: filterGroup === g ? "#0369a1" : "#e0f2fe",
+                        transition: "background-color 0.15s" }}
+                      onMouseEnter={() => setHoveredGroup(g)}
+                      onMouseLeave={() => setHoveredGroup(null)}
+                    >
                       <button
-                        onClick={() => startEditGroup(g)}
-                        data-testid={`button-edit-group-${g}`}
-                        title={`Renomear grupo "${g}"`}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 4, border: "none", cursor: "pointer", background: "transparent", color: "#94a3b8", padding: 0, flexShrink: 0 }}>
-                        <Pencil style={{ width: 11, height: 11 }} />
-                      </button>
-                      <button onClick={() => setFilterGroup(filterGroup === g ? "" : g)}
+                        onClick={() => setFilterGroup(filterGroup === g ? "" : g)}
                         data-testid={`filter-group-${g}`}
-                        style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
-                          backgroundColor: filterGroup === g ? "#0369a1" : "#e0f2fe",
+                        style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px 4px 12px", border: "none", cursor: "pointer", background: "transparent",
                           color: filterGroup === g ? "#ffffff" : "#0369a1" }}>
                         {g}
                       </button>
-                    </>
+                      <button
+                        onClick={() => startEditGroup(g)}
+                        data-testid={`button-edit-group-${g}`}
+                        title={`Renomear "${g}"`}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, marginRight: 4, borderRadius: "50%", border: "none", cursor: "pointer", background: "transparent", padding: 0, flexShrink: 0, transition: "all 0.15s",
+                          visibility: hoveredGroup === g ? "visible" : "hidden",
+                          color: filterGroup === g ? "rgba(255,255,255,0.8)" : "#1d4ed8" }}>
+                        <Pencil style={{ width: 10, height: 10 }} />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}

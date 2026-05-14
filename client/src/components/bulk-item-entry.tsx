@@ -270,10 +270,6 @@ function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
     );
   }, [items, query]);
 
-  // Split filtered list into two equal columns
-  const half = Math.ceil(filtered.length / 2);
-  const col1 = filtered.slice(0, half);
-  const col2 = filtered.slice(half);
 
   function ItemRow({ item }: { item: ExistingItem }) {
     const [hovered, setHovered] = useState(false);
@@ -412,11 +408,7 @@ function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
             if (!typeMap[item.type]) typeMap[item.type] = [];
             typeMap[item.type].push(item);
           }
-          return Object.entries(typeMap).map(([type, typeItems]) => {
-            const half = Math.ceil(typeItems.length / 2);
-            const col1 = typeItems.slice(0, half);
-            const col2 = typeItems.slice(half);
-            return (
+          return Object.entries(typeMap).map(([type, typeItems]) => (
               <div key={type}>
                 {/* Type sub-header */}
                 <div style={{
@@ -443,18 +435,12 @@ function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
                     {typeItems.length}
                   </span>
                 </div>
-                {/* 2-col grid within this type */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                  <div style={{ borderRight: '1px solid #f1f5f9' }}>
-                    {col1.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
-                  </div>
-                  <div>
-                    {col2.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
-                  </div>
+                {/* Single-column list */}
+                <div>
+                  {typeItems.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
                 </div>
               </div>
-            );
-          });
+            ));
         })()}
       </div>
 

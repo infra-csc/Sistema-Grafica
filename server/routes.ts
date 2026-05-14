@@ -512,7 +512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add sponsor to event
-  app.post("/api/events/:id/sponsors", requireAdmin, async (req, res) => {
+  app.post("/api/events/:id/sponsors", requireAuth, async (req, res) => {
     try {
       const validatedData = insertEventSponsorSchema.parse({
         eventId: req.params.id,
@@ -540,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Remove sponsor from event
-  app.delete("/api/events/:eventId/sponsors/:sponsorId", requireAdmin, async (req, res) => {
+  app.delete("/api/events/:eventId/sponsors/:sponsorId", requireAuth, async (req, res) => {
     try {
       const { eventId, sponsorId } = req.params;
       const success = await storage.removeSponsorFromEvent(eventId, sponsorId);

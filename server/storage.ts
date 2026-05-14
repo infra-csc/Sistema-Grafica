@@ -487,6 +487,33 @@ export class DatabaseStorage implements IStorage {
     return result.length;
   }
 
+  async deleteStandardItemGroup(name: string): Promise<number> {
+    const result = await db
+      .update(standardItems)
+      .set({ group: null })
+      .where(eq(standardItems.group, name))
+      .returning();
+    return result.length;
+  }
+
+  async renameStandardItemFinish(oldName: string, newName: string): Promise<number> {
+    const result = await db
+      .update(standardItems)
+      .set({ finish: newName })
+      .where(eq(standardItems.finish, oldName))
+      .returning();
+    return result.length;
+  }
+
+  async deleteStandardItemFinish(name: string): Promise<number> {
+    const result = await db
+      .update(standardItems)
+      .set({ finish: null })
+      .where(eq(standardItems.finish, name))
+      .returning();
+    return result.length;
+  }
+
   // Notifications
   async getNotification(id: string): Promise<Notification | undefined> {
     const [notification] = await db.select().from(notifications).where(eq(notifications.id, id));

@@ -552,11 +552,24 @@ export default function PainelGeral() {
                                     {/* Medidas */}
                                     <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
                                       {(item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight) ? (
-                                        <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#44403c" }}>
-                                          {item.visualWidth && item.visualHeight
-                                            ? `${item.visualWidth} × ${item.visualHeight}`
-                                            : `${item.fileWidth} × ${item.fileHeight}`}
-                                        </span>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                          {item.visualWidth && item.visualHeight && (
+                                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                              <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#a8a29e", width: 30 }}>VIS</span>
+                                              <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#44403c" }}>
+                                                {item.visualWidth} × {item.visualHeight}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {item.fileWidth && item.fileHeight && (
+                                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                              <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#a8a29e", width: 30 }}>ARQ</span>
+                                              <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#78716c" }}>
+                                                {item.fileWidth} × {item.fileHeight}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
                                       ) : (
                                         <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
                                       )}

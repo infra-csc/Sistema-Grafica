@@ -468,7 +468,7 @@ export default function PainelGeral() {
                             {/* ── Grupo Pai header (only when group exists) ── */}
                             {group && (
                               <tr>
-                                <td colSpan={7} style={{ padding: "6px 20px", backgroundColor: "#dbeafe", borderTop: "1px solid #bfdbfe", borderBottom: "1px solid #bfdbfe" }}>
+                                <td colSpan={6} style={{ padding: "6px 20px", backgroundColor: "#dbeafe", borderTop: "1px solid #bfdbfe", borderBottom: "1px solid #bfdbfe" }}>
                                   <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif" }}>
                                     {group}
                                   </span>
@@ -479,7 +479,7 @@ export default function PainelGeral() {
                           <Fragment key={type}>
                             {/* ── Type sub-header ── */}
                             <tr>
-                              <td colSpan={7} style={{
+                              <td colSpan={6} style={{
                                 padding: "8px 20px",
                                 backgroundColor: "#f0ede8",
                                 borderTop: "1px solid #e2e2e2",
@@ -538,14 +538,7 @@ export default function PainelGeral() {
                                       </span>
                                     </td>
 
-                                    {/* Item de Produção */}
-                                    <td style={{ padding: "14px 20px", maxWidth: 220 }}>
-                                      <p style={{ fontWeight: 700, fontSize: 13, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                        {item.type}
-                                      </p>
-                                    </td>
-
-                                    {/* Descrição */}
+                                            {/* Descrição */}
                                     <td style={{ padding: "14px 20px", maxWidth: 260 }}>
                                       {item.description ? (
                                         <span style={{ fontSize: 12, color: "#78716c", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -603,7 +596,7 @@ export default function PainelGeral() {
                                   {/* Observations row */}
                                   {item.observations && (
                                     <tr style={{ backgroundColor: "rgba(251,191,36,0.08)", borderBottom: "1px solid rgba(251,191,36,0.2)" }}>
-                                      <td colSpan={8} style={{ padding: "8px 20px" }}>
+                                      <td colSpan={6} style={{ padding: "8px 20px" }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#92400e" }}>
                                           <AlertCircle style={{ width: 13, height: 13, flexShrink: 0 }} />
                                           Observação: {item.observations}

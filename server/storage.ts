@@ -456,7 +456,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateStandardItem(id: string, updates: Partial<InsertStandardItem>): Promise<StandardItem | undefined> {
-    const values: any = { ...updates, updatedAt: new Date() };
+    const values: any = { ...updates };
     if (updates.area !== undefined) {
       values.area = updates.area !== null ? String(updates.area) : null;
     }

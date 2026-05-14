@@ -51,6 +51,9 @@ export default function Modelos() {
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterGroup, setFilterGroup] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterMaterial, setFilterMaterial] = useState("");
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
   const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
@@ -144,10 +147,21 @@ export default function Modelos() {
     setFormData({ ...EMPTY_FORM });
   };
 
-  const filteredItems = standardItems.filter((item) =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.type?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Unique values for filter chips
+  const allGroups = [...new Set(standardItems.map((s: any) => s.group).filter(Boolean))].sort() as string[];
+  const allTypes  = [...new Set(standardItems.map((s: any) => s.type).filter(Boolean))].sort() as string[];
+  const allMats   = [...new Set(standardItems.map((s: any) => s.material).filter(Boolean))].sort() as string[];
+
+  const filteredItems = standardItems.filter((item) => {
+    const q = searchTerm.toLowerCase();
+    const matchSearch = !q || item.name.toLowerCase().includes(q) || item.type?.toLowerCase().includes(q) || (item.group || "").toLowerCase().includes(q);
+    const matchGroup  = !filterGroup   || item.group    === filterGroup;
+    const matchType   = !filterType    || item.type     === filterType;
+    const matchMat    = !filterMaterial || item.material === filterMaterial;
+    return matchSearch && matchGroup && matchType && matchMat;
+  });
+
+  const activeFilters = [filterGroup, filterType, filterMaterial].filter(Boolean).length;
 
   const isAdmin = true; // all roles with page access can manage models
 
@@ -202,6 +216,69 @@ export default function Modelos() {
           </button>
         </div>
       </div>
+
+      {/* ── Filter Bar ── */}
+      {!isLoading && standardItems.length > 0 && (
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+
+          {/* Grupo */}
+          {allGroups.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Grupo</span>
+              {allGroups.map(g => (
+                <button key={g} onClick={() => setFilterGroup(filterGroup === g ? "" : g)}
+                  data-testid={`filter-group-${g}`}
+                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
+                    backgroundColor: filterGroup === g ? "#0369a1" : "#e0f2fe",
+                    color: filterGroup === g ? "#ffffff" : "#0369a1" }}>
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Tipo */}
+          {allTypes.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Tipo</span>
+              {allTypes.map(t => (
+                <button key={t} onClick={() => setFilterType(filterType === t ? "" : t)}
+                  data-testid={`filter-type-${t}`}
+                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
+                    backgroundColor: filterType === t ? "#1c1917" : "#f0efee",
+                    color: filterType === t ? "#ffffff" : "#57534e" }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Material */}
+          {allMats.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Material</span>
+              {allMats.map(m => (
+                <button key={m} onClick={() => setFilterMaterial(filterMaterial === m ? "" : m)}
+                  data-testid={`filter-material-${m}`}
+                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
+                    backgroundColor: filterMaterial === m ? "#f97316" : "#fff7ed",
+                    color: filterMaterial === m ? "#ffffff" : "#c2410c" }}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Clear all */}
+          {activeFilters > 0 && (
+            <button onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); }}
+              style={{ fontSize: 11, fontWeight: 700, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 100, padding: "4px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+              <X style={{ width: 10, height: 10 }} />
+              Limpar filtros ({activeFilters})
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Table Card ── */}
       {isLoading ? (

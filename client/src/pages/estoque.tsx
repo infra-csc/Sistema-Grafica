@@ -1005,7 +1005,7 @@ export default function Estoque() {
   };
 
   return (
-    <div style={{ padding: "32px 36px", background: "#f8fafc", minHeight: "100vh" }}>
+    <div style={{ padding: "32px 36px", background: "#f8fafc", minHeight: "100%" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>

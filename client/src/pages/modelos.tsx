@@ -285,7 +285,7 @@ export default function Modelos() {
   };
 
   return (
-    <div style={{ backgroundColor: "#fafaf9", minHeight: "100vh", padding: "28px 28px 48px" }}>
+    <div style={{ backgroundColor: "#fafaf9", minHeight: "100%", padding: "24px 28px 20px" }}>
 
       {/* ── Page Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, gap: 16, flexWrap: "wrap" }}>
@@ -473,7 +473,7 @@ export default function Modelos() {
               <p style={{ fontSize: 13, color: "#78716c" }}>Tente buscar com outro termo</p>
             </div>
           ) : (
-            <div className="scrollbar-visible" style={{ overflowX: "scroll", overflowY: "auto", maxHeight: "calc(100vh - 260px)" }}>
+            <div className="scrollbar-visible" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100dvh - 64px - 260px)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "rgba(243,244,243,0.5)", borderBottom: "1px solid #e7e5e4" }}>

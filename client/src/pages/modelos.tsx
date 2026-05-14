@@ -57,9 +57,11 @@ export default function Modelos() {
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
   const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
+  const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
   const [customTypeInput, setCustomTypeInput] = useState("");
   const [customMaterialInput, setCustomMaterialInput] = useState("");
   const [customFinishInput, setCustomFinishInput] = useState("");
+  const [customGroupInput, setCustomGroupInput] = useState("");
   const { toast } = useToast();
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
@@ -491,20 +493,108 @@ export default function Modelos() {
 
               {/* Grupo Pai */}
               <div>
-                <label style={labelStyle}>Grupo Pai <span style={{ fontWeight: 400, color: "#a8a29e", textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
-                <input
-                  value={formData.group}
-                  onChange={e => setFormData({ ...formData, group: e.target.value })}
-                  placeholder="Ex: Pórtico, Backdrop, Testeira..."
-                  data-testid="input-model-group"
-                  list="group-suggestions"
-                  style={fieldStyle}
-                />
-                <datalist id="group-suggestions">
-                  {[...new Set(standardItems.map((s: any) => s.group).filter(Boolean))].map((g: any) => (
-                    <option key={g} value={g} />
-                  ))}
-                </datalist>
+                <label style={labelStyle}>
+                  Grupo Pai{" "}
+                  <span style={{ fontWeight: 400, color: "#a8a29e", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                </label>
+                <Popover open={groupPopoverOpen} onOpenChange={open => { setGroupPopoverOpen(open); if (!open) setCustomGroupInput(""); }}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      data-testid="input-model-group"
+                      style={{
+                        ...fieldStyle,
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        cursor: "pointer",
+                        color: formData.group ? "#1c1917" : "#a8a29e",
+                      }}
+                    >
+                      {formData.group ? (
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          backgroundColor: "#dbeafe", color: "#1d4ed8",
+                          borderRadius: 6, padding: "2px 10px 2px 8px",
+                          fontSize: 12, fontWeight: 700,
+                        }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#3b82f6", flexShrink: 0 }} />
+                          {formData.group}
+                        </span>
+                      ) : (
+                        <span>Selecionar ou criar grupo...</span>
+                      )}
+                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0, marginLeft: 4 }} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent style={{ width: 300, padding: 0 }} align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Buscar ou criar grupo..."
+                        value={customGroupInput}
+                        onValueChange={setCustomGroupInput}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          {customGroupInput ? (
+                            <div style={{ padding: "8px 12px" }}>
+                              <button
+                                type="button"
+                                onClick={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
+                              >
+                                + Criar grupo "{customGroupInput}"
+                              </button>
+                            </div>
+                          ) : (
+                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#a8a29e", margin: 0 }}>Nenhum grupo cadastrado</p>
+                          )}
+                        </CommandEmpty>
+                        {allGroups.length > 0 && (
+                          <CommandGroup heading="Grupos existentes">
+                            {allGroups.map(g => (
+                              <CommandItem
+                                key={g}
+                                value={g}
+                                onSelect={() => { setFormData({ ...formData, group: g }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
+                              >
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", gap: 6,
+                                  backgroundColor: formData.group === g ? "#dbeafe" : "#f0f9ff",
+                                  color: "#1d4ed8", borderRadius: 6,
+                                  padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600,
+                                  marginRight: 8,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#3b82f6", flexShrink: 0 }} />
+                                  {g}
+                                </span>
+                                <Check className={cn("ml-auto h-4 w-4", formData.group === g ? "opacity-100" : "opacity-0")} />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        {customGroupInput && allGroups.some(g => g.toLowerCase() === customGroupInput.toLowerCase()) === false && (
+                          <CommandGroup heading="Novo">
+                            <CommandItem
+                              value={`__new__${customGroupInput}`}
+                              onSelect={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
+                            >
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#1d4ed8" }} />
+                              <span style={{ fontSize: 12, color: "#1d4ed8", fontWeight: 600 }}>Criar "{customGroupInput}"</span>
+                            </CommandItem>
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {formData.group && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, group: "" })}
+                    style={{ marginTop: 4, fontSize: 11, color: "#a8a29e", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  >
+                    Limpar
+                  </button>
+                )}
               </div>
 
               {/* Toggle Medida Variável — col-span-2 */}

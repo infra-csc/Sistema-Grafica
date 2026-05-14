@@ -181,7 +181,8 @@ export default function Modelos() {
   // Unique values for filter chips
   const allGroups = [...new Set(standardItems.map((s: any) => s.group).filter(Boolean))].sort() as string[];
   const allTypes  = [...new Set(standardItems.map((s: any) => s.type).filter(Boolean))].sort() as string[];
-  const allMats   = [...new Set(standardItems.map((s: any) => s.material).filter(Boolean))].sort() as string[];
+  const allMats     = [...new Set(standardItems.map((s: any) => s.material).filter(Boolean))].sort() as string[];
+  const allFinishes = [...new Set(standardItems.map((s: any) => s.finish).filter(Boolean))].sort() as string[];
 
   const filteredItems = standardItems.filter((item) => {
     const q = searchTerm.toLowerCase();
@@ -763,38 +764,62 @@ export default function Modelos() {
               {/* Material */}
               <div>
                 <label style={labelStyle}>Material Base</label>
-                <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
+                <Popover open={materialPopoverOpen} onOpenChange={open => { setMaterialPopoverOpen(open); if (!open) setCustomMaterialInput(""); }}>
                   <PopoverTrigger asChild>
-                    <button type="button"
+                    <button type="button" data-testid="input-model-material"
                       style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.material ? "#1c1917" : "#a8a29e" }}>
-                      <span>{formData.material || "Ex: Lona 440g"}</span>
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0 }} />
+                      {formData.material ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600 }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
+                          {formData.material}
+                        </span>
+                      ) : (
+                        <span>Selecionar ou criar material...</span>
+                      )}
+                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0, marginLeft: 4 }} />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent style={{ width: 280, padding: 0 }} align="start">
+                  <PopoverContent style={{ width: 300, padding: 0 }} align="start">
                     <Command>
-                      <CommandInput placeholder="Buscar ou adicionar material..." value={customMaterialInput} onValueChange={setCustomMaterialInput} />
+                      <CommandInput placeholder="Buscar ou criar material..." value={customMaterialInput} onValueChange={setCustomMaterialInput} />
                       <CommandList>
                         <CommandEmpty>
-                          <div style={{ padding: "8px 12px" }}>
-                            <p style={{ fontSize: 12, color: "#78716c", margin: "0 0 8px" }}>Nenhum material encontrado.</p>
-                            {customMaterialInput && (
-                              <button type="button" onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "6px 12px", backgroundColor: "#1c1917", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                                Adicionar "{customMaterialInput}"
+                          {customMaterialInput ? (
+                            <div style={{ padding: "8px 12px" }}>
+                              <button type="button"
+                                onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#ea580c", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
+                                Criar "{customMaterialInput}"
                               </button>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#a8a29e", margin: 0 }}>Nenhum material cadastrado</p>
+                          )}
                         </CommandEmpty>
-                        <CommandGroup>
-                          {materials.map(material => (
-                            <CommandItem key={material} value={material}
-                              onSelect={() => { setFormData({ ...formData, material }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
-                              <Check className={cn("mr-2 h-4 w-4", formData.material === material ? "opacity-100" : "opacity-0")} />
-                              {material}
+                        {allMats.length > 0 && (
+                          <CommandGroup heading="Materiais existentes">
+                            {allMats.map(m => (
+                              <CommandItem key={m} value={m}
+                                onSelect={() => { setFormData({ ...formData, material: m }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.material === m ? "#fed7aa" : "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600, marginRight: 8 }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
+                                  {m}
+                                </span>
+                                <Check className={cn("ml-auto h-4 w-4", formData.material === m ? "opacity-100" : "opacity-0")} />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        {customMaterialInput && !allMats.some(m => m.toLowerCase() === customMaterialInput.toLowerCase()) && (
+                          <CommandGroup heading="Novo">
+                            <CommandItem value={`__new__${customMaterialInput}`}
+                              onSelect={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#ea580c" }} />
+                              <span style={{ fontSize: 12, color: "#ea580c", fontWeight: 600 }}>Criar "{customMaterialInput}"</span>
                             </CommandItem>
-                          ))}
-                        </CommandGroup>
+                          </CommandGroup>
+                        )}
                       </CommandList>
                     </Command>
                   </PopoverContent>
@@ -810,38 +835,62 @@ export default function Modelos() {
               {/* Acabamento */}
               <div>
                 <label style={labelStyle}>Acabamento</label>
-                <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
+                <Popover open={finishPopoverOpen} onOpenChange={open => { setFinishPopoverOpen(open); if (!open) setCustomFinishInput(""); }}>
                   <PopoverTrigger asChild>
-                    <button type="button"
+                    <button type="button" data-testid="input-model-finish"
                       style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.finish ? "#1c1917" : "#a8a29e" }}>
-                      <span>{formData.finish || "Ex: Ilhós perimetral"}</span>
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0 }} />
+                      {formData.finish ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600 }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#a8a29e", flexShrink: 0 }} />
+                          {formData.finish}
+                        </span>
+                      ) : (
+                        <span>Selecionar ou criar acabamento...</span>
+                      )}
+                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0, marginLeft: 4 }} />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent style={{ width: 280, padding: 0 }} align="start">
+                  <PopoverContent style={{ width: 300, padding: 0 }} align="start">
                     <Command>
-                      <CommandInput placeholder="Buscar ou adicionar acabamento..." value={customFinishInput} onValueChange={setCustomFinishInput} />
+                      <CommandInput placeholder="Buscar ou criar acabamento..." value={customFinishInput} onValueChange={setCustomFinishInput} />
                       <CommandList>
                         <CommandEmpty>
-                          <div style={{ padding: "8px 12px" }}>
-                            <p style={{ fontSize: 12, color: "#78716c", margin: "0 0 8px" }}>Nenhum acabamento encontrado.</p>
-                            {customFinishInput && (
-                              <button type="button" onClick={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "6px 12px", backgroundColor: "#1c1917", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                                Adicionar "{customFinishInput}"
+                          {customFinishInput ? (
+                            <div style={{ padding: "8px 12px" }}>
+                              <button type="button"
+                                onClick={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#57534e", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
+                                Criar "{customFinishInput}"
                               </button>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#a8a29e", margin: 0 }}>Nenhum acabamento cadastrado</p>
+                          )}
                         </CommandEmpty>
-                        <CommandGroup>
-                          {finishes.map(finish => (
-                            <CommandItem key={finish} value={finish}
-                              onSelect={() => { setFormData({ ...formData, finish }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
-                              <Check className={cn("mr-2 h-4 w-4", formData.finish === finish ? "opacity-100" : "opacity-0")} />
-                              {finish}
+                        {allFinishes.length > 0 && (
+                          <CommandGroup heading="Acabamentos existentes">
+                            {allFinishes.map(f => (
+                              <CommandItem key={f} value={f}
+                                onSelect={() => { setFormData({ ...formData, finish: f }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.finish === f ? "#e7e5e4" : "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600, marginRight: 8 }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#a8a29e", flexShrink: 0 }} />
+                                  {f}
+                                </span>
+                                <Check className={cn("ml-auto h-4 w-4", formData.finish === f ? "opacity-100" : "opacity-0")} />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        {customFinishInput && !allFinishes.some(f => f.toLowerCase() === customFinishInput.toLowerCase()) && (
+                          <CommandGroup heading="Novo">
+                            <CommandItem value={`__new__${customFinishInput}`}
+                              onSelect={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#78716c" }} />
+                              <span style={{ fontSize: 12, color: "#78716c", fontWeight: 600 }}>Criar "{customFinishInput}"</span>
                             </CommandItem>
-                          ))}
-                        </CommandGroup>
+                          </CommandGroup>
+                        )}
                       </CommandList>
                     </Command>
                   </PopoverContent>

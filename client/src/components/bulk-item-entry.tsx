@@ -29,6 +29,7 @@ interface StandardItem {
   id: string;
   name: string;
   type: string;
+  group?: string | null;
   area: number;
   visual: number;
   visualWidth?: number | null;
@@ -113,13 +114,13 @@ function makeFocusHandlers(onNav?: () => void) {
 /* ── TipoSelect ─────────────────────────────────────────────────────── */
 interface TipoSelectProps {
   value: string;
-  options: string[];
+  groupedOptions: { group: string; items: string[] }[];
   onChange: (v: string) => void;
   rowIndex: number;
   onNavigateNext: () => void;
 }
 
-function TipoSelect({ value, options, onChange, rowIndex, onNavigateNext }: TipoSelectProps) {
+function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext }: TipoSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -127,22 +128,42 @@ function TipoSelect({ value, options, onChange, rowIndex, onNavigateNext }: Tipo
 
   function closeDropdown() { setOpen(false); setSearch(""); }
 
-  const filtered = search
-    ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
-    : options;
+  const allFlat = groupedOptions.flatMap(g => g.items);
+  const filtered = search.trim()
+    ? allFlat.filter(o => o.toLowerCase().includes(search.toLowerCase()))
+    : null; // null = show grouped
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (open && filtered.length > 0) {
-        // select top result then navigate
-        const top = filtered[0];
-        onChange(top);
-        closeDropdown();
-      }
+      const list = filtered ?? allFlat;
+      if (open && list.length > 0) { onChange(list[0]); closeDropdown(); }
       onNavigateNext();
     }
     if (e.key === 'Escape') closeDropdown();
+  }
+
+  function renderOption(opt: string) {
+    const sel = opt === value;
+    return (
+      <div
+        key={opt}
+        onMouseDown={e => { e.preventDefault(); onChange(opt); closeDropdown(); onNavigateNext(); }}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '7px 10px', borderRadius: 6, fontSize: 12,
+          fontWeight: sel ? 700 : 500,
+          color: sel ? '#f97316' : '#1c1917',
+          backgroundColor: sel ? '#fff7ed' : 'transparent',
+          cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", gap: 6,
+        }}
+        onMouseEnter={e => { if (!sel) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f5f5f4'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = sel ? '#fff7ed' : ''; }}
+      >
+        <span style={{ flex: 1 }}>{opt}</span>
+        {sel && <Check size={10} color="#f97316" />}
+      </div>
+    );
   }
 
   return (
@@ -153,19 +174,12 @@ function TipoSelect({ value, options, onChange, rowIndex, onNavigateNext }: Tipo
         if (!ref.current?.contains(e.relatedTarget as Node)) closeDropdown();
       }}
     >
-      {/* Input wrapper with left orange accent */}
       <div style={{ position: 'relative', display: 'flex' }}>
-        {/* Left accent bar */}
-        <div style={{
-          width: '3px', flexShrink: 0,
-          backgroundColor: '#f97316',
-          borderRadius: '4px 0 0 4px',
-          alignSelf: 'stretch',
-        }} />
+        <div style={{ width: '3px', flexShrink: 0, backgroundColor: '#f97316', borderRadius: '4px 0 0 4px', alignSelf: 'stretch' }} />
         <input
           ref={inputRef}
           value={open ? search : value}
-          onChange={e => { setSearch(e.target.value); onChange(e.target.value); if (!open) setOpen(true); }}
+          onChange={e => { setSearch(e.target.value); if (!open) setOpen(true); }}
           onFocus={() => { setSearch(""); setOpen(true); inputRef.current!.style.borderColor = '#f97316'; }}
           onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; }}
           onKeyDown={handleKeyDown}
@@ -173,66 +187,31 @@ function TipoSelect({ value, options, onChange, rowIndex, onNavigateNext }: Tipo
           placeholder={value || "Selecionar..."}
           data-nav-row={rowIndex}
           data-nav-field="0"
-          style={{
-            ...fieldStyle,
-            flex: 1,
-            paddingRight: '24px',
-            paddingLeft: '8px',
-            textOverflow: 'ellipsis',
-            cursor: 'pointer',
-            borderRadius: '0 6px 6px 0',
-            backgroundColor: open ? '#ebe9e7' : '#f3f4f3',
-          }}
+          style={{ ...fieldStyle, flex: 1, paddingRight: '24px', paddingLeft: '8px', textOverflow: 'ellipsis', cursor: 'pointer', borderRadius: '0 6px 6px 0', backgroundColor: open ? '#ebe9e7' : '#f3f4f3' }}
         />
-        <ChevronDown
-          size={10}
-          color="#a8a29e"
-          style={{
-            position: 'absolute', right: 7, top: '50%',
-            transform: open ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)',
-            transition: 'transform 0.15s', pointerEvents: 'none',
-          }}
-        />
+        <ChevronDown size={10} color="#a8a29e" style={{ position: 'absolute', right: 7, top: '50%', transform: open ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)', transition: 'transform 0.15s', pointerEvents: 'none' }} />
       </div>
 
-      {/* Dropdown */}
       {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 600,
-          backgroundColor: '#ffffff',
-          border: '1px solid #e7e5e4',
-          borderRadius: 8,
-          boxShadow: '0 8px 28px rgba(0,0,0,0.13)',
-          maxHeight: 208, overflowY: 'auto',
-          minWidth: 200, padding: '4px',
-          scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 #f5f5f4',
-        }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding: '10px 12px', fontSize: 12, color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Nenhum resultado
-            </div>
-          ) : filtered.map(opt => {
-            const sel = opt === value;
-            return (
-              <div
-                key={opt}
-                onMouseDown={e => { e.preventDefault(); onChange(opt); closeDropdown(); onNavigateNext(); }}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '7px 10px', borderRadius: 6, fontSize: 12,
-                  fontWeight: sel ? 700 : 500,
-                  color: sel ? '#f97316' : '#1c1917',
-                  backgroundColor: sel ? '#fff7ed' : 'transparent',
-                  cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", gap: 6,
-                }}
-                onMouseEnter={e => { if (!sel) (e.currentTarget as HTMLDivElement).style.backgroundColor = '#f5f5f4'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = sel ? '#fff7ed' : ''; }}
-              >
-                <span style={{ flex: 1 }}>{opt}</span>
-                {sel && <Check size={10} color="#f97316" />}
-              </div>
-            );
-          })}
+        <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 600, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,0.13)', maxHeight: 260, overflowY: 'auto', minWidth: 220, padding: '4px', scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 #f5f5f4' }}>
+          {filtered !== null ? (
+            filtered.length === 0
+              ? <div style={{ padding: '10px 12px', fontSize: 12, color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum resultado</div>
+              : filtered.map(renderOption)
+          ) : (
+            groupedOptions.length === 0
+              ? <div style={{ padding: '10px 12px', fontSize: 12, color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum modelo cadastrado</div>
+              : groupedOptions.map(({ group, items }) => (
+                <div key={group || '__nogroup'}>
+                  {group && (
+                    <div style={{ padding: '5px 10px 3px', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#f0f9ff', borderRadius: 4, margin: '4px 2px 2px' }}>
+                      {group}
+                    </div>
+                  )}
+                  {items.map(renderOption)}
+                </div>
+              ))
+          )}
         </div>
       )}
     </div>
@@ -253,10 +232,11 @@ function createEmptyRow(): BulkItemRow {
 /* ── ExistingItemsPanel ─────────────────────────────────────────────── */
 interface ExistingItemsPanelProps {
   items: ExistingItem[];
+  standardItems?: StandardItem[];
   onDelete?: (id: string) => void;
 }
 
-function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
+function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingItemsPanelProps) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -402,45 +382,51 @@ function ExistingItemsPanel({ items, onDelete }: ExistingItemsPanelProps) {
             {query ? 'Nenhum item encontrado para esta busca.' : 'Nenhuma peça lançada ainda.'}
           </div>
         ) : (() => {
-          // Group by type preserving order
-          const typeMap: Record<string, ExistingItem[]> = {};
-          for (const item of filtered) {
-            if (!typeMap[item.type]) typeMap[item.type] = [];
-            typeMap[item.type].push(item);
+          // Build type → group map
+          const typeToGroup: Record<string, string> = {};
+          for (const s of standardItems) {
+            if (s.group) typeToGroup[s.name] = s.group;
           }
-          return Object.entries(typeMap).map(([type, typeItems]) => (
-              <div key={type}>
-                {/* Type sub-header */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '7px',
-                  padding: '4px 8px',
-                  backgroundColor: '#f0ede8',
-                  borderTop: '1px solid #e7e3dc',
-                  borderBottom: '1px solid #e7e3dc',
-                }}>
-                  <span style={{
-                    fontSize: '9px', fontWeight: '900',
-                    textTransform: 'uppercase', letterSpacing: '0.12em',
-                    color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  }}>
-                    {type}
-                  </span>
-                  <span style={{
-                    fontSize: '9px', fontWeight: '700',
-                    color: '#9D978F', backgroundColor: '#e7e3de',
-                    borderRadius: 999, padding: '1px 6px',
-                    fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
-                  }}>
-                    {typeItems.length}
+          // Group by Grupo Pai first, then by type
+          const groupMap: Record<string, Record<string, ExistingItem[]>> = {};
+          for (const item of filtered) {
+            const g = typeToGroup[item.type] || '';
+            if (!groupMap[g]) groupMap[g] = {};
+            if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
+            groupMap[g][item.type].push(item);
+          }
+          const sortedGroups = Object.keys(groupMap).sort((a, b) => {
+            if (a === '') return 1; if (b === '') return -1;
+            return a.localeCompare(b, 'pt-BR');
+          });
+          return sortedGroups.map(group => (
+            <div key={group || '__nogroup'}>
+              {/* Grupo Pai header */}
+              {group && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 8px', backgroundColor: '#e0f2fe', borderTop: '1px solid #bae6fd', borderBottom: '1px solid #bae6fd' }}>
+                  <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    {group}
                   </span>
                 </div>
-                {/* Single-column list */}
-                <div>
-                  {typeItems.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
+              )}
+              {Object.entries(groupMap[group]).map(([type, typeItems]) => (
+                <div key={type}>
+                  {/* Type sub-header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 8px', backgroundColor: '#f0ede8', borderTop: '1px solid #e7e3dc', borderBottom: '1px solid #e7e3dc' }}>
+                    <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {type}
+                    </span>
+                    <span style={{ fontSize: '9px', fontWeight: '700', color: '#9D978F', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                      {typeItems.length}
+                    </span>
+                  </div>
+                  <div>
+                    {typeItems.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
+                  </div>
                 </div>
-              </div>
-            ));
+              ))}
+            </div>
+          ));
         })()}
       </div>
 
@@ -636,7 +622,23 @@ export function BulkItemEntry({
     parseFloat(r.fileHeight) > 0 && r.material && r.finish
   ).length;
 
-  const allTypeOptions = standardItems.map(s => s.name).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const groupedTypeOptions = useMemo(() => {
+    const groupMap: Record<string, string[]> = {};
+    const noGroup: string[] = [];
+    for (const s of standardItems) {
+      if (s.group) {
+        if (!groupMap[s.group]) groupMap[s.group] = [];
+        groupMap[s.group].push(s.name);
+      } else {
+        noGroup.push(s.name);
+      }
+    }
+    const result = Object.entries(groupMap)
+      .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+      .map(([group, items]) => ({ group, items: items.sort((a, b) => a.localeCompare(b, 'pt-BR')) }));
+    if (noGroup.length > 0) result.push({ group: '', items: noGroup.sort((a, b) => a.localeCompare(b, 'pt-BR')) });
+    return result;
+  }, [standardItems]);
 
   const cols = [
     { label: 'Tipo',       w: '134px', orange: false },
@@ -727,19 +729,31 @@ export function BulkItemEntry({
                 </div>
                 <div style={{ maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: '1px solid #E7E3DC', borderRadius: '8px' }}>
                   {(() => {
-                    const typeMap: Record<string, any[]> = {};
+                    const typeToGroup: Record<string, string> = {};
+                    for (const s of standardItems) { if (s.group) typeToGroup[s.name] = s.group; }
+                    const groupMap: Record<string, Record<string, any[]>> = {};
                     for (const item of duplicateConfirm.valid) {
-                      if (!typeMap[item.type]) typeMap[item.type] = [];
-                      typeMap[item.type].push(item);
+                      const g = typeToGroup[item.type] || '';
+                      if (!groupMap[g]) groupMap[g] = {};
+                      if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
+                      groupMap[g][item.type].push(item);
                     }
-                    return Object.entries(typeMap).map(([type, typeItems], gi) => (
+                    const sortedGroups = Object.keys(groupMap).sort((a, b) => { if (a === '') return 1; if (b === '') return -1; return a.localeCompare(b, 'pt-BR'); });
+                    return sortedGroups.map(group => (
+                      <div key={group || '__nogroup'}>
+                        {group && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 12px', backgroundColor: '#e0f2fe', borderBottom: '1px solid #bae6fd' }}>
+                            <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>{group}</span>
+                          </div>
+                        )}
+                        {Object.entries(groupMap[group]).map(([type, typeItems], gi) => (
                       <div key={type}>
                         {/* Type sub-header */}
                         <div style={{
                           display: 'flex', alignItems: 'center', gap: '7px',
                           padding: '5px 12px',
                           backgroundColor: '#f0ede8',
-                          borderTop: gi === 0 ? 'none' : '1px solid #E7E3DC',
+                          borderTop: (!group && gi === 0) ? 'none' : '1px solid #E7E3DC',
                           borderBottom: '1px solid #E7E3DC',
                         }}>
                           <span style={{
@@ -808,8 +822,10 @@ export function BulkItemEntry({
                           );
                         })}
                       </div>
-                    ));
-                  })()}
+                    ))}
+                  </div>
+                ));
+              })()}
                 </div>
               </div>
 
@@ -824,75 +840,45 @@ export function BulkItemEntry({
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', maxHeight: '220px', overflowY: 'auto', overflowX: 'hidden', border: '1px solid #E7E3DC', borderRadius: '8px' }}>
                     {(() => {
-                      const typeMap: Record<string, ExistingItem[]> = {};
+                      const typeToGroup2: Record<string, string> = {};
+                      for (const s of standardItems) { if (s.group) typeToGroup2[s.name] = s.group; }
+                      const gMap2: Record<string, Record<string, ExistingItem[]>> = {};
                       for (const item of existingItems) {
-                        if (!typeMap[item.type]) typeMap[item.type] = [];
-                        typeMap[item.type].push(item);
+                        const g = typeToGroup2[item.type] || '';
+                        if (!gMap2[g]) gMap2[g] = {};
+                        if (!gMap2[g][item.type]) gMap2[g][item.type] = [];
+                        gMap2[g][item.type].push(item);
                       }
-                      return Object.entries(typeMap).map(([type, typeItems], gi) => (
-                        <div key={type}>
-                          {/* Type sub-header */}
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: '7px',
-                            padding: '5px 12px',
-                            backgroundColor: '#f0ede8',
-                            borderTop: gi === 0 ? 'none' : '1px solid #E7E3DC',
-                            borderBottom: '1px solid #E7E3DC',
-                          }}>
-                            <span style={{
-                              fontSize: '9px', fontWeight: '900',
-                              textTransform: 'uppercase', letterSpacing: '0.12em',
-                              color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
-                              flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}>
-                              {type}
-                            </span>
-                            <span style={{
-                              fontSize: '9px', fontWeight: '700',
-                              color: '#9D978F', backgroundColor: '#e7e3de',
-                              borderRadius: 999, padding: '1px 6px',
-                              fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
-                            }}>
-                              {typeItems.length}
-                            </span>
-                          </div>
-                          {/* Items */}
-                          {typeItems.map((item) => {
-                            const isConflict = duplicateConfirm.duplicates.some(d => d.existingItem.id === item.id);
-                            return (
-                              <div key={item.id} style={{
-                                backgroundColor: isConflict ? '#FEF9EC' : '#F7F6F3',
-                                borderBottom: '1px solid #E7E3DC',
-                                padding: '7px 12px',
-                                display: 'flex', alignItems: 'center', gap: '10px',
-                              }}>
-                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
-                                  {item.displayId}
-                                </span>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <span style={{ fontSize: '12px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#92400e' : '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {item.type}
-                                  </span>
-                                  {item.description && (
-                                    <span style={{ fontSize: '11px', color: isConflict ? '#b45309' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {item.description}
-                                    </span>
-                                  )}
-                                </div>
-                                <span style={{ fontSize: '11px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#D97A1E' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>
-                                  {item.quantity}x
-                                </span>
-                                {isConflict && (
-                                  <span style={{
-                                    fontSize: '8px', fontWeight: '800', backgroundColor: '#fde68a',
-                                    color: '#92400e', borderRadius: '3px', padding: '1px 5px',
-                                    textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
-                                    fontFamily: "'Space Grotesk', sans-serif",
-                                  }}>Dup</span>
-                                )}
+                      const sortedG2 = Object.keys(gMap2).sort((a, b) => { if (a === '') return 1; if (b === '') return -1; return a.localeCompare(b, 'pt-BR'); });
+                      return sortedG2.map(group => (
+                        <div key={group || '__nogroup2'}>
+                          {group && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 12px', backgroundColor: '#e0f2fe', borderBottom: '1px solid #bae6fd' }}>
+                              <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>{group}</span>
+                            </div>
+                          )}
+                          {Object.entries(gMap2[group]).map(([type, typeItems], gi) => (
+                            <div key={type}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 12px', backgroundColor: '#f0ede8', borderTop: (!group && gi === 0) ? 'none' : '1px solid #E7E3DC', borderBottom: '1px solid #E7E3DC' }}>
+                                <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
+                                <span style={{ fontSize: '9px', fontWeight: '700', color: '#9D978F', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{typeItems.length}</span>
                               </div>
-                            );
-                          })}
+                              {typeItems.map((item) => {
+                                const isConflict = duplicateConfirm.duplicates.some(d => d.existingItem.id === item.id);
+                                return (
+                                  <div key={item.id} style={{ backgroundColor: isConflict ? '#FEF9EC' : '#F7F6F3', borderBottom: '1px solid #E7E3DC', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{item.displayId}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <span style={{ fontSize: '12px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#92400e' : '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                                      {item.description && <span style={{ fontSize: '11px', color: isConflict ? '#b45309' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>}
+                                    </div>
+                                    <span style={{ fontSize: '11px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#D97A1E' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>{item.quantity}x</span>
+                                    {isConflict && <span style={{ fontSize: '8px', fontWeight: '800', backgroundColor: '#fde68a', color: '#92400e', borderRadius: '3px', padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}>Dup</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))}
                         </div>
                       ));
                     })()}
@@ -1002,7 +988,7 @@ export function BulkItemEntry({
 
           {/* ══ SEÇÃO: PEÇAS JÁ LANÇADAS ══ */}
           {existingItems.length > 0 && (
-            <ExistingItemsPanel items={existingItems} onDelete={onDeleteExistingItem} />
+            <ExistingItemsPanel items={existingItems} standardItems={standardItems} onDelete={onDeleteExistingItem} />
           )}
 
           {/* ══ SEÇÃO: GRID DE LOTE ══ */}
@@ -1035,7 +1021,7 @@ export function BulkItemEntry({
                   <td style={{ padding: '2px 4px' }}>
                     <TipoSelect
                       value={row.type}
-                      options={allTypeOptions}
+                      groupedOptions={groupedTypeOptions}
                       onChange={v => updateRow(row.id, 'type', v)}
                       rowIndex={ri}
                       onNavigateNext={() => focusNextField(ri, 0)}

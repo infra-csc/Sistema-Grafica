@@ -67,10 +67,39 @@ export default function Modelos() {
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  const [editGroupValue, setEditGroupValue] = useState("");
 
   const { data: standardItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
   });
+
+  const renameGroupMutation = useMutation({
+    mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) =>
+      await apiRequest("PATCH", "/api/standard-items/rename-group", { oldName, newName }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
+      if (filterGroup === vars.oldName) setFilterGroup(vars.newName);
+      setEditingGroup(null);
+      setEditGroupValue("");
+      toast({ title: "Grupo renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    },
+  });
+
+  function startEditGroup(g: string) {
+    setEditingGroup(g);
+    setEditGroupValue(g);
+  }
+
+  function confirmEditGroup() {
+    const trimmed = editGroupValue.trim();
+    if (!trimmed || !editingGroup) return;
+    if (trimmed === editingGroup) { setEditingGroup(null); return; }
+    renameGroupMutation.mutate({ oldName: editingGroup, newName: trimmed });
+  }
 
   const createStandardItemMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -228,13 +257,50 @@ export default function Modelos() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>Grupo</span>
               {allGroups.map(g => (
-                <button key={g} onClick={() => setFilterGroup(filterGroup === g ? "" : g)}
-                  data-testid={`filter-group-${g}`}
-                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
-                    backgroundColor: filterGroup === g ? "#0369a1" : "#e0f2fe",
-                    color: filterGroup === g ? "#ffffff" : "#0369a1" }}>
-                  {g}
-                </button>
+                <div key={g} style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  {editingGroup === g ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={editGroupValue}
+                        onChange={e => setEditGroupValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") confirmEditGroup(); if (e.key === "Escape") setEditingGroup(null); }}
+                        data-testid={`input-rename-group-${g}`}
+                        style={{ fontSize: 11, fontWeight: 700, borderRadius: 6, padding: "3px 8px", border: "1.5px solid #3b82f6", outline: "none", width: Math.max(60, editGroupValue.length * 8) + "px", color: "#1d4ed8", background: "#eff6ff" }}
+                      />
+                      <button
+                        onClick={confirmEditGroup}
+                        disabled={renameGroupMutation.isPending}
+                        data-testid={`button-confirm-rename-group-${g}`}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer", background: "#3b82f6", color: "#fff" }}>
+                        <Check style={{ width: 12, height: 12 }} />
+                      </button>
+                      <button
+                        onClick={() => setEditingGroup(null)}
+                        data-testid={`button-cancel-rename-group-${g}`}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 4, border: "none", cursor: "pointer", background: "#e2e8f0", color: "#64748b" }}>
+                        <X style={{ width: 12, height: 12 }} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => startEditGroup(g)}
+                        data-testid={`button-edit-group-${g}`}
+                        title={`Renomear grupo "${g}"`}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 4, border: "none", cursor: "pointer", background: "transparent", color: "#94a3b8", padding: 0, flexShrink: 0 }}>
+                        <Pencil style={{ width: 11, height: 11 }} />
+                      </button>
+                      <button onClick={() => setFilterGroup(filterGroup === g ? "" : g)}
+                        data-testid={`filter-group-${g}`}
+                        style={{ fontSize: 11, fontWeight: 700, borderRadius: 100, padding: "4px 12px", border: "none", cursor: "pointer", transition: "all 0.15s",
+                          backgroundColor: filterGroup === g ? "#0369a1" : "#e0f2fe",
+                          color: filterGroup === g ? "#ffffff" : "#0369a1" }}>
+                        {g}
+                      </button>
+                    </>
+                  )}
+                </div>
               ))}
             </div>
           )}

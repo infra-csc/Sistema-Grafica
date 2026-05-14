@@ -74,6 +74,7 @@ export interface IStorage {
   getStandardItem(id: string): Promise<StandardItem | undefined>;
   getAllStandardItems(): Promise<StandardItem[]>;
   createStandardItem(item: InsertStandardItem): Promise<StandardItem>;
+  renameStandardItemGroup(oldName: string, newName: string): Promise<number>;
   
   // Notifications
   getNotification(id: string): Promise<Notification | undefined>;
@@ -475,6 +476,15 @@ export class DatabaseStorage implements IStorage {
   async deleteStandardItem(id: string): Promise<boolean> {
     const result = await db.delete(standardItems).where(eq(standardItems.id, id)).returning();
     return result.length > 0;
+  }
+
+  async renameStandardItemGroup(oldName: string, newName: string): Promise<number> {
+    const result = await db
+      .update(standardItems)
+      .set({ group: newName })
+      .where(eq(standardItems.group, oldName))
+      .returning();
+    return result.length;
   }
 
   // Notifications

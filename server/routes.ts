@@ -2770,6 +2770,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rename all standard items in a group
+  app.patch("/api/standard-items/rename-group", async (req, res) => {
+    try {
+      const { oldName, newName } = req.body;
+      if (!oldName || !newName || !newName.trim()) {
+        return res.status(400).json({ error: "oldName e newName são obrigatórios" });
+      }
+      const count = await storage.renameStandardItemGroup(oldName, newName.trim());
+      broadcast({ type: "standard_item_group_renamed", oldName, newName: newName.trim() });
+      res.json({ count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Update standard item
   app.patch("/api/standard-items/:id", async (req, res) => {
     try {

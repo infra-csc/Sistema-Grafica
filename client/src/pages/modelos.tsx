@@ -190,6 +190,10 @@ export default function Modelos() {
     const matchType   = !filterType    || item.type     === filterType;
     const matchMat    = !filterMaterial || item.material === filterMaterial;
     return matchSearch && matchGroup && matchType && matchMat;
+  }).sort((a, b) => {
+    const ga = (a.group || "").localeCompare(b.group || "", "pt-BR");
+    if (ga !== 0) return ga;
+    return a.name.localeCompare(b.name, "pt-BR");
   });
 
   const activeFilters = [filterGroup, filterType, filterMaterial].filter(Boolean).length;
@@ -526,10 +530,10 @@ export default function Modelos() {
 
       {/* ── Modal Criar / Editar ── */}
       <Dialog open={open} onOpenChange={open => { if (!open) handleCloseDialog(); }}>
-        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 640, borderRadius: 16, overflow: "hidden", backgroundColor: "#ffffff" }}>
+        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 640, borderRadius: 16, overflow: "hidden", backgroundColor: "#ffffff", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
 
           {/* Header */}
-          <div style={{ padding: "24px 32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: "1px solid #f5f4f0" }}>
+          <div style={{ padding: "24px 32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: "1px solid #f5f4f0", flexShrink: 0 }}>
             <div>
               <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#1c1917", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
                 {editingItem ? "Editar Modelo de Item" : "Novo Modelo de Item"}
@@ -541,8 +545,8 @@ export default function Modelos() {
           </div>
 
           {/* Body */}
-          <form onSubmit={handleSubmit}>
-            <div style={{ padding: "28px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+            <div style={{ padding: "28px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, overflowY: "auto", flex: 1 }}>
 
               {/* Nome */}
               <div>

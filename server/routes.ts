@@ -430,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create sponsor
-  app.post("/api/sponsors", requireAdmin, async (req, res) => {
+  app.post("/api/sponsors", requireAuth, async (req, res) => {
     try {
       const validatedData = insertSponsorSchema.parse(req.body);
       const sponsor = await storage.createSponsor(validatedData);

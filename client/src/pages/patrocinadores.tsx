@@ -51,7 +51,7 @@ const sponsorSchema = z.object({
   company:       z.string().optional(),
   contactPerson: z.string().optional(),
   notes:         z.string().optional(),
-  color:         z.string().optional(),
+  color:         z.string().min(1, "Cor obrigatória"),
 });
 type SponsorForm = z.infer<typeof sponsorSchema>;
 

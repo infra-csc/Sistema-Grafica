@@ -1275,60 +1275,84 @@ export default function EventDetail() {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 mb-4">
-              {items
-                .filter(item => item.status === 'draft')
-                .sort((a, b) => a.type.localeCompare(b.type))
-                .map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-card hover-elevate" data-testid={`draft-item-${item.id}`}>
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{item.type}</span>
-                          {item.description && <span className="text-sm text-muted-foreground truncate">— {item.description}</span>}
+            <div className="space-y-4 mb-4">
+              {(() => {
+                const draftItems = items.filter(item => item.status === 'draft');
+                // Grupo Pai → Tipo → itens
+                const draftGroupMap: Record<string, Record<string, typeof draftItems>> = {};
+                draftItems.forEach(item => {
+                  const g = typeToGroup[item.type] || '';
+                  if (!draftGroupMap[g]) draftGroupMap[g] = {};
+                  if (!draftGroupMap[g][item.type]) draftGroupMap[g][item.type] = [];
+                  draftGroupMap[g][item.type].push(item);
+                });
+                const draftSortedGroups = Object.keys(draftGroupMap).sort((a, b) => {
+                  if (a === '') return 1; if (b === '') return -1;
+                  return a.localeCompare(b, 'pt-BR');
+                });
+                return draftSortedGroups.map(groupName => {
+                  const typeMap = draftGroupMap[groupName];
+                  const sortedTypes = Object.keys(typeMap).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+                  return (
+                    <div key={groupName || '__sem_grupo__'}>
+                      {/* Cabeçalho Grupo Pai */}
+                      {groupName && (
+                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a8a29e', marginBottom: 6, paddingLeft: 2 }}>
+                          {groupName}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.quantity} {item.quantity === 1 ? 'unidade' : 'unidades'} • {item.material} • {item.finish} • {parseFloat(item.calculatedM2).toFixed(2)}m²
-                        </div>
+                      )}
+                      <div className="space-y-3">
+                        {sortedTypes.map(typeName => {
+                          const typeItems = typeMap[typeName];
+                          return (
+                            <div key={typeName}>
+                              {/* Sub-cabeçalho Tipo */}
+                              <div style={{ fontSize: 11, fontWeight: 600, color: '#78716c', marginBottom: 4, paddingLeft: 2 }}>
+                                {typeName}
+                              </div>
+                              <div className="space-y-2">
+                                {typeItems.map(item => (
+                                  <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-card hover-elevate" data-testid={`draft-item-${item.id}`}>
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                                        <Package className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          {item.description && <span className="text-sm text-muted-foreground truncate">— {item.description}</span>}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {item.quantity} {item.quantity === 1 ? 'unidade' : 'unidades'} • {item.material} • {item.finish} • {parseFloat(item.calculatedM2).toFixed(2)}m²
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {canManageEvent && (
+                                      <div className="flex items-center gap-1 ml-2">
+                                        {isEditBlocked(item.status) ? (
+                                          <div className="p-1.5 rounded-md" title="Edição bloqueada — item já liberado para gráfica" style={{ color: "#a8a29e", cursor: "not-allowed" }}>
+                                            <Lock className="h-3.5 w-3.5" />
+                                          </div>
+                                        ) : (
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditItem(item)} data-testid={`button-edit-draft-${item.id}`}>
+                                            <Pencil className="h-3.5 w-3.5" />
+                                          </Button>
+                                        )}
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/10" onClick={() => setDeletingItemId(item.id)} data-testid={`button-delete-draft-${item.id}`}>
+                                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                    {canManageEvent && (
-                      <div className="flex items-center gap-1 ml-2">
-                        {isEditBlocked(item.status) ? (
-                          <div
-                            className="p-1.5 rounded-md"
-                            title="Edição bloqueada — item já liberado para gráfica"
-                            style={{ color: "#a8a29e", cursor: "not-allowed" }}
-                          >
-                            <Lock className="h-3.5 w-3.5" />
-                          </div>
-                        ) : (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => handleEditItem(item)}
-                          data-testid={`button-edit-draft-${item.id}`}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 hover:bg-destructive/10"
-                          onClick={() => setDeletingItemId(item.id)}
-                          data-testid={`button-delete-draft-${item.id}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                });
+              })()}
             </div>
             <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border-2 border-dashed border-primary/30">
               <div className="flex items-center gap-2">

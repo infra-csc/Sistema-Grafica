@@ -431,7 +431,7 @@ export default function PainelGeral() {
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ backgroundColor: "#1c1917" }}>
-                        {["ID", "Peça de Produção", "Descrição", "Medidas", "Tipo", "Patrocinador", "Status", ""].map((col, i) => (
+                        {["ID", "Peça de Produção", "Descrição", "Medidas", "Patrocinador", "Status", ""].map((col, i) => (
                           <th key={i} style={{
                             padding: "12px 20px",
                             fontSize: 11, fontWeight: 900, textTransform: "uppercase",
@@ -543,19 +543,6 @@ export default function PainelGeral() {
                                       ) : (
                                         <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
                                       )}
-                                    </td>
-
-                                    {/* Tipo */}
-                                    <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
-                                      <span style={{
-                                        fontSize: 10, padding: "2px 8px",
-                                        backgroundColor: "#f0f0ef",
-                                        color: "#57534e",
-                                        fontWeight: 700, textTransform: "uppercase",
-                                        borderRadius: 2,
-                                      }}>
-                                        {item.type}
-                                      </span>
                                     </td>
 
                                     {/* Patrocinador */}

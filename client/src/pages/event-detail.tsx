@@ -1503,8 +1503,9 @@ export default function EventDetail() {
                   </table>
                 </div>
               </section>
-            );
-          })}
+            ))}
+            </Fragment>
+          ))}
         </div>
       )}
 

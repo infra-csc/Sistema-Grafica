@@ -403,7 +403,7 @@ export default function Grafica() {
       </div>
 
       {/* ── Tabela Principal ── */}
-      <div style={{ backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 10 }}>
         {isLoading ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 48 }}>
             <div style={{ width: 32, height: 32, border: `3px solid ${TI.border}`, borderTopColor: TI.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -415,6 +415,7 @@ export default function Grafica() {
             <div style={{ fontSize: 13 }}>Ajuste os filtros para visualizar itens</div>
           </div>
         ) : (
+          <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: TI.text }}>
@@ -637,6 +638,7 @@ export default function Grafica() {
               })}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* Rodapé da tabela */}

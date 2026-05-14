@@ -428,7 +428,7 @@ export default function PainelGeral() {
                 </div>
 
                 {/* Table */}
-                <div style={{ overflowX: "auto" }}>
+                <div style={{ overflowX: "auto", overflowY: "visible" }} className="scrollbar-visible">
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ backgroundColor: "#1c1917" }}>

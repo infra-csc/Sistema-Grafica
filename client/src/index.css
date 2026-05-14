@@ -431,9 +431,34 @@
     border-color: hsl(var(--status-production));
   }
 
+  /* ── Global scrollbar styles — visible on all overflow containers ── */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d6d3d1 transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: #f5f5f4;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #d6d3d1;
+    border-radius: 4px;
+    border: 2px solid #f5f5f4;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #a8a29e;
+  }
+  *::-webkit-scrollbar-corner {
+    background: #f5f5f4;
+  }
+
   .scrollbar-visible {
     scrollbar-width: thin;
     scrollbar-color: #d6d3d1 #f5f5f4;
+    overflow: auto;
   }
   .scrollbar-visible::-webkit-scrollbar {
     width: 8px;

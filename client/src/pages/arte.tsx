@@ -421,7 +421,7 @@ export default function Arte() {
                   </div>
                 </div>
               )}
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ overflowX: 'auto' }} className="scrollbar-visible">
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>

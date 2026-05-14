@@ -1473,7 +1473,7 @@ export default function VincularPatrocinadores() {
 
               {/* Tabela de Items */}
               <div style={{ backgroundColor: '#ffffff', borderRadius: '0 0 10px 10px', overflow: 'hidden', border: '1px solid #e7e5e4', borderTop: 'none' }}>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto scrollbar-visible">
                   <table className="w-full">
                     <thead>
                       <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>

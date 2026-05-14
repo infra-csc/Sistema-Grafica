@@ -624,7 +624,7 @@ export default function EventDetail() {
   });
 
   return (
-    <div style={{ padding: '28px 40px', minHeight: '100%', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
+    <div style={{ padding: '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
       {/* Breadcrumb */}
       <Link href="/eventos">
         <a

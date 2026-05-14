@@ -168,7 +168,7 @@ export default function Usuarios() {
   const secScore = users.length > 0 ? Math.round((users.filter(u => !u.mustChangePassword).length / users.length) * 100) : 100;
 
   return (
-    <div style={{ backgroundColor: T.bg, minHeight: "100%", padding: "28px 32px 64px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "28px 32px 64px" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, gap: 16, flexWrap: "wrap" }}>

@@ -488,7 +488,7 @@ export default function TriagemRetorno() {
   };
 
   return (
-    <div style={{ padding: "32px 36px", background: "#f8fafc", minHeight: "100%", display: "flex", flexDirection: "column", gap: 28 }}>
+    <div style={{ padding: "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 28 }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

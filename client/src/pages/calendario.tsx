@@ -127,7 +127,7 @@ export default function Calendario() {
   }
 
   return (
-    <div style={{ backgroundColor: P.bg, minHeight: "100%", padding: "28px 28px 48px" }}>
+    <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: "28px 28px 48px" }}>
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>

@@ -184,7 +184,7 @@ export default function PainelGeral() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24, height: "100%", overflowY: "auto" }}>
 
       {/* ── Header ── */}
       <header style={{ display: "flex", flexDirection: "column" }}>

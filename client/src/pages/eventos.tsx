@@ -451,7 +451,7 @@ export default function Eventos() {
   };
 
   return (
-    <div style={{ backgroundColor: '#fafaf9', minHeight: '100%', padding: '32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+    <div style={{ backgroundColor: '#fafaf9', height: '100%', overflowY: 'auto', padding: '32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
 
       {/* ── HEADER ── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">

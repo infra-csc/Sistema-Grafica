@@ -221,7 +221,7 @@ export default function DashboardAnalises() {
   ];
 
   return (
-    <div style={{ backgroundColor: T.bg, minHeight: "100%", padding: "28px 32px 64px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "28px 32px 64px" }}>
 
       {/* ── Header row: title + export buttons ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>

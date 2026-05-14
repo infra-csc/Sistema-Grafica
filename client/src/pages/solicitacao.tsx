@@ -188,7 +188,7 @@ export default function Solicitacao() {
   }
 
   return (
-    <div style={{ backgroundColor: TI.bg, minHeight: "100%" }}>
+    <div style={{ backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── 1. HERO HEADER ─────────────────────────────────────────────── */}
       <section style={{ backgroundColor: "#0c0a09", color: "#fff", padding: "48px 32px", position: "relative", overflow: "hidden" }}>

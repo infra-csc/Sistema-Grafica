@@ -237,7 +237,7 @@ export default function Historico() {
   };
 
   return (
-    <div style={{ backgroundColor: P.bg, minHeight: "100%", padding: "28px 28px 48px" }}>
+    <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: "28px 28px 48px" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 20, marginBottom: 32 }}>

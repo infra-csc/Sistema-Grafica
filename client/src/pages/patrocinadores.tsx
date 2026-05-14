@@ -154,7 +154,7 @@ export default function Patrocinadores() {
   };
 
   return (
-    <div style={{ backgroundColor: T.bg, minHeight: "100%", padding: "36px 40px 80px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "36px 40px 80px" }}>
 
       {/* ── Page Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36 }}>

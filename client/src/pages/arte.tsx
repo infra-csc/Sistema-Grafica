@@ -947,7 +947,7 @@ export default function Arte() {
   };
 
   return (
-    <div style={{ padding: '32px', maxWidth: 1600, margin: '0 auto' }} className="space-y-8">
+    <div style={{ padding: '32px', maxWidth: 1600, margin: '0 auto', height: '100%', overflowY: 'auto' }} className="space-y-8">
 
       {/* ── 1. STAT CARDS ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

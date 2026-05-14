@@ -490,7 +490,7 @@ export default function Atendimento() {
   }
 
   return (
-    <div className="bg-stone-50 p-8">
+    <div className="bg-stone-50 p-8" style={{ height: "100%", overflowY: "auto" }}>
 
       {/* ─── HERO HEADER ─────────────────────────────────────────── */}
       <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">

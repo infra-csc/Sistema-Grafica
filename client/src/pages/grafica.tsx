@@ -227,7 +227,7 @@ export default function Grafica() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24, backgroundColor: TI.bg, minHeight: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>

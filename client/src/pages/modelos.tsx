@@ -547,7 +547,7 @@ export default function Modelos() {
 
           {/* Body */}
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-            <div style={{ padding: "28px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, overflowY: "auto", flex: 1 }}>
+            <div style={{ padding: "28px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, overflowY: "scroll", flex: 1 }}>
 
               {/* Nome */}
               <div>

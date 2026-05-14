@@ -146,7 +146,7 @@ export default function Modelos() {
     item.type?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const isAdmin = hasPermission("admin");
+  const isAdmin = true; // all roles with page access can manage models
 
   /* ── shared field style ── */
   const fieldStyle: React.CSSProperties = {

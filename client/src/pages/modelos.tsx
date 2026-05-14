@@ -298,12 +298,24 @@ export default function Modelos() {
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#eff6ff", color: "#1d4ed8", borderRadius: 100, padding: "3px 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                               <Ruler style={{ width: 10, height: 10 }} /> Variável
                             </span>
-                          ) : (item.area || item.visual) ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: 5, color: "#57534e" }}>
-                              <Ruler style={{ width: 13, height: 13, color: "#a8a29e", flexShrink: 0 }} />
-                              <span style={{ fontSize: 13, fontWeight: 600, color: "#1c1917" }}>
-                                {item.area ?? "—"}×{item.visual ?? "—"}m
-                              </span>
+                          ) : (item.area || item.visual || item.fileWidth || item.fileHeight) ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                              {(item.area || item.visual) && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", backgroundColor: "#f5f4f0", borderRadius: 3, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", fontFamily: "monospace" }}>
+                                    {item.area ?? "—"} × {item.visual ?? "—"}m
+                                  </span>
+                                </div>
+                              )}
+                              {(item.fileWidth || item.fileHeight) && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#D97A1E", backgroundColor: "#FDF3E7", borderRadius: 3, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", fontFamily: "monospace" }}>
+                                    {item.fileWidth ?? "—"} × {item.fileHeight ?? "—"}m
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <span style={{ fontSize: 12, color: "#d4d0cc" }}>—</span>
@@ -388,11 +400,11 @@ export default function Modelos() {
                 />
               </div>
 
-              {/* Toggle Medida Variável */}
-              <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 12 }}>
+              {/* Toggle Medida Variável — col-span-2 */}
+              <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", paddingBottom: 4 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
                   <div
-                    onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement, area: !formData.hasVariableMeasurement ? "" : formData.area, visual: !formData.hasVariableMeasurement ? "" : formData.visual })}
+                    onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement, area: !formData.hasVariableMeasurement ? "" : formData.area, visual: !formData.hasVariableMeasurement ? "" : formData.visual, fileWidth: "", fileHeight: "" })}
                     style={{ position: "relative", width: 40, height: 22, borderRadius: 100, backgroundColor: formData.hasVariableMeasurement ? "#f97316" : "#d6d3d1", transition: "background-color 0.2s", cursor: "pointer", flexShrink: 0 }}
                   >
                     <div style={{ position: "absolute", top: 3, left: formData.hasVariableMeasurement ? 21 : 3, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#ffffff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
@@ -403,32 +415,82 @@ export default function Modelos() {
                 </label>
               </div>
 
-              {/* Largura */}
-              <div>
-                <label style={labelStyle}>Largura (m)</label>
-                <input
-                  type="number" step="0.01"
-                  value={formData.area}
-                  onChange={e => setFormData({ ...formData, area: e.target.value })}
-                  placeholder="0,00"
-                  disabled={formData.hasVariableMeasurement}
-                  data-testid="input-model-area"
-                  style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
-                />
+              {/* ── Medidas visuais ── */}
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                  Medidas Visuais
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", backgroundColor: "#f5f4f0", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ ...labelStyle, color: "#a8a29e" }}>Largura — VIS. L</label>
+                    <input
+                      type="number" step="0.01"
+                      value={formData.area}
+                      onChange={e => {
+                        const v = e.target.value;
+                        // auto-sync ARQ.L if it was empty or matched the old visual value
+                        const autoSync = !formData.fileWidth || formData.fileWidth === formData.area;
+                        setFormData(prev => ({ ...prev, area: v, fileWidth: autoSync ? v : prev.fileWidth }));
+                      }}
+                      placeholder="0.00"
+                      disabled={formData.hasVariableMeasurement}
+                      data-testid="input-model-area"
+                      style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, color: "#a8a29e" }}>Altura — VIS. A</label>
+                    <input
+                      type="number" step="0.01"
+                      value={formData.visual}
+                      onChange={e => {
+                        const v = e.target.value;
+                        const autoSync = !formData.fileHeight || formData.fileHeight === formData.visual;
+                        setFormData(prev => ({ ...prev, visual: v, fileHeight: autoSync ? v : prev.fileHeight }));
+                      }}
+                      placeholder="0.00"
+                      disabled={formData.hasVariableMeasurement}
+                      data-testid="input-model-visual"
+                      style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Altura */}
-              <div>
-                <label style={labelStyle}>Altura (m)</label>
-                <input
-                  type="number" step="0.01"
-                  value={formData.visual}
-                  onChange={e => setFormData({ ...formData, visual: e.target.value })}
-                  placeholder="0,00"
-                  disabled={formData.hasVariableMeasurement}
-                  data-testid="input-model-visual"
-                  style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
-                />
+              {/* ── Medidas do arquivo ── */}
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                  Medidas do Arquivo
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#D97A1E", backgroundColor: "#FDF3E7", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: "#a8a29e", textTransform: "none", letterSpacing: 0 }}>— pré-preenchido igual ao visual</span>
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ ...labelStyle, color: "#a8a29e" }}>Largura — ARQ. L</label>
+                    <input
+                      type="number" step="0.01"
+                      value={formData.fileWidth}
+                      onChange={e => setFormData({ ...formData, fileWidth: e.target.value })}
+                      placeholder="0.00"
+                      disabled={formData.hasVariableMeasurement}
+                      data-testid="input-model-fileWidth"
+                      style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ ...labelStyle, color: "#a8a29e" }}>Altura — ARQ. A</label>
+                    <input
+                      type="number" step="0.01"
+                      value={formData.fileHeight}
+                      onChange={e => setFormData({ ...formData, fileHeight: e.target.value })}
+                      placeholder="0.00"
+                      disabled={formData.hasVariableMeasurement}
+                      data-testid="input-model-fileHeight"
+                      style={{ ...fieldStyle, opacity: formData.hasVariableMeasurement ? 0.5 : 1, cursor: formData.hasVariableMeasurement ? "not-allowed" : "text" }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Material */}

@@ -718,10 +718,14 @@ export default function EventDetail() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', backgroundColor: '#f9f9f8', borderBottom: '1px solid rgba(231,229,228,0.5)' }}>
                   <div>
                     <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
-                      {editingItem ? "Editar Peça" : (bulkMode ? "Entrada Rápida" : "Nova Peça")}
+                      {editingItem
+                        ? `#${editingItem.displayId?.toString().padStart(4, '0')} — ${editingItem.type}`
+                        : (bulkMode ? "Entrada Rápida" : (formData.type || "Nova Peça"))}
                     </DialogTitle>
-                    <DialogDescription style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', marginTop: '2px' }}>
-                      {editingItem ? "Editar peça de produção" : (bulkMode ? "Modo Lote — NORTE Apex" : "Peça de Produção Gráfica")}
+                    <DialogDescription style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e', marginTop: '2px' }}>
+                      {editingItem
+                        ? (editingItem.description ? editingItem.description : "Editar peça de produção")
+                        : (bulkMode ? "Modo Lote — NORTE Apex" : (formData.type ? "Nova peça de produção" : "Selecione o tipo para começar"))}
                     </DialogDescription>
                   </div>
                   {!editingItem && (
@@ -1764,10 +1768,10 @@ export default function EventDetail() {
               </div>
               <div>
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "24px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c", lineHeight: 1.1 }}>
-                  Editar Peça
+                  {editingItem ? `#${editingItem.displayId?.toString().padStart(4, '0')} — ${editingItem.type}` : "Editar Peça"}
                 </DialogTitle>
                 <DialogDescription style={{ fontSize: "14px", fontWeight: 500, color: "#78716c", marginTop: "2px" }}>
-                  {editingItem ? `#${editingItem.displayId} · ${editingItem.type}` : "Atualize as informações da peça"}
+                  {editingItem?.description || "Atualize as informações da peça"}
                 </DialogDescription>
               </div>
             </div>

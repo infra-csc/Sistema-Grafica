@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, Fragment } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { Search, Calendar, Truck, AlertCircle, Eye } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -68,6 +68,12 @@ export default function PainelGeral() {
 
   const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort();
 
+  const typeToGroup = useMemo(() => {
+    const map: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
+    return map;
+  }, [standardItems]);
+
   const applyBaseFilters = (item: any) => {
     const matchesSearch =
       item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -110,7 +116,13 @@ export default function PainelGeral() {
   const statsItems    = items.filter(applyBaseFilters);
   const filteredItems = statsItems
     .filter((i) => matchesStatus(i, statusFilter))
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    .sort((a, b) => {
+      const gA = typeToGroup[a.type] || '', gB = typeToGroup[b.type] || '';
+      if (gA !== gB) return gA.localeCompare(gB, 'pt-BR');
+      const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
+      const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
+      return idA - idB;
+    });
 
   const groupedItems = filteredItems.reduce((acc, item) => {
     const k = item.eventId || "no-event";

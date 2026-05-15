@@ -223,8 +223,12 @@ export default function Arte() {
       })
       .sort((a, b) => {
         const eA = a.event?.name || '', eB = b.event?.name || '';
-        if (eA !== eB) return eA.localeCompare(eB);
-        return a.type.localeCompare(b.type);
+        if (eA !== eB) return eA.localeCompare(eB, 'pt-BR');
+        const gA = typeToGroup[a.type] || '', gB = typeToGroup[b.type] || '';
+        if (gA !== gB) return gA.localeCompare(gB, 'pt-BR');
+        const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
+        const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
+        return idA - idB;
       });
   };
 

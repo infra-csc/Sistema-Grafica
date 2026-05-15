@@ -1439,7 +1439,10 @@ export default function VincularPatrocinadores() {
             .slice()
             .sort((a, b) => {
               const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-              return ga.localeCompare(gb, 'pt-BR') || a.type.localeCompare(b.type, 'pt-BR');
+              if (ga !== gb) return ga.localeCompare(gb, 'pt-BR');
+              const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
+              const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
+              return idA - idB;
             });
 
           const progress = calculateProgress(displayedItems);

@@ -102,8 +102,12 @@ export default function EventDetail() {
     refetchOnWindowFocus: false,
   });
 
-  // Ordenar itens por tipo
-  const items = [...rawItems].sort((a, b) => a.type.localeCompare(b.type));
+  // Ordenar itens por displayId (grupo é tratado pelo groupMap; dentro de cada tipo, ordem pelo id)
+  const items = [...rawItems].sort((a, b) => {
+    const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
+    const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
+    return idA - idB;
+  });
 
   const { data: standardItems = [] } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],

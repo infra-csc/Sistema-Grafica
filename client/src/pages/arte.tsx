@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -547,9 +547,9 @@ export default function Arte() {
                                 </span>
                               )}
                               {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#f97316', textDecoration: 'none', fontWeight: 600 }} data-testid={`link-reference-arte-${item.id}`}>
-                                  <img src={item.referenceUrl} style={{ width: 16, height: 16, objectFit: 'cover', borderRadius: 3, border: '1px solid #fed7aa' }} alt="" />
-                                  Ref.
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '2px 6px' }} data-testid={`link-reference-arte-${item.id}`}>
+                                  <Paperclip style={{ width: 9, height: 9 }} />
+                                  Ref. visual
                                 </a>
                               )}
                             </div>

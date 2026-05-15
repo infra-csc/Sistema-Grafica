@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1065,9 +1065,9 @@ export default function Atendimento() {
                                 {item.displayId}{item.description ? ` • ${item.description}` : ''}
                               </p>
                               {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#f97316', textDecoration: 'none', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 3, padding: '1px 5px', marginTop: 4 }} data-testid={`link-reference-atendimento-${item.id}`}>
-                                  <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: 'cover', borderRadius: 2 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                                  Ref.
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '2px 6px', marginTop: 4 }} data-testid={`link-reference-atendimento-${item.id}`}>
+                                  <Paperclip style={{ width: 9, height: 9 }} />
+                                  Ref. visual
                                 </a>
                               )}
                             </div>

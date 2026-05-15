@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, Fragment } from "react";
-import { Search, Calendar, Truck, AlertCircle, Eye } from "lucide-react";
+import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { format } from "date-fns";
@@ -550,9 +550,9 @@ export default function PainelGeral() {
                                           {item.displayId}
                                         </span>
                                         {item.referenceUrl && (
-                                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#f97316", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 3, padding: "1px 5px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
-                                            <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 2 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                                            REF
+                                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 3, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
+                                            <Paperclip style={{ width: 9, height: 9 }} />
+                                            Ref. visual
                                           </a>
                                         )}
                                       </div>

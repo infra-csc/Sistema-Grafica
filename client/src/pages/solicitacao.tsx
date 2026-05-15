@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2 } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2, Paperclip } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -560,9 +560,9 @@ export default function Solicitacao() {
                                 {item.description || "—"}
                               </span>
                               {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#f97316', textDecoration: 'none', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 3, padding: '1px 5px', marginTop: 4, marginLeft: 4 }} data-testid={`link-reference-solicitacao-${item.id}`}>
-                                  <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: 'cover', borderRadius: 2 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                                  Ref.
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência visual" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '2px 6px', marginTop: 4, marginLeft: 4 }} data-testid={`link-reference-solicitacao-${item.id}`}>
+                                  <Paperclip style={{ width: 9, height: 9 }} />
+                                  Ref. visual
                                 </a>
                               )}
                             </td>

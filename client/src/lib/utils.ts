@@ -10,7 +10,8 @@ export function cn(...inputs: ClassValue[]) {
  * rolling back to the previous day in UTC-offset timezones (e.g. UTC-3).
  */
 export function parseDateLocal(dateStr: string): Date {
-  return new Date(dateStr + "T12:00:00");
+  const datePart = dateStr.includes('T') ? dateStr.slice(0, 10) : dateStr;
+  return new Date(datePart + "T12:00:00");
 }
 
 /**

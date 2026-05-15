@@ -87,6 +87,7 @@ export default function EventDetail() {
     observations: "",
     sponsorId: "",
     skipApproval: false,
+    referenceUrl: "",
   });
 
   const { data: event, isLoading: loadingEvent } = useQuery<any>({
@@ -543,6 +544,7 @@ export default function EventDetail() {
       observations: item.observations || "",
       sponsorId: item.sponsorId || "",
       skipApproval: item.skipApproval || false,
+      referenceUrl: item.referenceUrl || "",
     });
     setEditDialogOpen(true);
   };
@@ -568,6 +570,7 @@ export default function EventDetail() {
       observations: "",
       sponsorId: "",
       skipApproval: false,
+      referenceUrl: "",
     });
     setOpen(false);
   };
@@ -1920,7 +1923,48 @@ export default function EventDetail() {
                 </div>
               </div>
 
-              {/* Linha 5: Observações */}
+              {/* Linha 5: Referência (opcional) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>
+                  Referência <span style={{ color: "#c9c4c0", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — imagem de demonstração da peça)</span>
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {formData.referenceUrl ? (
+                    <>
+                      <a href={formData.referenceUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #fed7aa", display: "block" }}>
+                        <img src={formData.referenceUrl} style={{ width: 56, height: 40, objectFit: "cover", display: "block" }} alt="Referência" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      </a>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <ObjectUploader
+                          onGetUploadParameters={getUploadUrl}
+                          onComplete={({ url }) => setFormData(f => ({ ...f, referenceUrl: url }))}
+                          buttonVariant="outline"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 mr-1" /> Substituir
+                        </ObjectUploader>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(f => ({ ...f, referenceUrl: "" }))}
+                          style={{ fontSize: 11, color: "#ef4444", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
+                          data-testid="button-remove-reference"
+                        >
+                          Remover referência
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <ObjectUploader
+                      onGetUploadParameters={getUploadUrl}
+                      onComplete={({ url }) => setFormData(f => ({ ...f, referenceUrl: url }))}
+                      buttonVariant="outline"
+                    >
+                      <Paperclip className="h-3.5 w-3.5 mr-1" /> Adicionar referência
+                    </ObjectUploader>
+                  )}
+                </div>
+              </div>
+
+              {/* Linha 6: Observações */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Observações Internas</label>
                 <textarea

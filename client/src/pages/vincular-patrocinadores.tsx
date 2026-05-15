@@ -757,6 +757,23 @@ export default function VincularPatrocinadores() {
     });
   };
 
+  const toggleTypeGroup = (typeItems: any[]) => {
+    const selectableItems = typeItems.filter(item => {
+      const s = itemUIStates[item.id] || 'PENDENTE';
+      return s === 'PENDENTE' || s === 'RASCUNHO';
+    });
+    const allSelected = selectableItems.length > 0 && selectableItems.every(item => selectedItemIds.has(item.id));
+    setSelectedItemIds(prev => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        selectableItems.forEach(item => newSet.delete(item.id));
+      } else {
+        selectableItems.forEach(item => newSet.add(item.id));
+      }
+      return newSet;
+    });
+  };
+
   const handleOpenBulkApplyDialog = () => {
     setBulkSelectedSponsors([]);
     setBulkSkipApproval(false);
@@ -1411,6 +1428,23 @@ export default function VincularPatrocinadores() {
               >
                 Limpar
               </button>
+              {(() => {
+                const dirtySelected = Array.from(selectedItemIds).filter(id => (itemUIStates[id] || 'PENDENTE') === 'RASCUNHO');
+                if (dirtySelected.length === 0) return null;
+                return (
+                  <button
+                    onClick={() => saveLinkingMutation.mutate(dirtySelected)}
+                    disabled={saveLinkingMutation.isPending}
+                    data-testid="button-save-selected"
+                    style={{ backgroundColor: '#22c55e', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
+                    onMouseEnter={e => { if (!saveLinkingMutation.isPending) e.currentTarget.style.filter = 'brightness(1.1)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+                  >
+                    <Save style={{ width: 14, height: 14 }} />
+                    {saveLinkingMutation.isPending ? 'Salvando...' : `Salvar ${dirtySelected.length} rascunho${dirtySelected.length !== 1 ? 's' : ''}`}
+                  </button>
+                );
+              })()}
               <button
                 onClick={handleOpenBulkApplyDialog}
                 data-testid="button-apply-bulk-sponsors"
@@ -1491,9 +1525,9 @@ export default function VincularPatrocinadores() {
                       <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
                         <th className="px-3 py-2 text-center w-[50px]">
                           <Checkbox
-                            checked={displayedItems.filter(item => (itemUIStates[item.id] || 'PENDENTE') === 'PENDENTE').length > 0 && displayedItems.filter(item => (itemUIStates[item.id] || 'PENDENTE') === 'PENDENTE').every(item => selectedItemIds.has(item.id))}
-                            onCheckedChange={() => toggleAllItemsInEvent(displayedItems.filter(item => (itemUIStates[item.id] || 'PENDENTE') === 'PENDENTE'))}
-                            disabled={displayedItems.filter(item => (itemUIStates[item.id] || 'PENDENTE') === 'PENDENTE').length === 0}
+                            checked={(() => { const sel = displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }); return sel.length > 0 && sel.every(item => selectedItemIds.has(item.id)); })()}
+                            onCheckedChange={() => toggleAllItemsInEvent(displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }))}
+                            disabled={displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }).length === 0}
                             data-testid={`checkbox-select-all-${event.id}`}
                           />
                         </th>
@@ -1539,18 +1573,31 @@ export default function VincularPatrocinadores() {
                             </tr>
                           )}
                           {/* ── Agrupador de Tipo ── */}
-                          {showTypeGrouper && (
-                            <tr key={`type-${item.type}-${itemIndex}`}>
-                              <td colSpan={6} style={{ padding: 0 }}>
-                                <div style={{ backgroundColor: 'rgba(249,115,22,0.06)', borderLeft: '4px solid #f97316', padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <span style={{ fontSize: 10, fontWeight: 900, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                                    {item.type} — {displayedItems.filter(i => i.type === item.type).length} {displayedItems.filter(i => i.type === item.type).length !== 1 ? 'itens' : 'item'}
-                                  </span>
-                                  <ChevronDown style={{ width: 14, height: 14, color: '#a8a29e' }} />
-                                </div>
-                              </td>
-                            </tr>
-                          )}
+                          {showTypeGrouper && (() => {
+                            const typeItems = displayedItems.filter(i => i.type === item.type);
+                            const selectableTypeItems = typeItems.filter(i => { const s = itemUIStates[i.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; });
+                            const allTypeSelected = selectableTypeItems.length > 0 && selectableTypeItems.every(i => selectedItemIds.has(i.id));
+                            return (
+                              <tr key={`type-${item.type}-${itemIndex}`}>
+                                <td colSpan={6} style={{ padding: 0 }}>
+                                  <div style={{ backgroundColor: 'rgba(249,115,22,0.06)', borderLeft: '4px solid #f97316', padding: '6px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} onClick={(e) => e.stopPropagation()}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                      <Checkbox
+                                        checked={allTypeSelected}
+                                        onCheckedChange={() => toggleTypeGroup(typeItems)}
+                                        disabled={selectableTypeItems.length === 0}
+                                        data-testid={`checkbox-group-${item.type}`}
+                                      />
+                                      <span style={{ fontSize: 10, fontWeight: 900, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                        {item.type} — {typeItems.length} {typeItems.length !== 1 ? 'itens' : 'item'}
+                                      </span>
+                                    </div>
+                                    <ChevronDown style={{ width: 14, height: 14, color: '#a8a29e' }} />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })()}
                           <tr
                             key={item.id}
                             className="cursor-pointer"
@@ -1580,9 +1627,9 @@ export default function VincularPatrocinadores() {
                             <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
-                                onCheckedChange={() => uiStatus === 'PENDENTE' && toggleItemSelection(item.id)}
-                                disabled={uiStatus !== 'PENDENTE'}
-                                title={uiStatus === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : uiStatus === 'RASCUNHO' ? 'Salve as alterações antes de selecionar' : uiStatus === 'ENVIADO' ? 'Peça já enviada' : undefined}
+                                onCheckedChange={() => (uiStatus === 'PENDENTE' || uiStatus === 'RASCUNHO') && toggleItemSelection(item.id)}
+                                disabled={uiStatus !== 'PENDENTE' && uiStatus !== 'RASCUNHO'}
+                                title={uiStatus === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : uiStatus === 'ENVIADO' ? 'Peça já enviada' : undefined}
                                 data-testid={`checkbox-item-${item.id}`}
                               />
                             </td>

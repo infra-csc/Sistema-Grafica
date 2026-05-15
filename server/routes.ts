@@ -2075,7 +2075,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/items/:id/creator-review", requireAuth, async (req, res) => {
     try {
       // Validate role
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem revisar como criador do evento" });
       }
       
@@ -2133,7 +2133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/items/:id/creator-reject", requireAuth, async (req, res) => {
     try {
       // Validate role
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem reprovar itens" });
       }
       
@@ -2193,7 +2193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Creator returns item to Arte with modification notes (Solicitação module)
   app.patch("/api/items/:id/return-to-arte", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem devolver itens" });
       }
       
@@ -2252,7 +2252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bulk return to Arte with notes
   app.patch("/api/items/bulk-return-to-arte", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem devolver itens" });
       }
       
@@ -2319,7 +2319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cancel item (item disappears from workflow but stays in events)
   app.patch("/api/items/:id/cancel", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem cancelar itens" });
       }
       
@@ -2357,7 +2357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bulk cancel items
   app.patch("/api/items/bulk-cancel", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem cancelar itens" });
       }
       
@@ -2393,7 +2393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update item fields (Solicitação module - can edit)
   app.patch("/api/items/:id/edit", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem editar itens" });
       }
       
@@ -2447,7 +2447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/items/bulk-creator-reject", requireAuth, async (req, res) => {
     try {
       // Validate role
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem reprovar itens" });
       }
       

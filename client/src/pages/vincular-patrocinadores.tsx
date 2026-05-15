@@ -1580,19 +1580,22 @@ export default function VincularPatrocinadores() {
                             return (
                               <tr key={`type-${item.type}-${itemIndex}`}>
                                 <td colSpan={6} style={{ padding: 0 }}>
-                                  <div style={{ backgroundColor: 'rgba(249,115,22,0.06)', borderLeft: '4px solid #f97316', padding: '6px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} onClick={(e) => e.stopPropagation()}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                  <div style={{ backgroundColor: 'rgba(249,115,22,0.06)', borderLeft: '4px solid #f97316', display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                    {/* Coluna do checkbox — mesma largura do td de item (50px) */}
+                                    <div style={{ width: 50, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '6px 0' }}>
                                       <Checkbox
                                         checked={allTypeSelected}
                                         onCheckedChange={() => toggleTypeGroup(typeItems)}
                                         disabled={selectableTypeItems.length === 0}
                                         data-testid={`checkbox-group-${item.type}`}
                                       />
+                                    </div>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 20 }}>
                                       <span style={{ fontSize: 10, fontWeight: 900, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                                         {item.type} — {typeItems.length} {typeItems.length !== 1 ? 'itens' : 'item'}
                                       </span>
+                                      <ChevronDown style={{ width: 14, height: 14, color: '#a8a29e' }} />
                                     </div>
-                                    <ChevronDown style={{ width: 14, height: 14, color: '#a8a29e' }} />
                                   </div>
                                 </td>
                               </tr>
@@ -1603,23 +1606,31 @@ export default function VincularPatrocinadores() {
                             className="cursor-pointer"
                             style={{
                               borderBottom: '1px solid #f0efee',
-                              borderLeft: uiStatus === 'RASCUNHO' ? '4px solid #f97316' : uiStatus === 'PRONTO' ? '4px solid #22c55e' : '4px solid transparent',
-                              backgroundColor: uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff',
+                              borderLeft: selectedItemIds.has(item.id) ? '4px solid #3b82f6' : uiStatus === 'RASCUNHO' ? '4px solid #f97316' : uiStatus === 'PRONTO' ? '4px solid #22c55e' : '4px solid transparent',
+                              backgroundColor: selectedItemIds.has(item.id) ? 'rgba(59,130,246,0.06)' : uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff',
                               opacity: uiStatus === 'ENVIADO' ? 0.55 : 1,
                               filter: uiStatus === 'ENVIADO' ? 'grayscale(1)' : 'none',
-                              transition: 'background-color 0.12s, filter 0.2s, opacity 0.2s',
+                              transition: 'background-color 0.12s, border-color 0.12s, filter 0.2s, opacity 0.2s',
                             }}
                             onMouseEnter={e => {
                               const el = e.currentTarget as HTMLElement;
                               el.style.filter = 'none';
                               el.style.opacity = '1';
-                              el.style.backgroundColor = uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.09)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.18)' : '#fafaf9';
+                              if (selectedItemIds.has(item.id)) {
+                                el.style.backgroundColor = 'rgba(59,130,246,0.11)';
+                              } else {
+                                el.style.backgroundColor = uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.09)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.18)' : '#fafaf9';
+                              }
                             }}
                             onMouseLeave={e => {
                               const el = e.currentTarget as HTMLElement;
                               el.style.filter = uiStatus === 'ENVIADO' ? 'grayscale(1)' : 'none';
                               el.style.opacity = uiStatus === 'ENVIADO' ? '0.55' : '1';
-                              el.style.backgroundColor = uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff';
+                              if (selectedItemIds.has(item.id)) {
+                                el.style.backgroundColor = 'rgba(59,130,246,0.06)';
+                              } else {
+                                el.style.backgroundColor = uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff';
+                              }
                             }}
                             onClick={() => setSelectedItemForDetails(item)}
                             data-testid={`item-row-${item.id}`}

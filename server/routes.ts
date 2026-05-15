@@ -990,12 +990,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
       
-      // Check authorization: admin can submit any event, others can only submit their own events
+      // Allow admin or any solicitacao user to submit draft items
       const isAdmin = userRole === 'admin';
-      const isOwner = event.createdBy === userId;
-      
-      if (!isAdmin && !isOwner) {
-        return res.status(403).json({ error: "Acesso negado. Você só pode enviar itens de eventos que você criou" });
+      const isSolicitacao = userRole === 'solicitacao';
+
+      if (!isAdmin && !isSolicitacao) {
+        return res.status(403).json({ error: "Acesso negado. Apenas perfis de Solicitação ou Admin podem enviar itens para vinculação" });
       }
       
       // Buscar todos os itens em rascunho deste evento

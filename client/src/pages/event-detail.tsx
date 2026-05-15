@@ -10,6 +10,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -1386,31 +1387,96 @@ export default function EventDetail() {
           </CardContent>
         </Card>
 
-        <AlertDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirmar envio dos itens</AlertDialogTitle>
-              <AlertDialogDescription>
-                {(() => {
-                  const draftCount = items.filter(item => item.status === 'draft').length;
-                  return `${draftCount} ${draftCount === 1 ? 'item será enviado' : 'itens serão enviados'} para a fila de vinculação de patrocinadores. Esta ação não pode ser desfeita.`;
-                })()}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  setSubmitConfirmOpen(false);
-                  submitDraftsMutation.mutate();
-                }}
-                data-testid="button-confirm-submit-drafts"
-              >
-                Enviar
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* ── Modal de confirmação de envio com lista de itens ── */}
+        <Dialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
+          <DialogContent style={{ maxWidth: 560, padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden' }}>
+            {/* Header */}
+            <DialogHeader style={{ padding: '24px 28px 16px', borderBottom: '1px solid #e7e5e4' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Check style={{ width: 20, height: 20, color: '#f97316' }} />
+                </div>
+                <div>
+                  <DialogTitle style={{ fontSize: 17, fontWeight: 700, color: '#1c1917', margin: 0 }}>
+                    Confirmar envio para vinculação
+                  </DialogTitle>
+                  <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 3 }}>
+                    {(() => {
+                      const n = items.filter(i => i.status === 'draft').length;
+                      return `${n} ${n === 1 ? 'item será enviado' : 'itens serão enviados'} para a fila de vinculação de patrocinadores.`;
+                    })()}
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            {/* Lista de itens */}
+            <div style={{ maxHeight: 340, overflowY: 'auto', padding: '16px 28px' }}>
+              {(() => {
+                const draftItems = items.filter(i => i.status === 'draft');
+                const byType: Record<string, typeof draftItems> = {};
+                draftItems.forEach(item => {
+                  const k = item.type || 'Sem tipo';
+                  if (!byType[k]) byType[k] = [];
+                  byType[k].push(item);
+                });
+                return Object.entries(byType).sort(([a],[b]) => a.localeCompare(b,'pt-BR')).map(([typeName, typeItems]) => (
+                  <div key={typeName} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', marginBottom: 6 }}>
+                      {typeName} · {typeItems.length} {typeItems.length === 1 ? 'item' : 'itens'}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {typeItems.map(item => (
+                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#f97316', fontFamily: 'monospace', flexShrink: 0 }}>
+                            #{item.displayId?.toString().padStart(4, '0') ?? '—'}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.type}{item.description ? ` — ${item.description}` : ''}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#78716c', marginTop: 1 }}>
+                              {item.quantity} {item.quantity === 1 ? 'un.' : 'un.'} · {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}m` : item.material}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {/* Aviso + botões */}
+            <div style={{ padding: '14px 28px 24px', borderTop: '1px solid #e7e5e4' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+                <AlertCircle style={{ width: 14, height: 14, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
+                <p style={{ fontSize: 12, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
+                  Após o envio, os itens irão para a fila de <strong>Vincular Patrocinadores</strong>. Esta ação não pode ser desfeita.
+                </p>
+              </div>
+              <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
+                <Button variant="outline" onClick={() => setSubmitConfirmOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    setSubmitConfirmOpen(false);
+                    submitDraftsMutation.mutate();
+                  }}
+                  data-testid="button-confirm-submit-drafts"
+                  disabled={submitDraftsMutation.isPending}
+                >
+                  {submitDraftsMutation.isPending ? (
+                    <><Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" /> Enviando...</>
+                  ) : (
+                    <><Check style={{ width: 14, height: 14, marginRight: 6 }} /> Confirmar envio</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
         </>
       )}
 

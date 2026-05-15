@@ -106,6 +106,7 @@ export const items = pgTable("items", {
   productionStartedAt: timestamp("production_started_at"), // Timestamp quando produção iniciou
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
+  referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

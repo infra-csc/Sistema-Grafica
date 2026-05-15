@@ -1599,6 +1599,12 @@ export default function VincularPatrocinadores() {
                                     {item.description}
                                   </span>
                                 )}
+                                {item.referenceUrl && (
+                                  <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência do solicitante" onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#f97316', textDecoration: 'none', fontWeight: 600, marginTop: 2 }} data-testid={`link-reference-vincular-${item.id}`}>
+                                    <img src={item.referenceUrl} style={{ width: 14, height: 14, objectFit: 'cover', borderRadius: 3, border: '1px solid #fed7aa' }} alt="" />
+                                    Ref.
+                                  </a>
+                                )}
                               </div>
                             </td>
                             <td className="px-3 py-3">

@@ -546,6 +546,12 @@ export default function Arte() {
                                   <AlertCircle style={{ width: 10, height: 10 }} />{item.observations}
                                 </span>
                               )}
+                              {item.referenceUrl && (
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#f97316', textDecoration: 'none', fontWeight: 600 }} data-testid={`link-reference-arte-${item.id}`}>
+                                  <img src={item.referenceUrl} style={{ width: 16, height: 16, objectFit: 'cover', borderRadius: 3, border: '1px solid #fed7aa' }} alt="" />
+                                  Ref.
+                                </a>
+                              )}
                             </div>
                           </td>
                           {/* Patrocinadores — finalizados only */}

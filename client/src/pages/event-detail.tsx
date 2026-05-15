@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink } from "lucide-react";
 import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -35,6 +35,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { BulkItemEntry } from "@/components/bulk-item-entry";
+import { ObjectUploader } from "@/components/ObjectUploader";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
@@ -156,6 +157,28 @@ export default function EventDetail() {
 
   // Check if user can manage this event (admin or event creator)
   const canManageEvent = hasPermission("admin") || (event && user && event.createdBy === user.id);
+
+  // Solicitação ou admin podem adicionar referência
+  const canUploadReference = hasPermission("admin") || user?.profile === "solicitacao";
+
+  const getUploadUrl = async () => {
+    const response = await apiRequest("POST", "/api/objects/upload", {});
+    const data = await response.json();
+    return { method: "PUT" as const, url: data.uploadURL };
+  };
+
+  const updateReferenceUrlMutation = useMutation({
+    mutationFn: async ({ itemId, referenceUrl }: { itemId: string; referenceUrl: string }) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, { referenceUrl });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      toast({ title: "Referência salva com sucesso" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao salvar referência", description: error.message, variant: "destructive" });
+    },
+  });
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1331,22 +1354,41 @@ export default function EventDetail() {
                                         </div>
                                       </div>
                                     </div>
-                                    {canManageEvent && (
-                                      <div className="flex items-center gap-1 ml-2">
-                                        {isEditBlocked(item.status) ? (
-                                          <div className="p-1.5 rounded-md" title="Edição bloqueada — item já liberado para gráfica" style={{ color: "#a8a29e", cursor: "not-allowed" }}>
-                                            <Lock className="h-3.5 w-3.5" />
-                                          </div>
-                                        ) : (
-                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditItem(item)} data-testid={`button-edit-draft-${item.id}`}>
-                                            <Pencil className="h-3.5 w-3.5" />
+                                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                      {/* Referência visual */}
+                                      {item.referenceUrl && (
+                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-${item.id}`}>
+                                          <img src={item.referenceUrl} className="h-8 w-8 rounded object-cover border border-border" alt="ref" />
+                                        </a>
+                                      )}
+                                      {/* Upload referência — solicitation/admin */}
+                                      {canUploadReference && (
+                                        <ObjectUploader
+                                          onGetUploadParameters={getUploadUrl}
+                                          onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
+                                          buttonVariant="ghost"
+                                          buttonClassName="h-7 w-7 p-0"
+                                        >
+                                          <Paperclip className="h-3.5 w-3.5" title={item.referenceUrl ? "Substituir referência" : "Adicionar referência"} />
+                                        </ObjectUploader>
+                                      )}
+                                      {canManageEvent && (
+                                        <>
+                                          {isEditBlocked(item.status) ? (
+                                            <div className="p-1.5 rounded-md" title="Edição bloqueada — item já liberado para gráfica" style={{ color: "#a8a29e", cursor: "not-allowed" }}>
+                                              <Lock className="h-3.5 w-3.5" />
+                                            </div>
+                                          ) : (
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditItem(item)} data-testid={`button-edit-draft-${item.id}`}>
+                                              <Pencil className="h-3.5 w-3.5" />
+                                            </Button>
+                                          )}
+                                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/10" onClick={() => setDeletingItemId(item.id)} data-testid={`button-delete-draft-${item.id}`}>
+                                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                           </Button>
-                                        )}
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/10" onClick={() => setDeletingItemId(item.id)} data-testid={`button-delete-draft-${item.id}`}>
-                                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                        </Button>
-                                      </div>
-                                    )}
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -1541,7 +1583,7 @@ export default function EventDetail() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#f9f9f8' }}>
-                        {['ID', 'Descrição', 'Qtd', 'Dimensões (V / A)', 'M²', 'Material', 'Acabamento', 'Patrocinador', 'Status', 'Ações'].map(col => (
+                        {['ID', 'Ref.', 'Descrição', 'Qtd', 'Dimensões (V / A)', 'M²', 'Material', 'Acabamento', 'Patrocinador', 'Status', 'Ações'].map(col => (
                           <th key={col} style={{ padding: '14px 20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e', whiteSpace: 'nowrap' }}>
                             {col}
                           </th>
@@ -1564,6 +1606,29 @@ export default function EventDetail() {
                             <span style={{ fontWeight: '700', color: '#f97316', fontSize: '12px', fontFamily: 'monospace' }} data-testid={`text-display-id-${item.id}`}>
                               #{item.displayId}
                             </span>
+                          </td>
+                          {/* Ref. */}
+                          <td style={{ padding: '14px 20px' }} onClick={e => e.stopPropagation()}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              {item.referenceUrl && (
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-table-${item.id}`}>
+                                  <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4' }} alt="ref" />
+                                </a>
+                              )}
+                              {canUploadReference && (
+                                <ObjectUploader
+                                  onGetUploadParameters={getUploadUrl}
+                                  onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
+                                  buttonVariant="ghost"
+                                  buttonClassName="h-7 w-7 p-0"
+                                >
+                                  <Paperclip style={{ width: 13, height: 13, color: item.referenceUrl ? '#f97316' : '#a8a29e' }} title={item.referenceUrl ? "Substituir referência" : "Adicionar referência"} />
+                                </ObjectUploader>
+                              )}
+                              {!canUploadReference && !item.referenceUrl && (
+                                <span style={{ color: '#a8a29e', fontSize: 13 }}>—</span>
+                              )}
+                            </div>
                           </td>
                           {/* Descrição */}
                           <td style={{ padding: '14px 20px' }}>

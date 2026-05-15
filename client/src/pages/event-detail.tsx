@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X } from "lucide-react";
 import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -178,6 +178,19 @@ export default function EventDetail() {
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao salvar referência", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const removeReferenceUrlMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, { referenceUrl: null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      toast({ title: "Referência removida" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao remover referência", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1380,6 +1393,19 @@ export default function EventDetail() {
                                           <span>{item.referenceUrl ? 'Trocar ref.' : 'Ref. visual'}</span>
                                         </ObjectUploader>
                                       )}
+                                      {canUploadReference && item.referenceUrl && item.status !== 'entregue' && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-muted-foreground"
+                                          title="Remover referência"
+                                          data-testid={`button-remove-reference-${item.id}`}
+                                          onClick={() => removeReferenceUrlMutation.mutate(item.id)}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      )}
                                       {canManageEvent && (
                                         <>
                                           {isEditBlocked(item.status) ? (
@@ -1632,6 +1658,19 @@ export default function EventDetail() {
                                 >
                                   <Paperclip style={{ width: 13, height: 13, color: item.referenceUrl ? '#f97316' : '#a8a29e' }} title={item.referenceUrl ? "Substituir referência" : "Adicionar referência"} />
                                 </ObjectUploader>
+                              )}
+                              {canUploadReference && item.referenceUrl && item.status !== 'entregue' && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground"
+                                  title="Remover referência"
+                                  data-testid={`button-remove-reference-table-${item.id}`}
+                                  onClick={() => removeReferenceUrlMutation.mutate(item.id)}
+                                >
+                                  <X style={{ width: 11, height: 11 }} />
+                                </Button>
                               )}
                               {(!canUploadReference || item.status === 'entregue') && !item.referenceUrl && (
                                 <span style={{ color: '#a8a29e', fontSize: 13 }}>—</span>

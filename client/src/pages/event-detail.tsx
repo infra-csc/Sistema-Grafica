@@ -1357,11 +1357,11 @@ export default function EventDetail() {
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                                       {/* Referência visual */}
                                       {item.referenceUrl && (
-                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-${item.id}`}>
-                                          <img src={item.referenceUrl} className="h-8 w-8 rounded object-cover border border-border" alt="ref" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Abrir referência visual" data-testid={`link-reference-${item.id}`}>
+                                          <img src={item.referenceUrl} className="h-8 w-8 rounded object-cover border border-border" alt="Referência visual" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                         </a>
                                       )}
                                       {/* Upload referência — solicitation/admin, em qualquer status até entrega */}
@@ -1370,9 +1370,10 @@ export default function EventDetail() {
                                           onGetUploadParameters={getUploadUrl}
                                           onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
                                           buttonVariant="ghost"
-                                          buttonClassName="h-7 w-7 p-0"
+                                          buttonClassName="px-2 h-7 text-xs gap-1"
                                         >
-                                          <Paperclip className="h-3.5 w-3.5" title={item.referenceUrl ? "Substituir referência" : "Adicionar referência"} />
+                                          <Paperclip className="h-3 w-3" />
+                                          <span>{item.referenceUrl ? 'Trocar ref.' : 'Ref. visual'}</span>
                                         </ObjectUploader>
                                       )}
                                       {canManageEvent && (
@@ -1586,7 +1587,7 @@ export default function EventDetail() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#f9f9f8' }}>
-                        {['ID', 'Ref.', 'Descrição', 'Qtd', 'Dimensões (V / A)', 'M²', 'Material', 'Acabamento', 'Patrocinador', 'Status', 'Ações'].map(col => (
+                        {['ID', 'Referência', 'Descrição', 'Qtd', 'Dimensões (V / A)', 'M²', 'Material', 'Acabamento', 'Patrocinador', 'Status', 'Ações'].map(col => (
                           <th key={col} style={{ padding: '14px 20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e', whiteSpace: 'nowrap' }}>
                             {col}
                           </th>
@@ -1615,7 +1616,7 @@ export default function EventDetail() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               {item.referenceUrl && (
                                 <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-table-${item.id}`}>
-                                  <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4' }} alt="ref" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                  <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4' }} alt="Referência visual" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                 </a>
                               )}
                               {canUploadReference && item.status !== 'entregue' && (

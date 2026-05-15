@@ -54,6 +54,7 @@ export default function EventDetail() {
   const [, params] = useRoute("/eventos/:id");
   const eventId = params?.id;
   const [open, setOpen] = useState(false);
+  const [localRefPreview, setLocalRefPreview] = useState<string>("");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(true);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -542,6 +543,7 @@ export default function EventDetail() {
 
   const handleEditItem = (item: any) => {
     if (isEditBlocked(item.status)) return;
+    setLocalRefPreview("");
     setEditingItem(item);
     setFormData({
       type: item.type || "",
@@ -567,6 +569,7 @@ export default function EventDetail() {
   };
 
   const handleCloseDialog = () => {
+    setLocalRefPreview("");
     setEditingItem(null);
     setBulkMode(true);
     setFormData({
@@ -1968,44 +1971,53 @@ export default function EventDetail() {
               </div>
 
               {/* Linha 5: Referência (opcional) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>
                   Referência <span style={{ color: "#c9c4c0", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — imagem de demonstração da peça)</span>
                 </label>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  {formData.referenceUrl ? (
-                    <>
-                      <a href={formData.referenceUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, borderRadius: 6, overflow: "hidden", border: "1px solid #fed7aa", display: "block" }}>
-                        <img src={formData.referenceUrl} style={{ width: 56, height: 40, objectFit: "cover", display: "block" }} alt="Referência" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                      </a>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <ObjectUploader
-                          onGetUploadParameters={getUploadUrl}
-                          onComplete={({ url }) => setFormData(f => ({ ...f, referenceUrl: url }))}
-                          buttonVariant="outline"
-                        >
-                          <Paperclip className="h-3.5 w-3.5 mr-1" /> Substituir
-                        </ObjectUploader>
-                        <button
-                          type="button"
-                          onClick={() => setFormData(f => ({ ...f, referenceUrl: "" }))}
-                          style={{ fontSize: 11, color: "#ef4444", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
-                          data-testid="button-remove-reference"
-                        >
-                          Remover referência
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <ObjectUploader
-                      onGetUploadParameters={getUploadUrl}
-                      onComplete={({ url }) => setFormData(f => ({ ...f, referenceUrl: url }))}
-                      buttonVariant="outline"
-                    >
-                      <Paperclip className="h-3.5 w-3.5 mr-1" /> Adicionar referência
-                    </ObjectUploader>
-                  )}
-                </div>
+                {(localRefPreview || formData.referenceUrl) ? (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    {/* Thumbnail preview */}
+                    <div style={{ flexShrink: 0, width: 80, height: 80, borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", backgroundColor: "#f5f5f4" }}>
+                      <img
+                        src={localRefPreview || formData.referenceUrl}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                        alt="Referência visual"
+                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                    </div>
+                    {/* Ações */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, justifyContent: "center", paddingTop: 4 }}>
+                      <ObjectUploader
+                        onGetUploadParameters={getUploadUrl}
+                        onFileSelect={(_file, previewUrl) => setLocalRefPreview(previewUrl)}
+                        onComplete={({ url }) => { setFormData(f => ({ ...f, referenceUrl: url })); setLocalRefPreview(""); }}
+                        buttonVariant="outline"
+                      >
+                        <Paperclip className="h-3 w-3 mr-1" /> Trocar imagem
+                      </ObjectUploader>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive justify-start px-2"
+                        onClick={() => { setFormData(f => ({ ...f, referenceUrl: "" })); setLocalRefPreview(""); }}
+                        data-testid="button-remove-reference"
+                      >
+                        <X className="h-3 w-3 mr-1" /> Remover
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <ObjectUploader
+                    onGetUploadParameters={getUploadUrl}
+                    onFileSelect={(_file, previewUrl) => setLocalRefPreview(previewUrl)}
+                    onComplete={({ url }) => { setFormData(f => ({ ...f, referenceUrl: url })); setLocalRefPreview(""); }}
+                    buttonVariant="outline"
+                  >
+                    <Paperclip className="h-3.5 w-3.5 mr-1.5" /> Adicionar referência visual
+                  </ObjectUploader>
+                )}
               </div>
 
               {/* Linha 6: Observações */}

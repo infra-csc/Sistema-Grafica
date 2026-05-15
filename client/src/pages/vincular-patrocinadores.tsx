@@ -1287,12 +1287,33 @@ export default function VincularPatrocinadores() {
               setSendConfirmModal({ items: prontoItems, pendingByItem });
             }}
             disabled={statusCounts.PRONTO === 0 || sendToArteMutation.isPending}
-            style={{ padding: '10px 20px', backgroundColor: statusCounts.PRONTO === 0 ? '#e7e5e4' : '#f97316', color: statusCounts.PRONTO === 0 ? '#a8a29e' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: statusCounts.PRONTO === 0 ? 'not-allowed' : 'pointer' }}
+            data-testid="button-finalizar-lote"
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
+              padding: '10px 18px',
+              backgroundColor: statusCounts.PRONTO === 0 ? '#e7e5e4' : '#f97316',
+              color: statusCounts.PRONTO === 0 ? '#a8a29e' : '#ffffff',
+              borderRadius: 8, border: 'none',
+              cursor: statusCounts.PRONTO === 0 ? 'not-allowed' : 'pointer',
+              minWidth: 180,
+            }}
             onMouseEnter={e => { if (statusCounts.PRONTO > 0) (e.currentTarget.style.filter = 'brightness(1.1)'); }}
             onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
-            data-testid="button-finalizar-lote"
           >
-            {statusCounts.PRONTO > 0 ? `Finalizar Lote (${statusCounts.PRONTO})` : 'Finalizar Lote'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <Send style={{ width: 13, height: 13, flexShrink: 0 }} />
+              <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: '-0.01em' }}>
+                Enviar para Arte
+                {statusCounts.PRONTO > 0 && (
+                  <span style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 4, padding: '1px 6px', fontSize: 11 }}>
+                    {statusCounts.PRONTO}
+                  </span>
+                )}
+              </span>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.8, paddingLeft: 20, letterSpacing: 0 }}>
+              {statusCounts.PRONTO === 0 ? 'Nenhum item pronto' : 'Conclui sua etapa de vinculação'}
+            </span>
           </button>
         </div>
       </div>

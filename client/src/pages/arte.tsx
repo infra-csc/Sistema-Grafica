@@ -10,7 +10,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -402,7 +402,7 @@ export default function Arte() {
                     {group.eventObj?.startDate && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
                         <Calendar style={{ width: 12, height: 12 }} />
-                        {new Date(group.eventObj.startDate).toLocaleDateString('pt-BR')}
+                        {parseDateLocal(group.eventObj.startDate).toLocaleDateString('pt-BR')}
                       </span>
                     )}
                     {group.eventObj?.truckDepartureDate && (

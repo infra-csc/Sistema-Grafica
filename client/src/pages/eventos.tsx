@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { parseDateLocal } from "@/lib/utils";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -244,7 +245,7 @@ export default function Eventos() {
     setEditingEvent(event);
     setFormData({
       name: event.name || "",
-      startDate: event.startDate ? new Date(event.startDate).toISOString().slice(0, 10) : "",
+      startDate: event.startDate || "",
       truckDepartureDate: event.truckDepartureDate ? new Date(event.truckDepartureDate).toISOString().slice(0, 16) : "",
       deadlineListaImagens: event.deadlineListaImagens ?? -25,
       deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? -20,
@@ -949,7 +950,7 @@ export default function Eventos() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
                           <Calendar style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
                           <span style={{ fontSize: '12px', fontWeight: '700' }}>
-                            {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                            {parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
                           </span>
                         </div>
                       </div>
@@ -1030,7 +1031,7 @@ export default function Eventos() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
                         <Calendar style={{ width: '14px', height: '14px', color: cardBorderHex, flexShrink: 0 }} />
                         <span style={{ fontSize: '12px', fontWeight: '700' }}>
-                          {new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                          {parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
                         </span>
                       </div>
                     </div>

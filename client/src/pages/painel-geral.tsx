@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, Fragment } from "react";
 import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip } from "lucide-react";
+import { parseDateLocal } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { format } from "date-fns";
@@ -87,7 +88,7 @@ export default function PainelGeral() {
     const matchesDate = dateFilter === "all" || (() => {
       if (!item.event?.startDate) return false;
       const today = new Date(); today.setHours(0, 0, 0, 0);
-      const evDate = new Date(item.event.startDate); evDate.setHours(0, 0, 0, 0);
+      const evDate = parseDateLocal(item.event.startDate); evDate.setHours(0, 0, 0, 0);
       const diff = Math.ceil((evDate.getTime() - today.getTime()) / 86400000);
       switch (dateFilter) {
         case "today":       return diff === 0;
@@ -417,7 +418,7 @@ export default function PainelGeral() {
                         {firstItem?.event?.startDate && (
                           <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#78716c" }}>
                             <Calendar style={{ width: 12, height: 12 }} />
-                            Início: {format(new Date(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
+                            Início: {format(parseDateLocal(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
                           </span>
                         )}
                         {firstItem?.event?.truckDepartureDate && (

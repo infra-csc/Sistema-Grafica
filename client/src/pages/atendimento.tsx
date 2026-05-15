@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip } from "lucide-react";
+import { parseDateLocal } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -940,7 +941,7 @@ export default function Atendimento() {
                     {ev?.name || 'Sem Evento'}
                     {ev?.startDate && (
                       <span style={{ color: '#a8a29e', fontWeight: 500, marginLeft: 12, fontSize: 15 }}>
-                        {format(new Date(ev.startDate), "MMMM yyyy", { locale: ptBR })}
+                        {format(parseDateLocal(ev.startDate), "MMMM yyyy", { locale: ptBR })}
                       </span>
                     )}
                   </h4>

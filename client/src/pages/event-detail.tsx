@@ -38,7 +38,7 @@ import { BulkItemEntry } from "@/components/bulk-item-entry";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { calculateM2 } from "@/lib/calculateM2";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1109,7 +1109,7 @@ export default function EventDetail() {
           const countdownDays = Math.ceil((depDay.getTime() - today.getTime()) / 86400000);
           const depLabel = departure.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
           const depTime = departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-          const startLabel = new Date(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          const startLabel = parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
           const adjustWeekend = (date: Date, skip: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
             if (skip) return { date, adjusted: null };
@@ -1199,7 +1199,7 @@ export default function EventDetail() {
                   </div>
                   <div>
                     <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
-                      Início da Montagem
+                      Dia do Evento
                     </div>
                     <div style={{ fontSize: '23px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
                       {startLabel}

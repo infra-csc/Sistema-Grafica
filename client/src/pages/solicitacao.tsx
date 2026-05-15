@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2, Paperclip } from "lucide-react";
+import { parseDateLocal } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -453,7 +454,7 @@ export default function Solicitacao() {
                             {event && (
                               <div style={{ display: "flex", gap: 12, fontSize: 9, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center" }}>
                                 {event.startDate && (
-                                  <span>Início: <span style={{ color: "#d6d3d1" }}>{new Date(event.startDate).toLocaleDateString("pt-BR")}</span></span>
+                                  <span>Início: <span style={{ color: "#d6d3d1" }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
                                 )}
                                 {event.truckDepartureDate && (
                                   <span>Saída: <span style={{ color: "#d6d3d1" }}>{new Date(event.truckDepartureDate).toLocaleDateString("pt-BR")} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></span>

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { parseDateLocal } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -79,7 +80,7 @@ export default function Calendario() {
 
   const getEventsForDate = (date: Date) => {
     const ds = date.toDateString();
-    const starts = events.filter(e => new Date(e.startDate).toDateString() === ds)
+    const starts = events.filter(e => parseDateLocal(e.startDate).toDateString() === ds)
       .map(e => ({ ...e, _type: "start" as const }));
     const deps = events.filter(e => new Date(e.truckDepartureDate).toDateString() === ds)
       .map(e => ({ ...e, _type: "departure" as const }));
@@ -97,14 +98,14 @@ export default function Calendario() {
   /* Next 5 events for sidebar */
   const upcomingEvents = useMemo(() =>
     events
-      .filter(ev => new Date(ev.startDate).getTime() >= Date.now() && ev.status !== "completed")
-      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+      .filter(ev => parseDateLocal(ev.startDate).getTime() >= Date.now() && ev.status !== "completed")
+      .sort((a, b) => parseDateLocal(a.startDate).getTime() - parseDateLocal(b.startDate).getTime())
       .slice(0, 5),
   [events]);
 
   /* Month stats */
   const monthEvents = events.filter(ev => {
-    const d = new Date(ev.startDate);
+    const d = parseDateLocal(ev.startDate);
     return d.getFullYear() === year && d.getMonth() === month;
   });
   const completedCount = monthEvents.filter(e => e.status === "completed").length;
@@ -478,7 +479,7 @@ export default function Calendario() {
               const pk = prioKey(ev);
               const color = PRIO_COLOR[pk];
               const isStart = ev._type === "start";
-              const dateTime = isStart ? new Date(ev.startDate) : new Date(ev.truckDepartureDate);
+              const dateTime = isStart ? parseDateLocal(ev.startDate) : new Date(ev.truckDepartureDate);
 
               return (
                 <div key={`${ev.id}-${ev._type}`}

@@ -1,6 +1,7 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { parseDateLocal } from "@/lib/utils";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -321,7 +322,7 @@ export function ItemDetailsDialog({
                   </label>
                   <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#1a1c1c", fontWeight: 500, margin: 0 }}>
                     {item.event?.startDate
-                      ? format(new Date(item.event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()
+                      ? format(parseDateLocal(item.event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()
                       : "—"}
                   </p>
                 </div>

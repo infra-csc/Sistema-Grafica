@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -467,7 +467,7 @@ export default function Grafica() {
                               <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
                                   <Calendar style={{ width: 12, height: 12 }} />
-                                  Início: <strong style={{ color: "rgba(255,255,255,0.7)" }}>{new Date(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
+                                  Início: <strong style={{ color: "rgba(255,255,255,0.7)" }}>{parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
                                 </div>
                                 <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10 }}>|</span>
                                 <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.45)" }}>

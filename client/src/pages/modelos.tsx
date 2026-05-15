@@ -339,89 +339,81 @@ export default function Modelos() {
 
       {/* ── Filter Bar ── */}
       {!isLoading && standardItems.length > 0 && (
-        <div style={{ marginBottom: 16, display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
 
-          {/* Helper: renders one filter row */}
-          {(
-            [
-              allGroups.length > 0 && {
-                key: "group", label: "Grupo",
-                chips: allGroups,
-                active: filterGroup,
-                onToggle: (v: string) => setFilterGroup(filterGroup === v ? "" : v),
-                activeColor: "#0369a1", activeBg: "#0369a1",
-                idleColor: "#0369a1", idleBg: "#dbeafe",
-                testPrefix: "filter-group",
-              },
-              allMats.length > 0 && {
-                key: "material", label: "Material",
-                chips: allMats,
-                active: filterMaterial,
-                onToggle: (v: string) => setFilterMaterial(filterMaterial === v ? "" : v),
-                activeColor: "#ffffff", activeBg: "#c2410c",
-                idleColor: "#c2410c", idleBg: "#fff7ed",
-                testPrefix: "filter-material",
-              },
-              allFinishes.length > 0 && {
-                key: "finish", label: "Acabamento",
-                chips: allFinishes,
-                active: filterFinish,
-                onToggle: (v: string) => setFilterFinish(filterFinish === v ? "" : v),
-                activeColor: "#ffffff", activeBg: "#57534e",
-                idleColor: "#57534e", idleBg: "#f5f4f0",
-                testPrefix: "filter-finish",
-              },
-            ] as any[]
-          ).filter(Boolean).map((row: any) => (
-            <div key={row.key} style={{ display: "flex", alignItems: "flex-start", gap: 0 }}>
-              {/* Label column — fixed width so all chip rows align */}
-              <span style={{
-                width: 88, minWidth: 88, paddingTop: 5, paddingRight: 10,
-                fontSize: 10, fontWeight: 700, color: "#b7b3ae",
-                textTransform: "uppercase", letterSpacing: "0.1em",
-                textAlign: "right", flexShrink: 0,
-              }}>
-                {row.label}
-              </span>
-              {/* Chips */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 5px" }}>
-                {row.chips.map((chip: string) => {
-                  const isActive = row.active === chip;
-                  return (
-                    <button
-                      key={chip}
-                      onClick={() => row.onToggle(chip)}
-                      data-testid={`${row.testPrefix}-${chip}`}
-                      style={{
-                        fontSize: 11, fontWeight: 700,
-                        borderRadius: 100, padding: "4px 11px",
-                        border: "none", cursor: "pointer",
-                        transition: "background-color 0.15s, color 0.15s",
-                        backgroundColor: isActive ? row.activeBg : row.idleBg,
-                        color: isActive ? row.activeColor : row.idleColor,
-                        letterSpacing: "0.01em",
-                      }}
-                    >
-                      {chip}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-
-          {/* Clear all */}
-          {activeFilters > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-              <span style={{ width: 88, minWidth: 88, flexShrink: 0 }} />
-              <button
-                onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
-                style={{ fontSize: 11, fontWeight: 600, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 100, padding: "3px 11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+          {/* GRUPO */}
+          {allGroups.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>Grupo</span>
+              <select
+                value={filterGroup}
+                onChange={e => setFilterGroup(e.target.value)}
+                data-testid="filter-group-select"
+                style={{ height: 36, paddingLeft: 10, paddingRight: 28, fontSize: 13, color: filterGroup ? "#1c1917" : "#78716c", backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, cursor: "pointer", outline: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", minWidth: 160 }}
               >
-                <X style={{ width: 10, height: 10 }} />
-                Limpar filtros ({activeFilters})
-              </button>
+                <option value="">Todos os grupos</option>
+                {allGroups.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
             </div>
+          )}
+
+          {/* TIPO */}
+          {allTypes.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>Tipo</span>
+              <select
+                value={filterType}
+                onChange={e => setFilterType(e.target.value)}
+                data-testid="filter-type-select"
+                style={{ height: 36, paddingLeft: 10, paddingRight: 28, fontSize: 13, color: filterType ? "#1c1917" : "#78716c", backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, cursor: "pointer", outline: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", minWidth: 160 }}
+              >
+                <option value="">Todos os tipos</option>
+                {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* MATERIAL */}
+          {allMats.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>Material</span>
+              <select
+                value={filterMaterial}
+                onChange={e => setFilterMaterial(e.target.value)}
+                data-testid="filter-material-select"
+                style={{ height: 36, paddingLeft: 10, paddingRight: 28, fontSize: 13, color: filterMaterial ? "#1c1917" : "#78716c", backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, cursor: "pointer", outline: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", minWidth: 160 }}
+              >
+                <option value="">Todos os materiais</option>
+                {allMats.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* ACABAMENTO */}
+          {allFinishes.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>Acabamento</span>
+              <select
+                value={filterFinish}
+                onChange={e => setFilterFinish(e.target.value)}
+                data-testid="filter-finish-select"
+                style={{ height: 36, paddingLeft: 10, paddingRight: 28, fontSize: 13, color: filterFinish ? "#1c1917" : "#78716c", backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, cursor: "pointer", outline: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", minWidth: 160 }}
+              >
+                <option value="">Todos os acabamentos</option>
+                {allFinishes.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Limpar filtros */}
+          {activeFilters > 0 && (
+            <button
+              onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
+              style={{ height: 36, paddingLeft: 12, paddingRight: 12, fontSize: 12, fontWeight: 600, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-end" }}
+            >
+              <X style={{ width: 11, height: 11 }} />
+              Limpar ({activeFilters})
+            </button>
           )}
         </div>
       )}

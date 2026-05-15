@@ -1442,16 +1442,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Item not found" });
       }
       
-      // Accept both "requested" (normal flow) and "awaiting_submission" (from Vincular Patrocinadores)
-      const validStatuses = ["requested", "awaiting_submission"];
-      if (!validStatuses.includes(currentItem.status)) {
+      // Only items that passed through vincular-patrocinadores (awaiting_submission) can be worked on
+      if (currentItem.status !== "awaiting_submission") {
         return res.status(409).json({ 
-          error: `Item não pode ser enviado para aprovação. Status atual: ${currentItem.status}, esperado: ${validStatuses.join(' ou ')}` 
+          error: `Item não pode ser enviado para aprovação. Status atual: ${currentItem.status}. O item precisa passar pelo fluxo de Vincular Patrocinadores antes.`
         });
       }
       
-      // approvalThumbUrl is required only for "requested" status (normal flow)
-      if (currentItem.status === "requested" && !approvalThumbUrl) {
+      if (!approvalThumbUrl) {
         return res.status(400).json({ error: "approvalThumbUrl is required" });
       }
       

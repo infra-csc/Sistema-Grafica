@@ -196,7 +196,7 @@ export default function Arte() {
         const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
         let matchesView = false;
         if (tab === "criar-aprovacoes") {
-          matchesView = item.status === 'requested' || item.status === 'awaiting_submission';
+          matchesView = item.status === 'awaiting_submission';
         } else if (tab === "finalizar-layouts") {
           matchesView = item.status === 'sponsor_approved';
         } else if (tab === "finalizados") {
@@ -234,7 +234,7 @@ export default function Arte() {
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
   const finalizadosCount = getFilteredItemsForTab("finalizados").length;
   const correcaoCount = correcaoItems.length;
-  const pendingItems = filteredItems.filter(item => item.status === 'requested' || item.status === 'awaiting_submission');
+  const pendingItems = filteredItems.filter(item => item.status === 'awaiting_submission');
 
   const handleViewDetails = (item: any) => {
     setSelectedItem(item);
@@ -373,7 +373,7 @@ export default function Arte() {
           const showGroupHeader = !showEventHeader && group.group !== '' && group.group !== lastGroupName;
           lastEventName = group.event;
           lastGroupName = group.group;
-          const allPendingInGroup = group.items.filter(i => i.status === 'requested' || i.status === 'awaiting_submission');
+          const allPendingInGroup = group.items.filter(i => i.status === 'awaiting_submission');
           return (
             <Fragment key={`${group.event}-${group.type}-${gIdx}`}>
               {showGroupHeader && (
@@ -1451,7 +1451,7 @@ export default function Arte() {
         ) : null}
         customActions={selectedItem && (
           <div>
-            {(selectedItem.status === 'requested' || selectedItem.status === 'awaiting_submission') && (
+            {selectedItem.status === 'awaiting_submission' && (
               <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {/* Section header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

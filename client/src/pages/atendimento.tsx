@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip } from "lucide-react";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1297,7 +1297,7 @@ export default function Atendimento() {
                           <>
                             <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d6d3d1' }} />
                             <span style={{ fontSize: 10, fontWeight: 800, color: '#f97316', textTransform: 'uppercase' }}>
-                              Saída: {format(new Date(ev.truckDepartureDate), "dd/MM HH:mm")}
+                              Saída: {format(toUTCDisplayDate(ev.truckDepartureDate), "dd/MM HH:mm")}
                             </span>
                           </>
                         )}

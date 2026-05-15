@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, Fragment } from "react";
 import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip } from "lucide-react";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { format } from "date-fns";
@@ -424,7 +424,7 @@ export default function PainelGeral() {
                         {firstItem?.event?.truckDepartureDate && (
                           <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#78716c" }}>
                             <Truck style={{ width: 12, height: 12 }} />
-                            Saída: {format(new Date(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
+                            Saída: {format(toUTCDisplayDate(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
                           </span>
                         )}
                       </div>

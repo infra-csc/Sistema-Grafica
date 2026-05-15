@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -332,7 +332,7 @@ export function ItemDetailsDialog({
                   </label>
                   <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#fd761a", fontWeight: 700, margin: 0 }}>
                     {item.event?.truckDepartureDate
-                      ? format(new Date(item.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR }).toUpperCase()
+                      ? format(toUTCDisplayDate(item.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR }).toUpperCase()
                       : "—"}
                   </p>
                 </div>

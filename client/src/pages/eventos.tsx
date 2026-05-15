@@ -959,9 +959,9 @@ export default function Eventos() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Truck style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
                           <span style={{ fontSize: '12px', fontWeight: '700', color: '#44403c' }}>
-                            {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                            {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).replace('.', '')}
                             {' · '}
-                            {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                           </span>
                         </div>
                       </div>
@@ -1040,9 +1040,9 @@ export default function Eventos() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className={truckUrgency === 'urgent' ? 'animate-pulse' : ''}>
                         <Truck style={{ width: '14px', height: '14px', color: truckColor, flexShrink: 0 }} />
                         <span style={{ fontSize: '12px', fontWeight: '700', color: truckTextColor }}>
-                          {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                          {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).replace('.', '')}
                           {' · '}
-                          {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                         </span>
                       </div>
                     </div>

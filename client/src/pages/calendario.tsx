@@ -503,7 +503,7 @@ export default function Calendario() {
                       {isStart ? "Início: " : "Saída do caminhão: "}
                       <strong style={{ color: P.secondary }}>
                         {dateTime.toLocaleDateString("pt-BR")}
-                        {!isStart && ` às ${dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+                        {!isStart && ` às ${dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}`}
                       </strong>
                     </p>
                   </div>

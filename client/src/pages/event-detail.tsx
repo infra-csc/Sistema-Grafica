@@ -1107,8 +1107,8 @@ export default function EventDetail() {
           const departure = new Date(event.truckDepartureDate);
           const depDay = new Date(departure); depDay.setHours(0, 0, 0, 0);
           const countdownDays = Math.ceil((depDay.getTime() - today.getTime()) / 86400000);
-          const depLabel = departure.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-          const depTime = departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          const depLabel = departure.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+          const depTime = departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
           const startLabel = parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
           const adjustWeekend = (date: Date, skip: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {

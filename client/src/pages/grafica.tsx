@@ -473,7 +473,7 @@ export default function Grafica() {
                                 <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
                                   <Truck style={{ width: 12, height: 12 }} />
                                   Saída: <strong style={{ color: "rgba(255,255,255,0.7)" }}>
-                                    {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR")} às {new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                    {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às {new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}
                                   </strong>
                                 </div>
                                 {(() => {

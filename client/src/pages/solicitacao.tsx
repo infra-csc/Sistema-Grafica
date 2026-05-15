@@ -457,7 +457,7 @@ export default function Solicitacao() {
                                   <span>Início: <span style={{ color: "#d6d3d1" }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
                                 )}
                                 {event.truckDepartureDate && (
-                                  <span>Saída: <span style={{ color: "#d6d3d1" }}>{new Date(event.truckDepartureDate).toLocaleDateString("pt-BR")} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></span>
+                                  <span>Saída: <span style={{ color: "#d6d3d1" }}>{new Date(event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: 'UTC' })} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}</span></span>
                                 )}
                                 {event.truckDepartureDate && (() => {
                                   const dls = [

@@ -408,7 +408,7 @@ export default function Arte() {
                     {group.eventObj?.truckDepartureDate && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
                         <Truck style={{ width: 12, height: 12 }} />
-                        Saída: {new Date(group.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {new Date(group.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        Saída: {new Date(group.eventObj.truckDepartureDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })} às {new Date(group.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                       </span>
                     )}
                     {group.eventObj?.truckDepartureDate && (() => {

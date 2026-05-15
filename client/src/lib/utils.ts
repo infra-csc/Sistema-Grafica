@@ -12,3 +12,14 @@ export function cn(...inputs: ClassValue[]) {
 export function parseDateLocal(dateStr: string): Date {
   return new Date(dateStr + "T12:00:00");
 }
+
+/**
+ * truckDepartureDate is stored as UTC but the value the user typed (e.g. "15:11")
+ * IS the intended local display time — no offset conversion was applied on save.
+ * To make date-fns format() show the UTC value instead of the local value,
+ * shift the Date by the browser's UTC offset so local rendering == UTC value.
+ */
+export function toUTCDisplayDate(dateStr: string): Date {
+  const d = new Date(dateStr);
+  return new Date(d.getTime() + d.getTimezoneOffset() * 60000);
+}

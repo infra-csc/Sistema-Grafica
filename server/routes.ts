@@ -661,8 +661,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
           
-          // Only items with status 'requested' can be sent to Arte
-          if (item.status !== 'requested') {
+          // Items with status 'requested' or 'awaiting_linking' can be sent to Arte
+          if (item.status !== 'requested' && item.status !== 'awaiting_linking') {
             errors.push(`Item ${item.displayId} não está no status correto para envio`);
             continue;
           }

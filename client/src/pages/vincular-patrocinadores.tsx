@@ -1279,11 +1279,20 @@ export default function VincularPatrocinadores() {
             Exportar PDF
           </button>
           <button
-            style={{ padding: '10px 20px', backgroundColor: '#f97316', color: '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}
-            onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+            onClick={() => {
+              const prontoItems = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO');
+              if (prontoItems.length === 0) return;
+              const pendingByItem: Record<string, Set<string>> = {};
+              prontoItems.forEach(i => { pendingByItem[i.id] = new Set(); });
+              setSendConfirmModal({ items: prontoItems, pendingByItem });
+            }}
+            disabled={statusCounts.PRONTO === 0 || sendToArteMutation.isPending}
+            style={{ padding: '10px 20px', backgroundColor: statusCounts.PRONTO === 0 ? '#e7e5e4' : '#f97316', color: statusCounts.PRONTO === 0 ? '#a8a29e' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: statusCounts.PRONTO === 0 ? 'not-allowed' : 'pointer' }}
+            onMouseEnter={e => { if (statusCounts.PRONTO > 0) (e.currentTarget.style.filter = 'brightness(1.1)'); }}
             onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
+            data-testid="button-finalizar-lote"
           >
-            Finalizar Lote
+            {statusCounts.PRONTO > 0 ? `Finalizar Lote (${statusCounts.PRONTO})` : 'Finalizar Lote'}
           </button>
         </div>
       </div>

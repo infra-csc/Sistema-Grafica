@@ -1064,6 +1064,12 @@ export default function Atendimento() {
                               <p style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', margin: '3px 0 0', letterSpacing: '0.05em' }}>
                                 {item.displayId}{item.description ? ` • ${item.description}` : ''}
                               </p>
+                              {item.referenceUrl && (
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#f97316', textDecoration: 'none', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 3, padding: '1px 5px', marginTop: 4 }} data-testid={`link-reference-atendimento-${item.id}`}>
+                                  <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: 'cover', borderRadius: 2 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                  Ref.
+                                </a>
+                              )}
                             </div>
 
                             {/* Col 2: Patrocinadores */}

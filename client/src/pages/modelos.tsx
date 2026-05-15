@@ -19,6 +19,68 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
+function SearchableSelect({
+  label, placeholder, value, options, onChange, testId,
+}: {
+  label: string; placeholder: string; value: string;
+  options: string[]; onChange: (v: string) => void; testId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            data-testid={testId}
+            style={{
+              height: 36, paddingLeft: 10, paddingRight: 10, minWidth: 160,
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6,
+              fontSize: 13, color: value ? "#1c1917" : "#78716c",
+              backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8,
+              cursor: "pointer", outline: "none", textAlign: "left",
+            }}
+          >
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {value || placeholder}
+            </span>
+            <ChevronsUpDown style={{ width: 13, height: 13, color: "#a8a29e", flexShrink: 0 }} />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent style={{ padding: 0, width: 220, borderRadius: 10, border: "1px solid #e7e5e4", boxShadow: "0 8px 24px rgba(0,0,0,0.10)" }} align="start">
+          <Command>
+            <CommandInput placeholder={`Buscar ${label.toLowerCase()}...`} style={{ fontSize: 13 }} />
+            <CommandList>
+              <CommandEmpty style={{ fontSize: 13, color: "#78716c", padding: "8px 12px" }}>Nenhuma opção</CommandEmpty>
+              <CommandGroup>
+                <CommandItem
+                  value=""
+                  onSelect={() => { onChange(""); setOpen(false); }}
+                  style={{ fontSize: 13, cursor: "pointer" }}
+                >
+                  <Check style={{ width: 13, height: 13, marginRight: 6, opacity: value === "" ? 1 : 0 }} />
+                  {placeholder}
+                </CommandItem>
+                {options.map(opt => (
+                  <CommandItem
+                    key={opt}
+                    value={opt}
+                    onSelect={() => { onChange(opt); setOpen(false); }}
+                    style={{ fontSize: 13, cursor: "pointer" }}
+                  >
+                    <Check style={{ width: 13, height: 13, marginRight: 6, opacity: value === opt ? 1 : 0 }} />
+                    {opt}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido"];
 const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
@@ -341,68 +403,17 @@ export default function Modelos() {
       {!isLoading && standardItems.length > 0 && (
         <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
 
-          {/* GRUPO */}
           {allGroups.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>Grupo</span>
-              <select
-                value={filterGroup}
-                onChange={e => setFilterGroup(e.target.value)}
-                data-testid="filter-group-select"
-                style={{ height: 36, paddingLeft: 10, paddingRight: 28, fontSize: 13, color: filterGroup ? "#1c1917" : "#78716c", backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, cursor: "pointer", outline: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", minWidth: 160 }}
-              >
-                <option value="">Todos os grupos</option>
-                {allGroups.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
+            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} onChange={setFilterGroup} testId="filter-group-select" />
           )}
-
-          {/* TIPO */}
           {allTypes.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>Tipo</span>
-              <select
-                value={filterType}
-                onChange={e => setFilterType(e.target.value)}
-                data-testid="filter-type-select"
-                style={{ height: 36, paddingLeft: 10, paddingRight: 28, fontSize: 13, color: filterType ? "#1c1917" : "#78716c", backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, cursor: "pointer", outline: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", minWidth: 160 }}
-              >
-                <option value="">Todos os tipos</option>
-                {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
+            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} onChange={setFilterType} testId="filter-type-select" />
           )}
-
-          {/* MATERIAL */}
           {allMats.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>Material</span>
-              <select
-                value={filterMaterial}
-                onChange={e => setFilterMaterial(e.target.value)}
-                data-testid="filter-material-select"
-                style={{ height: 36, paddingLeft: 10, paddingRight: 28, fontSize: 13, color: filterMaterial ? "#1c1917" : "#78716c", backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, cursor: "pointer", outline: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", minWidth: 160 }}
-              >
-                <option value="">Todos os materiais</option>
-                {allMats.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
+            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} onChange={setFilterMaterial} testId="filter-material-select" />
           )}
-
-          {/* ACABAMENTO */}
           {allFinishes.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>Acabamento</span>
-              <select
-                value={filterFinish}
-                onChange={e => setFilterFinish(e.target.value)}
-                data-testid="filter-finish-select"
-                style={{ height: 36, paddingLeft: 10, paddingRight: 28, fontSize: 13, color: filterFinish ? "#1c1917" : "#78716c", backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, cursor: "pointer", outline: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", minWidth: 160 }}
-              >
-                <option value="">Todos os acabamentos</option>
-                {allFinishes.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
+            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} onChange={setFilterFinish} testId="filter-finish-select" />
           )}
 
           {/* Limpar filtros */}

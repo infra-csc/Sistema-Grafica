@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -223,7 +224,7 @@ export default function VincularPatrocinadores() {
   const events = useMemo(() => {
     const today = startOfDay(new Date());
     return rawEvents.filter(event => {
-      const eventStartDate = startOfDay(new Date(event.startDate));
+      const eventStartDate = startOfDay(parseDateLocal(event.startDate));
       return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
     });
   }, [rawEvents]);
@@ -250,7 +251,7 @@ export default function VincularPatrocinadores() {
       // Filtro 1: Evento futuro
       const event = rawEvents.find(e => e.id === item.eventId);
       if (!event) return false;
-      const eventStartDate = startOfDay(new Date(event.startDate));
+      const eventStartDate = startOfDay(parseDateLocal(event.startDate));
       const isFutureEvent = isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
       
       // Filtro 2: Status permitido (exclui draft)
@@ -1578,11 +1579,11 @@ export default function VincularPatrocinadores() {
                   <div style={{ display: 'flex', gap: 18, fontSize: 11, fontWeight: 500, color: '#a8a29e' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Calendar style={{ width: 13, height: 13 }} />
-                      <span>{format(new Date(event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()}</span>
+                      <span>{format(parseDateLocal(event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Truck style={{ width: 13, height: 13 }} />
-                      <span>{format(new Date(event.truckDepartureDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()}</span>
+                      <span>{format(toUTCDisplayDate(event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR }).toUpperCase()}</span>
                     </div>
                   </div>
                   <button

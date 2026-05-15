@@ -1361,8 +1361,8 @@ export default function EventDetail() {
                                           <img src={item.referenceUrl} className="h-8 w-8 rounded object-cover border border-border" alt="ref" />
                                         </a>
                                       )}
-                                      {/* Upload referência — solicitation/admin */}
-                                      {canUploadReference && (
+                                      {/* Upload referência — solicitation/admin, apenas enquanto item não saiu do vincular */}
+                                      {canUploadReference && ['draft', 'requested'].includes(item.status) && (
                                         <ObjectUploader
                                           onGetUploadParameters={getUploadUrl}
                                           onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
@@ -1615,7 +1615,7 @@ export default function EventDetail() {
                                   <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4' }} alt="ref" />
                                 </a>
                               )}
-                              {canUploadReference && (
+                              {canUploadReference && ['draft', 'requested'].includes(item.status) && (
                                 <ObjectUploader
                                   onGetUploadParameters={getUploadUrl}
                                   onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
@@ -1625,7 +1625,7 @@ export default function EventDetail() {
                                   <Paperclip style={{ width: 13, height: 13, color: item.referenceUrl ? '#f97316' : '#a8a29e' }} title={item.referenceUrl ? "Substituir referência" : "Adicionar referência"} />
                                 </ObjectUploader>
                               )}
-                              {!canUploadReference && !item.referenceUrl && (
+                              {(!canUploadReference || !['draft', 'requested'].includes(item.status)) && !item.referenceUrl && (
                                 <span style={{ color: '#a8a29e', fontSize: 13 }}>—</span>
                               )}
                             </div>

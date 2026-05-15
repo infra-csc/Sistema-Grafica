@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
@@ -1213,21 +1213,43 @@ export default function VincularPatrocinadores() {
 
       {/* ── Preview de Referência Visual ── */}
       <Dialog open={!!previewRefUrl} onOpenChange={open => !open && setPreviewRefUrl(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Referência Visual</DialogTitle>
-            <DialogDescription>Imagem de referência anexada pelo solicitante</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="p-0 gap-0 overflow-hidden" style={{ maxWidth: 520, borderRadius: 12 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', borderBottom: '1px solid #f0efed' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Paperclip style={{ width: 14, height: 14, color: '#2563eb' }} />
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#1c1917' }}>Referência Visual</span>
+            </div>
+            <button
+              onClick={() => setPreviewRefUrl(null)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid #e7e5e4', background: 'white', cursor: 'pointer', color: '#78716c' }}
+              data-testid="button-close-ref-preview"
+            >
+              <X style={{ width: 14, height: 14 }} />
+            </button>
+          </div>
+          {/* Image */}
           {previewRefUrl && (
-            <div className="flex flex-col items-center gap-3">
+            <div style={{ backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, maxHeight: 480, overflow: 'hidden' }}>
               <img
                 src={previewRefUrl}
                 alt="Referência visual"
-                className="max-w-full rounded-lg border"
-                style={{ maxHeight: 500, objectFit: 'contain' }}
-                onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget as HTMLImageElement).alt = 'Imagem não disponível'; }}
+                style={{ maxWidth: '100%', maxHeight: 480, objectFit: 'contain', display: 'block' }}
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
               />
-              <a href={previewRefUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
+            </div>
+          )}
+          {/* Footer */}
+          {previewRefUrl && (
+            <div style={{ padding: '10px 16px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end' }}>
+              <a
+                href={previewRefUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
+                data-testid="link-open-ref-new-tab"
+              >
+                <ExternalLink style={{ width: 12, height: 12 }} />
                 Abrir em nova aba
               </a>
             </div>

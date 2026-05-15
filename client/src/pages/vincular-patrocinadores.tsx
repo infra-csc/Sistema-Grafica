@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
@@ -159,6 +159,7 @@ export default function VincularPatrocinadores() {
   
   // Estado para controlar qual aba está ativa
   const [activeTab, setActiveTab] = useState<"vincular" | "enviar">("vincular");
+  const [previewRefUrl, setPreviewRefUrl] = useState<string | null>(null);
 
   // Vista principal: por-item (existente) | por-patrocinador (nova)
   const [viewMode, setViewMode] = useState<"por-item" | "por-patrocinador">("por-item");
@@ -1209,6 +1210,31 @@ export default function VincularPatrocinadores() {
 
   return (
     <div className="container mx-auto p-4 max-w-6xl pb-24" style={{ height: "100%", overflowY: "auto" }}>
+
+      {/* ── Preview de Referência Visual ── */}
+      <Dialog open={!!previewRefUrl} onOpenChange={open => !open && setPreviewRefUrl(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Referência Visual</DialogTitle>
+            <DialogDescription>Imagem de referência anexada pelo solicitante</DialogDescription>
+          </DialogHeader>
+          {previewRefUrl && (
+            <div className="flex flex-col items-center gap-3">
+              <img
+                src={previewRefUrl}
+                alt="Referência visual"
+                className="max-w-full rounded-lg border"
+                style={{ maxHeight: 500, objectFit: 'contain' }}
+                onError={e => { (e.currentTarget as HTMLImageElement).src = ''; (e.currentTarget as HTMLImageElement).alt = 'Imagem não disponível'; }}
+              />
+              <a href={previewRefUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">
+                Abrir em nova aba
+              </a>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* ── Page Header ── */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
         <div>
@@ -1658,10 +1684,16 @@ export default function VincularPatrocinadores() {
                                   </span>
                                 )}
                                 {item.referenceUrl && (
-                                  <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência do solicitante" onClick={e => e.stopPropagation()} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#f97316', textDecoration: 'none', fontWeight: 600, marginTop: 2 }} data-testid={`link-reference-vincular-${item.id}`}>
-                                    <img src={item.referenceUrl} style={{ width: 14, height: 14, objectFit: 'cover', borderRadius: 3, border: '1px solid #fed7aa' }} alt="" />
-                                    Ref.
-                                  </a>
+                                  <button
+                                    type="button"
+                                    onClick={e => { e.stopPropagation(); setPreviewRefUrl(item.referenceUrl!); }}
+                                    title="Ver referência visual"
+                                    data-testid={`link-reference-vincular-${item.id}`}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '2px 6px', marginTop: 2, cursor: 'pointer' }}
+                                  >
+                                    <Paperclip style={{ width: 9, height: 9 }} />
+                                    Ref. visual
+                                  </button>
                                 )}
                               </div>
                             </td>

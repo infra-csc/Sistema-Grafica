@@ -539,6 +539,12 @@ export default function Grafica() {
                         {item.observations && (
                           <div style={{ fontSize: 11, color: TI.secondary, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{item.observations}</div>
                         )}
+                        {item.referenceUrl && (
+                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: "#f97316", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 3, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
+                            <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 2 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                            REF
+                          </a>
+                        )}
                       </td>
                       {/* Qtd */}
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text }}>{item.quantity}</td>

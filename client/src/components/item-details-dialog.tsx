@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
-  FileImage, FolderOpen, ExternalLink, Camera, Clock, ShieldCheck, Package,
+  FileImage, FolderOpen, ExternalLink, Camera, Clock, ShieldCheck, Package, Paperclip,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -257,6 +257,40 @@ export function ItemDetailsDialog({
             <p style={{ color: "#584237", lineHeight: 1.65, maxWidth: 800, margin: 0, fontSize: 14 }}>
               {item.description}
             </p>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            REFERÊNCIA DO SOLICITANTE
+        ══════════════════════════════════════════════════════ */}
+        {item.referenceUrl && (
+          <div style={{ padding: "20px 32px", backgroundColor: "#fff7ed", borderLeft: "8px solid #f97316", display: "flex", alignItems: "center", gap: 20 }}>
+            <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, display: "block", borderRadius: 8, overflow: "hidden", border: "2px solid #fed7aa", boxShadow: "0 4px 12px rgba(249,115,22,0.15)" }}>
+              <img
+                src={item.referenceUrl}
+                alt="Referência"
+                style={{ width: 100, height: 72, objectFit: "cover", display: "block" }}
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            </a>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#c2410c", margin: "0 0 6px 0", display: "flex", alignItems: "center", gap: 5 }}>
+                <Paperclip style={{ width: 11, height: 11 }} />
+                Referência do Solicitante
+              </p>
+              <p style={{ fontSize: 13, color: "#7c2d12", margin: "0 0 8px 0", lineHeight: 1.4 }}>
+                Imagem de demonstração fornecida pelo solicitante para orientar a produção da peça.
+              </p>
+              <a
+                href={item.referenceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#f97316", textDecoration: "none", padding: "5px 12px", backgroundColor: "rgba(249,115,22,0.08)", borderRadius: 4, border: "1px solid rgba(249,115,22,0.2)" }}
+              >
+                <ExternalLink style={{ width: 12, height: 12 }} />
+                Ver imagem completa
+              </a>
+            </div>
           </div>
         )}
 

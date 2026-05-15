@@ -545,9 +545,17 @@ export default function PainelGeral() {
                                   >
                                     {/* ID */}
                                     <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
-                                      <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
-                                        {item.displayId}
-                                      </span>
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
+                                          {item.displayId}
+                                        </span>
+                                        {item.referenceUrl && (
+                                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#f97316", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 3, padding: "1px 5px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
+                                            <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 2 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                                            REF
+                                          </a>
+                                        )}
+                                      </div>
                                     </td>
 
                                             {/* Descrição */}

@@ -950,7 +950,7 @@ export default function Eventos() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
                           <Calendar style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
                           <span style={{ fontSize: '12px', fontWeight: '700' }}>
-                            {parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                            {event.startDate ? parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '') : '—'}
                           </span>
                         </div>
                       </div>
@@ -1031,7 +1031,7 @@ export default function Eventos() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
                         <Calendar style={{ width: '14px', height: '14px', color: cardBorderHex, flexShrink: 0 }} />
                         <span style={{ fontSize: '12px', fontWeight: '700' }}>
-                          {parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}
+                          {event.startDate ? parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '') : '—'}
                         </span>
                       </div>
                     </div>

@@ -1359,7 +1359,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/items/:id", async (req, res) => {
     try {
       const validatedData = insertItemSchema.partial().parse(req.body);
-      
+
+      // Normalize referenceUrl from raw GCS URL to /objects/ proxy path
+      if (validatedData.referenceUrl) {
+        const { ObjectStorageService } = await import("./objectStorage");
+        const objectStorageService = new ObjectStorageService();
+        validatedData.referenceUrl = objectStorageService.normalizeObjectEntityPath(validatedData.referenceUrl);
+      }
+
       // Pegar item atual antes de atualizar
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {

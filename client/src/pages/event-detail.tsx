@@ -160,7 +160,7 @@ export default function EventDetail() {
   const canManageEvent = hasPermission("admin") || (event && user && event.createdBy === user.id);
 
   // Solicitação ou admin podem adicionar referência
-  const canUploadReference = hasPermission("admin") || user?.profile === "solicitacao";
+  const canUploadReference = hasPermission("admin") || user?.role === "solicitacao";
 
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});
@@ -1361,7 +1361,7 @@ export default function EventDetail() {
                                       {/* Referência visual */}
                                       {item.referenceUrl && (
                                         <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-${item.id}`}>
-                                          <img src={item.referenceUrl} className="h-8 w-8 rounded object-cover border border-border" alt="ref" />
+                                          <img src={item.referenceUrl} className="h-8 w-8 rounded object-cover border border-border" alt="ref" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                         </a>
                                       )}
                                       {/* Upload referência — solicitation/admin, em qualquer status até entrega */}
@@ -1615,7 +1615,7 @@ export default function EventDetail() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               {item.referenceUrl && (
                                 <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-table-${item.id}`}>
-                                  <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4' }} alt="ref" />
+                                  <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4' }} alt="ref" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                 </a>
                               )}
                               {canUploadReference && item.status !== 'entregue' && (

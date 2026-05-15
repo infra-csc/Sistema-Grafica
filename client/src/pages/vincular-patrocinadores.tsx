@@ -1634,10 +1634,22 @@ export default function VincularPatrocinadores() {
                             const typeItems = displayedItems.filter(i => i.type === item.type);
                             const selectableTypeItems = typeItems.filter(i => { const s = itemUIStates[i.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; });
                             const allTypeSelected = selectableTypeItems.length > 0 && selectableTypeItems.every(i => selectedItemIds.has(i.id));
+
+                            // Calcular status do grupo
+                            const prontoCount = typeItems.filter(i => (itemUIStates[i.id] || 'PENDENTE') === 'PRONTO').length;
+                            const enviadoCount = typeItems.filter(i => (itemUIStates[i.id] || 'PENDENTE') === 'ENVIADO').length;
+                            const pendingCount = typeItems.filter(i => { const s = itemUIStates[i.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }).length;
+                            const allReady = pendingCount === 0 && (prontoCount + enviadoCount) === typeItems.length;
+                            const allSent = enviadoCount === typeItems.length;
+
+                            const groupBg = allSent ? 'rgba(134,239,172,0.08)' : allReady ? 'rgba(134,239,172,0.12)' : 'rgba(249,115,22,0.06)';
+                            const groupBorder = allSent ? '#86efac' : allReady ? '#22c55e' : '#f97316';
+                            const groupTextColor = allSent ? '#15803d' : allReady ? '#166534' : '#c2410c';
+
                             return (
                               <tr key={`type-${item.type}-${itemIndex}`}>
                                 <td colSpan={6} style={{ padding: 0 }}>
-                                  <div style={{ backgroundColor: 'rgba(249,115,22,0.06)', borderLeft: '4px solid #f97316', display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                  <div style={{ backgroundColor: groupBg, borderLeft: `4px solid ${groupBorder}`, display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                                     {/* Coluna do checkbox — mesma largura do td de item (50px) */}
                                     <div style={{ width: 50, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '6px 0' }}>
                                       <Checkbox
@@ -1648,9 +1660,25 @@ export default function VincularPatrocinadores() {
                                       />
                                     </div>
                                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 20 }}>
-                                      <span style={{ fontSize: 10, fontWeight: 900, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                                        {item.type} — {typeItems.length} {typeItems.length !== 1 ? 'itens' : 'item'}
-                                      </span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                        <span style={{ fontSize: 10, fontWeight: 900, color: groupTextColor, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                          {item.type} — {typeItems.length} {typeItems.length !== 1 ? 'itens' : 'item'}
+                                        </span>
+                                        {/* Badge de status do grupo */}
+                                        {allSent ? (
+                                          <span style={{ fontSize: 9, fontWeight: 800, color: '#15803d', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                            Enviado
+                                          </span>
+                                        ) : allReady ? (
+                                          <span style={{ fontSize: 9, fontWeight: 800, color: '#166534', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                            Pronto
+                                          </span>
+                                        ) : (
+                                          <span style={{ fontSize: 9, fontWeight: 800, color: '#92400e', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                            {pendingCount} sem atribuição
+                                          </span>
+                                        )}
+                                      </div>
                                       <ChevronDown style={{ width: 14, height: 14, color: '#a8a29e' }} />
                                     </div>
                                   </div>

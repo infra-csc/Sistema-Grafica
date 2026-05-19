@@ -583,7 +583,7 @@ export default function Arte() {
                           {tabId === 'finalizados' && (
                             <td style={{ padding: '12px 16px' }}>
                               {item.approvalThumbUrl ? (() => {
-                                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(item.approvalThumbUrl.toLowerCase());
+                                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(item.approvalThumbUrl.toLowerCase()) || item.approvalThumbUrl.startsWith('/objects/');
                                 return isImage ? (
                                   <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" title="Ver thumb aprovado">
                                     <img
@@ -802,7 +802,7 @@ export default function Arte() {
             const approvalsToShow = correcaoSponsorFilter === "all"
               ? item.awaitingArteApprovals
               : item.awaitingArteApprovals.filter((a: any) => a.sponsorId === correcaoSponsorFilter);
-            const isImage = item.approvalThumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl);
+            const isImage = item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/'));
             return (
               <div
                 key={item.id}

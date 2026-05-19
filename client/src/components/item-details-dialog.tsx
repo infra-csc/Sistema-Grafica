@@ -115,7 +115,10 @@ export function ItemDetailsDialog({
   const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
 
   const thumbUrl = item.approvalThumbUrl;
-  const isThumbImage = thumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl.toLowerCase());
+  const isThumbImage = thumbUrl && (
+    /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl.toLowerCase()) ||
+    thumbUrl.startsWith('/objects/')
+  );
 
   const hasDeliveryPhoto = !!item.deliveryPhotoUrl;
   const hasObservations  = !!item.observations;

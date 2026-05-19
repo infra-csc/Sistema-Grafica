@@ -80,7 +80,10 @@ export function TriagemModal({
   const qty       = asset.quantity ?? 1;
 
   const thumbUrl = asset.approvalThumbUrl;
-  const isImg    = thumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl);
+  const isImg    = thumbUrl && (
+    /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) ||
+    thumbUrl.startsWith('/objects/')
+  );
   const [thumbImgFailed, setThumbImgFailed] = useState(false);
 
   async function handleSave() {

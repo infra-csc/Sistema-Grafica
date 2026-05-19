@@ -608,7 +608,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
             </div>
 
             {/* Approval thumb reference — only when URL is an image */}
-            {asset.approvalThumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) && (
+            {asset.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) || asset.approvalThumbUrl.startsWith('/objects/')) && (
               <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "21/9" }}>
                 <img src={asset.approvalThumbUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: "grayscale(0.25)", opacity: 0.85 }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(28,25,23,0.8) 0%, transparent 55%)", display: "flex", alignItems: "flex-end", padding: "20px 24px" }}>
@@ -1214,7 +1214,7 @@ export default function Estoque() {
                 {filtered.map(asset => {
                   const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
                   const cm = CONDITION_META[asset.condition ?? "PERFEITO"];
-                  const thumbOk = asset.approvalThumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl);
+                  const thumbOk = asset.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) || asset.approvalThumbUrl.startsWith('/objects/'));
                   const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean);
                   return (
                     <tr key={asset.id} data-testid={`row-asset-${asset.id}`}

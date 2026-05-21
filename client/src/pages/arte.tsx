@@ -188,9 +188,17 @@ export default function Arte() {
   };
 
   const handleExportPDF = () => {
+    const arteStatuses = [
+      'awaiting_submission',
+      'awaiting_sponsor_approval',
+      'sponsor_approved',
+      'awaiting_creator_review',
+      'pronto_para_producao',
+      'liberado',
+    ];
     const allArteItems = [
-      ...filteredItems,
-      ...correcaoItems,
+      ...allItems.filter(i => arteStatuses.includes(i.status)),
+      ...correcaoItems.filter(i => !arteStatuses.includes(i.status)),
     ];
     if (allArteItems.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
@@ -202,80 +210,49 @@ export default function Arte() {
       const thumbUrl = item.approvalThumbUrl || "";
       const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
       const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
-      const sponsorNames = (item.sponsors || []).map((s: any) => s.name).join(", ") || "—";
-      const truckDate = item.event?.truckDepartureDate
-        ? new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: "UTC" }) +
-          " às " + new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
-        : "—";
-      const statusLabels: Record<string, string> = {
-        awaiting_submission: "Aguardando Envio",
-        awaiting_sponsor_approval: "Aguardando Aprovação",
-        sponsor_approved: "Aprovado — Aguardando Finalização",
-        awaiting_creator_review: "Aguardando Revisão Final",
-        pronto_para_producao: "Pronto para Produção",
-        liberado: "Liberado",
-        em_producao: "Em Produção",
-        produzido: "Produzido",
-        entregue: "Entregue",
-      };
-      const statusLabel = statusLabels[item.status] || item.status;
       return `
-        <div class="item-page">
-          <div class="item-header">
-            <div class="item-id">${item.displayId || "#—"}</div>
-            <div class="event-name">${item.event?.name || "Sem Evento"}</div>
-            <div class="status-badge">${statusLabel}</div>
+        <div class="page">
+          <div class="header">
+            <span class="id">${item.displayId || "#—"}</span>
+            <span class="event">${item.event?.name || "Sem Evento"}</span>
           </div>
-          <div class="item-body">
-            <div class="thumb-section">
+          <div class="body">
+            <div class="thumb">
               ${isImg
                 ? `<img src="${resolvedThumb}" alt="Thumb" />`
                 : thumbUrl
-                  ? `<div class="no-thumb"><span>📄 PDF / Arquivo</span><a href="${resolvedThumb}">${thumbUrl.split("/").pop()}</a></div>`
-                  : `<div class="no-thumb"><span>Sem thumb de aprovação</span></div>`
+                  ? `<div class="no-thumb">Arquivo vinculado</div>`
+                  : `<div class="no-thumb">Sem thumb</div>`
               }
             </div>
-            <div class="data-section">
-              <table>
-                <tr><td class="label">Tipo</td><td class="value">${item.type || "—"}</td></tr>
-                <tr><td class="label">Descrição</td><td class="value">${item.description || "—"}</td></tr>
-                <tr><td class="label">Quantidade</td><td class="value">${item.quantity || "—"} un.</td></tr>
-                <tr><td class="label">Dimensões</td><td class="value">${item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—"}</td></tr>
-                <tr><td class="label">Material</td><td class="value">${item.material || "—"}</td></tr>
-                <tr><td class="label">Acabamento</td><td class="value">${item.finish || "—"}</td></tr>
-                <tr><td class="label">Patrocinadores</td><td class="value">${sponsorNames}</td></tr>
-                <tr><td class="label">Saída Caminhão</td><td class="value">${truckDate}</td></tr>
-                ${item.observations ? `<tr><td class="label">Observações</td><td class="value obs">${item.observations}</td></tr>` : ""}
-              </table>
+            <div class="info">
+              <div class="field"><span class="lbl">Tipo</span><span class="val">${item.type || "—"}</span></div>
+              <div class="field"><span class="lbl">Descrição</span><span class="val">${item.description || "—"}</span></div>
+              <div class="field"><span class="lbl">Quantidade</span><span class="val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
             </div>
           </div>
         </div>
       `;
     }).join("");
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
-      <title>Arte — Relatório de Peças</title>
+      <title>Arte — Peças</title>
       <style>
-        @page { size: A4 landscape; margin: 16mm; }
+        @page { size: A4 portrait; margin: 14mm; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
-        .item-page { page-break-after: always; padding: 0; display: flex; flex-direction: column; height: 100%; min-height: 170mm; }
-        .item-header { display: flex; align-items: center; gap: 16px; border-bottom: 3px solid #f97316; padding-bottom: 10px; margin-bottom: 16px; }
-        .item-id { font-family: monospace; font-size: 18px; font-weight: 800; color: #f97316; }
-        .event-name { font-size: 16px; font-weight: 700; color: #1c1917; flex: 1; }
-        .status-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; background: #fef9c3; color: #854d0e; padding: 4px 10px; border-radius: 20px; border: 1px solid #fde68a; white-space: nowrap; }
-        .item-body { display: flex; gap: 24px; flex: 1; }
-        .thumb-section { width: 220px; flex-shrink: 0; }
-        .thumb-section img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; border: 1px solid #e7e5e4; }
-        .no-thumb { width: 100%; height: 160px; background: #f5f5f4; border-radius: 8px; border: 1px dashed #d4d4d0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: #a8a29e; }
-        .no-thumb a { color: #f97316; font-size: 10px; word-break: break-all; text-align: center; }
-        .data-section { flex: 1; }
-        table { width: 100%; border-collapse: collapse; }
-        tr { border-bottom: 1px solid #f5f5f4; }
-        td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
-        .label { color: #78716c; font-weight: 700; text-transform: uppercase; font-size: 9px; letter-spacing: .08em; width: 110px; padding-top: 8px; }
-        .value { color: #1c1917; font-weight: 500; }
-        .obs { color: #d97706; font-style: italic; }
-        @media print { .item-page:last-child { page-break-after: avoid; } }
+        .page { page-break-after: always; display: flex; flex-direction: column; min-height: 267mm; }
+        .page:last-child { page-break-after: avoid; }
+        .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-bottom: 16px; }
+        .id { font-family: monospace; font-size: 16px; font-weight: 800; color: #f97316; flex-shrink: 0; }
+        .event { font-size: 14px; font-weight: 700; color: #1c1917; }
+        .body { display: flex; gap: 20px; flex: 1; align-items: flex-start; }
+        .thumb { flex: 1; }
+        .thumb img { width: 100%; max-height: 220mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
+        .no-thumb { width: 100%; height: 180px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
+        .info { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px; padding-top: 4px; }
+        .field { display: flex; flex-direction: column; gap: 3px; }
+        .lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #a8a29e; }
+        .val { font-size: 13px; font-weight: 600; color: #1c1917; line-height: 1.3; }
       </style>
     </head><body>${rows}</body></html>`);
     win.document.close();

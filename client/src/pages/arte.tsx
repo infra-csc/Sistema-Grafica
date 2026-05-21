@@ -240,19 +240,27 @@ export default function Arte() {
         @page { size: A4 portrait; margin: 14mm; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
-        .page { page-break-after: always; display: flex; flex-direction: column; min-height: 267mm; }
-        .page:last-child { page-break-after: avoid; }
-        .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-bottom: 16px; }
+        .page {
+          width: 100%;
+          height: 269mm;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          break-after: page;
+          page-break-after: always;
+        }
+        .page:last-child { break-after: avoid; page-break-after: avoid; }
+        .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-bottom: 14px; flex-shrink: 0; }
         .id { font-family: monospace; font-size: 16px; font-weight: 800; color: #f97316; flex-shrink: 0; }
         .event { font-size: 14px; font-weight: 700; color: #1c1917; }
-        .body { display: flex; gap: 20px; flex: 1; align-items: flex-start; }
-        .thumb { flex: 1; }
-        .thumb img { width: 100%; max-height: 220mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
-        .no-thumb { width: 100%; height: 180px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
-        .info { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px; padding-top: 4px; }
-        .field { display: flex; flex-direction: column; gap: 3px; }
+        .body { display: flex; gap: 20px; flex: 1; min-height: 0; }
+        .thumb { flex: 1; min-height: 0; display: flex; align-items: flex-start; }
+        .thumb img { width: 100%; height: 100%; max-height: 240mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
+        .no-thumb { width: 100%; height: 100%; min-height: 160px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
+        .info { width: 150px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; padding-top: 4px; }
+        .field { display: flex; flex-direction: column; gap: 4px; }
         .lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #a8a29e; }
-        .val { font-size: 13px; font-weight: 600; color: #1c1917; line-height: 1.3; }
+        .val { font-size: 13px; font-weight: 600; color: #1c1917; line-height: 1.35; }
       </style>
     </head><body>${rows}</body></html>`);
     win.document.close();

@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Fragment, useState, useMemo } from "react";
+import { Fragment, useState, useMemo, useEffect, useCallback } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -186,6 +186,72 @@ export default function Arte() {
     const data = await response.json();
     return { method: "PUT" as const, url: data.uploadURL };
   };
+
+  const [isPasteUploading, setIsPasteUploading] = useState(false);
+
+  const uploadFileDirect = useCallback(async (
+    file: File,
+    onComplete: (localPath: string) => void,
+  ) => {
+    setIsPasteUploading(true);
+    try {
+      const { url } = await getUploadUrl();
+      const res = await fetch(url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "image/png" },
+      });
+      if (!res.ok) throw new Error("Falha no upload");
+      const objectUrl = url.split("?")[0];
+      const localPath = convertGCSUrlToLocalPath(objectUrl);
+      onComplete(localPath);
+      toast({ title: "Imagem colada!", description: "Upload via Ctrl+V concluído." });
+    } catch (e: any) {
+      toast({ title: "Erro ao colar imagem", description: e.message, variant: "destructive" });
+    } finally {
+      setIsPasteUploading(false);
+    }
+  }, [toast]);
+
+  // Ctrl+V: colar thumb no modal de aprovação (selectedItem)
+  useEffect(() => {
+    if (!selectedItem) return;
+    const handler = (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const imageItem = items.find(i => i.type.startsWith("image/"));
+      if (!imageItem) return;
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      const reader = new FileReader();
+      reader.onload = (ev) => setApprovalThumbPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+      uploadFileDirect(file, (localPath) => {
+        setApprovalThumbUrl(localPath);
+        setApprovalThumbPreview(localPath);
+      });
+    };
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, [selectedItem, uploadFileDirect]);
+
+  // Ctrl+V: colar thumb no modal de correção (correcaoItem)
+  useEffect(() => {
+    if (!correcaoItem) return;
+    const handler = (e: ClipboardEvent) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      const imageItem = items.find(i => i.type.startsWith("image/"));
+      if (!imageItem) return;
+      const file = imageItem.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      uploadFileDirect(file, (localPath) => {
+        setCorrecaoThumbUrl(localPath);
+      });
+    };
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, [correcaoItem, uploadFileDirect]);
 
   const handleExportPDF = () => {
     const arteStatuses = [
@@ -1448,28 +1514,37 @@ export default function Arte() {
                     </div>
                   ) : (
                     <div style={{
-                      height: 160, border: '2px dashed #e2e2e2', borderRadius: 12,
-                      backgroundColor: '#f0efee', display: 'flex', flexDirection: 'column',
+                      height: 160, border: isPasteUploading ? '2px dashed #9d4300' : '2px dashed #e2e2e2', borderRadius: 12,
+                      backgroundColor: isPasteUploading ? '#fdf2e9' : '#f0efee', display: 'flex', flexDirection: 'column',
                       alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background-color 0.15s'
                     }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#e8e8e7'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#f0efee'; }}
+                      onMouseEnter={e => { if (!isPasteUploading) (e.currentTarget as HTMLElement).style.backgroundColor = '#e8e8e7'; }}
+                      onMouseLeave={e => { if (!isPasteUploading) (e.currentTarget as HTMLElement).style.backgroundColor = isPasteUploading ? '#fdf2e9' : '#f0efee'; }}
                     >
                       <div style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
-                        <Upload style={{ width: 20, height: 20, color: '#9d4300' }} />
+                        {isPasteUploading
+                          ? <div style={{ width: 20, height: 20, borderRadius: '50%', border: '3px solid #fed7aa', borderTopColor: '#9d4300', animation: 'spin 0.8s linear infinite' }} />
+                          : <Upload style={{ width: 20, height: 20, color: '#9d4300' }} />
+                        }
                       </div>
-                      <p style={{ fontSize: 13, fontWeight: 500, color: '#1c1917', margin: '0 0 2px' }}>Solte o arquivo aqui ou</p>
-                      <FileUploader
-                        onGetUploadParameters={getUploadUrl}
-                        onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
-                        accept="image/*,application/pdf"
-                        data-testid="uploader-correcao-thumb"
-                        buttonVariant="ghost"
-                        buttonClassName="h-auto py-0 px-0 text-sm font-medium underline decoration-2 underline-offset-2 text-orange-700 hover:bg-transparent"
-                      >
-                        procure
-                      </FileUploader>
-                      <p style={{ fontSize: 10, color: '#a8a29e', margin: '4px 0 0' }}>PDF, PNG ou SVG até 25MB</p>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: '#1c1917', margin: '0 0 2px' }}>
+                        {isPasteUploading ? 'Enviando imagem colada...' : 'Solte o arquivo aqui ou'}
+                      </p>
+                      {!isPasteUploading && (
+                        <FileUploader
+                          onGetUploadParameters={getUploadUrl}
+                          onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
+                          accept="image/*,application/pdf"
+                          data-testid="uploader-correcao-thumb"
+                          buttonVariant="ghost"
+                          buttonClassName="h-auto py-0 px-0 text-sm font-medium underline decoration-2 underline-offset-2 text-orange-700 hover:bg-transparent"
+                        >
+                          procure
+                        </FileUploader>
+                      )}
+                      <p style={{ fontSize: 10, color: '#a8a29e', margin: '4px 0 0' }}>
+                        {isPasteUploading ? 'Aguarde...' : 'PDF, PNG ou SVG · ou Ctrl+V para colar'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1732,41 +1807,55 @@ export default function Arte() {
                 ) : (
                   /* State A1: empty upload zone */
                   <div style={{
-                    background: 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)',
-                    border: '1px dashed #ddd6fe', borderRadius: 12, padding: 32,
+                    background: isPasteUploading ? 'rgba(237,233,254,0.8)' : 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)',
+                    border: isPasteUploading ? '2px dashed #7c3aed' : '1px dashed #ddd6fe', borderRadius: 12, padding: 32,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     textAlign: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.15s'
                   }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(237,233,254,0.5)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(250,245,255,0.5)'; }}
+                    onMouseEnter={e => { if (!isPasteUploading) (e.currentTarget as HTMLElement).style.background = 'rgba(237,233,254,0.5)'; }}
+                    onMouseLeave={e => { if (!isPasteUploading) (e.currentTarget as HTMLElement).style.background = 'rgba(250,245,255,0.5)'; }}
                   >
                     <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <FileImage style={{ width: 24, height: 24, color: '#7c3aed' }} />
+                      {isPasteUploading
+                        ? <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #ddd6fe', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite' }} />
+                        : <FileImage style={{ width: 24, height: 24, color: '#7c3aed' }} />
+                      }
                     </div>
                     <div>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: '#3b0764', margin: '0 0 4px' }}>Upload de Miniatura</p>
-                      <p style={{ fontSize: 12, color: 'rgba(59,7,100,0.6)', margin: 0 }}>Arraste ou selecione o arquivo JPG/PNG</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#3b0764', margin: '0 0 4px' }}>
+                        {isPasteUploading ? 'Enviando imagem...' : 'Upload de Miniatura'}
+                      </p>
+                      <p style={{ fontSize: 12, color: 'rgba(59,7,100,0.6)', margin: 0 }}>
+                        {isPasteUploading ? 'Aguarde o upload concluir' : 'Arraste, selecione ou cole com Ctrl+V'}
+                      </p>
                     </div>
-                    <FileUploader
-                      onGetUploadParameters={getUploadUrl}
-                      onComplete={(result) => {
-                        const localPath = convertGCSUrlToLocalPath(result.url);
-                        setApprovalThumbUrl(localPath);
-                        setApprovalThumbPreview(localPath);
-                        toast({ title: "Upload concluído", description: "Thumb de aprovação enviado com sucesso" });
-                      }}
-                      onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
-                      onFileSelect={(file) => {
-                        const reader = new FileReader();
-                        reader.onload = (e) => { setApprovalThumbPreview(e.target?.result as string); };
-                        reader.readAsDataURL(file);
-                      }}
-                      accept="image/*"
-                      buttonVariant="ghost"
-                      buttonClassName="mt-2 text-[11px] font-bold uppercase tracking-wider bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 hover:text-white transition-all"
-                    >
-                      Fazer Upload do Thumb
-                    </FileUploader>
+                    {!isPasteUploading && (
+                      <FileUploader
+                        onGetUploadParameters={getUploadUrl}
+                        onComplete={(result) => {
+                          const localPath = convertGCSUrlToLocalPath(result.url);
+                          setApprovalThumbUrl(localPath);
+                          setApprovalThumbPreview(localPath);
+                          toast({ title: "Upload concluído", description: "Thumb de aprovação enviado com sucesso" });
+                        }}
+                        onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
+                        onFileSelect={(file) => {
+                          const reader = new FileReader();
+                          reader.onload = (e) => { setApprovalThumbPreview(e.target?.result as string); };
+                          reader.readAsDataURL(file);
+                        }}
+                        accept="image/*"
+                        buttonVariant="ghost"
+                        buttonClassName="mt-2 text-[11px] font-bold uppercase tracking-wider bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 hover:text-white transition-all"
+                      >
+                        Fazer Upload do Thumb
+                      </FileUploader>
+                    )}
+                    {!isPasteUploading && (
+                      <p style={{ fontSize: 10, color: '#c4b5fd', margin: '-4px 0 0', fontWeight: 600, letterSpacing: '0.05em' }}>
+                        ou Ctrl+V para colar direto
+                      </p>
+                    )}
                   </div>
                 )}
               </section>

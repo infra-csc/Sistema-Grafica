@@ -1640,9 +1640,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { reason } = req.body;
       await storage.updateItem(req.params.id, { status: "pronto_para_producao" });
       await createAuditLog(
-        req.params.id, "update", req.userName || "Sistema",
-        `Peça dispensada pela Arte${reason ? `. Motivo: ${reason}` : ''}`,
-        currentItem.eventId
+        req.userName || "Sistema",
+        "dispensed",
+        "item",
+        req.params.id,
+        `Peça dispensada pela Arte. Status anterior: ${currentItem.status}${reason ? `. Motivo: ${reason}` : ''}`
       );
       res.json({ success: true });
     } catch (error: any) {

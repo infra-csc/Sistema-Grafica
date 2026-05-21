@@ -806,7 +806,7 @@ export default function Arte() {
                                   {tabId === "criar-aprovacoes" ? "Enviar Aprovação" : "Finalizar Arte"}
                                 </button>
                               )}
-                              {tabId === "criar-aprovacoes" && item.status === "awaiting_submission" && (
+                              {["awaiting_submission", "sponsor_approved"].includes(item.status) && (
                                 <button
                                   onClick={() => { setDispenseItem(item); setDispenseReason(""); }}
                                   data-testid={`button-dispense-${item.id}`}

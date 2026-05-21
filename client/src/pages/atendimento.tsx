@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer } from "lucide-react";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -494,6 +494,67 @@ export default function Atendimento() {
     );
   }
 
+  const handleExportPDF = () => {
+    const exportItems = filteredItems;
+    if (exportItems.length === 0) {
+      toast({ title: "Nenhum item para exportar", variant: "destructive" });
+      return;
+    }
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const rows = exportItems.map((item: any) => {
+      const thumbUrl = item.approvalThumbUrl || "";
+      const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
+      const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
+      return `
+        <div class="page">
+          <div class="header">
+            <span class="id">${item.displayId || "#—"}</span>
+            <span class="event">${item.event?.name || "Sem Evento"}</span>
+          </div>
+          <div class="body">
+            <div class="thumb">
+              ${isImg
+                ? `<img src="${resolvedThumb}" alt="Thumb" />`
+                : thumbUrl
+                  ? `<div class="no-thumb">Arquivo vinculado</div>`
+                  : `<div class="no-thumb">Sem thumb</div>`
+              }
+            </div>
+            <div class="info">
+              <div class="field"><span class="lbl">Tipo</span><span class="val">${item.type || "—"}</span></div>
+              <div class="field"><span class="lbl">Descrição</span><span class="val">${item.description || "—"}</span></div>
+              <div class="field"><span class="lbl">Quantidade</span><span class="val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+      <title>Aprovação — Peças</title>
+      <style>
+        @page { size: A4 portrait; margin: 14mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
+        .page { width: 100%; height: 269mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
+        .page:last-child { break-after: avoid; page-break-after: avoid; }
+        .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #9d4300; padding-bottom: 10px; margin-bottom: 14px; flex-shrink: 0; }
+        .id { font-family: monospace; font-size: 16px; font-weight: 800; color: #9d4300; flex-shrink: 0; }
+        .event { font-size: 14px; font-weight: 700; color: #1c1917; }
+        .body { display: flex; gap: 20px; flex: 1; min-height: 0; }
+        .thumb { flex: 1; min-height: 0; display: flex; align-items: flex-start; }
+        .thumb img { width: 100%; height: 100%; max-height: 240mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
+        .no-thumb { width: 100%; height: 100%; min-height: 160px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
+        .info { width: 150px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; padding-top: 4px; }
+        .field { display: flex; flex-direction: column; gap: 4px; }
+        .lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #a8a29e; }
+        .val { font-size: 13px; font-weight: 600; color: #1c1917; line-height: 1.35; }
+      </style>
+    </head><body>${rows}</body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 600);
+  };
+
   return (
     <div className="bg-stone-50 p-8" style={{ height: "100%", overflowY: "auto" }}>
 
@@ -641,6 +702,26 @@ export default function Atendimento() {
               <X style={{ width: 18, height: 18 }} />
             </button>
           )}
+
+          {/* Exportar PDF */}
+          <button
+            onClick={handleExportPDF}
+            data-testid="button-export-pdf"
+            title="Exportar itens filtrados em PDF"
+            style={{
+              height: 46, padding: '0 16px', borderRadius: 8,
+              backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+              color: '#78716c', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
+              whiteSpace: 'nowrap', marginLeft: 'auto',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#1c1917'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.color = '#78716c'; }}
+          >
+            <Printer style={{ width: 15, height: 15 }} />
+            Exportar PDF
+          </button>
         </div>
       </section>
 

@@ -1625,6 +1625,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Arte dispenses item (bypasses remaining approval steps → pronto_para_producao)
+  app.patch("/api/items/:id/dispense", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Arte podem dispensar itens" });
+      }
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) return res.status(404).json({ error: "Item not found" });
+      const dispensableStatuses = ["awaiting_submission", "awaiting_sponsor_approval", "sponsor_approved"];
+      if (!dispensableStatuses.includes(currentItem.status)) {
+        return res.status(409).json({ error: `Item não pode ser dispensado no status atual: ${currentItem.status}` });
+      }
+      const { reason } = req.body;
+      await storage.updateItem(req.params.id, { status: "pronto_para_producao" });
+      await createAuditLog(
+        req.params.id, "update", req.userName || "Sistema",
+        `Peça dispensada pela Arte${reason ? `. Motivo: ${reason}` : ''}`,
+        currentItem.eventId
+      );
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Sponsor rejects item (Atendimento module)
   app.patch("/api/items/:id/sponsor-reject", requireAuth, async (req, res) => {
     try {

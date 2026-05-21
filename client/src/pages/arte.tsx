@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +49,9 @@ export default function Arte() {
   const [correcaoThumbUrl, setCorrecaoThumbUrl] = useState<string>("");
   const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
   const [correcaoSponsorFilter, setCorrecaoSponsorFilter] = useState<string>("all");
+
+  const [dispenseItem, setDispenseItem] = useState<any>(null);
+  const [dispenseReason, setDispenseReason] = useState<string>("");
 
   const { data: allItems = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -163,10 +166,120 @@ export default function Arte() {
     },
   });
 
+  const dispenseMutation = useMutation({
+    mutationFn: async ({ itemId, reason }: { itemId: string; reason: string }) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}/dispense`, { reason });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setDispenseItem(null);
+      setDispenseReason("");
+      toast({ title: "Peça dispensada", description: "A peça foi liberada para produção diretamente." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao dispensar", description: error.message, variant: "destructive" });
+    },
+  });
+
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});
     const data = await response.json();
     return { method: "PUT" as const, url: data.uploadURL };
+  };
+
+  const handleExportPDF = () => {
+    const allArteItems = [
+      ...filteredItems,
+      ...correcaoItems,
+    ];
+    if (allArteItems.length === 0) {
+      toast({ title: "Nenhum item para exportar", variant: "destructive" });
+      return;
+    }
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const rows = allArteItems.map(item => {
+      const thumbUrl = item.approvalThumbUrl || "";
+      const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
+      const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
+      const sponsorNames = (item.sponsors || []).map((s: any) => s.name).join(", ") || "—";
+      const truckDate = item.event?.truckDepartureDate
+        ? new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: "UTC" }) +
+          " às " + new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
+        : "—";
+      const statusLabels: Record<string, string> = {
+        awaiting_submission: "Aguardando Envio",
+        awaiting_sponsor_approval: "Aguardando Aprovação",
+        sponsor_approved: "Aprovado — Aguardando Finalização",
+        awaiting_creator_review: "Aguardando Revisão Final",
+        pronto_para_producao: "Pronto para Produção",
+        liberado: "Liberado",
+        em_producao: "Em Produção",
+        produzido: "Produzido",
+        entregue: "Entregue",
+      };
+      const statusLabel = statusLabels[item.status] || item.status;
+      return `
+        <div class="item-page">
+          <div class="item-header">
+            <div class="item-id">${item.displayId || "#—"}</div>
+            <div class="event-name">${item.event?.name || "Sem Evento"}</div>
+            <div class="status-badge">${statusLabel}</div>
+          </div>
+          <div class="item-body">
+            <div class="thumb-section">
+              ${isImg
+                ? `<img src="${resolvedThumb}" alt="Thumb" />`
+                : thumbUrl
+                  ? `<div class="no-thumb"><span>📄 PDF / Arquivo</span><a href="${resolvedThumb}">${thumbUrl.split("/").pop()}</a></div>`
+                  : `<div class="no-thumb"><span>Sem thumb de aprovação</span></div>`
+              }
+            </div>
+            <div class="data-section">
+              <table>
+                <tr><td class="label">Tipo</td><td class="value">${item.type || "—"}</td></tr>
+                <tr><td class="label">Descrição</td><td class="value">${item.description || "—"}</td></tr>
+                <tr><td class="label">Quantidade</td><td class="value">${item.quantity || "—"} un.</td></tr>
+                <tr><td class="label">Dimensões</td><td class="value">${item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—"}</td></tr>
+                <tr><td class="label">Material</td><td class="value">${item.material || "—"}</td></tr>
+                <tr><td class="label">Acabamento</td><td class="value">${item.finish || "—"}</td></tr>
+                <tr><td class="label">Patrocinadores</td><td class="value">${sponsorNames}</td></tr>
+                <tr><td class="label">Saída Caminhão</td><td class="value">${truckDate}</td></tr>
+                ${item.observations ? `<tr><td class="label">Observações</td><td class="value obs">${item.observations}</td></tr>` : ""}
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+      <title>Arte — Relatório de Peças</title>
+      <style>
+        @page { size: A4 landscape; margin: 16mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
+        .item-page { page-break-after: always; padding: 0; display: flex; flex-direction: column; height: 100%; min-height: 170mm; }
+        .item-header { display: flex; align-items: center; gap: 16px; border-bottom: 3px solid #f97316; padding-bottom: 10px; margin-bottom: 16px; }
+        .item-id { font-family: monospace; font-size: 18px; font-weight: 800; color: #f97316; }
+        .event-name { font-size: 16px; font-weight: 700; color: #1c1917; flex: 1; }
+        .status-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; background: #fef9c3; color: #854d0e; padding: 4px 10px; border-radius: 20px; border: 1px solid #fde68a; white-space: nowrap; }
+        .item-body { display: flex; gap: 24px; flex: 1; }
+        .thumb-section { width: 220px; flex-shrink: 0; }
+        .thumb-section img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; border: 1px solid #e7e5e4; }
+        .no-thumb { width: 100%; height: 160px; background: #f5f5f4; border-radius: 8px; border: 1px dashed #d4d4d0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: #a8a29e; }
+        .no-thumb a { color: #f97316; font-size: 10px; word-break: break-all; text-align: center; }
+        .data-section { flex: 1; }
+        table { width: 100%; border-collapse: collapse; }
+        tr { border-bottom: 1px solid #f5f5f4; }
+        td { padding: 6px 8px; font-size: 12px; vertical-align: top; }
+        .label { color: #78716c; font-weight: 700; text-transform: uppercase; font-size: 9px; letter-spacing: .08em; width: 110px; padding-top: 8px; }
+        .value { color: #1c1917; font-weight: 500; }
+        .obs { color: #d97706; font-style: italic; }
+        @media print { .item-page:last-child { page-break-after: avoid; } }
+      </style>
+    </head><body>${rows}</body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 600);
   };
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
@@ -708,6 +821,23 @@ export default function Arte() {
                                   {tabId === "criar-aprovacoes" ? "Enviar Aprovação" : "Finalizar Arte"}
                                 </button>
                               )}
+                              {tabId === "criar-aprovacoes" && item.status === "awaiting_submission" && (
+                                <button
+                                  onClick={() => { setDispenseItem(item); setDispenseReason(""); }}
+                                  data-testid={`button-dispense-${item.id}`}
+                                  title="Dispensar peça (liberar para produção sem aprovação)"
+                                  style={{
+                                    width: 32, height: 32, borderRadius: 8,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
+                                    color: '#a8a29e', transition: 'all 0.15s',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                >
+                                  <Ban style={{ width: 14, height: 14 }} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1100,6 +1230,26 @@ export default function Arte() {
           Próximos 10 dias
         </button>
 
+        {/* Export PDF button */}
+        <button
+          onClick={handleExportPDF}
+          data-testid="button-export-pdf"
+          title="Exportar todas as peças em PDF"
+          style={{
+            height: 36, padding: '0 14px', borderRadius: 8,
+            backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4',
+            color: '#78716c', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
+            whiteSpace: 'nowrap', marginLeft: 'auto',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1c1917'; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#78716c'; }}
+        >
+          <Printer style={{ width: 14, height: 14 }} />
+          Exportar PDF
+        </button>
+
         {/* PDF Upload button (ml-auto, only in criar-aprovacoes) */}
         {activeTab === "criar-aprovacoes" && (
           <button
@@ -1178,6 +1328,59 @@ export default function Arte() {
       ) : (
         renderGroupedTable(filteredItems, activeTab)
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 0 — DISPENSAR PEÇA                                           */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={!!dispenseItem} onOpenChange={(open) => { if (!open) { setDispenseItem(null); setDispenseReason(""); } }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 420, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
+          <DialogTitle className="sr-only">Dispensar Peça</DialogTitle>
+          <DialogDescription className="sr-only">Dispensar peça da fila de arte</DialogDescription>
+          <div style={{ padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <div>
+                <span style={{ display: 'inline-block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)', padding: '2px 8px', borderRadius: 4, marginBottom: 6 }}>Ação Irreversível</span>
+                <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0 }}>Dispensar Peça</h2>
+              </div>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, borderRadius: 4 }}>
+                <X style={{ width: 20, height: 20 }} />
+              </button>
+            </div>
+            {dispenseItem && (
+              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
+                <Ban style={{ width: 16, height: 16, color: '#dc2626', flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#7f1d1d', margin: '0 0 2px' }}>{dispenseItem.displayId} — {dispenseItem.type}</p>
+                  <p style={{ fontSize: 11, color: '#991b1b', margin: 0 }}>A peça será liberada diretamente para produção, pulando as etapas de aprovação de patrocinador e revisão.</p>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c' }}>Motivo (opcional)</label>
+              <textarea
+                value={dispenseReason}
+                onChange={e => setDispenseReason(e.target.value)}
+                placeholder="Ex: Peça sem necessidade de aprovação de patrocinador..."
+                data-testid="textarea-dispense-reason"
+                style={{ width: '100%', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, outline: 'none', fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button
+                onClick={() => dispenseItem && dispenseMutation.mutate({ itemId: dispenseItem.id, reason: dispenseReason })}
+                disabled={dispenseMutation.isPending}
+                data-testid="button-confirm-dispense"
+                style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#dc2626', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
+              >
+                {dispenseMutation.isPending ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Dispensando...</> : <><Ban style={{ width: 14, height: 14 }} />Dispensar Peça</>}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL 1 — CORREÇÃO: Enviar Nova Arte                               */}
@@ -1394,7 +1597,7 @@ export default function Arte() {
               {/* Thumb aprovado preview */}
               {selectedItem.approvalThumbUrl && (() => {
                 const url = selectedItem.approvalThumbUrl.toLowerCase();
-                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url);
+                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url) || selectedItem.approvalThumbUrl.startsWith('/objects/');
                 const isPdf = !isImage;
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.6)', borderRadius: 8, border: '1px solid #bbf7d0' }}>

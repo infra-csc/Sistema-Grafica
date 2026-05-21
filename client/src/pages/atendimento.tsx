@@ -71,6 +71,10 @@ export default function Atendimento() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectingSponsorId, setRejectingSponsorId] = useState<string | null>(null);
 
+  // Confirmação de aprovação
+  const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
+  const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
+
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
@@ -829,7 +833,7 @@ export default function Atendimento() {
                       Recusar
                     </button>
                     <button
-                      onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "approve" })}
+                      onClick={() => setConfirmApproveBatch(true)}
                       disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
                       data-testid="button-batch-approve"
                       style={{
@@ -1499,7 +1503,7 @@ export default function Atendimento() {
                                         Reprovar
                                       </button>
                                       <button
-                                        onClick={() => individualApproveMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id })}
+                                        onClick={() => setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.sponsor?.name || 'Patrocinador' })}
                                         disabled={individualApproveMutation.isPending}
                                         data-testid={`button-approve-sponsor-${sponsor.id}`}
                                         style={{
@@ -1701,6 +1705,70 @@ export default function Atendimento() {
               </>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CONFIRMAÇÃO: Aprovar Individual ─────────────────────────────── */}
+      <Dialog open={!!confirmApproveIndividual} onOpenChange={(open) => { if (!open) setConfirmApproveIndividual(null); }}>
+        <DialogContent style={{ maxWidth: 380, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
+          <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação</DialogTitle>
+          <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 8 }}>
+            Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
+            Esta ação não pode ser desfeita.
+          </DialogDescription>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button
+              onClick={() => setConfirmApproveIndividual(null)}
+              style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                if (confirmApproveIndividual) {
+                  individualApproveMutation.mutate({ itemId: confirmApproveIndividual.itemId, sponsorId: confirmApproveIndividual.sponsorId });
+                  setConfirmApproveIndividual(null);
+                }
+              }}
+              disabled={individualApproveMutation.isPending}
+              data-testid="button-confirm-approve-individual"
+              style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            >
+              <CheckCircle style={{ width: 14, height: 14 }} />
+              Aprovar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CONFIRMAÇÃO: Aprovar em Lote ────────────────────────────────── */}
+      <Dialog open={confirmApproveBatch} onOpenChange={(open) => { if (!open) setConfirmApproveBatch(false); }}>
+        <DialogContent style={{ maxWidth: 380, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
+          <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação em Lote</DialogTitle>
+          <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 8 }}>
+            Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
+            Esta ação não pode ser desfeita.
+          </DialogDescription>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button
+              onClick={() => setConfirmApproveBatch(false)}
+              style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "approve" });
+                setConfirmApproveBatch(false);
+              }}
+              disabled={batchSponsorMutation.isPending}
+              data-testid="button-confirm-batch-approve"
+              style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            >
+              <CheckCircle style={{ width: 14, height: 14 }} />
+              Aprovar Seleção
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

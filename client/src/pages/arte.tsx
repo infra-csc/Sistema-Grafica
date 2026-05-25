@@ -253,26 +253,14 @@ export default function Arte() {
     return () => window.removeEventListener("paste", handler);
   }, [correcaoItem, uploadFileDirect]);
 
-  const handleExportPDF = () => {
-    const arteStatuses = [
-      'awaiting_submission',
-      'awaiting_sponsor_approval',
-      'sponsor_approved',
-      'awaiting_creator_review',
-      'pronto_para_producao',
-      'liberado',
-    ];
-    const allArteItems = [
-      ...allItems.filter(i => arteStatuses.includes(i.status)),
-      ...correcaoItems.filter(i => !arteStatuses.includes(i.status)),
-    ];
-    if (allArteItems.length === 0) {
+  const exportItemsToPDF = (items: any[], title = "Arte — Peças") => {
+    if (items.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
       return;
     }
     const win = window.open("", "_blank");
     if (!win) return;
-    const rows = allArteItems.map(item => {
+    const rows = items.map(item => {
       const thumbUrl = item.approvalThumbUrl || "";
       const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
       const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
@@ -301,7 +289,7 @@ export default function Arte() {
       `;
     }).join("");
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
-      <title>Arte — Peças</title>
+      <title>${title}</title>
       <style>
         @page { size: A4 portrait; margin: 14mm; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -331,6 +319,34 @@ export default function Arte() {
     </head><body>${rows}</body></html>`);
     win.document.close();
     setTimeout(() => win.print(), 600);
+  };
+
+  const handleExportPDF = () => {
+    const arteStatuses = [
+      'awaiting_submission',
+      'awaiting_sponsor_approval',
+      'sponsor_approved',
+      'awaiting_creator_review',
+      'pronto_para_producao',
+      'liberado',
+    ];
+    if (selectedItemIds.size > 0) {
+      const selected = [
+        ...allItems.filter(i => selectedItemIds.has(i.id)),
+        ...correcaoItems.filter(i => selectedItemIds.has(i.id)),
+      ];
+      exportItemsToPDF(selected, `Arte — ${selected.length} peça(s) selecionada(s)`);
+    } else {
+      const allArteItems = [
+        ...allItems.filter(i => arteStatuses.includes(i.status)),
+        ...correcaoItems.filter(i => !arteStatuses.includes(i.status)),
+      ];
+      exportItemsToPDF(allArteItems, "Arte — Todas as Peças");
+    }
+  };
+
+  const handleExportItemPDF = (item: any) => {
+    exportItemsToPDF([item], `Prova — ${item.displayId || item.type}`);
   };
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
@@ -841,6 +857,21 @@ export default function Arte() {
                           <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
                               <button
+                                onClick={() => handleExportItemPDF(item)}
+                                data-testid={`button-export-item-pdf-${item.id}`}
+                                title="Exportar prova em PDF"
+                                style={{
+                                  width: 32, height: 32, borderRadius: 8,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
+                                  color: '#a8a29e', transition: 'all 0.15s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                              >
+                                <Printer style={{ width: 14, height: 14 }} />
+                              </button>
+                              <button
                                 onClick={() => handleViewDetails(item)}
                                 data-testid={`button-view-${item.id}`}
                                 title="Ver detalhes"
@@ -1285,20 +1316,28 @@ export default function Arte() {
         <button
           onClick={handleExportPDF}
           data-testid="button-export-pdf"
-          title="Exportar todas as peças em PDF"
+          title={selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} peça(s) selecionada(s)` : "Exportar todas as peças em PDF"}
           style={{
             height: 36, padding: '0 14px', borderRadius: 8,
-            backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4',
-            color: '#78716c', cursor: 'pointer',
+            backgroundColor: selectedItemIds.size > 0 ? '#7c3aed' : '#f5f5f4',
+            border: selectedItemIds.size > 0 ? '1px solid #7c3aed' : '1px solid #e7e5e4',
+            color: selectedItemIds.size > 0 ? '#ffffff' : '#78716c',
+            cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
             fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
             whiteSpace: 'nowrap', marginLeft: 'auto',
           }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1c1917'; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#78716c'; }}
+          onMouseEnter={e => {
+            if (selectedItemIds.size > 0) { e.currentTarget.style.filter = 'brightness(0.9)'; }
+            else { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1c1917'; }
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.filter = 'brightness(1)';
+            if (selectedItemIds.size === 0) { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#78716c'; }
+          }}
         >
           <Printer style={{ width: 14, height: 14 }} />
-          Exportar PDF
+          {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} selecionada(s)` : 'Exportar PDF'}
         </button>
 
         {/* PDF Upload button (ml-auto, only in criar-aprovacoes) */}

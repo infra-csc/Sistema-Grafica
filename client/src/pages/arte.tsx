@@ -380,7 +380,16 @@ export default function Arte() {
         } else if (tab === "finalizar-layouts") {
           matchesView = item.status === 'sponsor_approved';
         } else if (tab === "finalizados") {
-          matchesView = ['awaiting_final_review','ready_for_production','approved','inProduction','produced','delivered'].includes(item.status);
+          matchesView = [
+            'awaiting_creator_review',
+            'awaiting_final_review',
+            'ready_for_production',
+            'pronto_para_producao',
+            'liberado',
+            'em_producao',
+            'produzido',
+            'entregue',
+          ].includes(item.status);
         }
         const matchesType = typeFilter === "all" || item.type === typeFilter;
         const matchesMaterial = materialFilter === "all" || item.material === materialFilter;

@@ -673,7 +673,9 @@ export default function Arte() {
           const showGroupHeader = !showEventHeader && group.group !== '' && group.group !== lastGroupName;
           lastEventName = group.event;
           lastGroupName = group.group;
-          const allPendingInGroup = group.items.filter(i => i.status === 'awaiting_submission');
+          const allPendingInGroup = tabId === "finalizados"
+            ? group.items
+            : group.items.filter(i => i.status === 'awaiting_submission');
           return (
             <Fragment key={`${group.event}-${group.type}-${gIdx}`}>
               {showGroupHeader && (
@@ -742,7 +744,7 @@ export default function Arte() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
-                      {tabId === "criar-aprovacoes" && (
+                      {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
                         <th style={{ padding: '10px 16px', width: 40 }}>
                           <Checkbox
                             checked={allPendingInGroup.length > 0 && allPendingInGroup.every(i => selectedItemIds.has(i.id))}
@@ -801,7 +803,7 @@ export default function Arte() {
                           onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'}
                           onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff'}
                         >
-                          {tabId === "criar-aprovacoes" && (
+                          {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
                             <td style={{ padding: '12px 16px', width: 40 }}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}

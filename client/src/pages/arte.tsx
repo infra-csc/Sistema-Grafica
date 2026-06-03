@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -253,6 +253,17 @@ export default function Arte() {
     return () => window.removeEventListener("paste", handler);
   }, [correcaoItem, uploadFileDirect]);
 
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const pdfStyles = `
+    @page { size: A4 portrait; margin: 14mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
+    .lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #a8a29e; display: block; margin-bottom: 3px; }
+    .val { font-size: 12px; font-weight: 600; color: #1c1917; line-height: 1.35; }
+  `;
+
+  // ── Modo 1: uma prova por página ────────────────────────────────────────────
   const exportItemsToPDF = (items: any[], title = "Arte — Peças") => {
     if (items.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
@@ -264,6 +275,8 @@ export default function Arte() {
       const thumbUrl = item.approvalThumbUrl || "";
       const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
       const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
+      const dims = item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—";
+      const dimsSang = item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : "";
       return `
         <div class="page">
           <div class="header">
@@ -283,6 +296,10 @@ export default function Arte() {
               <div class="field"><span class="lbl">Tipo</span><span class="val">${item.type || "—"}</span></div>
               <div class="field"><span class="lbl">Descrição</span><span class="val">${item.description || "—"}</span></div>
               <div class="field"><span class="lbl">Quantidade</span><span class="val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
+              <div class="field"><span class="lbl">Medidas (V × A)</span><span class="val">${dims}${dimsSang ? `<br/><span style="font-size:10px;color:#a8a29e">${dimsSang} (sangria)</span>` : ""}</span></div>
+              <div class="field"><span class="lbl">Material</span><span class="val">${item.material || "—"}</span></div>
+              <div class="field"><span class="lbl">Acabamento</span><span class="val">${item.finish || "—"}</span></div>
+              ${item.sponsors && item.sponsors.length > 0 ? `<div class="field"><span class="lbl">Patrocinadores</span><span class="val">${item.sponsors.map((s: any) => s.name).join(', ')}</span></div>` : ""}
             </div>
           </div>
         </div>
@@ -291,57 +308,147 @@ export default function Arte() {
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
       <title>${title}</title>
       <style>
-        @page { size: A4 portrait; margin: 14mm; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
-        .page {
-          width: 100%;
-          height: 269mm;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          break-after: page;
-          page-break-after: always;
-        }
+        ${pdfStyles}
+        .page { width: 100%; height: 269mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
         .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-bottom: 14px; flex-shrink: 0; }
         .id { font-family: monospace; font-size: 16px; font-weight: 800; color: #f97316; flex-shrink: 0; }
         .event { font-size: 14px; font-weight: 700; color: #1c1917; }
         .body { display: flex; gap: 20px; flex: 1; min-height: 0; }
         .thumb { flex: 1; min-height: 0; display: flex; align-items: flex-start; }
-        .thumb img { width: 100%; height: 100%; max-height: 240mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
-        .no-thumb { width: 100%; height: 100%; min-height: 160px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
-        .info { width: 150px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; padding-top: 4px; }
-        .field { display: flex; flex-direction: column; gap: 4px; }
-        .lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #a8a29e; }
-        .val { font-size: 13px; font-weight: 600; color: #1c1917; line-height: 1.35; }
+        .thumb img { width: 100%; height: 100%; max-height: 230mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
+        .no-thumb { width: 100%; min-height: 160px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
+        .info { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+        .field { display: flex; flex-direction: column; }
       </style>
     </head><body>${rows}</body></html>`);
     win.document.close();
     setTimeout(() => win.print(), 600);
   };
 
-  const handleExportPDF = () => {
-    const arteStatuses = [
-      'awaiting_submission',
-      'awaiting_sponsor_approval',
-      'sponsor_approved',
-      'awaiting_creator_review',
-      'pronto_para_producao',
-      'liberado',
-    ];
+  // ── Modo 2: tabela resumo agrupada por Evento › Grupo ───────────────────────
+  const exportGroupedPDF = (items: any[], title = "Arte — Resumo por Grupo") => {
+    if (items.length === 0) {
+      toast({ title: "Nenhum item para exportar", variant: "destructive" });
+      return;
+    }
+    // Build groups: event → group → type → items
+    type GroupEntry = { event: string; groupName: string; typeName: string; items: any[] };
+    const groups: GroupEntry[] = [];
+    items.forEach(item => {
+      const event = item.event?.name || "Sem Evento";
+      const groupName = typeToGroup[item.type] || item.type;
+      const typeName = item.type;
+      const last = groups[groups.length - 1];
+      if (last && last.event === event && last.typeName === typeName) {
+        last.items.push(item);
+      } else {
+        groups.push({ event, groupName, typeName, items: [item] });
+      }
+    });
+
+    let lastEvent = "";
+    const sections = groups.map(g => {
+      const eventHeader = g.event !== lastEvent
+        ? `<div class="event-header"><span>${g.event}</span></div>`
+        : "";
+      lastEvent = g.event;
+      const rows = g.items.map(item => {
+        const thumbUrl = item.approvalThumbUrl || "";
+        const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
+        const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
+        const dims = item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—";
+        return `
+          <tr>
+            <td class="td-thumb">${isImg ? `<img src="${resolvedThumb}" class="row-thumb" />` : `<div class="no-thumb-sm">${thumbUrl ? "PDF" : "—"}</div>`}</td>
+            <td class="td-mono">${item.displayId || "—"}</td>
+            <td class="td-qty">${item.quantity || "—"}</td>
+            <td class="td-desc">${item.description || item.type || "—"}</td>
+            <td class="td">${dims}</td>
+            <td class="td">${item.calculatedM2 || "—"}</td>
+            <td class="td">${item.material || "—"}</td>
+            <td class="td">${item.finish || "—"}</td>
+          </tr>`;
+      }).join("");
+      return `
+        ${eventHeader}
+        <div class="group-block">
+          <div class="group-header">
+            <span class="group-name">${g.groupName ? g.groupName + " — " : ""}${g.typeName}</span>
+            <span class="group-count">${g.items.length} ${g.items.length === 1 ? "item" : "itens"}</span>
+          </div>
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th class="th-thumb">Thumb</th>
+                <th>ID</th>
+                <th>Qtd</th>
+                <th class="th-desc">Descrição</th>
+                <th>Medidas (V × A)</th>
+                <th>M²</th>
+                <th>Material</th>
+                <th>Acabamento</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }).join("");
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+      <title>${title}</title>
+      <style>
+        ${pdfStyles}
+        body { font-size: 11px; }
+        .event-header { margin: 18px 0 8px; padding: 8px 12px; background: #1c1917; color: #fff; border-radius: 4px; font-size: 13px; font-weight: 800; letter-spacing: 0.04em; break-before: auto; }
+        .event-header:first-child { margin-top: 0; }
+        .group-block { margin-bottom: 20px; break-inside: avoid; }
+        .group-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: #fff7ed; border-left: 3px solid #f97316; margin-bottom: 0; }
+        .group-name { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #9a3412; }
+        .group-count { font-size: 9px; font-weight: 700; color: #a8a29e; }
+        .items-table { width: 100%; border-collapse: collapse; }
+        .items-table thead tr { background: #f5f5f4; }
+        .items-table th { padding: 5px 8px; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #a8a29e; text-align: left; border-bottom: 1px solid #e7e5e4; white-space: nowrap; }
+        .th-thumb { width: 44px; }
+        .th-desc { width: 30%; }
+        .items-table td { padding: 6px 8px; border-bottom: 1px solid #f5f5f4; vertical-align: middle; }
+        .td-thumb { width: 44px; }
+        .td-mono { font-family: monospace; font-size: 10px; font-weight: 700; color: #f97316; white-space: nowrap; }
+        .td-qty { font-weight: 700; font-size: 12px; text-align: center; }
+        .td-desc { font-weight: 600; }
+        .td { font-size: 10px; color: #78716c; white-space: nowrap; }
+        .row-thumb { width: 40px; height: 28px; object-fit: cover; border-radius: 3px; border: 1px solid #e7e5e4; display: block; }
+        .no-thumb-sm { width: 40px; height: 28px; background: #f5f5f4; border-radius: 3px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #a8a29e; }
+      </style>
+    </head><body>${sections}</body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 600);
+  };
+
+  const getExportItems = () => {
+    const arteStatuses = ['awaiting_submission','awaiting_sponsor_approval','sponsor_approved','awaiting_creator_review','pronto_para_producao','liberado'];
     if (selectedItemIds.size > 0) {
-      const selected = [
+      return [
         ...allItems.filter(i => selectedItemIds.has(i.id)),
         ...correcaoItems.filter(i => selectedItemIds.has(i.id)),
       ];
-      exportItemsToPDF(selected, `Arte — ${selected.length} peça(s) selecionada(s)`);
+    }
+    return [
+      ...allItems.filter(i => arteStatuses.includes(i.status)),
+      ...correcaoItems.filter(i => !arteStatuses.includes(i.status)),
+    ];
+  };
+
+  const handleExportPDF = (mode: "individual" | "grouped") => {
+    setShowExportMenu(false);
+    const items = getExportItems();
+    const label = selectedItemIds.size > 0 ? `${selectedItemIds.size} selecionada(s)` : "Todas as Peças";
+    if (mode === "individual") {
+      exportItemsToPDF(items, `Arte — ${label}`);
     } else {
-      const allArteItems = [
-        ...allItems.filter(i => arteStatuses.includes(i.status)),
-        ...correcaoItems.filter(i => !arteStatuses.includes(i.status)),
-      ];
-      exportItemsToPDF(allArteItems, "Arte — Todas as Peças");
+      exportGroupedPDF(items, `Arte — Resumo por Grupo (${label})`);
     }
   };
 
@@ -1321,33 +1428,86 @@ export default function Arte() {
           Próximos 10 dias
         </button>
 
-        {/* Export PDF button */}
-        <button
-          onClick={handleExportPDF}
-          data-testid="button-export-pdf"
-          title={selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} peça(s) selecionada(s)` : "Exportar todas as peças em PDF"}
-          style={{
-            height: 36, padding: '0 14px', borderRadius: 8,
-            backgroundColor: selectedItemIds.size > 0 ? '#7c3aed' : '#f5f5f4',
-            border: selectedItemIds.size > 0 ? '1px solid #7c3aed' : '1px solid #e7e5e4',
-            color: selectedItemIds.size > 0 ? '#ffffff' : '#78716c',
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6,
-            fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
-            whiteSpace: 'nowrap', marginLeft: 'auto',
-          }}
-          onMouseEnter={e => {
-            if (selectedItemIds.size > 0) { e.currentTarget.style.filter = 'brightness(0.9)'; }
-            else { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1c1917'; }
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.filter = 'brightness(1)';
-            if (selectedItemIds.size === 0) { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#78716c'; }
-          }}
-        >
-          <Printer style={{ width: 14, height: 14 }} />
-          {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} selecionada(s)` : 'Exportar PDF'}
-        </button>
+        {/* Export PDF dropdown */}
+        <div style={{ position: 'relative', marginLeft: 'auto' }} data-testid="export-pdf-wrapper">
+          <button
+            onClick={() => setShowExportMenu(v => !v)}
+            data-testid="button-export-pdf"
+            style={{
+              height: 36, padding: '0 14px', borderRadius: 8,
+              backgroundColor: selectedItemIds.size > 0 ? '#7c3aed' : '#f5f5f4',
+              border: selectedItemIds.size > 0 ? '1px solid #7c3aed' : '1px solid #e7e5e4',
+              color: selectedItemIds.size > 0 ? '#ffffff' : '#78716c',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.92)'; }}
+            onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+          >
+            <Printer style={{ width: 14, height: 14 }} />
+            {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
+            <ChevronDown style={{ width: 12, height: 12, marginLeft: 2 }} />
+          </button>
+          {showExportMenu && (
+            <>
+              <div
+                style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                onClick={() => setShowExportMenu(false)}
+              />
+              <div style={{
+                position: 'absolute', top: 40, right: 0, zIndex: 50,
+                backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8,
+                boxShadow: '0 8px 24px -4px rgba(28,25,23,0.14)', minWidth: 220, overflow: 'hidden',
+              }}>
+                <div style={{ padding: '6px 10px', borderBottom: '1px solid #f5f5f4' }}>
+                  <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: 0 }}>
+                    {selectedItemIds.size > 0 ? `${selectedItemIds.size} selecionada(s)` : 'Todas as peças'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleExportPDF("individual")}
+                  data-testid="button-export-individual"
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                    textAlign: 'left', transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <LayoutList style={{ width: 14, height: 14, color: '#16a34a' }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px' }}>Uma prova por página</p>
+                    <p style={{ fontSize: 10, color: '#78716c', margin: 0 }}>Thumb grande + medidas, material, acabamento</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleExportPDF("grouped")}
+                  data-testid="button-export-grouped"
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                    textAlign: 'left', transition: 'background 0.1s', borderTop: '1px solid #f5f5f4',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Layers style={{ width: 14, height: 14, color: '#f97316' }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px' }}>Resumo por grupo</p>
+                    <p style={{ fontSize: 10, color: '#78716c', margin: 0 }}>Tabela agrupada por tipo com todos os campos</p>
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* PDF Upload button (ml-auto, only in criar-aprovacoes) */}
         {activeTab === "criar-aprovacoes" && (

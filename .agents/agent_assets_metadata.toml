@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "ThYApeMml8b-XcAmL5AFy"
+uri = "file://attached_assets/image_1780497223496.png"
+type = "image"
+title = "Logo NORTE"

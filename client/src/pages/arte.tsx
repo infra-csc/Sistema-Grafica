@@ -267,7 +267,7 @@ export default function Arte() {
     .val { font-size: 12px; font-weight: 600; color: #1c1917; line-height: 1.35; }
   `;
 
-  // ── Modo 1: uma prova por página ────────────────────────────────────────────
+  // ── Modo único: uma prova por página, com divisores de grupo ────────────────
   const exportItemsToPDF = (items: any[], title = "Arte — Peças") => {
     if (items.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
@@ -275,7 +275,27 @@ export default function Arte() {
     }
     const win = window.open("", "_blank");
     if (!win) return;
+
+    // Detect group changes to add group banners
+    const multipleGroups = (() => {
+      const keys = new Set(items.map(i => `${i.event?.name || ""}|||${i.type}`));
+      return keys.size > 1;
+    })();
+
+    let lastGroupKey = "";
     const rows = items.map(item => {
+      const groupKey = `${item.event?.name || "Sem Evento"}|||${item.type}`;
+      const isFirstOfGroup = groupKey !== lastGroupKey;
+      lastGroupKey = groupKey;
+
+      const groupBanner = (multipleGroups && isFirstOfGroup)
+        ? `<div class="group-banner">
+             <span class="group-banner-event">${item.event?.name || "Sem Evento"}</span>
+             <span class="group-banner-sep"> › </span>
+             <span class="group-banner-type">${typeToGroup[item.type] ? typeToGroup[item.type] + " — " : ""}${item.type}</span>
+           </div>`
+        : "";
+
       const thumbUrl = item.approvalThumbUrl || "";
       const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
       const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
@@ -283,6 +303,7 @@ export default function Arte() {
       const dimsSang = item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : "";
       return `
         <div class="page">
+          ${groupBanner}
           <div class="header">
             <span class="id">${item.displayId || "#—"}</span>
             <span class="event">${item.event?.name || "Sem Evento"}</span>
@@ -315,12 +336,16 @@ export default function Arte() {
         ${pdfStyles}
         .page { width: 100%; height: 269mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
+        .group-banner { display: flex; align-items: center; gap: 0; background: #1c1917; border-radius: 6px; padding: 7px 14px; margin-bottom: 10px; flex-shrink: 0; }
+        .group-banner-event { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #ffffff; }
+        .group-banner-sep { font-size: 11px; font-weight: 400; color: #a8a29e; margin: 0 6px; }
+        .group-banner-type { font-size: 11px; font-weight: 700; color: #f97316; }
         .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-bottom: 14px; flex-shrink: 0; }
         .id { font-family: monospace; font-size: 16px; font-weight: 800; color: #f97316; flex-shrink: 0; }
         .event { font-size: 14px; font-weight: 700; color: #1c1917; }
         .body { display: flex; gap: 20px; flex: 1; min-height: 0; }
         .thumb { flex: 1; min-height: 0; display: flex; align-items: flex-start; }
-        .thumb img { width: 100%; height: 100%; max-height: 230mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
+        .thumb img { width: 100%; height: 100%; max-height: 220mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
         .no-thumb { width: 100%; min-height: 160px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
         .info { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
         .field { display: flex; flex-direction: column; }
@@ -463,6 +488,7 @@ export default function Arte() {
 
   const handleExportPDF = () => {
     setShowExportModal(false);
+    // Preserve group order: keep items sorted by their group
     const selectedItems = exportGroups
       .filter(g => exportSelectedGroupKeys.has(g.key))
       .flatMap(g => g.items);
@@ -470,12 +496,7 @@ export default function Arte() {
       toast({ title: "Nenhum item selecionado", variant: "destructive" });
       return;
     }
-    const label = `${selectedItems.length} peça(s)`;
-    if (exportMode === "individual") {
-      exportItemsToPDF(selectedItems, `Arte — ${label}`);
-    } else {
-      exportGroupedPDF(selectedItems, `Arte — Resumo por Grupo (${label})`);
-    }
+    exportItemsToPDF(selectedItems, `Arte — ${selectedItems.length} peça(s)`);
   };
 
   const handleExportItemPDF = (item: any) => {
@@ -2226,43 +2247,6 @@ export default function Arte() {
             >
               <X style={{ width: 16, height: 16 }} />
             </button>
-          </div>
-
-          {/* Format picker */}
-          <div style={{ padding: '16px 28px', borderBottom: '1px solid #f5f5f4' }}>
-            <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: '0 0 10px' }}>Formato</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button
-                onClick={() => setExportMode("individual")}
-                style={{
-                  padding: '10px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                  border: exportMode === "individual" ? '2px solid #7c3aed' : '2px solid #e7e5e4',
-                  backgroundColor: exportMode === "individual" ? '#f5f3ff' : '#fafaf9',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <LayoutList style={{ width: 14, height: 14, color: exportMode === "individual" ? '#7c3aed' : '#a8a29e' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>Uma por página</span>
-                </div>
-                <p style={{ fontSize: 10, color: '#78716c', margin: 0, lineHeight: 1.4 }}>Thumb grande + medidas, material, acabamento</p>
-              </button>
-              <button
-                onClick={() => setExportMode("grouped")}
-                style={{
-                  padding: '10px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
-                  border: exportMode === "grouped" ? '2px solid #f97316' : '2px solid #e7e5e4',
-                  backgroundColor: exportMode === "grouped" ? '#fff7ed' : '#fafaf9',
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <Layers style={{ width: 14, height: 14, color: exportMode === "grouped" ? '#f97316' : '#a8a29e' }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>Resumo por grupo</span>
-                </div>
-                <p style={{ fontSize: 10, color: '#78716c', margin: 0, lineHeight: 1.4 }}>Tabela compacta agrupada por tipo</p>
-              </button>
-            </div>
           </div>
 
           {/* Group list */}

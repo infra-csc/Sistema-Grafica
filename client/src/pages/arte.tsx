@@ -457,8 +457,14 @@ export default function Arte() {
   };
 
   const buildExportGroups = (items: any[]): ExportGroup[] => {
+    // Sort by event name then type so same-type items are always consecutive
+    const sorted = [...items].sort((a, b) => {
+      const ea = a.event?.name || ""; const eb = b.event?.name || "";
+      if (ea !== eb) return ea.localeCompare(eb);
+      return (a.type || "").localeCompare(b.type || "");
+    });
     const groups: ExportGroup[] = [];
-    items.forEach(item => {
+    sorted.forEach(item => {
       const event = item.event?.name || "Sem Evento";
       const typeName = item.type;
       const groupName = typeToGroup[typeName] || "";
@@ -473,7 +479,15 @@ export default function Arte() {
     return groups;
   };
 
-  const handleOpenExportModal = () => {
+  const handleClickExportButton = () => {
+    // If items are individually selected → export directly without modal
+    if (selectedItemIds.size > 0) {
+      const allPoolItems = [...allItems, ...correcaoItems];
+      const selected = allPoolItems.filter(i => selectedItemIds.has(i.id));
+      exportItemsToPDF(selected, `Arte — ${selected.length} peça(s)`);
+      return;
+    }
+    // Otherwise open group picker modal
     const arteStatuses = ['awaiting_submission','awaiting_sponsor_approval','sponsor_approved','awaiting_creator_review','pronto_para_producao','liberado'];
     const tabItems = filteredItems.length > 0 ? filteredItems : [
       ...allItems.filter(i => arteStatuses.includes(i.status)),
@@ -791,7 +805,7 @@ export default function Arte() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
-                      {tabId === "criar-aprovacoes" && (
+                      {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
                         <th style={{ padding: '10px 16px', width: 40 }}>
                           <Checkbox
                             checked={allPendingInGroup.length > 0 && allPendingInGroup.every(i => selectedItemIds.has(i.id))}
@@ -850,7 +864,7 @@ export default function Arte() {
                           onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'}
                           onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff'}
                         >
-                          {tabId === "criar-aprovacoes" && (
+                          {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
                             <td style={{ padding: '12px 16px', width: 40 }}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
@@ -1477,23 +1491,23 @@ export default function Arte() {
           Próximos 10 dias
         </button>
 
-        {/* Export PDF button → opens group picker modal */}
+        {/* Export PDF button: with selection → export directly; without → open group modal */}
         <button
-          onClick={handleOpenExportModal}
+          onClick={handleClickExportButton}
           data-testid="button-export-pdf"
           style={{
             height: 36, padding: '0 14px', borderRadius: 8, marginLeft: 'auto',
-            backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4',
-            color: '#78716c', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6,
-            fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
-            whiteSpace: 'nowrap',
+            backgroundColor: selectedItemIds.size > 0 ? '#7c3aed' : '#f5f5f4',
+            border: selectedItemIds.size > 0 ? '1px solid #7c3aed' : '1px solid #e7e5e4',
+            color: selectedItemIds.size > 0 ? '#ffffff' : '#78716c',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap',
           }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1c1917'; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#78716c'; }}
+          onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.92)'; }}
+          onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
         >
           <Printer style={{ width: 14, height: 14 }} />
-          Exportar PDF
+          {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
         </button>
 
         {/* PDF Upload button (ml-auto, only in criar-aprovacoes) */}

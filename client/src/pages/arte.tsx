@@ -253,7 +253,11 @@ export default function Arte() {
     return () => window.removeEventListener("paste", handler);
   }, [correcaoItem, uploadFileDirect]);
 
-  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportMode, setExportMode] = useState<"individual" | "grouped">("individual");
+  const [exportSelectedGroupKeys, setExportSelectedGroupKeys] = useState<Set<string>>(new Set());
+  type ExportGroup = { key: string; event: string; groupName: string; typeName: string; items: any[] };
+  const [exportGroups, setExportGroups] = useState<ExportGroup[]>([]);
 
   const pdfStyles = `
     @page { size: A4 portrait; margin: 14mm; }
@@ -427,28 +431,50 @@ export default function Arte() {
     setTimeout(() => win.print(), 600);
   };
 
-  const getExportItems = () => {
-    const arteStatuses = ['awaiting_submission','awaiting_sponsor_approval','sponsor_approved','awaiting_creator_review','pronto_para_producao','liberado'];
-    if (selectedItemIds.size > 0) {
-      return [
-        ...allItems.filter(i => selectedItemIds.has(i.id)),
-        ...correcaoItems.filter(i => selectedItemIds.has(i.id)),
-      ];
-    }
-    return [
-      ...allItems.filter(i => arteStatuses.includes(i.status)),
-      ...correcaoItems.filter(i => !arteStatuses.includes(i.status)),
-    ];
+  const buildExportGroups = (items: any[]): ExportGroup[] => {
+    const groups: ExportGroup[] = [];
+    items.forEach(item => {
+      const event = item.event?.name || "Sem Evento";
+      const typeName = item.type;
+      const groupName = typeToGroup[typeName] || "";
+      const key = `${event}|||${typeName}`;
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) {
+        last.items.push(item);
+      } else {
+        groups.push({ key, event, groupName, typeName, items: [item] });
+      }
+    });
+    return groups;
   };
 
-  const handleExportPDF = (mode: "individual" | "grouped") => {
-    setShowExportMenu(false);
-    const items = getExportItems();
-    const label = selectedItemIds.size > 0 ? `${selectedItemIds.size} selecionada(s)` : "Todas as Peças";
-    if (mode === "individual") {
-      exportItemsToPDF(items, `Arte — ${label}`);
+  const handleOpenExportModal = () => {
+    const arteStatuses = ['awaiting_submission','awaiting_sponsor_approval','sponsor_approved','awaiting_creator_review','pronto_para_producao','liberado'];
+    const tabItems = filteredItems.length > 0 ? filteredItems : [
+      ...allItems.filter(i => arteStatuses.includes(i.status)),
+      ...correcaoItems,
+    ];
+    const groups = buildExportGroups(tabItems);
+    setExportGroups(groups);
+    setExportSelectedGroupKeys(new Set(groups.map(g => g.key)));
+    setExportMode("individual");
+    setShowExportModal(true);
+  };
+
+  const handleExportPDF = () => {
+    setShowExportModal(false);
+    const selectedItems = exportGroups
+      .filter(g => exportSelectedGroupKeys.has(g.key))
+      .flatMap(g => g.items);
+    if (selectedItems.length === 0) {
+      toast({ title: "Nenhum item selecionado", variant: "destructive" });
+      return;
+    }
+    const label = `${selectedItems.length} peça(s)`;
+    if (exportMode === "individual") {
+      exportItemsToPDF(selectedItems, `Arte — ${label}`);
     } else {
-      exportGroupedPDF(items, `Arte — Resumo por Grupo (${label})`);
+      exportGroupedPDF(selectedItems, `Arte — Resumo por Grupo (${label})`);
     }
   };
 
@@ -744,7 +770,7 @@ export default function Arte() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
-                      {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
+                      {tabId === "criar-aprovacoes" && (
                         <th style={{ padding: '10px 16px', width: 40 }}>
                           <Checkbox
                             checked={allPendingInGroup.length > 0 && allPendingInGroup.every(i => selectedItemIds.has(i.id))}
@@ -803,7 +829,7 @@ export default function Arte() {
                           onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'}
                           onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff'}
                         >
-                          {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
+                          {tabId === "criar-aprovacoes" && (
                             <td style={{ padding: '12px 16px', width: 40 }}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
@@ -1430,86 +1456,24 @@ export default function Arte() {
           Próximos 10 dias
         </button>
 
-        {/* Export PDF dropdown */}
-        <div style={{ position: 'relative', marginLeft: 'auto' }} data-testid="export-pdf-wrapper">
-          <button
-            onClick={() => setShowExportMenu(v => !v)}
-            data-testid="button-export-pdf"
-            style={{
-              height: 36, padding: '0 14px', borderRadius: 8,
-              backgroundColor: selectedItemIds.size > 0 ? '#7c3aed' : '#f5f5f4',
-              border: selectedItemIds.size > 0 ? '1px solid #7c3aed' : '1px solid #e7e5e4',
-              color: selectedItemIds.size > 0 ? '#ffffff' : '#78716c',
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.92)'; }}
-            onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-          >
-            <Printer style={{ width: 14, height: 14 }} />
-            {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
-            <ChevronDown style={{ width: 12, height: 12, marginLeft: 2 }} />
-          </button>
-          {showExportMenu && (
-            <>
-              <div
-                style={{ position: 'fixed', inset: 0, zIndex: 40 }}
-                onClick={() => setShowExportMenu(false)}
-              />
-              <div style={{
-                position: 'absolute', top: 40, right: 0, zIndex: 50,
-                backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8,
-                boxShadow: '0 8px 24px -4px rgba(28,25,23,0.14)', minWidth: 220, overflow: 'hidden',
-              }}>
-                <div style={{ padding: '6px 10px', borderBottom: '1px solid #f5f5f4' }}>
-                  <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: 0 }}>
-                    {selectedItemIds.size > 0 ? `${selectedItemIds.size} selecionada(s)` : 'Todas as peças'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleExportPDF("individual")}
-                  data-testid="button-export-individual"
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                    textAlign: 'left', transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                >
-                  <div style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <LayoutList style={{ width: 14, height: 14, color: '#16a34a' }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px' }}>Uma prova por página</p>
-                    <p style={{ fontSize: 10, color: '#78716c', margin: 0 }}>Thumb grande + medidas, material, acabamento</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => handleExportPDF("grouped")}
-                  data-testid="button-export-grouped"
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                    textAlign: 'left', transition: 'background 0.1s', borderTop: '1px solid #f5f5f4',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                >
-                  <div style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Layers style={{ width: 14, height: 14, color: '#f97316' }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px' }}>Resumo por grupo</p>
-                    <p style={{ fontSize: 10, color: '#78716c', margin: 0 }}>Tabela agrupada por tipo com todos os campos</p>
-                  </div>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        {/* Export PDF button → opens group picker modal */}
+        <button
+          onClick={handleOpenExportModal}
+          data-testid="button-export-pdf"
+          style={{
+            height: 36, padding: '0 14px', borderRadius: 8, marginLeft: 'auto',
+            backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4',
+            color: '#78716c', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 600, transition: 'all 0.15s',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1c1917'; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#78716c'; }}
+        >
+          <Printer style={{ width: 14, height: 14 }} />
+          Exportar PDF
+        </button>
 
         {/* PDF Upload button (ml-auto, only in criar-aprovacoes) */}
         {activeTab === "criar-aprovacoes" && (
@@ -2234,6 +2198,177 @@ export default function Arte() {
                 )}
               </button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 4 — EXPORT PDF GROUP PICKER                                  */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 540, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.1)' }}>
+          <DialogTitle className="sr-only">Exportar PDF</DialogTitle>
+          <DialogDescription className="sr-only">Selecione os grupos e o formato de exportação</DialogDescription>
+
+          {/* Header */}
+          <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', color: '#1c1917', margin: '0 0 4px', fontFamily: '"Space Grotesk", sans-serif' }}>
+                Exportar PDF
+              </h2>
+              <p style={{ fontSize: 12, color: '#78716c', margin: 0 }}>Escolha os grupos e o formato de saída</p>
+            </div>
+            <button
+              onClick={() => setShowExportModal(false)}
+              style={{ padding: 6, backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#78716c', lineHeight: 1, flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
+            >
+              <X style={{ width: 16, height: 16 }} />
+            </button>
+          </div>
+
+          {/* Format picker */}
+          <div style={{ padding: '16px 28px', borderBottom: '1px solid #f5f5f4' }}>
+            <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: '0 0 10px' }}>Formato</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button
+                onClick={() => setExportMode("individual")}
+                style={{
+                  padding: '10px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                  border: exportMode === "individual" ? '2px solid #7c3aed' : '2px solid #e7e5e4',
+                  backgroundColor: exportMode === "individual" ? '#f5f3ff' : '#fafaf9',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <LayoutList style={{ width: 14, height: 14, color: exportMode === "individual" ? '#7c3aed' : '#a8a29e' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>Uma por página</span>
+                </div>
+                <p style={{ fontSize: 10, color: '#78716c', margin: 0, lineHeight: 1.4 }}>Thumb grande + medidas, material, acabamento</p>
+              </button>
+              <button
+                onClick={() => setExportMode("grouped")}
+                style={{
+                  padding: '10px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                  border: exportMode === "grouped" ? '2px solid #f97316' : '2px solid #e7e5e4',
+                  backgroundColor: exportMode === "grouped" ? '#fff7ed' : '#fafaf9',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <Layers style={{ width: 14, height: 14, color: exportMode === "grouped" ? '#f97316' : '#a8a29e' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>Resumo por grupo</span>
+                </div>
+                <p style={{ fontSize: 10, color: '#78716c', margin: 0, lineHeight: 1.4 }}>Tabela compacta agrupada por tipo</p>
+              </button>
+            </div>
+          </div>
+
+          {/* Group list */}
+          <div style={{ padding: '16px 28px', maxHeight: 340, overflowY: 'auto' }}>
+            {/* Select all / none */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: 0 }}>
+                Grupos ({exportSelectedGroupKeys.size} de {exportGroups.length} selecionados)
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => setExportSelectedGroupKeys(new Set(exportGroups.map(g => g.key)))}
+                  style={{ fontSize: 10, fontWeight: 600, color: '#7c3aed', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                >Todos</button>
+                <button
+                  onClick={() => setExportSelectedGroupKeys(new Set())}
+                  style={{ fontSize: 10, fontWeight: 600, color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                >Nenhum</button>
+              </div>
+            </div>
+
+            {/* Groups grouped by event */}
+            {(() => {
+              const byEvent: { event: string; groups: ExportGroup[] }[] = [];
+              exportGroups.forEach(g => {
+                const last = byEvent[byEvent.length - 1];
+                if (last && last.event === g.event) {
+                  last.groups.push(g);
+                } else {
+                  byEvent.push({ event: g.event, groups: [g] });
+                }
+              });
+              return byEvent.map(ev => (
+                <div key={ev.event} style={{ marginBottom: 16 }}>
+                  <div style={{ padding: '5px 10px', backgroundColor: '#1c1917', borderRadius: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>{ev.event}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {ev.groups.map(g => {
+                      const selected = exportSelectedGroupKeys.has(g.key);
+                      const thumb = g.items.find(i => i.approvalThumbUrl)?.approvalThumbUrl;
+                      const thumbSrc = thumb ? convertGCSUrlToLocalPath(thumb) : null;
+                      return (
+                        <button
+                          key={g.key}
+                          onClick={() => {
+                            const s = new Set(exportSelectedGroupKeys);
+                            if (s.has(g.key)) s.delete(g.key); else s.add(g.key);
+                            setExportSelectedGroupKeys(s);
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px',
+                            borderRadius: 8, cursor: 'pointer', textAlign: 'left', width: '100%',
+                            backgroundColor: selected ? '#f5f3ff' : '#fafaf9',
+                            border: selected ? '1.5px solid #c4b5fd' : '1.5px solid #e7e5e4',
+                            transition: 'all 0.12s',
+                          }}
+                          data-testid={`export-group-${g.key}`}
+                        >
+                          <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? '#7c3aed' : '#e7e5e4', transition: 'background 0.12s' }}>
+                            {selected && <span style={{ color: '#fff', fontSize: 13, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                          </div>
+                          {thumbSrc ? (
+                            <img src={thumbSrc} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0, border: '1px solid #e7e5e4' }} />
+                          ) : (
+                            <div style={{ width: 36, height: 36, borderRadius: 6, backgroundColor: '#e7e5e4', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <FileImage style={{ width: 14, height: 14, color: '#a8a29e' }} />
+                            </div>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {g.groupName || g.typeName}
+                            </p>
+                            <p style={{ fontSize: 10, color: '#78716c', margin: 0 }}>{g.items.length} {g.items.length === 1 ? 'peça' : 'peças'}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '16px 28px', borderTop: '1px solid #f5f5f4', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              onClick={() => setShowExportModal(false)}
+              style={{ height: 36, padding: '0 16px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+            >Cancelar</button>
+            <button
+              onClick={handleExportPDF}
+              disabled={exportSelectedGroupKeys.size === 0}
+              data-testid="button-export-confirm"
+              style={{
+                height: 36, padding: '0 18px', borderRadius: 8, cursor: exportSelectedGroupKeys.size === 0 ? 'not-allowed' : 'pointer',
+                backgroundColor: exportSelectedGroupKeys.size === 0 ? '#e7e5e4' : '#7c3aed',
+                border: 'none', color: exportSelectedGroupKeys.size === 0 ? '#a8a29e' : '#ffffff',
+                fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (exportSelectedGroupKeys.size > 0) e.currentTarget.style.filter = 'brightness(0.9)'; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+            >
+              <Printer style={{ width: 14, height: 14 }} />
+              Exportar {exportGroups.filter(g => exportSelectedGroupKeys.has(g.key)).reduce((acc, g) => acc + g.items.length, 0)} peça(s)
+            </button>
           </div>
         </DialogContent>
       </Dialog>

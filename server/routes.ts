@@ -3352,9 +3352,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   // On startup: backfill missing assets first, then immediately run lifecycle transitions,
-  // then schedule every-minute checks. Sequential so backfilled assets are ready for the cron.
+  // then schedule every-10-minute checks. Sequential so backfilled assets are ready for the cron.
   backfillInventoryAssets().then(() => runInventoryCron());
-  setInterval(runInventoryCron, 60 * 1000);
+  setInterval(runInventoryCron, 10 * 60 * 1000);
 
   // ============ INVENTORY ASSETS (ACERVO) ============
 

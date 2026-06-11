@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -253,6 +253,7 @@ export default function Arte() {
     return () => window.removeEventListener("paste", handler);
   }, [correcaoItem, uploadFileDirect]);
 
+  const [isDragOver, setIsDragOver] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportMode, setExportMode] = useState<"individual" | "grouped">("individual");
   const [exportSelectedGroupKeys, setExportSelectedGroupKeys] = useState<Set<string>>(new Set());
@@ -1578,6 +1579,40 @@ export default function Arte() {
         })}
       </div>
 
+      {/* ── 3b. SELECT ALL / CLEAR — only on tabs with checkboxes ─────────── */}
+      {(activeTab === "criar-aprovacoes" || activeTab === "finalizados") && filteredItems.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0 2px' }}>
+          <button
+            onClick={() => {
+              if (selectedItemIds.size === filteredItems.length) {
+                setSelectedItemIds(new Set());
+              } else {
+                setSelectedItemIds(new Set(filteredItems.map((i: any) => i.id)));
+              }
+            }}
+            data-testid="button-select-all"
+            style={{
+              height: 28, padding: '0 12px', borderRadius: 6, border: '1px solid #e7e5e4',
+              backgroundColor: '#fafaf9', color: '#78716c', cursor: 'pointer',
+              fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+              transition: 'all 0.12s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1c1917'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; e.currentTarget.style.color = '#78716c'; }}
+          >
+            {selectedItemIds.size === filteredItems.length && filteredItems.length > 0
+              ? <><X style={{ width: 10, height: 10 }} />Limpar seleção</>
+              : <><CheckSquare style={{ width: 10, height: 10 }} />Selecionar tudo</>
+            }
+          </button>
+          {selectedItemIds.size > 0 && (
+            <span style={{ fontSize: 11, color: '#78716c' }}>
+              {selectedItemIds.size} de {filteredItems.length} selecionada{selectedItemIds.size !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ── 4. CONTENT AREA ───────────────────────────────────────────────── */}
       {isLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
@@ -2016,13 +2051,33 @@ export default function Arte() {
                 ) : (
                   /* State A1: empty upload zone */
                   <div style={{
-                    background: isPasteUploading ? 'rgba(237,233,254,0.8)' : 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)',
-                    border: isPasteUploading ? '2px dashed #7c3aed' : '1px dashed #ddd6fe', borderRadius: 12, padding: 32,
+                    background: (isPasteUploading || isDragOver) ? 'rgba(237,233,254,0.8)' : 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)',
+                    border: (isPasteUploading || isDragOver) ? '2px dashed #7c3aed' : '1px dashed #ddd6fe', borderRadius: 12, padding: 32,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     textAlign: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.15s'
                   }}
-                    onMouseEnter={e => { if (!isPasteUploading) (e.currentTarget as HTMLElement).style.background = 'rgba(237,233,254,0.5)'; }}
-                    onMouseLeave={e => { if (!isPasteUploading) (e.currentTarget as HTMLElement).style.background = 'rgba(250,245,255,0.5)'; }}
+                    onMouseEnter={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = 'rgba(237,233,254,0.5)'; }}
+                    onMouseLeave={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = 'rgba(250,245,255,0.5)'; }}
+                    onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+                    onDragEnter={e => { e.preventDefault(); setIsDragOver(true); }}
+                    onDragLeave={e => { e.preventDefault(); setIsDragOver(false); }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setIsDragOver(false);
+                      const file = e.dataTransfer.files[0];
+                      if (!file || !file.type.startsWith('image/')) {
+                        toast({ title: "Arquivo inválido", description: "Apenas imagens são aceitas", variant: "destructive" });
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setApprovalThumbPreview(ev.target?.result as string);
+                      reader.readAsDataURL(file);
+                      uploadFileDirect(file, (localPath) => {
+                        setApprovalThumbUrl(localPath);
+                        setApprovalThumbPreview(localPath);
+                        toast({ title: "Upload concluído", description: "Thumb de aprovação enviado com sucesso" });
+                      });
+                    }}
                   >
                     <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {isPasteUploading

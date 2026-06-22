@@ -532,15 +532,20 @@ export default function Arte() {
   }, []);
 
   const handleBulkThumbFilesAdded = useCallback((files: FileList | File[]) => {
-    const arr = Array.from(files).filter(f => f.type.startsWith("image/"));
+    // Accept by MIME type OR by extension (some browsers return empty type)
+    const isImage = (f: File) =>
+      f.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|svg|bmp|tiff?)$/i.test(f.name);
+    const arr = Array.from(files).filter(isImage);
     if (!arr.length) return;
     const pool = [...allItems.filter((i: any) => i.status === 'awaiting_submission')];
     const newEntries: BulkThumbEntry[] = arr.map(file => {
-      // Extract numbers from filename: "0277_aplique.jpg" → ["0277"], "#277" → ["277"]
-      const nums = (file.name.replace(/\D/g, ' ')).trim().split(/\s+/).filter(Boolean);
+      // Extract numbers with ≥3 digits from filename to avoid false matches from "3×3", "01" etc.
+      // e.g. "0277_aplique.jpg" → ["0277"], "tenda_3x3_0122.png" → ["0122"]
+      const nums = (file.name.replace(/\.[^.]+$/, '').replace(/\D/g, ' '))
+        .trim().split(/\s+/).filter(n => n.length >= 3);
       const matched = pool.find(item => {
         const rawId = (item.displayId || '').replace(/\D/g, '').padStart(4, '0');
-        return nums.some(n => n.padStart(4, '0') === rawId || n === rawId || n.padStart(4, '0') === rawId.padStart(4, '0'));
+        return nums.some(n => n.padStart(4, '0') === rawId);
       });
       return {
         id: `${file.name}-${Date.now()}-${Math.random()}`,

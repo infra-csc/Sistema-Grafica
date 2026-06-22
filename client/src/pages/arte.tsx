@@ -254,6 +254,11 @@ export default function Arte() {
   }, [correcaoItem, uploadFileDirect]);
 
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragOverBulk, setIsDragOverBulk] = useState(false);
+  const [showBulkThumbModal, setShowBulkThumbModal] = useState(false);
+  type BulkThumbEntry = { id: string; file: File; preview: string; matchedItemId: string | null; status: 'pending' | 'uploading' | 'done' | 'error'; errorMsg?: string };
+  const [bulkThumbEntries, setBulkThumbEntries] = useState<BulkThumbEntry[]>([]);
+  const [bulkThumbRunning, setBulkThumbRunning] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportMode, setExportMode] = useState<"individual" | "grouped">("individual");
   const [exportSelectedGroupKeys, setExportSelectedGroupKeys] = useState<Set<string>>(new Set());
@@ -517,6 +522,56 @@ export default function Arte() {
   const handleExportItemPDF = (item: any) => {
     exportItemsToPDF([item], `Prova — ${item.displayId || item.type}`);
   };
+
+  // Upload sem alterar isPasteUploading (usado no bulk)
+  const uploadFileRaw = useCallback(async (file: File): Promise<string> => {
+    const { url } = await getUploadUrl();
+    const res = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": file.type || "image/jpeg" } });
+    if (!res.ok) throw new Error("Falha no upload do arquivo");
+    return convertGCSUrlToLocalPath(url.split("?")[0]);
+  }, []);
+
+  const handleBulkThumbFilesAdded = useCallback((files: FileList | File[]) => {
+    const arr = Array.from(files).filter(f => f.type.startsWith("image/"));
+    if (!arr.length) return;
+    const pool = [...allItems.filter((i: any) => i.status === 'awaiting_submission')];
+    const newEntries: BulkThumbEntry[] = arr.map(file => {
+      // Extract numbers from filename: "0277_aplique.jpg" → ["0277"], "#277" → ["277"]
+      const nums = (file.name.replace(/\D/g, ' ')).trim().split(/\s+/).filter(Boolean);
+      const matched = pool.find(item => {
+        const rawId = (item.displayId || '').replace(/\D/g, '').padStart(4, '0');
+        return nums.some(n => n.padStart(4, '0') === rawId || n === rawId || n.padStart(4, '0') === rawId.padStart(4, '0'));
+      });
+      return {
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+        file,
+        preview: URL.createObjectURL(file),
+        matchedItemId: matched?.id ?? null,
+        status: 'pending' as const,
+      };
+    });
+    setBulkThumbEntries(prev => [...prev, ...newEntries]);
+    setShowBulkThumbModal(true);
+  }, [allItems]);
+
+  const handleBulkThumbUpload = useCallback(async () => {
+    const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
+    if (!toProcess.length) return;
+    setBulkThumbRunning(true);
+    for (const entry of toProcess) {
+      setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
+      try {
+        const localPath = await uploadFileRaw(entry.file);
+        await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
+        setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e));
+      } catch (err: any) {
+        setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', errorMsg: err.message } : e));
+      }
+    }
+    setBulkThumbRunning(false);
+    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    toast({ title: "Upload em lote concluído", description: `${toProcess.length} thumb(s) enviados para aprovação` });
+  }, [bulkThumbEntries, uploadFileRaw]);
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
     if (gcsUrl.startsWith('/')) return gcsUrl;
@@ -1511,6 +1566,34 @@ export default function Arte() {
           {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
         </button>
 
+        {/* Multi-thumb upload button (only in criar-aprovacoes) */}
+        {activeTab === "criar-aprovacoes" && (
+          <>
+            <label
+              data-testid="button-open-bulk-thumb"
+              style={{
+                height: 36, padding: '0 14px', borderRadius: 8,
+                backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
+                color: '#15803d', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 12, fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.94)'; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+            >
+              <FileImage style={{ width: 13, height: 13 }} />
+              Multi-Upload Thumbs
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }}
+              />
+            </label>
+          </>
+        )}
+
         {/* PDF Upload button (ml-auto, only in criar-aprovacoes) */}
         {activeTab === "criar-aprovacoes" && (
           <button
@@ -2422,6 +2505,189 @@ export default function Arte() {
               <Printer style={{ width: 14, height: 14 }} />
               Exportar {exportGroups.filter(g => exportSelectedGroupKeys.has(g.key)).reduce((acc, g) => acc + g.items.length, 0)} peça(s)
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL 5 — MULTI-UPLOAD THUMBS                                      */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open && !bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); } }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 620, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.12)' }}>
+          <DialogTitle className="sr-only">Multi-Upload de Thumbs</DialogTitle>
+          <DialogDescription className="sr-only">Upload em lote de miniaturas de aprovação</DialogDescription>
+
+          {/* Header */}
+          <div style={{ padding: '22px 28px 16px', borderBottom: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.04em', color: '#1c1917', margin: '0 0 3px', fontFamily: '"Space Grotesk", sans-serif' }}>
+                Multi-Upload de Thumbs
+              </h2>
+              <p style={{ fontSize: 12, color: '#78716c', margin: 0 }}>
+                Arraste vários arquivos — o sistema vincula automaticamente pelo número no nome do arquivo
+              </p>
+            </div>
+            <button
+              onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); } }}
+              style={{ padding: 6, backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#78716c', lineHeight: 1, flexShrink: 0 }}
+            >
+              <X style={{ width: 16, height: 16 }} />
+            </button>
+          </div>
+
+          {/* Drop zone */}
+          <div
+            style={{
+              margin: '16px 28px 0',
+              padding: '20px', borderRadius: 10,
+              background: isDragOverBulk ? '#f0fdf4' : '#fafaf9',
+              border: isDragOverBulk ? '2px dashed #16a34a' : '2px dashed #d4d4d0',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+            onDragOver={e => { e.preventDefault(); setIsDragOverBulk(true); }}
+            onDragEnter={e => { e.preventDefault(); setIsDragOverBulk(true); }}
+            onDragLeave={() => setIsDragOverBulk(false)}
+            onDrop={e => { e.preventDefault(); setIsDragOverBulk(false); if (e.dataTransfer.files.length) handleBulkThumbFilesAdded(e.dataTransfer.files); }}
+            onClick={() => { const inp = document.getElementById('bulk-thumb-input') as HTMLInputElement; inp?.click(); }}
+          >
+            <input id="bulk-thumb-input" type="file" accept="image/*" multiple style={{ display: 'none' }}
+              onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
+            <Upload style={{ width: 20, height: 20, color: isDragOverBulk ? '#16a34a' : '#a8a29e' }} />
+            <p style={{ fontSize: 12, fontWeight: 600, color: isDragOverBulk ? '#15803d' : '#78716c', margin: 0 }}>
+              {isDragOverBulk ? 'Solte para adicionar' : 'Arraste imagens aqui ou clique para selecionar'}
+            </p>
+            <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>
+              Nome do arquivo com o número da peça, ex: <strong>0277_aplique.jpg</strong>
+            </p>
+          </div>
+
+          {/* Entries list */}
+          {bulkThumbEntries.length > 0 && (
+            <div style={{ margin: '12px 28px 0', maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* Stats bar */}
+              <div style={{ display: 'flex', gap: 12, padding: '6px 0', borderBottom: '1px solid #f5f5f4', marginBottom: 4 }}>
+                {[
+                  { label: 'Vinculado', count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length, color: '#16a34a', bg: '#f0fdf4' },
+                  { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, color: '#d97706', bg: '#fffbeb' },
+                  { label: 'Enviado', count: bulkThumbEntries.filter(e => e.status === 'done').length, color: '#7c3aed', bg: '#f5f3ff' },
+                  { label: 'Erro', count: bulkThumbEntries.filter(e => e.status === 'error').length, color: '#dc2626', bg: '#fef2f2' },
+                ].map(s => s.count > 0 && (
+                  <span key={s.label} style={{ fontSize: 10, fontWeight: 700, color: s.color, backgroundColor: s.bg, padding: '2px 8px', borderRadius: 4 }}>
+                    {s.count} {s.label}
+                  </span>
+                ))}
+              </div>
+
+              {bulkThumbEntries.map(entry => {
+                const matchedItem = allItems.find((i: any) => i.id === entry.matchedItemId);
+                const pendingPool = allItems.filter((i: any) => i.status === 'awaiting_submission');
+                return (
+                  <div key={entry.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px', borderRadius: 8,
+                    border: `1px solid ${entry.status === 'done' ? '#bbf7d0' : entry.status === 'error' ? '#fecaca' : entry.matchedItemId ? '#e7e5e4' : '#fde68a'}`,
+                    backgroundColor: entry.status === 'done' ? '#f0fdf4' : entry.status === 'error' ? '#fef2f2' : '#fafaf9',
+                  }}>
+                    {/* Thumb preview */}
+                    <img src={entry.preview} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, flexShrink: 0, border: '1px solid #e7e5e4' }} />
+
+                    {/* Filename */}
+                    <div style={{ width: 130, flexShrink: 0 }}>
+                      <p style={{ fontSize: 10, fontWeight: 600, color: '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {entry.file.name}
+                      </p>
+                    </div>
+
+                    {/* Arrow */}
+                    <ArrowRight style={{ width: 14, height: 14, color: '#d4d4d0', flexShrink: 0 }} />
+
+                    {/* Matched item / picker */}
+                    {entry.status === 'done' ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <CheckCircle style={{ width: 13, height: 13 }} /> Enviado
+                      </span>
+                    ) : entry.status === 'uploading' ? (
+                      <span style={{ fontSize: 11, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #ddd6fe', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite' }} />
+                        Enviando...
+                      </span>
+                    ) : entry.status === 'error' ? (
+                      <span style={{ fontSize: 10, color: '#dc2626' }}>{entry.errorMsg}</span>
+                    ) : (
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <select
+                          value={entry.matchedItemId || ''}
+                          onChange={e => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: e.target.value || null } : en))}
+                          style={{
+                            width: '100%', height: 28, borderRadius: 6, border: `1px solid ${entry.matchedItemId ? '#d4d4d0' : '#fcd34d'}`,
+                            backgroundColor: entry.matchedItemId ? '#ffffff' : '#fffbeb', fontSize: 11, fontWeight: 600,
+                            color: '#1c1917', padding: '0 6px', cursor: 'pointer',
+                          }}
+                        >
+                          <option value="">— Sem vínculo —</option>
+                          {pendingPool.map((item: any) => (
+                            <option key={item.id} value={item.id}>
+                              {item.displayId} · {item.type}{item.description ? ` — ${item.description.slice(0, 28)}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Remove button */}
+                    {(entry.status === 'pending' || entry.status === 'error') && (
+                      <button
+                        onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.id !== entry.id))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; }}
+                      >
+                        <X style={{ width: 13, height: 13 }} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ padding: '16px 28px', borderTop: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+            <button
+              onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); } }}
+              style={{ height: 34, padding: '0 14px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+            >Cancelar</button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {bulkThumbEntries.filter(e => e.status === 'done').length > 0 && (
+                <button
+                  onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.status !== 'done'))}
+                  style={{ height: 34, padding: '0 12px', borderRadius: 8, background: 'none', border: '1px solid #e7e5e4', color: '#a8a29e', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                >
+                  Limpar concluídos
+                </button>
+              )}
+              <button
+                onClick={handleBulkThumbUpload}
+                disabled={bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0}
+                data-testid="button-bulk-thumb-confirm"
+                style={{
+                  height: 34, padding: '0 18px', borderRadius: 8,
+                  backgroundColor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#e7e5e4' : '#15803d',
+                  border: 'none',
+                  color: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#a8a29e' : '#ffffff',
+                  fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7, cursor: bulkThumbRunning ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (!bulkThumbRunning) e.currentTarget.style.filter = 'brightness(0.9)'; }}
+                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+              >
+                {bulkThumbRunning
+                  ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+                  : <><Send style={{ width: 12, height: 12 }} />Enviar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s) para aprovação</>
+                }
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

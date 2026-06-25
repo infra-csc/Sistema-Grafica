@@ -517,22 +517,27 @@ export default function Grafica() {
 
                     {/* Linha do item */}
                     <tr
-                      style={{ borderBottom: `1px solid #f4f3f0`, cursor: "pointer", transition: "background-color 0.1s" }}
-                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = "#fafaf9")}
-                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = "")}
+                      style={{ borderBottom: `1px solid ${item.isReuse && !isDelivered(item) ? "#bbf7d0" : "#f4f3f0"}`, cursor: "pointer", transition: "background-color 0.1s", backgroundColor: item.isReuse && !isDelivered(item) ? "#f0fdf4" : undefined }}
+                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = item.isReuse && !isDelivered(item) ? "#dcfce7" : "#fafaf9")}
+                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = item.isReuse && !isDelivered(item) ? "#f0fdf4" : "")}
                       onClick={() => setViewDetailsItem(item)}
                       data-testid={`row-item-${item.id}`}
                     >
                       {/* ID */}
                       <td style={{ padding: "13px 16px" }}>
-                        <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: TI.accent, fontWeight: 700, letterSpacing: "0.04em" }} data-testid={`text-display-id-${item.id}`}>
+                        <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: item.isReuse && !isDelivered(item) ? "#059669" : TI.accent, fontWeight: 700, letterSpacing: "0.04em" }} data-testid={`text-display-id-${item.id}`}>
                           {item.displayId}
                         </span>
                       </td>
                       {/* Descrição */}
                       <td style={{ padding: "13px 16px", maxWidth: 280 }}>
+                        {item.isReuse && !isDelivered(item) && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: "#059669", color: "#ffffff", borderRadius: 5, padding: "3px 9px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                            <RotateCcw style={{ width: 11, height: 11 }} /> Reaproveitamento
+                          </div>
+                        )}
                         {item.description ? (
-                          <div style={{ fontSize: 12, color: TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.description}</div>
+                          <div style={{ fontSize: 12, color: item.isReuse && !isDelivered(item) ? "#065f46" : TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: item.isReuse && !isDelivered(item) ? 600 : 400 }}>{item.description}</div>
                         ) : (
                           <div style={{ fontSize: 12, color: TI.muted }}>—</div>
                         )}
@@ -594,13 +599,6 @@ export default function Grafica() {
                           >
                             <Eye style={{ width: 15, height: 15 }} />
                           </button>
-
-                          {/* Badge de reaproveitamento */}
-                          {item.isReuse && !isDelivered(item) && (
-                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#065f46", backgroundColor: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 4, padding: "2px 6px", display: "inline-flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
-                              <RotateCcw style={{ width: 9, height: 9 }} /> Reaproveit.
-                            </span>
-                          )}
 
                           {/* Iniciar / Continuar Produção — oculto para reaproveitamento */}
                           {!isDelivered(item) && !isProduced(item) && !item.isReuse && (

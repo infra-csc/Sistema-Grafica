@@ -1699,6 +1699,11 @@ export default function EventDetail() {
                           </td>
                           {/* Descrição */}
                           <td style={{ padding: '14px 20px' }}>
+                            {item.isReuse && !['em_producao','produzido','entregue'].includes(item.status) && (
+                              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#059669", color: "#ffffff", borderRadius: 4, padding: "2px 7px", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                                <RotateCcw style={{ width: 9, height: 9 }} /> Reaproveit.
+                              </div>
+                            )}
                             {item.description ? (
                               <span style={{ fontWeight: '500', color: '#1a1c1c', fontSize: '13px' }}>{item.description}</span>
                             ) : (
@@ -1900,6 +1905,35 @@ export default function EventDetail() {
                 </div>
               </div>
 
+              {/* Reaproveitamento — banner topo */}
+              <div
+                data-testid="toggle-is-reuse"
+                onClick={() => setFormData({ ...formData, isReuse: !formData.isReuse })}
+                style={{
+                  backgroundColor: formData.isReuse ? "#059669" : "#f3f4f3",
+                  border: `2px solid ${formData.isReuse ? "#047857" : "#e5e7eb"}`,
+                  padding: "14px 18px", borderRadius: "10px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+                  cursor: "pointer", transition: "all 0.15s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ backgroundColor: formData.isReuse ? "rgba(255,255,255,0.2)" : "#e5e7eb", borderRadius: "8px", padding: "8px", flexShrink: 0 }}>
+                    <RotateCcw style={{ width: 18, height: 18, color: formData.isReuse ? "#ffffff" : "#6b7280" }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: "14px", fontWeight: 700, color: formData.isReuse ? "#ffffff" : "#374151", margin: 0 }}>Reaproveitamento</p>
+                    <p style={{ fontSize: "12px", color: formData.isReuse ? "rgba(255,255,255,0.8)" : "#9ca3af", margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
+                  </div>
+                </div>
+                <Checkbox
+                  checked={formData.isReuse}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isReuse: !!checked })}
+                  data-testid="checkbox-is-reuse"
+                  style={{ width: "20px", height: "20px", accentColor: "#ffffff", pointerEvents: "none", flexShrink: 0 }}
+                />
+              </div>
+
               {/* Linha 2: Descrição */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Descrição do Item</label>
@@ -2062,36 +2096,6 @@ export default function EventDetail() {
                   style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", resize: "none", fontFamily: "inherit", transition: "box-shadow 0.15s" }}
                   onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                   onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                />
-              </div>
-
-              {/* Reaproveitamento */}
-              <div
-                data-testid="toggle-is-reuse"
-                onClick={() => setFormData({ ...formData, isReuse: !formData.isReuse })}
-                style={{
-                  backgroundColor: formData.isReuse ? "#ecfdf5" : "#f9fafb",
-                  border: `1px solid ${formData.isReuse ? "#6ee7b7" : "#e5e7eb"}`,
-                  padding: "14px 16px", borderRadius: "8px",
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
-                  cursor: "pointer", transition: "all 0.15s",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={formData.isReuse ? "#059669" : "#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                    <path d="M3 3v5h5"/>
-                  </svg>
-                  <div>
-                    <p style={{ fontSize: "14px", fontWeight: 600, color: formData.isReuse ? "#065f46" : "#374151", margin: 0 }}>Reaproveitamento</p>
-                    <p style={{ fontSize: "11px", color: formData.isReuse ? "#059669" : "#9ca3af", margin: 0 }}>Peça será reaproveitada — gráfica entrega direto sem produzir</p>
-                  </div>
-                </div>
-                <Checkbox
-                  checked={formData.isReuse}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isReuse: !!checked })}
-                  data-testid="checkbox-is-reuse"
-                  style={{ width: "20px", height: "20px", accentColor: "#059669", pointerEvents: "none" }}
                 />
               </div>
 

@@ -68,7 +68,8 @@ const getItemUIStatus = (
   if (canSendStatuses.includes(item.status)) {
     const hasSponsors = originalSponsors.length > 0;
     const hasSkipApproval = item.skipApproval === true;
-    if (hasSponsors || hasSkipApproval) {
+    const isReuse = item.isReuse === true;
+    if (hasSponsors || hasSkipApproval || isReuse) {
       return 'PRONTO';
     }
     return 'PENDENTE';

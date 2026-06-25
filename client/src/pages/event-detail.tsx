@@ -46,8 +46,8 @@ import { CommentsSection } from "@/components/comments-section";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
-const materials = ["Adesivo", "Lona", "Sanett", "Tecido", "Tecido Pet"];
-const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
+const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
+const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();

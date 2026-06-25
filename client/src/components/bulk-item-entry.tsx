@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, useMemo } from "react";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 
-const materials = ["Adesivo", "Lona", "Sanett", "Tecido", "Tecido Pet"];
-const finishes = ["Dupla Face", "Ilhós", "Impresso", "Recorte", "Refile"];
+const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
+const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
 /* Total focusable fields per row (indices 0–9) */
 const FIELDS_PER_ROW = 10;

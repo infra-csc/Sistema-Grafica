@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw } from "lucide-react";
 import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -497,6 +497,19 @@ export default function EventDetail() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Mutation para atualizar isReuse de um item
+  const updateItemIsReuseMutation = useMutation({
+    mutationFn: async ({ itemId, isReuse }: { itemId: string, isReuse: boolean }) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1723,8 +1736,21 @@ export default function EventDetail() {
                           <td style={{ padding: '14px 20px' }}>
                             <div
                               className="opacity-0 group-hover:opacity-100"
-                              style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', transition: 'opacity 0.15s' }}
+                              style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center', transition: 'opacity 0.15s' }}
                             >
+                              {/* Toggle reaproveitamento — disponível enquanto não estiver em produção/entregue */}
+                              {!isEditBlocked(item.status) && (
+                                <button
+                                  title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
+                                  onClick={e => { e.stopPropagation(); updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }); }}
+                                  data-testid={`button-reuse-item-${item.id}`}
+                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: item.isReuse ? '#065f46' : '#a8a29e', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
+                                  onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = '#065f46'; e.currentTarget.style.backgroundColor = '#d1fae5'; } }}
+                                  onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                </button>
+                              )}
                               {isEditBlocked(item.status) ? (
                                 <span title="Edição bloqueada" style={{ color: '#d1cdc9', padding: '6px', cursor: 'not-allowed' }} data-testid={`button-edit-item-${item.id}`}>
                                   <Lock className="h-4 w-4" />

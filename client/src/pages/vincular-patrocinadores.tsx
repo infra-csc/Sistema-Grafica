@@ -13,7 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink, RotateCcw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
@@ -499,6 +499,19 @@ export default function VincularPatrocinadores() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Mutation para atualizar isReuse
+  const updateItemIsReuseMutation = useMutation({
+    mutationFn: async ({ itemId, isReuse }: { itemId: string, isReuse: boolean }) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1949,6 +1962,19 @@ export default function VincularPatrocinadores() {
                                           {isEditable && (
                                             <button onClick={(e) => { e.stopPropagation(); toggleItemSkipApproval(item); }} data-testid={`btn-skip-sponsor-${item.id}`} style={{ background: 'none', border: 'none', fontSize: 10, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline', alignSelf: 'center' }}>
                                               sem pat.
+                                            </button>
+                                          )}
+                                          {isEditable && (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }); }}
+                                              data-testid={`btn-reuse-${item.id}`}
+                                              title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
+                                              style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: 4, padding: '2px 5px', fontSize: 10, fontWeight: 700, color: item.isReuse ? '#065f46' : '#a8a29e', cursor: 'pointer', transition: 'all 0.12s', alignSelf: 'center' }}
+                                              onMouseEnter={e => { if (!item.isReuse) e.currentTarget.style.color = '#065f46'; }}
+                                              onMouseLeave={e => { if (!item.isReuse) e.currentTarget.style.color = '#a8a29e'; }}
+                                            >
+                                              <RotateCcw style={{ width: 9, height: 9 }} />
+                                              reaprov.
                                             </button>
                                           )}
                                         </div>

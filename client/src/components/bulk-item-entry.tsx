@@ -787,6 +787,17 @@ export function BulkItemEntry({
                               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                {item.isReuse && (
+                                  <span style={{
+                                    fontSize: '8px', fontWeight: '800', backgroundColor: '#059669',
+                                    color: '#ffffff', borderRadius: '3px', padding: '1px 6px',
+                                    textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
+                                    fontFamily: "'Space Grotesk', sans-serif",
+                                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                                  }}>
+                                    <RotateCcw size={8} /> Reaproveit.
+                                  </span>
+                                )}
                                 {isDup && (
                                   <span style={{
                                     fontSize: '8px', fontWeight: '800', backgroundColor: '#fde68a',

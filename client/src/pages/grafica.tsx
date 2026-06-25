@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 import { cn, parseDateLocal } from "@/lib/utils";
 import {
@@ -595,8 +595,15 @@ export default function Grafica() {
                             <Eye style={{ width: 15, height: 15 }} />
                           </button>
 
-                          {/* Iniciar / Continuar Produção */}
-                          {!isDelivered(item) && !isProduced(item) && (
+                          {/* Badge de reaproveitamento */}
+                          {item.isReuse && !isDelivered(item) && (
+                            <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#065f46", backgroundColor: "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 4, padding: "2px 6px", display: "inline-flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
+                              <RotateCcw style={{ width: 9, height: 9 }} /> Reaproveit.
+                            </span>
+                          )}
+
+                          {/* Iniciar / Continuar Produção — oculto para reaproveitamento */}
+                          {!isDelivered(item) && !isProduced(item) && !item.isReuse && (
                             <button
                               onClick={() => openProductionModal(item)}
                               title={isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
@@ -610,27 +617,27 @@ export default function Grafica() {
                             </button>
                           )}
 
-                          {/* Marcar Entrega — ativo só quando produzido, cinza quando não */}
+                          {/* Marcar Entrega — reaproveitamento: sempre ativo; normal: só quando produzido */}
                           {!isDelivered(item) && (
                             <button
-                              onClick={() => isProduced(item) ? openDeliveryModal(item) : undefined}
-                              title={isProduced(item) ? "Marcar Entrega" : "Produza todos os itens antes de entregar"}
+                              onClick={() => (item.isReuse || isProduced(item)) ? openDeliveryModal(item) : undefined}
+                              title={item.isReuse ? "Confirmar reaproveitamento" : isProduced(item) ? "Marcar Entrega" : "Produza todos os itens antes de entregar"}
                               data-testid={`button-deliver-${item.id}`}
-                              disabled={!isProduced(item)}
+                              disabled={!item.isReuse && !isProduced(item)}
                               style={{
-                                backgroundColor: isProduced(item) ? TI.accent : "#e7e5e4",
-                                color: isProduced(item) ? "#ffffff" : "#a8a29e",
+                                backgroundColor: (item.isReuse || isProduced(item)) ? (item.isReuse ? "#059669" : TI.accent) : "#e7e5e4",
+                                color: (item.isReuse || isProduced(item)) ? "#ffffff" : "#a8a29e",
                                 border: "none", borderRadius: 6, height: 30, padding: "0 12px",
                                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                                cursor: isProduced(item) ? "pointer" : "not-allowed",
+                                cursor: (item.isReuse || isProduced(item)) ? "pointer" : "not-allowed",
                                 display: "flex", alignItems: "center", gap: 4,
                                 transition: "background-color 0.15s",
                               }}
-                              onMouseEnter={e => { if (isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accentDark; }}
-                              onMouseLeave={e => { if (isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent; }}
+                              onMouseEnter={e => { if (item.isReuse || isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = item.isReuse ? "#047857" : TI.accentDark; }}
+                              onMouseLeave={e => { if (item.isReuse || isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = item.isReuse ? "#059669" : TI.accent; }}
                             >
                               <Truck style={{ width: 11, height: 11 }} />
-                              Entregar
+                              {item.isReuse ? "Confirmar" : "Entregar"}
                             </button>
                           )}
 

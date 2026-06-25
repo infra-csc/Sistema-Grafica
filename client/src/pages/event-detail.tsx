@@ -88,6 +88,7 @@ export default function EventDetail() {
     observations: "",
     sponsorId: "",
     skipApproval: false,
+    isReuse: false,
     referenceUrl: "",
   });
 
@@ -214,6 +215,7 @@ export default function EventDetail() {
         calculatedM2,
         measurement: data.measurement || `${fileWidth} × ${fileHeight}`,
         skipApproval: data.skipApproval || false,
+        isReuse: data.isReuse || false,
       };
       
       // Remover campos que não devem ir para o backend
@@ -559,6 +561,7 @@ export default function EventDetail() {
       observations: item.observations || "",
       sponsorId: item.sponsorId || "",
       skipApproval: item.skipApproval || false,
+      isReuse: item.isReuse || false,
       referenceUrl: item.referenceUrl || "",
     });
     setEditDialogOpen(true);
@@ -586,6 +589,7 @@ export default function EventDetail() {
       observations: "",
       sponsorId: "",
       skipApproval: false,
+      isReuse: false,
       referenceUrl: "",
     });
     setOpen(false);
@@ -2032,6 +2036,36 @@ export default function EventDetail() {
                   style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", resize: "none", fontFamily: "inherit", transition: "box-shadow 0.15s" }}
                   onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                   onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
+                />
+              </div>
+
+              {/* Reaproveitamento */}
+              <div
+                data-testid="toggle-is-reuse"
+                onClick={() => setFormData({ ...formData, isReuse: !formData.isReuse })}
+                style={{
+                  backgroundColor: formData.isReuse ? "#ecfdf5" : "#f9fafb",
+                  border: `1px solid ${formData.isReuse ? "#6ee7b7" : "#e5e7eb"}`,
+                  padding: "14px 16px", borderRadius: "8px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+                  cursor: "pointer", transition: "all 0.15s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={formData.isReuse ? "#059669" : "#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                  </svg>
+                  <div>
+                    <p style={{ fontSize: "14px", fontWeight: 600, color: formData.isReuse ? "#065f46" : "#374151", margin: 0 }}>Reaproveitamento</p>
+                    <p style={{ fontSize: "11px", color: formData.isReuse ? "#059669" : "#9ca3af", margin: 0 }}>Peça será reaproveitada — gráfica entrega direto sem produzir</p>
+                  </div>
+                </div>
+                <Checkbox
+                  checked={formData.isReuse}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isReuse: !!checked })}
+                  data-testid="checkbox-is-reuse"
+                  style={{ width: "20px", height: "20px", accentColor: "#059669", pointerEvents: "none" }}
                 />
               </div>
 

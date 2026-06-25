@@ -94,6 +94,7 @@ export const items = pgTable("items", {
   receivedBy: text("received_by"),
   deliveryPhotoUrl: text("delivery_photo_url"),
   skipApproval: boolean("skip_approval").notNull().default(false), // Se true, pula fase de aprovação de patrocinador
+  isReuse: boolean("is_reuse").notNull().default(false), // Se true, peça é reaproveitamento (não precisa de produção)
   approvalThumbUrl: text("approval_thumb_url"), // Thumb/link leve para aprovação
   hasModifiedData: boolean("has_modified_data").notNull().default(false), // Flag: tem dados modificados para notificar Arte
   finalFileUrl: text("final_file_url"), // Link do arquivo final (Drive, S3, etc)

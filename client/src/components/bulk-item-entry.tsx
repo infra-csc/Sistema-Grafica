@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react";
-import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X } from "lucide-react";
+import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 
 const materials = ["Adesivo", "Lona", "Sanett", "Tecido", "Tecido Pet"];
@@ -23,6 +23,7 @@ interface BulkItemRow {
   observations: string;
   calculatedM2: number;
   sponsorId: string;
+  isReuse: boolean;
 }
 
 interface StandardItem {
@@ -225,7 +226,7 @@ function createEmptyRow(): BulkItemRow {
     type: "", description: "", quantity: "1",
     visualWidth: "", visualHeight: "", fileWidth: "", fileHeight: "",
     material: "", finish: "", measurement: "", observations: "",
-    calculatedM2: 0, sponsorId: "",
+    calculatedM2: 0, sponsorId: "", isReuse: false,
   };
 }
 
@@ -566,6 +567,7 @@ export function BulkItemEntry({
         material: r.material, finish: r.finish,
         measurement: r.measurement || `${r.fileWidth} × ${r.fileHeight}`,
         observations: r.observations || "", calculatedM2: r.calculatedM2,
+        isReuse: r.isReuse || false,
       }));
     if (valid.length === 0) {
       alert("Preencha pelo menos uma peça completa antes de salvar.");
@@ -1195,6 +1197,17 @@ export function BulkItemEntry({
                         data-testid={`button-duplicate-${ri}`}
                       >
                         <Copy size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRows(prev => prev.map(r => r.id === row.id ? { ...r, isReuse: !r.isReuse } : r))}
+                        title={row.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
+                        style={{ background: row.isReuse ? '#dcfce7' : 'none', border: row.isReuse ? '1px solid #86efac' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '4px', color: row.isReuse ? '#15803d' : '#c4bfbb', lineHeight: 0, transition: 'all 0.12s' }}
+                        onMouseEnter={e => { if (!row.isReuse) e.currentTarget.style.color = '#15803d'; }}
+                        onMouseLeave={e => { if (!row.isReuse) e.currentTarget.style.color = '#c4bfbb'; }}
+                        data-testid={`button-reuse-${ri}`}
+                      >
+                        <RotateCcw size={13} />
                       </button>
                       <button
                         type="button"

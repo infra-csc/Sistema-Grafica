@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2, Paperclip } from "lucide-react";
+import { FilePreview } from "@/components/file-preview";
 import { parseDateLocal } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -684,16 +685,8 @@ export default function Solicitacao() {
               <div style={{ flex: 1, padding: 20, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
                 {/* Art preview */}
                 <div style={{ aspectRatio: "1/1", width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {selectedItem?.approvalThumbUrl && /\.(png|jpg|jpeg|gif|webp)/i.test(selectedItem.approvalThumbUrl) ? (
-                    <img src={selectedItem.approvalThumbUrl} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                  ) : selectedItem?.approvalThumbUrl ? (
-                    <div style={{ textAlign: "center", padding: 24 }}>
-                      <FileText style={{ width: 40, height: 40, color: "#a8a29e", margin: "0 auto 8px" }} />
-                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: 12, color: "#f97316", fontWeight: 600, textDecoration: "none" }}>
-                        Abrir PDF de Aprovação
-                      </a>
-                    </div>
+                  {selectedItem?.approvalThumbUrl ? (
+                    <FilePreview url={selectedItem.approvalThumbUrl} objectFit="contain" />
                   ) : (
                     <div style={{ textAlign: "center", color: "#a8a29e" }}>
                       <FileImage style={{ width: 40, height: 40, margin: "0 auto 8px" }} />

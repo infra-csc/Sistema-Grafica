@@ -361,7 +361,7 @@ export default function VincularPatrocinadores() {
     const entries = Object.entries(itemsByEvent);
     
     return entries.filter(([eventId, eventItems]) => {
-      const event = events.find(e => e.id === eventId);
+      const event = rawEvents.find(e => e.id === eventId);
       if (!event) return false;
 
       // Filtro por evento específico

@@ -1672,8 +1672,27 @@ export default function Atendimento() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                           {itemLogs.slice(0, 10).map((log, i) => {
                             const isFirst = i === 0;
-                            const isApproval = log.action?.includes('approv') || log.action?.includes('approv');
-                            const isRejection = log.action?.includes('reject') || log.action?.includes('reprova');
+                            const isApproval = log.action?.includes('approv') || log.action?.includes('aprova');
+                            const isRejection = log.action?.includes('reject') || log.action?.includes('reprova') || log.action?.includes('canceled');
+                            const ACTION_LABELS: Record<string, string> = {
+                              created: 'Criado',
+                              updated: 'Atualizado',
+                              deleted: 'Excluído',
+                              approved: 'Aprovado',
+                              rejected: 'Reprovado',
+                              canceled: 'Cancelado',
+                              delivered: 'Entregue',
+                              produced: 'Produzido',
+                              submitted: 'Enviado',
+                              linked: 'Vinculado',
+                              released: 'Liberado',
+                              status_changed: 'Status alterado',
+                              sponsor_approved: 'Patrocinador aprovado',
+                              sponsor_rejected: 'Patrocinador reprovou',
+                              file_uploaded: 'Arquivo enviado',
+                              thumb_uploaded: 'Thumb enviado',
+                            };
+                            const actionLabel = ACTION_LABELS[log.action] ?? log.action?.replace(/_/g, ' ') ?? 'Ação';
                             return (
                               <div key={log.id} style={{ paddingLeft: 32, position: 'relative', opacity: i > 3 ? 0.5 : 1 }}>
                                 <div style={{
@@ -1691,9 +1710,10 @@ export default function Atendimento() {
                                     : <Clock style={{ width: 10, height: 10, color: '#a8a29e' }} />}
                                 </div>
                                 <p style={{ fontSize: 11, fontWeight: 700, color: '#1c1917', margin: 0 }}>
-                                  {log.action?.replace(/_/g, ' ') || 'Ação'}
+                                  {actionLabel}
                                 </p>
                                 <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0' }}>
+                                  {log.userName && <><span style={{ fontWeight: 600, color: '#78716c' }}>{log.userName}</span> · </>}
                                   {format(new Date(log.createdAt), "dd MMM, yyyy 'às' HH:mm", { locale: ptBR })}
                                 </p>
                                 {log.details && (

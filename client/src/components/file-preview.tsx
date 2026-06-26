@@ -45,13 +45,21 @@ export function FilePreview({ url, style, objectFit = "contain" }: FilePreviewPr
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        style={{ display: "block", width: "100%", height: "100%" }}
-        title="Clique para ampliar"
+        style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}
+        title="Clique para ver em resolução máxima"
       >
         <img
           src={url}
           alt="Preview"
-          style={{ width: "100%", height: "100%", objectFit, display: "block" }}
+          style={{
+            maxWidth: "100%",
+            maxHeight: "100%",
+            width: "auto",
+            height: "auto",
+            objectFit,
+            display: "block",
+            imageRendering: "auto",
+          }}
           onError={(e) => {
             const anchor = e.currentTarget.parentElement as HTMLAnchorElement;
             if (anchor) {

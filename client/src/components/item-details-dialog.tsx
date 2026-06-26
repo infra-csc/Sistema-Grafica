@@ -93,8 +93,9 @@ export function ItemDetailsDialog({
     return `${dt.getDate().toString().padStart(2,"0")}/${(dt.getMonth()+1).toString().padStart(2,"0")} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
   };
 
-  const getLog = (keywords: string[], pool = itemLogs) => {
+  const getLog = (keywords: string[], pool = itemLogs, actionType?: string) => {
     const l = pool.find((log: any) => {
+      if (actionType && log.action === actionType) return true;
       const d = (log.details || log.action || "").toLowerCase();
       return keywords.some(k => d.includes(k.toLowerCase()));
     });
@@ -104,12 +105,18 @@ export function ItemDetailsDialog({
     return { date: fmtShort(ts), user: name };
   };
 
+  const createdLog = itemLogs.find((l: any) => l.action === "created");
+
   const historyStages = [
-    { label: "Vinculação iniciada",            keywords: ["patrocinadores atualizados"], pool: itemLogs },
+    { label: "Criado / Solicitado",            keywords: ["criado"],                    pool: itemLogs,          actionType: "created" },
+    { label: "Vinculação de patrocinador",      keywords: ["patrocinadores atualizados"], pool: itemLogs },
     { label: "Enviado para Arte",               keywords: ["enviado","para arte"],       pool: itemLogsInclusive },
     { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogs },
     { label: "Aprovado — Finalização",          keywords: ["todos os patrocinadores aprovaram","aguardando finaliz","aprovado pelo patrocinador"], pool: itemLogs },
     { label: "Aguardando revisão final",        keywords: ["arquivo final adicionado","aguardando revisão final"], pool: itemLogs },
+    { label: "Liberado para Produção",          keywords: ["liberado para produção","pronto_para_producao","liberado"],      pool: itemLogs },
+    { label: "Em Produção",                     keywords: ["em_producao","em produção","produção iniciada","iniciada"],      pool: itemLogs },
+    { label: "Produzido",                       keywords: ["produzido"],                pool: itemLogs },
   ];
 
   const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
@@ -122,9 +129,12 @@ export function ItemDetailsDialog({
 
   const hasDeliveryPhoto = !!item.deliveryPhotoUrl;
   const hasObservations  = !!item.observations;
-  const hasTimestamps    = !!(item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt);
+  const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt);
+
+  const createdBy = createdLog?.userName ?? createdLog?.user_name ?? null;
 
   const traceRows = [
+    { label: "Solicitado / Criado",        value: item.createdAt,          by: createdBy,              dot: "#2563eb" },
     { label: "Aprovado pelo Patrocinador", value: item.sponsorApprovedAt,  by: item.sponsorApprovedBy, dot: "#7c3aed" },
     { label: "Revisado pelo Criador",      value: item.creatorReviewedAt,  by: null,                   dot: "#d946ef" },
     { label: "Liberado para Produção",     value: item.approvedAt,         by: null,                   dot: "#f97316" },
@@ -746,7 +756,7 @@ export function ItemDetailsDialog({
                   <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 1, backgroundColor: "#e8e8e7" }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     {historyStages.map((stage, idx) => {
-                      const logEntry = getLog(stage.keywords, stage.pool);
+                      const logEntry = getLog(stage.keywords, stage.pool, (stage as any).actionType);
                       return (
                         <div key={idx} style={{ position: "relative" }}>
                           <div style={{

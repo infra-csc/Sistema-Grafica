@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 import { cn, parseDateLocal } from "@/lib/utils";
 import {
@@ -615,27 +615,68 @@ export default function Grafica() {
                             </button>
                           )}
 
-                          {/* Marcar Entrega — reaproveitamento: sempre ativo; normal: só quando produzido */}
-                          {!isDelivered(item) && (
+                          {/* Reaproveitamento não produzido: CONFIRMAR → produzido */}
+                          {!isDelivered(item) && item.isReuse && !isProduced(item) && (
                             <button
-                              onClick={() => (item.isReuse || isProduced(item)) ? openDeliveryModal(item) : undefined}
-                              title={item.isReuse ? "Confirmar reaproveitamento" : isProduced(item) ? "Marcar Entrega" : "Produza todos os itens antes de entregar"}
-                              data-testid={`button-deliver-${item.id}`}
-                              disabled={!item.isReuse && !isProduced(item)}
+                              onClick={() => startProductionMutation.mutate({ itemId: item.id, data: { quantityProduced: item.quantity } })}
+                              title="Confirmar reaproveitamento — marcar como produzido"
+                              data-testid={`button-confirm-reuse-${item.id}`}
+                              disabled={startProductionMutation.isPending}
                               style={{
-                                backgroundColor: (item.isReuse || isProduced(item)) ? (item.isReuse ? "#059669" : TI.accent) : "#e7e5e4",
-                                color: (item.isReuse || isProduced(item)) ? "#ffffff" : "#a8a29e",
+                                backgroundColor: "#059669", color: "#ffffff",
                                 border: "none", borderRadius: 6, height: 30, padding: "0 12px",
                                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                                cursor: (item.isReuse || isProduced(item)) ? "pointer" : "not-allowed",
+                                cursor: startProductionMutation.isPending ? "not-allowed" : "pointer",
                                 display: "flex", alignItems: "center", gap: 4,
                                 transition: "background-color 0.15s",
                               }}
-                              onMouseEnter={e => { if (item.isReuse || isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = item.isReuse ? "#047857" : TI.accentDark; }}
-                              onMouseLeave={e => { if (item.isReuse || isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = item.isReuse ? "#059669" : TI.accent; }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#047857"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#059669"; }}
+                            >
+                              <Recycle style={{ width: 11, height: 11 }} />
+                              Confirmar
+                            </button>
+                          )}
+
+                          {/* Marcar Entrega — reaproveitamento produzido ou item normal produzido */}
+                          {!isDelivered(item) && (isProduced(item) || (!item.isReuse && false)) && (
+                            <button
+                              onClick={() => isProduced(item) ? openDeliveryModal(item) : undefined}
+                              title={isProduced(item) ? "Marcar Entrega" : "Produza todos os itens antes de entregar"}
+                              data-testid={`button-deliver-${item.id}`}
+                              disabled={!isProduced(item)}
+                              style={{
+                                backgroundColor: isProduced(item) ? TI.accent : "#e7e5e4",
+                                color: isProduced(item) ? "#ffffff" : "#a8a29e",
+                                border: "none", borderRadius: 6, height: 30, padding: "0 12px",
+                                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                                cursor: isProduced(item) ? "pointer" : "not-allowed",
+                                display: "flex", alignItems: "center", gap: 4,
+                                transition: "background-color 0.15s",
+                              }}
+                              onMouseEnter={e => { if (isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accentDark; }}
+                              onMouseLeave={e => { if (isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent; }}
                             >
                               <Truck style={{ width: 11, height: 11 }} />
-                              {item.isReuse ? "Confirmar" : "Entregar"}
+                              Entregar
+                            </button>
+                          )}
+
+                          {/* Non-reuse: Entregar — só quando produzido */}
+                          {!isDelivered(item) && !item.isReuse && !isProduced(item) && (
+                            <button
+                              disabled
+                              title="Produza todos os itens antes de entregar"
+                              data-testid={`button-deliver-${item.id}`}
+                              style={{
+                                backgroundColor: "#e7e5e4", color: "#a8a29e",
+                                border: "none", borderRadius: 6, height: 30, padding: "0 12px",
+                                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                                cursor: "not-allowed", display: "flex", alignItems: "center", gap: 4,
+                              }}
+                            >
+                              <Truck style={{ width: 11, height: 11 }} />
+                              Entregar
                             </button>
                           )}
 

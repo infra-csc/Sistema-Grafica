@@ -1492,21 +1492,34 @@ export default function Atendimento() {
                       border: '1px solid #e7e5e4', position: 'relative',
                     }}>
                       {thumbUrl ? (
-                        !/\.(png|jpg|jpeg|gif|webp)$/i.test(thumbUrl) ? (
-                          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-                            <FileText style={{ width: 40, height: 40, color: '#a8a29e' }} />
-                            <p style={{ fontSize: 13, color: '#78716c', margin: 0 }}>Visualização não disponível</p>
-                            <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{
-                              backgroundColor: '#1c1917', color: '#ffffff',
-                              padding: '8px 16px', borderRadius: 8,
-                              fontSize: 12, fontWeight: 700, textDecoration: 'none',
-                            }}>
-                              Abrir arquivo
+                        (() => {
+                          const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(thumbUrl) || thumbUrl.startsWith('/objects/') || thumbUrl.startsWith('http');
+                          return isImage ? (
+                            <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', width: '100%', height: '100%' }} title="Clique para ampliar">
+                              <img
+                                src={thumbUrl}
+                                alt="Thumb de aprovação"
+                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                onError={e => {
+                                  const parent = e.currentTarget.parentElement?.parentElement;
+                                  if (parent) parent.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px"><a href="${thumbUrl}" target="_blank" style="background:#1c1917;color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none">Abrir arquivo</a></div>`;
+                                }}
+                              />
                             </a>
-                          </div>
-                        ) : (
-                          <img src={thumbUrl} alt="Thumb de aprovação" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        )
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                              <FileText style={{ width: 40, height: 40, color: '#a8a29e' }} />
+                              <p style={{ fontSize: 13, color: '#78716c', margin: 0 }}>Visualização não disponível</p>
+                              <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{
+                                backgroundColor: '#1c1917', color: '#ffffff',
+                                padding: '8px 16px', borderRadius: 8,
+                                fontSize: 12, fontWeight: 700, textDecoration: 'none',
+                              }}>
+                                Abrir arquivo
+                              </a>
+                            </div>
+                          );
+                        })()
                       ) : (
                         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                           <Package style={{ width: 40, height: 40, color: '#a8a29e' }} />

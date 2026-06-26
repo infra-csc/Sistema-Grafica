@@ -550,6 +550,11 @@ export default function PainelGeral() {
                                         <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
                                           {item.displayId}
                                         </span>
+                                        {item.isReuse && (
+                                          <span style={{ display: "inline-block", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", width: "fit-content" }}>
+                                            Reaproveit.
+                                          </span>
+                                        )}
                                         {item.referenceUrl && (
                                           <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 3, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
                                             <Paperclip style={{ width: 9, height: 9 }} />

@@ -186,6 +186,13 @@ export function ItemDetailsDialog({
                 }}>
                   {STATUS_LABELS[rawStatus] || rawStatus}
                 </span>
+                {item.isReuse && (
+                  <span style={{
+                    padding: "4px 12px", borderRadius: 999,
+                    backgroundColor: "#166534", color: "#dcfce7",
+                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                  }}>Reaproveitamento</span>
+                )}
                 {item.rejectedBySponsor && (
                   <span style={{
                     padding: "4px 12px", borderRadius: 999,

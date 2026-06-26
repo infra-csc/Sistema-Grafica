@@ -1145,9 +1145,16 @@ export default function Atendimento() {
 
                             {/* Col 1: Título e ID */}
                             <div>
-                              <h5 style={{ fontSize: 14, fontWeight: 700, color: isFullyApproved ? '#78716c' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {item.type}
-                              </h5>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <h5 style={{ fontSize: 14, fontWeight: 700, color: isFullyApproved ? '#78716c' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {item.type}
+                                </h5>
+                                {item.isReuse && (
+                                  <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', backgroundColor: '#dcfce7', color: '#166534', borderRadius: 999, padding: '2px 7px', flexShrink: 0 }}>
+                                    Reaproveit.
+                                  </span>
+                                )}
+                              </div>
                               <p style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', margin: '3px 0 0', letterSpacing: '0.05em' }}>
                                 {item.displayId}{item.description ? ` • ${item.description}` : ''}
                               </p>

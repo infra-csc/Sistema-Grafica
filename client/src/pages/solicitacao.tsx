@@ -781,9 +781,16 @@ export default function Solicitacao() {
               {/* Right header */}
               <div style={{ padding: "20px 24px", borderBottom: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
                 <div>
-                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", letterSpacing: "-0.03em", color: TI.text, margin: 0 }}>
-                    Decisão de Revisão
-                  </h2>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", letterSpacing: "-0.03em", color: TI.text, margin: 0 }}>
+                      Decisão de Revisão
+                    </h2>
+                    {selectedItem?.isReuse && (
+                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
+                        Reaproveitamento
+                      </span>
+                    )}
+                  </div>
                   <p style={{ fontSize: 13, color: TI.secondary, margin: "4px 0 0" }}>
                     {selectedItem?.displayId && `ID: ${selectedItem.displayId}`}
                     {selectedItem?.type && ` | ${selectedItem.type}`}
@@ -801,6 +808,19 @@ export default function Solicitacao() {
 
               {/* Right body */}
               <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", display: "flex", flexDirection: "column", gap: 28 }}>
+
+                {/* Reuse banner */}
+                {selectedItem?.isReuse && (
+                  <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <Recycle style={{ width: 18, height: 18, color: "#15803d", flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 800, color: "#166534", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>Peça para Reaproveitamento</p>
+                      <p style={{ fontSize: 11, color: "#166534", margin: "3px 0 0", opacity: 0.8 }}>
+                        Esta peça não será enviada para nova produção gráfica. Verifique o arquivo de arte e libere normalmente.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Action card (dark) */}
                 <div style={{ backgroundColor: "#0c0a09", padding: 28, borderRadius: 12, display: "flex", flexDirection: "column", gap: 20 }}>

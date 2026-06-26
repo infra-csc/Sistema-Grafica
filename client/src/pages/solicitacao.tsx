@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2, Paperclip } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle } from "lucide-react";
 import { FilePreview } from "@/components/file-preview";
 import { parseDateLocal } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -116,6 +116,19 @@ export default function Solicitacao() {
       toast({ title: "Peça excluída", description: "A peça foi removida com sucesso." });
     },
     onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
+  });
+
+  const toggleReuseMutation = useMutation({
+    mutationFn: async ({ itemId, isReuse }: { itemId: string; isReuse: boolean }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse }),
+    onSuccess: (_, { isReuse }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      toast({
+        title: isReuse ? "Marcado para reaproveitamento" : "Marcação removida",
+        description: isReuse ? "A peça será reaproveitada, sem nova produção." : "A peça voltará ao fluxo normal.",
+      });
+    },
+    onError: (error: any) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
   const pendingItems = useMemo(() => items.filter(item => item.status === "awaiting_final_review"), [items]);
@@ -551,9 +564,16 @@ export default function Solicitacao() {
 
                             {/* Tipo */}
                             <td style={{ padding: "14px 16px" }}>
-                              <span style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", color: TI.text, letterSpacing: "0.02em" }}>
-                                {item.type}
-                              </span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", color: TI.text, letterSpacing: "0.02em" }}>
+                                  {item.type}
+                                </span>
+                                {item.isReuse && (
+                                  <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px" }}>
+                                    Reaproveit.
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Descrição */}
@@ -608,6 +628,34 @@ export default function Solicitacao() {
                                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1c1917")}
                                 >
                                   Revisar
+                                </button>
+                                <button
+                                  onClick={() => toggleReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse })}
+                                  data-testid={`button-reuse-${item.id}`}
+                                  title={item.isReuse ? "Remover marcação de reaproveitamento" : "Marcar para reaproveitamento"}
+                                  style={{
+                                    background: item.isReuse ? "#dcfce7" : "none",
+                                    border: item.isReuse ? "1px solid #86efac" : "1px solid transparent",
+                                    cursor: "pointer",
+                                    color: item.isReuse ? "#15803d" : "#a8a29e",
+                                    padding: "4px 6px",
+                                    display: "flex", alignItems: "center",
+                                    borderRadius: 4, transition: "all 0.15s",
+                                  }}
+                                  onMouseEnter={e => {
+                                    if (!item.isReuse) {
+                                      (e.currentTarget as HTMLButtonElement).style.color = "#15803d";
+                                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f0fdf4";
+                                    }
+                                  }}
+                                  onMouseLeave={e => {
+                                    if (!item.isReuse) {
+                                      (e.currentTarget as HTMLButtonElement).style.color = "#a8a29e";
+                                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+                                    }
+                                  }}
+                                >
+                                  <Recycle style={{ width: 15, height: 15 }} />
                                 </button>
                                 <button
                                   onClick={() => setDeleteConfirmItemId(item.id)}

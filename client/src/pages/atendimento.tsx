@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft } from "lucide-react";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { FilePreview } from "@/components/file-preview";
 import { Badge } from "@/components/ui/badge";
@@ -1678,46 +1678,38 @@ export default function Atendimento() {
                         }} />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                           {itemLogs.slice(0, 10).map((log, i) => {
-                            const isFirst = i === 0;
-                            const isApproval = log.action?.includes('approv') || log.action?.includes('aprova');
-                            const isRejection = log.action?.includes('reject') || log.action?.includes('reprova') || log.action?.includes('canceled');
-                            const ACTION_LABELS: Record<string, string> = {
-                              created: 'Criado',
-                              updated: 'Atualizado',
-                              deleted: 'Excluído',
-                              approved: 'Aprovado',
-                              rejected: 'Reprovado',
-                              canceled: 'Cancelado',
-                              delivered: 'Entregue',
-                              produced: 'Produzido',
-                              submitted: 'Enviado',
-                              linked: 'Vinculado',
-                              released: 'Liberado',
-                              status_changed: 'Status alterado',
-                              sponsor_approved: 'Patrocinador aprovado',
-                              sponsor_rejected: 'Patrocinador reprovou',
-                              file_uploaded: 'Arquivo enviado',
-                              thumb_uploaded: 'Thumb enviado',
+                            const ACTION_CONFIG: Record<string, { label: string; bg: string; iconColor: string; icon: any }> = {
+                              created:          { label: 'Criado',                bg: '#dbeafe', iconColor: '#1d4ed8', icon: Plus },
+                              updated:          { label: 'Atualizado',            bg: '#ffedd5', iconColor: '#c2410c', icon: Pencil },
+                              deleted:          { label: 'Excluído',              bg: '#fee2e2', iconColor: '#dc2626', icon: Trash2 },
+                              approved:         { label: 'Aprovado',              bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
+                              rejected:         { label: 'Reprovado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
+                              canceled:         { label: 'Cancelado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
+                              delivered:        { label: 'Entregue',              bg: '#ede9fe', iconColor: '#7c3aed', icon: Truck },
+                              produced:         { label: 'Produzido',             bg: '#e0e7ff', iconColor: '#4338ca', icon: Cog },
+                              submitted:        { label: 'Enviado',               bg: '#cffafe', iconColor: '#0e7490', icon: Send },
+                              linked:           { label: 'Vinculado',             bg: '#ccfbf1', iconColor: '#0f766e', icon: Link2 },
+                              released:         { label: 'Liberado',              bg: '#dbeafe', iconColor: '#1d4ed8', icon: Unlock },
+                              status_changed:   { label: 'Status alterado',       bg: '#ffedd5', iconColor: '#c2410c', icon: ArrowRightLeft },
+                              sponsor_approved: { label: 'Patrocinador aprovado', bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
+                              sponsor_rejected: { label: 'Patrocinador reprovou', bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
+                              file_uploaded:    { label: 'Arquivo enviado',       bg: '#f3e8ff', iconColor: '#7e22ce', icon: Upload },
+                              thumb_uploaded:   { label: 'Thumb enviado',         bg: '#f3e8ff', iconColor: '#7e22ce', icon: ImageIcon },
                             };
-                            const actionLabel = ACTION_LABELS[log.action] ?? log.action?.replace(/_/g, ' ') ?? 'Ação';
+                            const cfg = ACTION_CONFIG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? 'Ação', bg: '#e7e5e4', iconColor: '#a8a29e', icon: Clock };
+                            const IconComp = cfg.icon;
                             return (
                               <div key={log.id} style={{ paddingLeft: 32, position: 'relative', opacity: i > 3 ? 0.5 : 1 }}>
                                 <div style={{
                                   position: 'absolute', left: 0, top: 2,
                                   width: 20, height: 20, borderRadius: '50%',
-                                  backgroundColor: isFirst ? '#0c0a09' : isApproval ? '#86efac' : isRejection ? '#fecaca' : '#e7e5e4',
+                                  backgroundColor: cfg.bg,
                                   display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1,
                                 }}>
-                                  {isFirst
-                                    ? <FileText style={{ width: 10, height: 10, color: '#ffffff' }} />
-                                    : isApproval
-                                    ? <CheckCircle style={{ width: 10, height: 10, color: '#15803d' }} />
-                                    : isRejection
-                                    ? <XCircle style={{ width: 10, height: 10, color: '#dc2626' }} />
-                                    : <Clock style={{ width: 10, height: 10, color: '#a8a29e' }} />}
+                                  <IconComp style={{ width: 10, height: 10, color: cfg.iconColor }} />
                                 </div>
-                                <p style={{ fontSize: 11, fontWeight: 700, color: '#1c1917', margin: 0 }}>
-                                  {actionLabel}
+                                <p style={{ fontSize: 11, fontWeight: 700, color: cfg.iconColor, margin: 0 }}>
+                                  {cfg.label}
                                 </p>
                                 <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0' }}>
                                   {log.userName && <><span style={{ fontWeight: 600, color: '#78716c' }}>{log.userName}</span> · </>}
@@ -1726,7 +1718,7 @@ export default function Atendimento() {
                                 {log.details && (
                                   <p style={{
                                     fontSize: 10, margin: '6px 0 0',
-                                    backgroundColor: '#ffffff', border: '1px solid #f1f0ef',
+                                    backgroundColor: '#ffffff', border: `1px solid ${cfg.bg}`,
                                     padding: '6px 10px', borderRadius: 6,
                                     color: '#57534e', fontStyle: 'italic',
                                   }}>

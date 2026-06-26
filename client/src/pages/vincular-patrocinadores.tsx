@@ -248,17 +248,21 @@ export default function VincularPatrocinadores() {
       'delivered'
     ];
     
+    const pendingStatuses = ['requested', 'awaiting_linking'];
+
     return items.filter(item => {
-      // Filtro 1: Evento futuro
+      // Filtro 1: Status permitido (exclui draft)
+      if (!allowedStatuses.includes(item.status)) return false;
+
       const event = rawEvents.find(e => e.id === item.eventId);
       if (!event) return false;
+
+      // Itens com trabalho pendente aparecem sempre (independente da data do evento)
+      if (pendingStatuses.includes(item.status)) return true;
+
+      // Demais status: só mostrar se evento for futuro ou hoje
       const eventStartDate = startOfDay(parseDateLocal(event.startDate));
-      const isFutureEvent = isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
-      
-      // Filtro 2: Status permitido (exclui draft)
-      const hasValidStatus = allowedStatuses.includes(item.status);
-      
-      return isFutureEvent && hasValidStatus;
+      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
     });
   }, [items, rawEvents]);
   

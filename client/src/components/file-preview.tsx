@@ -1,5 +1,6 @@
 interface FilePreviewProps {
   url: string;
+  linkUrl?: string;
   style?: React.CSSProperties;
   objectFit?: "contain" | "cover";
 }
@@ -16,7 +17,7 @@ export function isImageUrl(url: string): boolean {
   );
 }
 
-export function FilePreview({ url, style, objectFit = "contain" }: FilePreviewProps) {
+export function FilePreview({ url, linkUrl, style, objectFit = "contain" }: FilePreviewProps) {
   const containerStyle: React.CSSProperties = {
     width: "100%",
     height: "100%",
@@ -42,7 +43,7 @@ export function FilePreview({ url, style, objectFit = "contain" }: FilePreviewPr
   if (isImageUrl(url)) {
     return (
       <a
-        href={url}
+        href={linkUrl || url}
         target="_blank"
         rel="noopener noreferrer"
         style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}

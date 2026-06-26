@@ -1500,7 +1500,7 @@ export default function Atendimento() {
                       border: '1px solid #e7e5e4', position: 'relative',
                     }}>
                       {thumbUrl ? (
-                        <FilePreview url={thumbUrl} objectFit="contain" />
+                        <FilePreview url={thumbUrl} linkUrl={finalUrl || thumbUrl} objectFit="contain" />
                       ) : (
                         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                           <Package style={{ width: 40, height: 40, color: '#a8a29e' }} />

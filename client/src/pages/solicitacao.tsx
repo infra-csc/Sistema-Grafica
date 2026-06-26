@@ -734,7 +734,7 @@ export default function Solicitacao() {
                 {/* Art preview */}
                 <div style={{ aspectRatio: "1/1", width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {selectedItem?.approvalThumbUrl ? (
-                    <FilePreview url={selectedItem.approvalThumbUrl} objectFit="contain" />
+                    <FilePreview url={selectedItem.approvalThumbUrl} linkUrl={selectedItem.finalFileUrl || selectedItem.approvalThumbUrl} objectFit="contain" />
                   ) : (
                     <div style={{ textAlign: "center", color: "#a8a29e" }}>
                       <FileImage style={{ width: 40, height: 40, margin: "0 auto 8px" }} />

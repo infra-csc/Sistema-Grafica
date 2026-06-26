@@ -1378,11 +1378,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Item not found" });
       }
       
-      // Create audit log - check if status changed (compare actual persisted status)
-      let auditDetails = `Item "${item.type}" atualizado`;
+      // Create audit log - build descriptive diff of changed fields
+      const changedParts: string[] = [];
+
       if (item.status !== currentItem.status) {
-        auditDetails = `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}`;
+        changedParts.push(`Status: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}`);
       }
+      if ('isReuse' in validatedData && item.isReuse !== currentItem.isReuse) {
+        changedParts.push(item.isReuse ? "Marcado para reaproveitamento" : "Reaproveitamento removido");
+      }
+      if ('quantity' in validatedData && item.quantity !== currentItem.quantity) {
+        changedParts.push(`Quantidade: ${currentItem.quantity ?? '—'} → ${item.quantity ?? '—'}`);
+      }
+      if ('type' in validatedData && item.type !== currentItem.type) {
+        changedParts.push(`Tipo: ${currentItem.type ?? '—'} → ${item.type ?? '—'}`);
+      }
+      if ('material' in validatedData && item.material !== currentItem.material) {
+        changedParts.push(`Material: ${currentItem.material ?? '—'} → ${item.material ?? '—'}`);
+      }
+      if ('finish' in validatedData && item.finish !== currentItem.finish) {
+        changedParts.push(`Acabamento: ${currentItem.finish ?? '—'} → ${item.finish ?? '—'}`);
+      }
+      if ('fileWidth' in validatedData || 'fileHeight' in validatedData) {
+        if (item.fileWidth !== currentItem.fileWidth || item.fileHeight !== currentItem.fileHeight) {
+          changedParts.push(`Dimensões: ${currentItem.fileWidth ?? '?'}×${currentItem.fileHeight ?? '?'} → ${item.fileWidth ?? '?'}×${item.fileHeight ?? '?'}`);
+        }
+      }
+      if ('observations' in validatedData && item.observations !== currentItem.observations) {
+        changedParts.push("Observações atualizadas");
+      }
+      if ('approvalThumbUrl' in validatedData && item.approvalThumbUrl !== currentItem.approvalThumbUrl) {
+        changedParts.push("Thumb de aprovação atualizado");
+      }
+      if ('finalFileUrl' in validatedData && item.finalFileUrl !== currentItem.finalFileUrl) {
+        changedParts.push("Arquivo final atualizado");
+      }
+      if ('referenceUrl' in validatedData && item.referenceUrl !== currentItem.referenceUrl) {
+        changedParts.push("Referência de arte atualizada");
+      }
+      if ('skipApproval' in validatedData && item.skipApproval !== currentItem.skipApproval) {
+        changedParts.push(item.skipApproval ? "Aprovação de patrocinador dispensada" : "Aprovação de patrocinador reativada");
+      }
+
+      const auditDetails = changedParts.length > 0
+        ? changedParts.join(" | ")
+        : `Item "${item.type}" atualizado`;
       
       await createAuditLog(
         (req as any).userName,

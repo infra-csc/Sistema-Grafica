@@ -667,9 +667,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
           
-          // Check if item has sponsors or skipApproval
+          // Check if item has sponsors, skipApproval, or isReuse
           const itemSponsors = await storage.getItemSponsors(itemId);
-          if (itemSponsors.length === 0 && !item.skipApproval) {
+          if (itemSponsors.length === 0 && !item.skipApproval && !item.isReuse) {
             errors.push(`Item ${item.displayId} precisa ter patrocinadores vinculados ou "Sem aprovação" marcado`);
             continue;
           }

@@ -893,18 +893,35 @@ export default function Solicitacao() {
                       <div style={{ position: "absolute", left: 11, top: 8, bottom: 0, width: 2, backgroundColor: "#f0efee" }} />
                       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                         {itemAuditLogs.map((log: any, idx: number) => {
-                          const dotColors = ["#10b981", "#f97316", "#3b82f6", "#d946ef", "#a8a29e"];
-                          const dot = dotColors[idx % dotColors.length];
+                          const ACTION_CFG: Record<string, { label: string; dot: string }> = {
+                            created:          { label: 'Criado',                dot: '#3b82f6' },
+                            updated:          { label: 'Atualizado',            dot: '#f97316' },
+                            deleted:          { label: 'Excluído',              dot: '#ef4444' },
+                            approved:         { label: 'Aprovado',              dot: '#10b981' },
+                            rejected:         { label: 'Reprovado',             dot: '#ef4444' },
+                            canceled:         { label: 'Cancelado',             dot: '#ef4444' },
+                            delivered:        { label: 'Entregue',              dot: '#7c3aed' },
+                            produced:         { label: 'Produzido',             dot: '#4338ca' },
+                            submitted:        { label: 'Enviado',               dot: '#0e7490' },
+                            linked:           { label: 'Vinculado',             dot: '#0f766e' },
+                            released:         { label: 'Liberado',              dot: '#3b82f6' },
+                            status_changed:   { label: 'Status alterado',       dot: '#f97316' },
+                            sponsor_approved: { label: 'Patrocinador aprovado', dot: '#10b981' },
+                            sponsor_rejected: { label: 'Patrocinador reprovou', dot: '#ef4444' },
+                            file_uploaded:    { label: 'Arquivo enviado',       dot: '#7e22ce' },
+                            thumb_uploaded:   { label: 'Thumb enviado',         dot: '#7e22ce' },
+                          };
+                          const cfg = ACTION_CFG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? log.details ?? 'Ação', dot: '#a8a29e' };
                           return (
                             <div key={log.id || idx} style={{ position: "relative" }}>
                               <span style={{
                                 position: "absolute", left: -22, top: 2,
                                 width: 16, height: 16, borderRadius: "50%",
-                                backgroundColor: "#fff", border: `4px solid ${dot}`, zIndex: 1,
+                                backgroundColor: "#fff", border: `4px solid ${cfg.dot}`, zIndex: 1,
                               }} />
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                 <div>
-                                  <p style={{ fontSize: 12, fontWeight: 700, color: TI.text, margin: 0 }}>{log.action || log.details}</p>
+                                  <p style={{ fontSize: 12, fontWeight: 700, color: cfg.dot, margin: 0 }}>{cfg.label}</p>
                                   {log.userName && <p style={{ fontSize: 10, color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
                                   {log.details && log.action && (
                                     <p style={{ fontSize: 11, fontStyle: "italic", color: TI.secondary, backgroundColor: "#f3f4f3", padding: "6px 8px", borderRadius: 4, margin: "6px 0 0" }}>

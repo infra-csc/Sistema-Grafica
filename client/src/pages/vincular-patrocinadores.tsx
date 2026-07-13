@@ -360,6 +360,14 @@ export default function VincularPatrocinadores() {
         }
       }
 
+      // Filtro por status UI (PENDENTE/RASCUNHO/PRONTO/ENVIADO)
+      if (statusFilter !== "all") {
+        const originalSponsors = originalSponsorsMap[item.id] || [];
+        const pendingChange = pendingChanges[item.id];
+        const uiSt = getItemUIStatus(item, originalSponsors, pendingChange);
+        if (uiSt !== statusFilter) return false;
+      }
+
       return true;
     });
   };
@@ -383,7 +391,7 @@ export default function VincularPatrocinadores() {
       // Se não há items que passaram no filtro, ocultar o evento
       return filteredItems.length > 0;
     });
-  }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, originalSponsorsMap]);
+  }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, statusFilter, originalSponsorsMap, pendingChanges]);
 
   // ===== FONTE ÚNICA DE VERDADE: Computar estados UI de todos os items =====
   const itemUIStates = useMemo(() => {
@@ -1442,7 +1450,7 @@ export default function VincularPatrocinadores() {
       {/* Dialogs e Modals */}
       <Card className="mb-6">
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
             {/* Filtro por Evento */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Evento</label>
@@ -1493,6 +1501,23 @@ export default function VincularPatrocinadores() {
                       {type}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Filtro por Status */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Status</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger data-testid="select-status-filter">
+                  <SelectValue placeholder="Todos os status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="PENDENTE">Pendente</SelectItem>
+                  <SelectItem value="RASCUNHO">Rascunho</SelectItem>
+                  <SelectItem value="PRONTO">Pronto</SelectItem>
+                  <SelectItem value="ENVIADO">Enviado</SelectItem>
                 </SelectContent>
               </Select>
             </div>

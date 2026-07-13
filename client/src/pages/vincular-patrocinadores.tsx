@@ -560,68 +560,46 @@ export default function VincularPatrocinadores() {
   });
 
   // Mutation 1: Salvar vinculação (patrocinadores + skipApproval) SEM mudar status
+  type SavePayload = { itemId: string; sponsorIds: string[]; skipApproval: boolean };
+
   const saveLinkingMutation = useMutation({
-    mutationFn: async (itemIdsToSave: string[]) => {
-      const validItemIds = itemIdsToSave.filter(itemId => {
-        const item = visibleItems.find(i => i.id === itemId);
-        if (!item || !getItemEditability(item)) return false;
-        const changes = pendingChanges[itemId];
-        return changes && changes.isDirty;
-      });
-
-      if (validItemIds.length === 0) {
-        throw new Error("Nenhum item válido para salvar");
-      }
-
-      for (const itemId of validItemIds) {
-        const changes = pendingChanges[itemId];
-        await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
-          sponsorIds: changes.sponsorIds,
-          skipApproval: changes.skipApproval
-        });
-      }
-      
-      return validItemIds;
+    mutationFn: async (payloads: SavePayload[]) => {
+      if (payloads.length === 0) return [] as string[];
+      await Promise.all(
+        payloads.map(({ itemId, sponsorIds, skipApproval }) =>
+          apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds, skipApproval })
+        )
+      );
+      return payloads.map(p => p.itemId);
     },
-    onMutate: (itemIdsToSave: string[]) => {
-      // Atualização otimista: reflete o novo estado nos mapas antes do servidor responder
+    onMutate: (payloads: SavePayload[]) => {
       const snapshot = { itemSponsorsMap: { ...itemSponsorsMap }, originalSponsorsMap: { ...originalSponsorsMap } };
-      
-      itemIdsToSave.forEach(itemId => {
-        const changes = pendingChanges[itemId];
-        if (changes) {
-          setItemSponsorsMap(prev => ({ ...prev, [itemId]: changes.sponsorIds }));
-          setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: changes.sponsorIds }));
-        }
+      payloads.forEach(({ itemId, sponsorIds }) => {
+        setItemSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
+        setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
       });
-
-      return snapshot; // Usado no onError para reverter
+      return snapshot;
     },
-    onSuccess: (validItemIds) => {
-      // Limpar pendingChanges dos itens salvos
+    onSuccess: (savedIds) => {
       setPendingChanges(prev => {
-        const newChanges = { ...prev };
-        validItemIds.forEach(id => { delete newChanges[id]; });
-        return newChanges;
+        const next = { ...prev };
+        savedIds.forEach(id => { delete next[id]; });
+        return next;
       });
-
-      // Invalida em background — não bloqueia a UI
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-
       toast({
         title: "Vinculação salva!",
-        description: `${validItemIds.length} item${validItemIds.length !== 1 ? 's' : ''} pronto${validItemIds.length !== 1 ? 's' : ''} para enviar.`,
+        description: `${savedIds.length} item${savedIds.length !== 1 ? 's' : ''} pronto${savedIds.length !== 1 ? 's' : ''} para enviar.`,
       });
     },
-    onError: (error: Error, _, snapshot: any) => {
-      // Reverter estado otimista em caso de erro
+    onError: (_error: Error, _vars: SavePayload[], snapshot: any) => {
       if (snapshot) {
         setItemSponsorsMap(snapshot.itemSponsorsMap);
         setOriginalSponsorsMap(snapshot.originalSponsorsMap);
       }
       toast({
         title: "Erro ao salvar vinculação",
-        description: error.message,
+        description: "Não foi possível salvar. Tente novamente.",
         variant: "destructive",
       });
     },
@@ -814,7 +792,7 @@ export default function VincularPatrocinadores() {
     
     // Aplicar patrocinadores apenas a itens NÃO isentos (skipApproval=false)
     // a menos que bulkSkipApproval seja true (nesse caso, aplica a todos)
-    const itemsToUpdate: string[] = [];
+    const itemsToUpdate: { itemId: string; sponsorIds: string[]; skipApproval: boolean }[] = [];
     const skippedItems: string[] = [];
     
     allSelectedItems.forEach(itemId => {
@@ -850,7 +828,7 @@ export default function VincularPatrocinadores() {
           [itemId]: combinedSponsors
         }));
         
-        itemsToUpdate.push(itemId);
+        itemsToUpdate.push({ itemId, sponsorIds: combinedSponsors, skipApproval: bulkSkipApproval });
       }
     });
 
@@ -1154,7 +1132,7 @@ export default function VincularPatrocinadores() {
       [itemId]: { sponsorIds: newSponsors, skipApproval: false, isDirty: true },
     }));
     setItemSponsorsMap(prev => ({ ...prev, [itemId]: newSponsors }));
-    saveLinkingMutation.mutate([itemId]);
+    saveLinkingMutation.mutate([{ itemId, sponsorIds: newSponsors, skipApproval: false }]);
   };
 
   // Desvincular patrocinador de item individual (aba Por Patrocinador)
@@ -1362,7 +1340,15 @@ export default function VincularPatrocinadores() {
             </div>
             {statusCounts.RASCUNHO > 0 && (
               <button
-                onClick={() => { const ids = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO').map(i => i.id); saveLinkingMutation.mutate(ids); }}
+                onClick={() => {
+                  const payloads = visibleItems
+                    .filter(i => itemUIStates[i.id] === 'RASCUNHO')
+                    .map(i => {
+                      const ch = pendingChanges[i.id];
+                      return { itemId: i.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
+                    });
+                  saveLinkingMutation.mutate(payloads);
+                }}
                 disabled={saveLinkingMutation.isPending}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', display: 'flex', alignItems: 'center' }}
               >
@@ -1530,7 +1516,13 @@ export default function VincularPatrocinadores() {
                 if (dirtySelected.length === 0) return null;
                 return (
                   <button
-                    onClick={() => saveLinkingMutation.mutate(dirtySelected)}
+                    onClick={() => {
+                      const payloads = dirtySelected.map(id => {
+                        const ch = pendingChanges[id];
+                        return { itemId: id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
+                      });
+                      saveLinkingMutation.mutate(payloads);
+                    }}
                     disabled={saveLinkingMutation.isPending}
                     data-testid="button-save-selected"
                     style={{ backgroundColor: '#22c55e', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
@@ -2012,7 +2004,10 @@ export default function VincularPatrocinadores() {
                                 )}
                                 {uiStatus === 'RASCUNHO' && isEditable && (
                                   <button
-                                    onClick={() => saveLinkingMutation.mutate([item.id])}
+                                    onClick={() => {
+                                      const ch = pendingChanges[item.id];
+                                      saveLinkingMutation.mutate([{ itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false }]);
+                                    }}
                                     disabled={saveLinkingMutation.isPending}
                                     data-testid={`button-save-item-${item.id}`}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', display: 'flex', alignItems: 'center' }}

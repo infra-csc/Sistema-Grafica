@@ -1,6 +1,8 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, ChevronsUpDown, Check } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { FilePreview } from "@/components/file-preview";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +55,8 @@ export default function Atendimento() {
   const [expIncludeNoThumb, setExpIncludeNoThumb] = useState(true);
   const [expGroupByEvent, setExpGroupByEvent] = useState(false);
   const [expStatusFilter, setExpStatusFilter] = useState<"all" | "pending" | "approved">("all");
+  const [expEventComboOpen, setExpEventComboOpen] = useState(false);
+  const [expSponsorComboOpen, setExpSponsorComboOpen] = useState(false);
 
   // Seleção múltipla
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -1953,34 +1957,90 @@ export default function Atendimento() {
                 {/* Filtros */}
                 <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 10px' }}>Filtros</p>
 
-                {/* Evento */}
+                {/* Evento — combobox buscável */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Evento</label>
-                  <select
-                    value={expEventFilter}
-                    onChange={e => setExpEventFilter(e.target.value)}
-                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
-                  >
-                    <option value="all">Todos os eventos</option>
-                    {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((ev: any) => (
-                      <option key={ev.id} value={ev.id}>{ev.name}</option>
-                    ))}
-                  </select>
+                  <Popover open={expEventComboOpen} onOpenChange={setExpEventComboOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={expEventComboOpen}
+                        className="w-full justify-between font-normal h-9 px-3 text-left text-sm"
+                      >
+                        <span className="flex-1 overflow-hidden truncate">
+                          {expEventFilter === "all"
+                            ? <span className="text-muted-foreground">Todos os eventos</span>
+                            : <span>{(events as any[]).find((e: any) => e.id === expEventFilter)?.name ?? "Todos os eventos"}</span>
+                          }
+                        </span>
+                        <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-72" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar evento..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem value="todos-os-eventos" onSelect={() => { setExpEventFilter("all"); setExpEventComboOpen(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${expEventFilter === "all" ? "opacity-100" : "opacity-0"}`} />
+                              Todos os eventos
+                            </CommandItem>
+                            {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((ev: any) => (
+                              <CommandItem key={ev.id} value={ev.name} onSelect={() => { setExpEventFilter(ev.id); setExpEventComboOpen(false); }}>
+                                <Check className={`mr-2 h-4 w-4 ${expEventFilter === ev.id ? "opacity-100" : "opacity-0"}`} />
+                                {ev.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
-                {/* Patrocinador */}
+                {/* Patrocinador — combobox buscável */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Patrocinador</label>
-                  <select
-                    value={expSponsorFilter}
-                    onChange={e => setExpSponsorFilter(e.target.value)}
-                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
-                  >
-                    <option value="all">Todos os patrocinadores</option>
-                    {[...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((s: any) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                  <Popover open={expSponsorComboOpen} onOpenChange={setExpSponsorComboOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={expSponsorComboOpen}
+                        className="w-full justify-between font-normal h-9 px-3 text-left text-sm"
+                      >
+                        <span className="flex-1 overflow-hidden truncate">
+                          {expSponsorFilter === "all"
+                            ? <span className="text-muted-foreground">Todos os patrocinadores</span>
+                            : <span>{(sponsors as any[]).find((s: any) => s.id === expSponsorFilter)?.name ?? "Todos os patrocinadores"}</span>
+                          }
+                        </span>
+                        <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-72" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar patrocinador..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem value="todos-os-patrocinadores" onSelect={() => { setExpSponsorFilter("all"); setExpSponsorComboOpen(false); }}>
+                              <Check className={`mr-2 h-4 w-4 ${expSponsorFilter === "all" ? "opacity-100" : "opacity-0"}`} />
+                              Todos os patrocinadores
+                            </CommandItem>
+                            {[...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((s: any) => (
+                              <CommandItem key={s.id} value={s.name} onSelect={() => { setExpSponsorFilter(s.id); setExpSponsorComboOpen(false); }}>
+                                <Check className={`mr-2 h-4 w-4 ${expSponsorFilter === s.id ? "opacity-100" : "opacity-0"}`} />
+                                {s.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 {/* Tipo */}

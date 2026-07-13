@@ -12,6 +12,7 @@ import {
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -626,10 +627,8 @@ export default function PainelGeral() {
                                     </td>
 
                                     {/* Patrocinador */}
-                                    <td style={{ padding: "14px 20px", color: "#78716c", fontSize: 13 }}>
-                                      {item.sponsors?.length > 0
-                                        ? item.sponsors.map((s: any) => s.name).join(", ")
-                                        : <span style={{ color: "#a8a29e" }}>—</span>}
+                                    <td style={{ padding: "14px 20px" }}>
+                                      <SponsorChips sponsors={item.sponsors ?? []} variant="gray" size="sm" />
                                     </td>
 
                                     {/* Status */}

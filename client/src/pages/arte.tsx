@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
+import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare } from "lucide-react";
@@ -1006,25 +1007,7 @@ export default function Arte() {
                           {/* Patrocinadores — finalizados only */}
                           {tabId === 'finalizados' && (
                             <td style={{ padding: '12px 16px' }}>
-                              {item.sponsors && item.sponsors.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                  {item.sponsors.map((s: any) => (
-                                    <span
-                                      key={s.id}
-                                      style={{
-                                        display: 'inline-block', fontSize: 10, fontWeight: 700,
-                                        backgroundColor: '#fff7ed', color: '#c2410c',
-                                        border: '1px solid #fed7aa', borderRadius: 4,
-                                        padding: '2px 6px', whiteSpace: 'nowrap',
-                                      }}
-                                    >
-                                      {s.name}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>
-                              )}
+                              <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
                             </td>
                           )}
 

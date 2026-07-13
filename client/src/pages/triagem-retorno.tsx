@@ -5,10 +5,11 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor } from "@shared/schema";
 import {
   ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save,
-  CalendarDays, Tag, X, Scissors, Sparkles, Hammer, Trash2, Eye, Wrench,
+  CalendarDays, X, Scissors, Sparkles, Hammer, Trash2, Eye, Wrench,
   MapPin, ClipboardCheck, Users, Search,
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
+import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -82,28 +83,6 @@ function StatCard({ label, value, color, Icon }: {
         </p>
         <Icon size={32} color={color} style={{ opacity: 0.15 }} />
       </div>
-    </div>
-  );
-}
-
-// ─── Sponsor chips ─────────────────────────────────────────────────────────────
-function SponsorChips({ sponsors }: { sponsors: { id: string; name: string }[] }) {
-  if (!sponsors || sponsors.length === 0)
-    return <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontStyle: "italic" }}>sem patrocinador</span>;
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-      {sponsors.map(s => (
-        <span key={s.id} style={{
-          display: "inline-flex", alignItems: "center", gap: 3,
-          padding: "3px 8px", borderRadius: 6,
-          background: "#f1f5f9", border: "1px solid #e2e8f0",
-          fontSize: 10, fontWeight: 700, color: "#475569",
-          fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em",
-          textTransform: "uppercase", whiteSpace: "nowrap",
-        }}>
-          <Tag size={9} />{s.name}
-        </span>
-      ))}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { SponsorChips } from "@/components/sponsor-chips";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -1345,17 +1346,8 @@ export default function Atendimento() {
                               <p style={{ fontSize: 10, color: '#a8a29e', textTransform: 'uppercase', fontWeight: 700, margin: '0 0 4px' }}>Patrocinador</p>
                               {loadingSponsors ? (
                                 <span style={{ fontSize: 12, color: '#a8a29e' }}>...</span>
-                              ) : itemSps.length > 0 ? (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                  {itemSps.slice(0, 2).map((s: any) => (
-                                    <span key={s.id} style={{ fontSize: 12, fontWeight: 700, color: isFullyApproved ? '#78716c' : '#1c1917' }}>
-                                      {s.name}
-                                    </span>
-                                  ))}
-                                  {itemSps.length > 2 && <span style={{ fontSize: 12, color: '#a8a29e' }}>+{itemSps.length - 2}</span>}
-                                </div>
                               ) : (
-                                <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>
+                                <SponsorChips sponsors={itemSps} variant="gray" size="sm" />
                               )}
                             </div>
 
@@ -1482,11 +1474,7 @@ export default function Atendimento() {
                               <h5 style={{ fontSize: 13, fontWeight: 600, color: '#78716c', margin: 0 }}>{item.type}</h5>
                               <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0' }}>{item.displayId}</p>
                             </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {itemSps.map((s: any) => (
-                                <span key={s.id} style={{ fontSize: 12, color: '#78716c' }}>{s.name}</span>
-                              ))}
-                            </div>
+                            <SponsorChips sponsors={itemSps} variant="gray" size="sm" />
                             <span style={{
                               display: 'inline-flex', alignItems: 'center', gap: 4,
                               fontSize: 10, fontWeight: 700, color: '#15803d',
@@ -2314,12 +2302,8 @@ export default function Atendimento() {
                               {item.event?.name || "Sem evento"}{item.description ? ` · ${item.description}` : ''}
                             </div>
                             {itemSps.length > 0 && (
-                              <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
-                                {itemSps.slice(0, 3).map((s: any) => (
-                                  <span key={s.id} style={{ fontSize: 9, fontWeight: 700, color: '#57534e', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 3, padding: '1px 5px' }}>
-                                    {s.name}
-                                  </span>
-                                ))}
+                              <div style={{ marginTop: 3 }}>
+                                <SponsorChips sponsors={itemSps} variant="gray" size="xs" />
                               </div>
                             )}
                           </div>

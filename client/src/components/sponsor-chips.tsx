@@ -1,0 +1,123 @@
+import { useState } from "react";
+
+interface Sponsor {
+  id: string;
+  name: string;
+  color?: string | null;
+}
+
+interface SponsorChipsProps {
+  sponsors: Sponsor[];
+  max?: number;
+  variant?: "orange" | "gray" | "plain" | "dark";
+  size?: "xs" | "sm" | "md";
+  emptyText?: string;
+}
+
+const VARIANT_STYLES = {
+  orange: {
+    bg: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 4,
+  },
+  gray: {
+    bg: "#f5f5f4", color: "#57534e", border: "1px solid #e7e5e4", borderRadius: 4,
+  },
+  plain: {
+    bg: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 6,
+  },
+  dark: {
+    bg: "#292524", color: "#e7e5e4", border: "1px solid #44403c", borderRadius: 4,
+  },
+};
+
+const SIZE_STYLES = {
+  xs: { fontSize: 9,  fontWeight: 700, padding: "1px 5px" },
+  sm: { fontSize: 10, fontWeight: 700, padding: "2px 6px" },
+  md: { fontSize: 12, fontWeight: 600, padding: "3px 8px" },
+};
+
+const OVERFLOW_STYLES = {
+  orange: { bg: "#fed7aa", color: "#92400e" },
+  gray:   { bg: "#e7e5e4", color: "#78716c" },
+  plain:  { bg: "#e2e8f0", color: "#64748b" },
+  dark:   { bg: "#44403c", color: "#a8a29e" },
+};
+
+export function SponsorChips({
+  sponsors,
+  max = 2,
+  variant = "gray",
+  size = "sm",
+  emptyText = "—",
+}: SponsorChipsProps) {
+  const [showAll, setShowAll] = useState(false);
+
+  if (!sponsors || sponsors.length === 0) {
+    return (
+      <span style={{ fontSize: 12, color: "#a8a29e", fontStyle: "italic" }}>
+        {emptyText}
+      </span>
+    );
+  }
+
+  const chip = VARIANT_STYLES[variant];
+  const sz   = SIZE_STYLES[size];
+  const ovf  = OVERFLOW_STYLES[variant];
+
+  const visible  = showAll ? sponsors : sponsors.slice(0, max);
+  const overflow = sponsors.length - max;
+
+  const allNames = sponsors.map(s => s.name).join(", ");
+
+  return (
+    <div
+      style={{ display: "flex", flexWrap: "wrap", gap: 3, alignItems: "center" }}
+      title={allNames}
+    >
+      {visible.map(s => (
+        <span
+          key={s.id}
+          style={{
+            display: "inline-block",
+            backgroundColor: chip.bg,
+            color: chip.color,
+            border: chip.border,
+            borderRadius: chip.borderRadius,
+            whiteSpace: "nowrap",
+            ...sz,
+          }}
+        >
+          {s.name}
+        </span>
+      ))}
+      {!showAll && overflow > 0 && (
+        <button
+          onClick={e => { e.stopPropagation(); setShowAll(true); }}
+          title={`Ver todos: ${allNames}`}
+          style={{
+            display: "inline-flex", alignItems: "center",
+            backgroundColor: ovf.bg, color: ovf.color,
+            border: "none", borderRadius: chip.borderRadius,
+            cursor: "pointer", whiteSpace: "nowrap",
+            ...sz,
+          }}
+        >
+          +{overflow}
+        </button>
+      )}
+      {showAll && sponsors.length > max && (
+        <button
+          onClick={e => { e.stopPropagation(); setShowAll(false); }}
+          style={{
+            display: "inline-flex", alignItems: "center",
+            backgroundColor: "transparent", color: "#a8a29e",
+            border: "none", borderRadius: chip.borderRadius,
+            cursor: "pointer", fontSize: sz.fontSize, fontWeight: 700,
+            padding: sz.padding,
+          }}
+        >
+          ↑
+        </button>
+      )}
+    </div>
+  );
+}

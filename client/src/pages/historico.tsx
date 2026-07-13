@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Link2,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -31,6 +31,10 @@ const TYPE_CONFIG: Record<string, {
   item_created: {
     label: "Peça Adicionada", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#f97316",
     icon: Plus,
+  },
+  sponsor_linked: {
+    label: "Vinculação", dot: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe", color: "#7c3aed",
+    icon: Link2,
   },
   item_approved: {
     label: "Peça Liberada", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
@@ -94,6 +98,8 @@ interface TimelineEvent {
   quantityProduced?: number;
   receivedBy?: string;
   userName?: string;
+  sponsorCount?: number;
+  logDetails?: string;
 }
 
 /* ── Description builder ── */
@@ -107,6 +113,17 @@ function buildDescription(e: TimelineEvent) {
       return <span>Evento <strong style={{ color: P.text }}>{e.eventName}</strong> foi criado</span>;
     case "item_created":
       return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> ({e.quantity} un.) adicionado ao evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "sponsor_linked":
+      return (
+        <span>
+          {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> —{" "}
+          {e.sponsorCount != null
+            ? <>{e.sponsorCount} {e.sponsorCount === 1 ? "patrocinador vinculado" : "patrocinadores vinculados"}</>
+            : "patrocinadores atualizados"
+          }{" "}
+          no evento <strong style={{ color: P.text }}>{e.eventName}</strong>
+        </span>
+      );
     case "item_approved":
       return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> de <strong style={{ color: P.text }}>{e.eventName}</strong> liberado para produção</span>;
     case "production_started":
@@ -137,6 +154,10 @@ export default function Historico() {
   /* ── Build timeline ── */
   const auditLogMap = new Map<string, any>();
   auditLogs.forEach(log => auditLogMap.set(`${log.entityId}-${log.action}`, log));
+
+  // Build a lookup map for items by id
+  const itemMap = new Map<string, any>();
+  items.forEach(item => itemMap.set(item.id, item));
 
   const timeline: TimelineEvent[] = [];
 
@@ -195,6 +216,40 @@ export default function Historico() {
       });
     }
   });
+
+  // Add sponsor linking events from audit logs
+  // (entityType: 'item', action: 'updated', details starting with "Patrocinadores atualizados")
+  auditLogs
+    .filter((log: any) => {
+      const action = (log.action || "").toLowerCase();
+      const details = (log.details || "").toLowerCase();
+      return action === "updated" && details.includes("patrocinadores atualizados");
+    })
+    .forEach((log: any) => {
+      const itemId = log.entityId ?? log.entity_id;
+      const item = itemMap.get(itemId);
+      if (!item) return;
+      const event = events.find(e => e.id === item.eventId);
+      const eventName = event?.name || "Evento desconhecido";
+      // Extract count from details: "Patrocinadores atualizados - N patrocinador..."
+      const match = (log.details || "").match(/(\d+)\s+patrocinador/i);
+      const sponsorCount = match ? parseInt(match[1], 10) : undefined;
+      const ts = log.createdAt ?? log.created_at;
+      timeline.push({
+        id: `sponsor-linked-${log.id ?? itemId + ts}`,
+        type: "sponsor_linked",
+        timestamp: new Date(ts),
+        eventName,
+        eventId: item.eventId,
+        itemType: item.type,
+        itemId: item.id,
+        itemDisplayId: item.displayId,
+        quantity: item.quantity,
+        userName: log.userName ?? log.user_name,
+        sponsorCount,
+        logDetails: log.details,
+      });
+    });
 
   const sorted = timeline.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
@@ -304,6 +359,7 @@ export default function Historico() {
             <option value="all">Todas as ações</option>
             <option value="event_created">Eventos criados</option>
             <option value="item_created">Itens adicionados</option>
+            <option value="sponsor_linked">Vinculações</option>
             <option value="item_approved">Itens liberados</option>
             <option value="production_started">Em produção</option>
             <option value="item_delivered">Entregas</option>

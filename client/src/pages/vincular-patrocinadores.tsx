@@ -52,9 +52,11 @@ const getItemUIStatus = (
   
   // 2. Se status indica que já foi enviado para Arte ou produção → ENVIADO
   const sentStatuses = [
-    'awaiting_submission', // Já foi enviado para Arte
-    'awaiting_sponsor_approval', 
+    'awaiting_submission',       // Enviado para Arte (thumb)
+    'awaiting_sponsor_approval', // Em aprovação pelo patrocinador
     'sponsor_approved',
+    'awaiting_finalization',     // Arte adicionando arquivo final
+    'awaiting_final_review',     // Criador revisando arquivo final
     'awaiting_creator_review',
     'ready_for_production',
     'released',

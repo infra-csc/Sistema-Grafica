@@ -18,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, Fragment, useRef } from "react";
 
 const TI = {
   bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
@@ -31,6 +31,9 @@ export default function Solicitacao() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [returnObservations, setReturnObservations] = useState("");
+  const [editingQuantity, setEditingQuantity] = useState(false);
+  const [quantityValue, setQuantityValue] = useState<number>(1);
+  const quantityInputRef = useRef<HTMLInputElement>(null);
   const [showReturnForm, setShowReturnForm] = useState(false);
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
   const [bulkReleaseConfirmOpen, setBulkReleaseConfirmOpen] = useState(false);
@@ -58,6 +61,18 @@ export default function Solicitacao() {
     (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
     return map;
   }, [standardItems]);
+
+  const updateQuantityMutation = useMutation({
+    mutationFn: async ({ itemId, quantity }: { itemId: string; quantity: number }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}`, { quantity }),
+    onSuccess: (updatedItem: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItem((prev: any) => prev ? { ...prev, quantity: updatedItem.quantity ?? quantityValue } : prev);
+      setEditingQuantity(false);
+      toast({ title: "Quantidade atualizada", description: `Nova quantidade: ${updatedItem.quantity ?? quantityValue}x` });
+    },
+    onError: (error: any) => toast({ title: "Erro ao atualizar quantidade", description: error.message, variant: "destructive" }),
+  });
 
   const creatorReviewMutation = useMutation({
     mutationFn: async (itemId: string) => await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {}),
@@ -181,7 +196,12 @@ export default function Solicitacao() {
   };
 
   const openModal = (item: any) => {
-    setSelectedItem(item); setShowReturnForm(false); setReturnObservations(""); setModalOpen(true);
+    setSelectedItem(item);
+    setQuantityValue(item.quantity ?? 1);
+    setEditingQuantity(false);
+    setShowReturnForm(false);
+    setReturnObservations("");
+    setModalOpen(true);
   };
 
   useEffect(() => {
@@ -763,7 +783,6 @@ export default function Solicitacao() {
                     { label: "Tipo", value: selectedItem?.type || "—" },
                     { label: "Material", value: selectedItem?.material || "—" },
                     { label: "Acabamento", value: selectedItem?.finish || "—" },
-                    { label: "Quantidade", value: selectedItem?.quantity ? `${selectedItem.quantity}x` : "—" },
                     { label: "Dimensões", value: selectedItem?.fileWidth && selectedItem?.fileHeight ? `${selectedItem.fileWidth}×${selectedItem.fileHeight}` : "—" },
                     { label: "M²", value: selectedItem?.calculatedM2 || "—" },
                   ].map(({ label, value }) => (
@@ -772,6 +791,69 @@ export default function Solicitacao() {
                       <p style={{ fontSize: 11, fontWeight: 700, color: TI.text, margin: "3px 0 0" }}>{value}</p>
                     </div>
                   ))}
+
+                  {/* Quantidade — editável */}
+                  <div
+                    style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", position: "relative" }}
+                    onClick={() => {
+                      if (!editingQuantity) {
+                        setEditingQuantity(true);
+                        setTimeout(() => quantityInputRef.current?.select(), 50);
+                      }
+                    }}
+                    title="Clique para editar a quantidade"
+                  >
+                    <p style={{ fontSize: 9, color: "#a8a29e", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                      Quantidade
+                      <span style={{ fontSize: 8, color: "#f97316", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
+                    </p>
+                    {editingQuantity ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }} onClick={e => e.stopPropagation()}>
+                        <input
+                          ref={quantityInputRef}
+                          type="number"
+                          min={1}
+                          value={quantityValue}
+                          onChange={e => setQuantityValue(Math.max(1, parseInt(e.target.value) || 1))}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") {
+                              updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue });
+                            }
+                            if (e.key === "Escape") {
+                              setQuantityValue(selectedItem.quantity ?? 1);
+                              setEditingQuantity(false);
+                            }
+                          }}
+                          style={{
+                            width: 52, padding: "2px 6px", fontSize: 13, fontWeight: 700,
+                            border: "1.5px solid #f97316", borderRadius: 4, outline: "none",
+                            color: TI.text, background: "#fff9f5",
+                          }}
+                          data-testid="input-quantity-edit"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
+                          disabled={updateQuantityMutation.isPending}
+                          style={{ padding: "2px 8px", fontSize: 9, fontWeight: 800, backgroundColor: "#f97316", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", textTransform: "uppercase" }}
+                          data-testid="button-confirm-quantity"
+                        >
+                          {updateQuantityMutation.isPending ? "..." : "OK"}
+                        </button>
+                        <button
+                          onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
+                          style={{ padding: "2px 6px", fontSize: 9, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#78716c", border: "none", borderRadius: 4, cursor: "pointer" }}
+                          data-testid="button-cancel-quantity"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, fontWeight: 700, color: TI.text, margin: "3px 0 0" }}>
+                        {selectedItem?.quantity ?? "—"}x
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

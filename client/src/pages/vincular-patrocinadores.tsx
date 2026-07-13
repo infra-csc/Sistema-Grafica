@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink, RotateCcw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -198,6 +198,13 @@ export default function VincularPatrocinadores() {
 
   // Estado para seleção de items para ENVIAR (separado da seleção para aplicar patrocinadores)
   const [selectedForSending, setSelectedForSending] = useState<Set<string>>(new Set());
+
+  // Modal de confirmação de salvamento
+  type SaveModal = { payloads: SavePayload[]; items: any[] };
+  const [saveConfirmModal, setSaveConfirmModal] = useState<SaveModal | null>(null);
+
+  // Modal de confirmação: devolver peça para Criação
+  const [returnModal, setReturnModal] = useState<any | null>(null); // item a devolver
 
   const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -650,6 +657,24 @@ export default function VincularPatrocinadores() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // Mutation: devolver peça para Criação (Solicitação)
+  const returnToCreationMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const res = await apiRequest("POST", `/api/items/${itemId}/return-to-creation`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      // Remove item do loadedItemIdsRef para recarregar sponsors
+      if (returnModal) loadedItemIdsRef.current.delete(returnModal.id);
+      setReturnModal(null);
+      toast({ title: "Peça devolvida para Criação", description: "O item voltou para a equipe de Solicitação." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1343,13 +1368,12 @@ export default function VincularPatrocinadores() {
             {statusCounts.RASCUNHO > 0 && (
               <button
                 onClick={() => {
-                  const payloads = visibleItems
-                    .filter(i => itemUIStates[i.id] === 'RASCUNHO')
-                    .map(i => {
-                      const ch = pendingChanges[i.id];
-                      return { itemId: i.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
-                    });
-                  saveLinkingMutation.mutate(payloads);
+                  const rascunhoItems = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO');
+                  const payloads = rascunhoItems.map(i => {
+                    const ch = pendingChanges[i.id];
+                    return { itemId: i.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
+                  });
+                  setSaveConfirmModal({ payloads, items: rascunhoItems });
                 }}
                 disabled={saveLinkingMutation.isPending}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', display: 'flex', alignItems: 'center' }}
@@ -1519,11 +1543,12 @@ export default function VincularPatrocinadores() {
                 return (
                   <button
                     onClick={() => {
+                      const selectedItems = dirtySelected.map(id => visibleItems.find(i => i.id === id)).filter(Boolean);
                       const payloads = dirtySelected.map(id => {
                         const ch = pendingChanges[id];
                         return { itemId: id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
                       });
-                      saveLinkingMutation.mutate(payloads);
+                      setSaveConfirmModal({ payloads, items: selectedItems });
                     }}
                     disabled={saveLinkingMutation.isPending}
                     data-testid="button-save-selected"
@@ -2008,7 +2033,8 @@ export default function VincularPatrocinadores() {
                                   <button
                                     onClick={() => {
                                       const ch = pendingChanges[item.id];
-                                      saveLinkingMutation.mutate([{ itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false }]);
+                                      const payload = { itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
+                                      setSaveConfirmModal({ payloads: [payload], items: [item] });
                                     }}
                                     disabled={saveLinkingMutation.isPending}
                                     data-testid={`button-save-item-${item.id}`}
@@ -2016,6 +2042,17 @@ export default function VincularPatrocinadores() {
                                     title="Salvar vinculação"
                                   >
                                     <Save style={{ width: 14, height: 14 }} />
+                                  </button>
+                                )}
+                                {(uiStatus === 'PENDENTE' || uiStatus === 'RASCUNHO' || uiStatus === 'PRONTO') && (
+                                  <button
+                                    onClick={() => setReturnModal(item)}
+                                    disabled={returnToCreationMutation.isPending}
+                                    data-testid={`button-return-creation-${item.id}`}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', display: 'flex', alignItems: 'center' }}
+                                    title="Devolver peça para Criação"
+                                  >
+                                    <RotateCcw style={{ width: 13, height: 13 }} />
                                   </button>
                                 )}
                                 {uiStatus === 'PRONTO' && isEditable && (
@@ -2808,6 +2845,101 @@ export default function VincularPatrocinadores() {
               Voltar para rascunhos
             </button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── MODAL DE CONFIRMAÇÃO DE SALVAMENTO ── */}
+      <Dialog open={!!saveConfirmModal} onOpenChange={open => { if (!open && !saveLinkingMutation.isPending) setSaveConfirmModal(null); }}>
+        <DialogContent style={{ maxWidth: 480, borderRadius: 12 }}>
+          <DialogHeader>
+            <DialogTitle style={{ fontSize: 16, fontWeight: 800 }}>Confirmar Salvamento</DialogTitle>
+            <DialogDescription style={{ fontSize: 13, color: '#78716c' }}>
+              {saveConfirmModal?.items.length === 1
+                ? 'O item abaixo terá sua vinculação salva.'
+                : `${saveConfirmModal?.items.length} itens terão suas vinculações salvas.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: '4px 0' }}>
+            {saveConfirmModal?.items.map((item: any) => {
+              const ch = saveConfirmModal.payloads.find(p => p.itemId === item.id);
+              const sponsorNames = (ch?.sponsorIds ?? []).map((sid: string) => {
+                const sp = (sponsors as any[]).find((s: any) => s.id === sid);
+                return sp?.name ?? sid;
+              });
+              return (
+                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', backgroundColor: '#f9f8f7', borderRadius: 8, border: '1px solid #e7e5e4' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 800, color: '#f97316', minWidth: 52 }}>{item.displayId}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.type}</p>
+                    {ch?.skipApproval ? (
+                      <p style={{ fontSize: 11, color: '#7c3aed', margin: 0, fontWeight: 600 }}>Sem aprovação de patrocinador</p>
+                    ) : sponsorNames.length > 0 ? (
+                      <p style={{ fontSize: 11, color: '#625d5b', margin: 0 }}>{sponsorNames.join(', ')}</p>
+                    ) : (
+                      <p style={{ fontSize: 11, color: '#a8a29e', margin: 0 }}>Sem patrocinador</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setSaveConfirmModal(null)}
+              disabled={saveLinkingMutation.isPending}
+              style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #e7e5e4', background: 'none', fontSize: 13, fontWeight: 600, color: '#625d5b', cursor: 'pointer' }}
+            >Cancelar</button>
+            <button
+              onClick={() => {
+                if (!saveConfirmModal) return;
+                saveLinkingMutation.mutate(saveConfirmModal.payloads, {
+                  onSuccess: () => setSaveConfirmModal(null),
+                  onError: () => setSaveConfirmModal(null),
+                });
+              }}
+              disabled={saveLinkingMutation.isPending}
+              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', backgroundColor: '#f97316', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
+            >
+              <Save style={{ width: 14, height: 14 }} />
+              {saveLinkingMutation.isPending ? 'Salvando...' : 'Confirmar Salvamento'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── MODAL DE CONFIRMAÇÃO: DEVOLVER PARA CRIAÇÃO ── */}
+      <Dialog open={!!returnModal} onOpenChange={open => { if (!open && !returnToCreationMutation.isPending) setReturnModal(null); }}>
+        <DialogContent style={{ maxWidth: 420, borderRadius: 12 }}>
+          <DialogHeader>
+            <DialogTitle style={{ fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RotateCcw style={{ width: 18, height: 18, color: '#f97316' }} />
+              Devolver para Criação
+            </DialogTitle>
+            <DialogDescription style={{ fontSize: 13, color: '#78716c' }}>
+              A peça voltará para a equipe de Solicitação. Os patrocinadores vinculados serão removidos e o item precisará passar pelo fluxo novamente.
+            </DialogDescription>
+          </DialogHeader>
+          {returnModal && (
+            <div style={{ padding: '10px 14px', backgroundColor: '#fff7ed', borderRadius: 8, border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 800, color: '#f97316' }}>{returnModal.displayId}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c' }}>{returnModal.type}</span>
+            </div>
+          )}
+          <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setReturnModal(null)}
+              disabled={returnToCreationMutation.isPending}
+              style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #e7e5e4', background: 'none', fontSize: 13, fontWeight: 600, color: '#625d5b', cursor: 'pointer' }}
+            >Cancelar</button>
+            <button
+              onClick={() => returnModal && returnToCreationMutation.mutate(returnModal.id)}
+              disabled={returnToCreationMutation.isPending}
+              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', backgroundColor: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: returnToCreationMutation.isPending ? 0.7 : 1 }}
+            >
+              <RotateCcw style={{ width: 14, height: 14 }} />
+              {returnToCreationMutation.isPending ? 'Devolvendo...' : 'Confirmar Devolução'}
+            </button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

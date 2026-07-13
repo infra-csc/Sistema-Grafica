@@ -641,6 +641,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Return item to creation (Solicitação) team
+  app.post("/api/items/:id/return-to-creation", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const item = await storage.getItem(id);
+      if (!item) return res.status(404).json({ error: "Item não encontrado" });
+
+      const allowedStatuses = ['requested', 'awaiting_linking', 'awaiting_submission'];
+      if (!allowedStatuses.includes(item.status)) {
+        return res.status(409).json({ error: `Item não pode ser devolvido. Status atual: ${item.status}` });
+      }
+
+      const prevStatus = item.status;
+      await storage.updateItem(id, { status: 'requested', skipApproval: false });
+      await storage.bulkSyncItemSponsors(id, []);
+
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'item',
+        id,
+        `Item devolvido para Criação (status anterior: ${translateStatus(prevStatus)})`
+      );
+
+      const updated = await storage.getItem(id);
+      res.json({ message: "Item devolvido para Criação com sucesso", item: updated });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Send items to Arte (bulk) - changes status from 'requested' to 'awaiting_submission'
   app.post("/api/items/send-to-arte", requireAuth, async (req, res) => {
     try {

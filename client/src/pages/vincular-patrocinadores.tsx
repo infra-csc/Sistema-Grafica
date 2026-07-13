@@ -415,16 +415,20 @@ export default function VincularPatrocinadores() {
     return counts;
   }, [itemUIStates]);
 
-  // Carregar sponsors de todos os items visíveis (não apenas requested)
+  // IDs já carregados — evita re-fetch e overwrite durante mutations
+  const loadedItemIdsRef = useRef(new Set<string>());
+
+  // Carregar sponsors apenas dos items ainda NÃO carregados
   useEffect(() => {
-    if (itemsLoading || !visibleItems || visibleItems.length === 0) {
-      return;
-    }
+    if (itemsLoading || !visibleItems || visibleItems.length === 0) return;
+
+    const unloaded = visibleItems.filter(item => !loadedItemIdsRef.current.has(item.id));
+    if (unloaded.length === 0) return;
 
     let cancelled = false;
-    
+
     Promise.all(
-      visibleItems.map(async (item) => {
+      unloaded.map(async (item) => {
         try {
           const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
           const itemSponsors = await response.json();
@@ -437,21 +441,19 @@ export default function VincularPatrocinadores() {
       })
     ).then(results => {
       if (cancelled) return;
-      
-      const newMap = results.reduce((acc, { itemId, sponsorIds }) => ({
+      const newEntries = results.reduce((acc, { itemId, sponsorIds }) => ({
         ...acc,
         [itemId]: sponsorIds
-      }), {});
-      
-      setItemSponsorsMap(newMap);
-      setOriginalSponsorsMap(newMap);
+      }), {} as Record<string, string[]>);
+      // MERGE — nunca substitui entradas já existentes (evita overwrite de updates otimistas)
+      setItemSponsorsMap(prev => ({ ...newEntries, ...prev }));
+      setOriginalSponsorsMap(prev => ({ ...newEntries, ...prev }));
+      results.forEach(({ itemId }) => loadedItemIdsRef.current.add(itemId));
     }).catch(error => {
       console.error('Erro ao carregar sponsors:', error);
     });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [visibleItems.length, itemsLoading]);
 
   // Helper para comparar arrays de sponsor IDs

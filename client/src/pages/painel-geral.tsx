@@ -1,6 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, Fragment } from "react";
-import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip } from "lucide-react";
+import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2 } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -53,6 +61,10 @@ const filterLabel: React.CSSProperties = {
 };
 
 export default function PainelGeral() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [searchTerm, setSearchTerm]     = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter]   = useState<string>("all");
@@ -60,12 +72,24 @@ export default function PainelGeral() {
   const [typeFilter, setTypeFilter]     = useState<string>("all");
   const [dateFilter, setDateFilter]     = useState<string>("all");
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
   const { data: items = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/items"], placeholderData: [] });
   const { data: events = [] }           = useQuery<any[]>({ queryKey: ["/api/events"], placeholderData: [] });
   const { data: sponsors = [] }         = useQuery<any[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
   const { data: auditLogs = [] }        = useQuery<any[]>({ queryKey: ["/api/audit-logs"], placeholderData: [] });
   const { data: standardItems = [] }    = useQuery<any[]>({ queryKey: ["/api/standard-items"], placeholderData: [] });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: async (itemId: string) => await apiRequest("DELETE", `/api/items/${itemId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      setDeleteConfirmItemId(null);
+      toast({ title: "Peça excluída", description: "A peça foi removida com sucesso." });
+    },
+    onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
+  });
 
   const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort();
 
@@ -615,20 +639,39 @@ export default function PainelGeral() {
 
                                     {/* Ação */}
                                     <td style={{ padding: "14px 20px", textAlign: "right" }}>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                        data-testid={`button-view-${item.id}`}
-                                        style={{
-                                          background: "none", border: "none", cursor: "pointer",
-                                          padding: 4, borderRadius: 4, color: "#a8a29e",
-                                          display: "flex", alignItems: "center", justifyContent: "center",
-                                          transition: "color 0.15s",
-                                        }}
-                                        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
-                                        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
-                                      >
-                                        <Eye style={{ width: 16, height: 16 }} />
-                                      </button>
+                                      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                          data-testid={`button-view-${item.id}`}
+                                          style={{
+                                            background: "none", border: "none", cursor: "pointer",
+                                            padding: 4, borderRadius: 4, color: "#a8a29e",
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                            transition: "color 0.15s",
+                                          }}
+                                          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
+                                          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
+                                        >
+                                          <Eye style={{ width: 16, height: 16 }} />
+                                        </button>
+                                        {isAdmin && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
+                                            data-testid={`button-delete-${item.id}`}
+                                            title="Excluir peça (Admin)"
+                                            style={{
+                                              background: "none", border: "none", cursor: "pointer",
+                                              padding: 4, borderRadius: 4, color: "#a8a29e",
+                                              display: "flex", alignItems: "center", justifyContent: "center",
+                                              transition: "color 0.15s",
+                                            }}
+                                            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#dc2626")}
+                                            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
+                                          >
+                                            <Trash2 style={{ width: 15, height: 15 }} />
+                                          </button>
+                                        )}
+                                      </div>
                                     </td>
                                   </tr>
 
@@ -667,6 +710,34 @@ export default function PainelGeral() {
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
       />
+
+      {/* ── Delete confirmation (Admin only) ── */}
+      <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir peça?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirmItemId && (() => {
+                const item = items.find((i: any) => i.id === deleteConfirmItemId);
+                return item
+                  ? `A peça "${item.displayId} — ${item.type}" será excluída permanentemente. Esta ação não pode ser desfeita.`
+                  : "Esta peça será excluída permanentemente. Esta ação não pode ser desfeita.";
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteItemMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmItemId && deleteItemMutation.mutate(deleteConfirmItemId)}
+              disabled={deleteItemMutation.isPending}
+              style={{ backgroundColor: "#dc2626", color: "#fff" }}
+              data-testid="button-confirm-delete"
+            >
+              {deleteItemMutation.isPending ? "Excluindo..." : "Excluir Peça"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -2902,113 +2902,87 @@ export default function VincularPatrocinadores() {
 
       {/* ===== Modal de Confirmação de Envio ===== */}
       <Dialog open={!!sendConfirmModal} onOpenChange={(open) => !open && setSendConfirmModal(null)}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 560, borderRadius: 12, overflow: 'hidden' }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 500, borderRadius: 12, overflow: 'hidden' }}>
           <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
 
-          {/* Header — centrado com ícone grande */}
-          <div style={{ padding: '32px 32px 28px', borderBottom: '1px solid #eeeeed', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-              <ShieldCheck style={{ width: 32, height: 32, color: '#f97316' }} />
+          {/* Header */}
+          <div style={{ padding: '20px 24px 18px', borderBottom: '1px solid #eeeeed', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Send style={{ width: 20, height: 20, color: '#f97316' }} />
             </div>
-            <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#1a1c1c', lineHeight: 1.2 }}>
-              Confirmar Envio para Arte
+            <div>
+              <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: '#1a1c1c', lineHeight: 1.2 }}>
+                Enviar para Arte
+              </div>
+              <p style={{ fontSize: 12, color: '#78716c', marginTop: 3 }}>
+                {sendConfirmModal?.items.length === 1
+                  ? '1 peça será enviada para aprovação criativa.'
+                  : `${sendConfirmModal?.items.length} peças serão enviadas para aprovação criativa.`}
+              </p>
             </div>
-            <p style={{ fontSize: 13, color: '#625d5b', marginTop: 8, maxWidth: 340, lineHeight: 1.6 }}>
-              Revise os itens e seus respectivos vínculos antes de enviar para aprovação do departamento criativo.
-            </p>
           </div>
 
-          {/* Corpo — lista de itens */}
-          <ScrollArea style={{ maxHeight: 400 }}>
-            <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 28 }}>
-              {sendConfirmModal?.items.map((item, idx) => {
+          {/* Lista de itens */}
+          <ScrollArea style={{ maxHeight: 380 }}>
+            <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {sendConfirmModal?.items.map((item) => {
                 const confirmed = (originalSponsorsMap[item.id] || []);
-                const pending = sendConfirmModal.pendingByItem[item.id] || new Set<string>();
-                const allSponsorIds = (sponsors as any[]).map((s: any) => s.id);
-                const otherSponsorIds = allSponsorIds.filter((sid: string) => !confirmed.includes(sid));
+                const newOnes = Array.from(sendConfirmModal.pendingByItem[item.id] || []);
+                const allLinkedIds = Array.from(new Set([...confirmed, ...newOnes]));
+                const linkedSponsors = allLinkedIds
+                  .map(sid => (sponsors as any[]).find((s: any) => s.id === sid))
+                  .filter(Boolean);
+                const eventName = (events as any[]).find(e => e.id === item.eventId)?.name;
 
                 return (
-                  <div key={item.id}>
-                    {idx > 0 && <div style={{ height: 1, backgroundColor: '#eeeeed', marginBottom: 28, marginTop: -14 }} />}
-
-                    {/* Seção: Já vinculados */}
-                    {confirmed.length > 0 && (
-                      <div style={{ marginBottom: 20 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#8c7164', whiteSpace: 'nowrap' }}>
-                            Já vinculados
-                          </span>
-                          <div style={{ height: 1, flex: 1, backgroundColor: '#eeeeed' }} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {confirmed.map((sid: string) => {
-                            const sp = (sponsors as any[]).find((s: any) => s.id === sid);
-                            if (!sp) return null;
-                            return (
-                              <div key={sid} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', backgroundColor: '#f3f4f3', borderRadius: 6 }}>
-                                <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#f97316' }}>{item.displayId}</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1c1c' }}>{sp.name}</span>
-                                  <span style={{ padding: '2px 6px', backgroundColor: '#dcfce7', color: '#15803d', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', borderRadius: 4, border: '1px solid #bbf7d0', letterSpacing: '0.05em' }}>
-                                    Vinculado
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                  <div key={item.id} style={{
+                    padding: '12px 14px', borderRadius: 8,
+                    border: '1px solid #eeeeed', backgroundColor: '#fafaf9',
+                  }}>
+                    {/* Linha principal: ID + tipo + evento */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: linkedSponsors.length > 0 ? 8 : 0 }}>
+                      <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 800, color: '#f97316', flexShrink: 0 }}>
+                        {item.displayId}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {item.type}
+                      </span>
+                      {eventName && (
+                        <span style={{ fontSize: 10, color: '#a8a29e', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          {eventName}
+                        </span>
+                      )}
+                    </div>
+                    {item.description && (
+                      <div style={{ fontSize: 11, color: '#78716c', marginBottom: linkedSponsors.length > 0 ? 8 : 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.description}
                       </div>
                     )}
 
-                    {/* Seção: Selecionar / Adicionar mais */}
-                    {otherSponsorIds.length > 0 && (
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-                          <span style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#f97316', whiteSpace: 'nowrap' }}>
-                            {confirmed.length > 0 ? 'Adicionar mais patrocinadores' : 'Selecionar patrocinadores'}
-                          </span>
-                          <div style={{ height: 1, flex: 1, backgroundColor: 'rgba(249,115,22,0.15)' }} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {otherSponsorIds.map((sid: string) => {
-                            const sp = (sponsors as any[]).find((s: any) => s.id === sid);
-                            if (!sp) return null;
-                            const isChecked = pending.has(sid);
-                            return (
-                              <div
-                                key={sid}
-                                style={{
-                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                  padding: '12px 14px',
-                                  border: `2px dashed ${isChecked ? 'rgba(249,115,22,0.4)' : 'rgba(249,115,22,0.2)'}`,
-                                  backgroundColor: isChecked ? 'rgba(249,115,22,0.05)' : 'rgba(249,115,22,0.02)',
-                                  borderRadius: 6, cursor: 'pointer',
-                                  transition: 'all 0.15s',
-                                }}
-                                onClick={() => toggleModalSponsor(item.id, sid)}
-                              >
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                  <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#f97316' }}>{item.displayId}</span>
-                                  <span style={{ fontSize: 12, fontWeight: 500, color: '#625d5b', marginTop: 2 }}>{sp.name}</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  {isChecked && (
-                                    <span style={{ padding: '2px 7px', backgroundColor: 'rgba(249,115,22,0.12)', color: '#f97316', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', borderRadius: 4, border: '1px solid rgba(249,115,22,0.25)', letterSpacing: '0.05em' }}>
-                                      A vincular
-                                    </span>
-                                  )}
-                                  <Plus style={{ width: 16, height: 16, color: '#f97316' }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                    {/* Sponsors vinculados */}
+                    {linkedSponsors.length > 0 ? (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        {linkedSponsors.map((sp: any) => {
+                          const isNew = newOnes.includes(sp.id);
+                          return (
+                            <span key={sp.id} style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                              padding: '3px 8px', borderRadius: 4,
+                              backgroundColor: isNew ? 'rgba(249,115,22,0.07)' : '#ffffff',
+                              border: `1px solid ${isNew ? 'rgba(249,115,22,0.3)' : '#e7e5e4'}`,
+                              fontSize: 11, fontWeight: 600, color: '#44403c',
+                            }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: sp.color || '#a8a29e', flexShrink: 0 }} />
+                              {sp.name}
+                              {isNew && <span style={{ fontSize: 9, color: '#f97316', fontWeight: 800 }}>NOVO</span>}
+                            </span>
+                          );
+                        })}
                       </div>
-                    )}
-
-                    {confirmed.length === 0 && otherSponsorIds.length === 0 && (
-                      <div style={{ fontSize: 12, color: '#a8a29e', fontStyle: 'italic' }}>
-                        Nenhum patrocinador disponível
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 5, backgroundColor: '#fef3c7', border: '1px solid #fde68a' }}>
+                        <AlertCircle style={{ width: 11, height: 11, color: '#d97706', flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, color: '#92400e', fontWeight: 600 }}>Sem patrocinadores vinculados</span>
                       </div>
                     )}
                   </div>
@@ -3017,29 +2991,23 @@ export default function VincularPatrocinadores() {
             </div>
           </ScrollArea>
 
-          {/* Footer — botões empilhados em coluna */}
-          <div style={{ padding: '24px 32px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Footer */}
+          <div style={{ padding: '16px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f9f8f7', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setSendConfirmModal(null)}
+              style={{ padding: '9px 18px', background: 'none', border: '1px solid #d6d3d1', borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#625d5b', cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
             <button
               onClick={handleModalConfirmSend}
               disabled={sendToArteMutation.isPending}
-              style={{ width: '100%', padding: '16px 24px', backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 8, fontFamily: 'Space Grotesk, sans-serif', fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: sendToArteMutation.isPending ? 0.7 : 1, transition: 'background-color 0.2s' }}
-              onMouseEnter={e => { if (!sendToArteMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917'; }}
+              style={{ padding: '9px 20px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
             >
-              {sendToArteMutation.isPending ? 'Enviando...' : (
-                <>
-                  Confirmar e Enviar para Arte{sendConfirmModal && sendConfirmModal.items.length > 1 ? ` (${sendConfirmModal.items.length} peças)` : ''}
-                  <Send style={{ width: 16, height: 16 }} />
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => setSendConfirmModal(null)}
-              style={{ width: '100%', padding: '10px 24px', background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer', transition: 'color 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#1a1c1c'; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#625d5b'; }}
-            >
-              Voltar para rascunhos
+              <Send style={{ width: 14, height: 14 }} />
+              {sendToArteMutation.isPending
+                ? 'Enviando...'
+                : `Confirmar Envio${sendConfirmModal && sendConfirmModal.items.length > 1 ? ` (${sendConfirmModal.items.length})` : ''}`}
             </button>
           </div>
         </DialogContent>

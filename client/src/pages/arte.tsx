@@ -269,11 +269,9 @@ export default function Arte() {
   const [exportGroups, setExportGroups] = useState<ExportGroup[]>([]);
 
   const pdfStyles = `
-    @page { size: A4 portrait; margin: 14mm; }
+    @page { size: A4 portrait; margin: 12mm 14mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
-    .lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #a8a29e; display: block; margin-bottom: 3px; }
-    .val { font-size: 12px; font-weight: 600; color: #1c1917; line-height: 1.35; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   `;
 
   // ── Modo único: uma prova por página, com divisores de grupo ────────────────
@@ -306,35 +304,45 @@ export default function Arte() {
         : "";
 
       const thumbUrl = item.approvalThumbUrl || "";
-      const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
+      const isImg = thumbUrl && !/\.pdf$/i.test(thumbUrl) && (/\.(png|jpg|jpeg|gif|webp|svg)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/") || thumbUrl.includes("/.private/"));
       const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
       const dims = item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—";
       const dimsSang = item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : "";
+      const groupLabel = typeToGroup[item.type] ? `${typeToGroup[item.type]} › ${item.type}` : item.type;
+      const sponsorsList = item.sponsors?.length ? item.sponsors.map((s: any) => s.name).join(', ') : "";
+      const today = new Date().toLocaleDateString('pt-BR');
       return `
         <div class="page">
           ${groupBanner}
           <div class="header">
-            <span class="id">${item.displayId || "#—"}</span>
-            <span class="event">${item.event?.name || "Sem Evento"}</span>
+            <span class="id-badge">${item.displayId || "#—"}</span>
+            <div class="header-text">
+              <div class="event-name">${item.event?.name || "Sem Evento"}</div>
+              <div class="type-label">${groupLabel}</div>
+            </div>
           </div>
           <div class="body">
             <div class="thumb">
               ${isImg
                 ? `<img src="${resolvedThumb}" alt="Thumb" />`
                 : thumbUrl
-                  ? `<div class="no-thumb">Arquivo vinculado</div>`
-                  : `<div class="no-thumb">Sem thumb</div>`
+                  ? `<div class="no-thumb"><div class="no-thumb-icon">PDF</div><span>Arquivo vinculado</span></div>`
+                  : `<div class="no-thumb"><div class="no-thumb-icon">—</div><span>Sem thumbnail</span></div>`
               }
             </div>
             <div class="info">
               <div class="field"><span class="lbl">Tipo</span><span class="val">${item.type || "—"}</span></div>
-              <div class="field"><span class="lbl">Descrição</span><span class="val">${item.description || "—"}</span></div>
+              ${item.description ? `<div class="field"><span class="lbl">Descrição</span><span class="val">${item.description}</span></div>` : ""}
               <div class="field"><span class="lbl">Quantidade</span><span class="val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
-              <div class="field"><span class="lbl">Medidas (V × A)</span><span class="val">${dims}${dimsSang ? `<br/><span style="font-size:10px;color:#a8a29e">${dimsSang} (sangria)</span>` : ""}</span></div>
-              <div class="field"><span class="lbl">Material</span><span class="val">${item.material || "—"}</span></div>
-              <div class="field"><span class="lbl">Acabamento</span><span class="val">${item.finish || "—"}</span></div>
-              ${item.sponsors && item.sponsors.length > 0 ? `<div class="field"><span class="lbl">Patrocinadores</span><span class="val">${item.sponsors.map((s: any) => s.name).join(', ')}</span></div>` : ""}
+              <div class="field"><span class="lbl">Medidas (V × A)</span><span class="val">${dims}${dimsSang ? `<span class="val-sub">${dimsSang} (sangria)</span>` : ""}</span></div>
+              ${item.material ? `<div class="field"><span class="lbl">Material</span><span class="val">${item.material}</span></div>` : ""}
+              ${item.finish ? `<div class="field"><span class="lbl">Acabamento</span><span class="val">${item.finish}</span></div>` : ""}
+              ${sponsorsList ? `<div class="field"><span class="lbl">Patrocinadores</span><span class="val">${sponsorsList}</span></div>` : ""}
             </div>
+          </div>
+          <div class="page-footer">
+            <span class="footer-brand">NORTE Marketing Esportivo</span>
+            <span class="footer-meta">${item.displayId} · ${today}</span>
           </div>
         </div>
       `;
@@ -343,21 +351,39 @@ export default function Arte() {
       <title>${title}</title>
       <style>
         ${pdfStyles}
-        .page { width: 100%; height: 269mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
+        /* Page */
+        .page { width: 100%; height: 273mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
-        .group-banner { display: flex; align-items: center; gap: 0; background: #1c1917; border-radius: 6px; padding: 7px 14px; margin-bottom: 10px; flex-shrink: 0; }
-        .group-banner-event { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #ffffff; }
-        .group-banner-sep { font-size: 11px; font-weight: 400; color: #a8a29e; margin: 0 6px; }
-        .group-banner-type { font-size: 11px; font-weight: 700; color: #f97316; }
-        .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #f97316; padding-bottom: 10px; margin-bottom: 14px; flex-shrink: 0; }
-        .id { font-family: monospace; font-size: 16px; font-weight: 800; color: #f97316; flex-shrink: 0; }
-        .event { font-size: 14px; font-weight: 700; color: #1c1917; }
-        .body { display: flex; gap: 20px; flex: 1; min-height: 0; }
-        .thumb { flex: 1; min-height: 0; display: flex; align-items: flex-start; }
-        .thumb img { width: 100%; height: 100%; max-height: 220mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
-        .no-thumb { width: 100%; min-height: 160px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
-        .info { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
-        .field { display: flex; flex-direction: column; }
+        /* Group banner */
+        .group-banner { display: flex; align-items: center; background: #1c1917; border-radius: 6px; padding: 7px 14px; margin-bottom: 12px; flex-shrink: 0; }
+        .group-banner-event { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.75); }
+        .group-banner-sep { font-size: 10px; color: rgba(255,255,255,0.35); margin: 0 8px; }
+        .group-banner-type { font-size: 10px; font-weight: 700; color: #fb923c; }
+        /* Header */
+        .header { display: flex; align-items: flex-start; gap: 14px; border-bottom: 2.5px solid #f97316; padding-bottom: 12px; margin-bottom: 16px; flex-shrink: 0; }
+        .id-badge { font-family: 'Courier New', monospace; font-size: 17px; font-weight: 800; color: #f97316; flex-shrink: 0; line-height: 1.2; padding-top: 3px; }
+        .header-text { flex: 1; min-width: 0; }
+        .event-name { font-size: 20px; font-weight: 800; color: #1c1917; line-height: 1.2; letter-spacing: -0.02em; word-break: break-word; overflow-wrap: break-word; }
+        .type-label { font-size: 10px; font-weight: 700; color: #a8a29e; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 5px; }
+        /* Body */
+        .body { display: flex; gap: 22px; flex: 1; min-height: 0; }
+        .thumb { flex: 1; min-height: 0; min-width: 0; display: flex; align-items: flex-start; }
+        .thumb img { width: 100%; height: 100%; max-height: 210mm; object-fit: contain; border-radius: 8px; border: 1px solid #e7e5e4; display: block; }
+        .no-thumb { width: 100%; min-height: 140px; background: #f9f8f7; border-radius: 8px; border: 1.5px dashed #d4d4d0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+        .no-thumb-icon { font-size: 18px; font-weight: 800; color: #d4d4d0; }
+        .no-thumb span { font-size: 11px; color: #a8a29e; }
+        /* Info panel */
+        .info { width: 190px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1.5px solid #f0ede8; padding-left: 20px; }
+        .field { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
+        .field:first-child { padding-top: 0; }
+        .field:last-child { border-bottom: none; }
+        .lbl { font-size: 7.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #a8a29e; display: block; margin-bottom: 4px; }
+        .val { font-size: 12px; font-weight: 600; color: #1c1917; line-height: 1.4; word-break: break-word; overflow-wrap: break-word; }
+        .val-sub { display: block; font-size: 10px; color: #78716c; font-weight: 500; margin-top: 2px; }
+        /* Footer */
+        .page-footer { flex-shrink: 0; margin-top: 10px; padding-top: 8px; border-top: 1px solid #f0ede8; display: flex; align-items: center; justify-content: space-between; }
+        .footer-brand { font-size: 7.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #c4c0ba; }
+        .footer-meta { font-family: monospace; font-size: 8px; color: #d4d4d0; }
       </style>
     </head><body>${rows}</body></html>`);
     win.document.close();

@@ -260,6 +260,8 @@ export default function Arte() {
   const [bulkThumbEntries, setBulkThumbEntries] = useState<BulkThumbEntry[]>([]);
   const [bulkThumbRunning, setBulkThumbRunning] = useState(false);
   const [bulkThumbEventFilter, setBulkThumbEventFilter] = useState<string>("all");
+  const [bulkThumbEventComboOpen, setBulkThumbEventComboOpen] = useState(false);
+  const [bulkThumbLinkOpenMap, setBulkThumbLinkOpenMap] = useState<Record<string, boolean>>({});
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportMode, setExportMode] = useState<"individual" | "grouped">("individual");
   const [exportSelectedGroupKeys, setExportSelectedGroupKeys] = useState<Set<string>>(new Set());
@@ -2661,19 +2663,50 @@ export default function Arte() {
                 </div>
               </div>
 
-              {/* Event filter */}
+              {/* Event filter — combobox pesquisável */}
               <div style={{ padding: '0 20px 16px' }}>
                 <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 6px' }}>Filtrar itens por evento</p>
-                <select
-                  value={bulkThumbEventFilter}
-                  onChange={e => setBulkThumbEventFilter(e.target.value)}
-                  style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
-                >
-                  <option value="all">Todos os eventos</option>
-                  {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((ev: any) => (
-                    <option key={ev.id} value={ev.id}>{ev.name}</option>
-                  ))}
-                </select>
+                {(() => {
+                  const sortedEvts = [...(events as any[])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+                  const selEvt = sortedEvts.find(e => e.id === bulkThumbEventFilter);
+                  return (
+                    <Popover open={bulkThumbEventComboOpen} onOpenChange={setBulkThumbEventComboOpen}>
+                      <PopoverTrigger asChild>
+                        <button style={{
+                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                          height: 36, borderRadius: 8, border: '1px solid #e7e5e4',
+                          backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600,
+                          color: selEvt ? '#1c1917' : '#78716c', padding: '0 10px', cursor: 'pointer', outline: 'none',
+                        }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {selEvt ? selEvt.name : 'Todos os eventos'}
+                          </span>
+                          <ChevronsUpDown style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" style={{ width: 260 }} align="start">
+                        <Command>
+                          <CommandInput placeholder="Buscar evento..." />
+                          <CommandList>
+                            <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem value="all" onSelect={() => { setBulkThumbEventFilter("all"); setBulkThumbEventComboOpen(false); }}>
+                                <Check style={{ width: 12, height: 12, opacity: bulkThumbEventFilter === "all" ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                                Todos os eventos
+                              </CommandItem>
+                              {sortedEvts.map((ev: any) => (
+                                <CommandItem key={ev.id} value={ev.name} onSelect={() => { setBulkThumbEventFilter(ev.id); setBulkThumbEventComboOpen(false); }}>
+                                  <Check style={{ width: 12, height: 12, opacity: bulkThumbEventFilter === ev.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                                  {ev.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })()}
               </div>
 
               {/* Stats */}
@@ -2903,31 +2936,101 @@ export default function Arte() {
                                 </button>
                               </div>
                             ) : (
-                              /* ── Sem vínculo: select de item ── */
+                              /* ── Sem vínculo: combobox pesquisável com grupos ── */
                               <div>
-                                <select
-                                  value={entry.matchedItemId || ''}
-                                  onChange={e => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: e.target.value || null } : en))}
-                                  style={{
-                                    width: '100%', height: 32, borderRadius: 6,
-                                    border: `1.5px solid ${isLinked ? '#93c5fd' : '#fbbf24'}`,
-                                    backgroundColor: '#ffffff',
-                                    fontSize: 10, fontWeight: 600, color: '#1c1917',
-                                    padding: '0 6px', cursor: 'pointer',
-                                  }}
-                                >
-                                  <option value="">— Vincular manualmente —</option>
-                                  {pendingPool.map((item: any) => (
-                                    <option key={item.id} value={item.id}>
-                                      {item.displayId} · {item.type}{item.description ? ` — ${item.description.slice(0, 20)}` : ''}
-                                    </option>
-                                  ))}
-                                </select>
-                                {pendingPool.length === 0 && (
-                                  <p style={{ fontSize: 9, color: '#f97316', margin: '4px 0 0', fontWeight: 600 }}>
-                                    Nenhuma peça aguardando{bulkThumbEventFilter !== "all" ? " neste evento" : ""}
-                                  </p>
-                                )}
+                                {(() => {
+                                  const linked = allItems.find((i: any) => i.id === entry.matchedItemId);
+                                  const isOpen = !!bulkThumbLinkOpenMap[entry.id];
+                                  // Agrupar por grupo/tipo
+                                  const grouped = pendingPool.reduce((acc: Record<string, any[]>, item: any) => {
+                                    const g = typeToGroup[item.type] || item.type;
+                                    if (!acc[g]) acc[g] = [];
+                                    acc[g].push(item);
+                                    return acc;
+                                  }, {});
+                                  const groupKeys = Object.keys(grouped).sort();
+                                  return (
+                                    <Popover
+                                      open={isOpen}
+                                      onOpenChange={open => setBulkThumbLinkOpenMap(prev => ({ ...prev, [entry.id]: open }))}
+                                    >
+                                      <PopoverTrigger asChild>
+                                        <button style={{
+                                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4,
+                                          height: 32, borderRadius: 6,
+                                          border: `1.5px solid ${isLinked ? '#93c5fd' : '#fbbf24'}`,
+                                          backgroundColor: '#ffffff', fontSize: 10, fontWeight: 600,
+                                          color: linked ? '#1c1917' : '#78716c', padding: '0 6px', cursor: 'pointer', outline: 'none',
+                                        }}>
+                                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {linked
+                                              ? `${linked.displayId} · ${linked.type}`
+                                              : '— Vincular manualmente —'}
+                                          </span>
+                                          <ChevronsUpDown style={{ width: 10, height: 10, color: '#a8a29e', flexShrink: 0 }} />
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="p-0" style={{ width: 320 }} align="start">
+                                        <Command>
+                                          <CommandInput placeholder="Buscar por ID, tipo ou descrição..." />
+                                          <CommandList style={{ maxHeight: 280 }}>
+                                            <CommandEmpty>Nenhuma peça encontrada.</CommandEmpty>
+                                            {pendingPool.length === 0 && (
+                                              <div style={{ padding: '12px 16px', fontSize: 11, color: '#f97316', fontWeight: 600 }}>
+                                                Nenhuma peça aguardando{bulkThumbEventFilter !== "all" ? " neste evento" : ""}
+                                              </div>
+                                            )}
+                                            {entry.matchedItemId && (
+                                              <CommandGroup heading="Selecionado">
+                                                <CommandItem
+                                                  value="clear"
+                                                  onSelect={() => {
+                                                    setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: null } : en));
+                                                    setBulkThumbLinkOpenMap(prev => ({ ...prev, [entry.id]: false }));
+                                                  }}
+                                                >
+                                                  <X style={{ width: 10, height: 10, marginRight: 6, flexShrink: 0, color: '#dc2626' }} />
+                                                  <span style={{ color: '#dc2626', fontSize: 11 }}>Remover vínculo</span>
+                                                </CommandItem>
+                                              </CommandGroup>
+                                            )}
+                                            {groupKeys.map(groupKey => (
+                                              <CommandGroup key={groupKey} heading={groupKey}>
+                                                {grouped[groupKey].map((item: any) => {
+                                                  const evtName = (events as any[]).find(e => e.id === item.eventId)?.name || '';
+                                                  const searchVal = `${item.displayId} ${item.type} ${item.description || ''} ${evtName}`;
+                                                  return (
+                                                    <CommandItem
+                                                      key={item.id}
+                                                      value={searchVal}
+                                                      onSelect={() => {
+                                                        setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: item.id } : en));
+                                                        setBulkThumbLinkOpenMap(prev => ({ ...prev, [entry.id]: false }));
+                                                      }}
+                                                    >
+                                                      <Check style={{ width: 10, height: 10, opacity: entry.matchedItemId === item.id ? 1 : 0, marginRight: 6, flexShrink: 0 }} />
+                                                      <div style={{ overflow: 'hidden' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                          <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif', flexShrink: 0 }}>{item.displayId}</span>
+                                                          <span style={{ fontSize: 10, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                                                        </div>
+                                                        {(item.description || evtName) && (
+                                                          <div style={{ fontSize: 10, color: '#a8a29e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                                                            {item.description ? item.description.slice(0, 40) : evtName}
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    </CommandItem>
+                                                  );
+                                                })}
+                                              </CommandGroup>
+                                            ))}
+                                          </CommandList>
+                                        </Command>
+                                      </PopoverContent>
+                                    </Popover>
+                                  );
+                                })()}
                               </div>
                             )}
                           </div>

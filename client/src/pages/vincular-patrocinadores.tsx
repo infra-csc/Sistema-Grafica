@@ -431,6 +431,22 @@ export default function VincularPatrocinadores() {
     return counts;
   }, [itemUIStates]);
 
+  // Items visíveis respeitando o eventFilter (para contadores de contexto e ações em lote)
+  const contextVisibleItems = useMemo(() => {
+    if (eventFilter === "all") return visibleItems;
+    return visibleItems.filter(item => item.eventId === eventFilter);
+  }, [visibleItems, eventFilter]);
+
+  // Contadores de contexto: baseados no filtro de evento ativo
+  const contextStatusCounts = useMemo(() => {
+    const counts = { RASCUNHO: 0, PRONTO: 0, ENVIADO: 0, PENDENTE: 0 };
+    contextVisibleItems.forEach(item => {
+      const status = itemUIStates[item.id] || 'PENDENTE';
+      counts[status as keyof typeof counts]++;
+    });
+    return counts;
+  }, [contextVisibleItems, itemUIStates]);
+
   // IDs já carregados — evita re-fetch e overwrite durante mutations
   const loadedItemIdsRef = useRef(new Set<string>());
 
@@ -1243,9 +1259,9 @@ export default function VincularPatrocinadores() {
   }
 
 
-  // Calcular progresso
-  const totalItems = visibleItems.length;
-  const completedItems = visibleItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
+  // Calcular progresso — usa contextVisibleItems para respeitar o filtro de evento
+  const totalItems = contextVisibleItems.length;
+  const completedItems = contextVisibleItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
   const progressPercent = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
 
   const toggleItemExpansion = (itemId: string) => {
@@ -1332,39 +1348,39 @@ export default function VincularPatrocinadores() {
           </button>
           <button
             onClick={() => {
-              const prontoItems = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO');
+              const prontoItems = contextVisibleItems.filter(i => itemUIStates[i.id] === 'PRONTO');
               if (prontoItems.length === 0) return;
               const pendingByItem: Record<string, Set<string>> = {};
               prontoItems.forEach(i => { pendingByItem[i.id] = new Set(); });
               setSendConfirmModal({ items: prontoItems, pendingByItem });
             }}
-            disabled={statusCounts.PRONTO === 0 || sendToArteMutation.isPending}
+            disabled={contextStatusCounts.PRONTO === 0 || sendToArteMutation.isPending}
             data-testid="button-finalizar-lote"
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
               padding: '10px 18px',
-              backgroundColor: statusCounts.PRONTO === 0 ? '#e7e5e4' : '#f97316',
-              color: statusCounts.PRONTO === 0 ? '#a8a29e' : '#ffffff',
+              backgroundColor: contextStatusCounts.PRONTO === 0 ? '#e7e5e4' : '#f97316',
+              color: contextStatusCounts.PRONTO === 0 ? '#a8a29e' : '#ffffff',
               borderRadius: 8, border: 'none',
-              cursor: statusCounts.PRONTO === 0 ? 'not-allowed' : 'pointer',
+              cursor: contextStatusCounts.PRONTO === 0 ? 'not-allowed' : 'pointer',
               minWidth: 180,
             }}
-            onMouseEnter={e => { if (statusCounts.PRONTO > 0) (e.currentTarget.style.filter = 'brightness(1.1)'); }}
+            onMouseEnter={e => { if (contextStatusCounts.PRONTO > 0) (e.currentTarget.style.filter = 'brightness(1.1)'); }}
             onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <Send style={{ width: 13, height: 13, flexShrink: 0 }} />
               <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: '-0.01em' }}>
                 Enviar para Arte
-                {statusCounts.PRONTO > 0 && (
+                {contextStatusCounts.PRONTO > 0 && (
                   <span style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 4, padding: '1px 6px', fontSize: 11 }}>
-                    {statusCounts.PRONTO}
+                    {contextStatusCounts.PRONTO}
                   </span>
                 )}
               </span>
             </div>
             <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.8, paddingLeft: 20, letterSpacing: 0 }}>
-              {statusCounts.PRONTO === 0 ? 'Nenhum item pronto' : 'Conclui sua etapa de vinculação'}
+              {contextStatusCounts.PRONTO === 0 ? 'Nenhum item pronto' : 'Conclui sua etapa de vinculação'}
             </span>
           </button>
         </div>
@@ -1391,12 +1407,12 @@ export default function VincularPatrocinadores() {
           <div style={{ backgroundColor: '#f3f4f3', borderLeft: '4px solid #f97316', padding: '14px 16px', borderRadius: '0 8px 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Ação Pendente</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c' }}>{statusCounts.RASCUNHO} {statusCounts.RASCUNHO !== 1 ? 'itens' : 'item'} em RASCUNHO</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c' }}>{contextStatusCounts.RASCUNHO} {contextStatusCounts.RASCUNHO !== 1 ? 'itens' : 'item'} em RASCUNHO</p>
             </div>
-            {statusCounts.RASCUNHO > 0 && (
+            {contextStatusCounts.RASCUNHO > 0 && (
               <button
                 onClick={() => {
-                  const rascunhoItems = visibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO');
+                  const rascunhoItems = contextVisibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO');
                   const payloads = rascunhoItems.map(i => {
                     const ch = pendingChanges[i.id];
                     return { itemId: i.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
@@ -1413,12 +1429,12 @@ export default function VincularPatrocinadores() {
           <div style={{ backgroundColor: '#f3f4f3', borderLeft: '4px solid #166534', padding: '14px 16px', borderRadius: '0 8px 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Pronto para Envio</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c' }}>{statusCounts.PRONTO} {statusCounts.PRONTO !== 1 ? 'itens' : 'item'} aguardando</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c' }}>{contextStatusCounts.PRONTO} {contextStatusCounts.PRONTO !== 1 ? 'itens' : 'item'} aguardando</p>
             </div>
-            {statusCounts.PRONTO > 0 && (
+            {contextStatusCounts.PRONTO > 0 && (
               <button
                 onClick={() => {
-                  const prontoItems = visibleItems.filter(i => itemUIStates[i.id] === 'PRONTO');
+                  const prontoItems = contextVisibleItems.filter(i => itemUIStates[i.id] === 'PRONTO');
                   if (prontoItems.length === 0) return;
                   const pendingByItem: Record<string, Set<string>> = {};
                   prontoItems.forEach(i => { pendingByItem[i.id] = new Set(); });
@@ -1640,7 +1656,8 @@ export default function VincularPatrocinadores() {
               return idA - idB;
             });
 
-          const progress = calculateProgress(displayedItems);
+          // Progress usa TODOS os itens do evento, não apenas os filtrados
+          const progress = calculateProgress(eventItems);
 
           if (!event) return null;
 

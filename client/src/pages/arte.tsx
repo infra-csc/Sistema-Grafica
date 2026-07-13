@@ -259,6 +259,7 @@ export default function Arte() {
   type BulkThumbEntry = { id: string; file: File; preview: string; matchedItemId: string | null; status: 'pending' | 'uploading' | 'done' | 'error'; errorMsg?: string };
   const [bulkThumbEntries, setBulkThumbEntries] = useState<BulkThumbEntry[]>([]);
   const [bulkThumbRunning, setBulkThumbRunning] = useState(false);
+  const [bulkThumbEventFilter, setBulkThumbEventFilter] = useState<string>("all");
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportMode, setExportMode] = useState<"individual" | "grouped">("individual");
   const [exportSelectedGroupKeys, setExportSelectedGroupKeys] = useState<Set<string>>(new Set());
@@ -2521,183 +2522,273 @@ export default function Arte() {
       </Dialog>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MODAL 5 — MULTI-UPLOAD THUMBS                                      */}
+      {/* MODAL 5 — MULTI-UPLOAD THUMBS (redesenhado)                        */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open && !bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); } }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 620, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.12)' }}>
+      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open && !bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 980, width: '95vw', borderRadius: 14, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.18)' }}>
           <DialogTitle className="sr-only">Multi-Upload de Thumbs</DialogTitle>
           <DialogDescription className="sr-only">Upload em lote de miniaturas de aprovação</DialogDescription>
 
-          {/* Header */}
-          <div style={{ padding: '22px 28px 16px', borderBottom: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          {/* ── Header ── */}
+          <div style={{ padding: '24px 32px 18px', borderBottom: '1px solid #f0ede8', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', borderRadius: '14px 14px 0 0' }}>
             <div>
-              <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.04em', color: '#1c1917', margin: '0 0 3px', fontFamily: '"Space Grotesk", sans-serif' }}>
-                Multi-Upload de Thumbs
-              </h2>
-              <p style={{ fontSize: 12, color: '#78716c', margin: 0 }}>
-                Arraste vários arquivos — o sistema vincula automaticamente pelo número no nome do arquivo
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Upload style={{ width: 16, height: 16, color: '#fff' }} />
+                </div>
+                <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.04em', color: '#ffffff', margin: 0, fontFamily: '"Space Grotesk", sans-serif' }}>
+                  Multi-Upload de Thumbs
+                </h2>
+              </div>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', margin: 0, paddingLeft: 42 }}>
+                O sistema vincula automaticamente pelo número no nome do arquivo · ex: <strong style={{ color: 'rgba(255,255,255,0.75)' }}>0277_aplique.jpg</strong>
               </p>
             </div>
             <button
-              onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); } }}
-              style={{ padding: 6, backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#78716c', lineHeight: 1, flexShrink: 0 }}
+              onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
+              style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0, transition: 'background 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
             >
-              <X style={{ width: 16, height: 16 }} />
+              <X style={{ width: 18, height: 18 }} />
             </button>
           </div>
 
-          {/* Drop zone */}
-          <div
-            style={{
-              margin: '16px 28px 0',
-              padding: '20px', borderRadius: 10,
-              background: isDragOverBulk ? '#f0fdf4' : '#fafaf9',
-              border: isDragOverBulk ? '2px dashed #16a34a' : '2px dashed #d4d4d0',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-            onDragOver={e => { e.preventDefault(); setIsDragOverBulk(true); }}
-            onDragEnter={e => { e.preventDefault(); setIsDragOverBulk(true); }}
-            onDragLeave={() => setIsDragOverBulk(false)}
-            onDrop={e => { e.preventDefault(); setIsDragOverBulk(false); if (e.dataTransfer.files.length) handleBulkThumbFilesAdded(e.dataTransfer.files); }}
-            onClick={() => { const inp = document.getElementById('bulk-thumb-input') as HTMLInputElement; inp?.click(); }}
-          >
-            <input id="bulk-thumb-input" type="file" accept="image/*" multiple style={{ display: 'none' }}
-              onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
-            <Upload style={{ width: 20, height: 20, color: isDragOverBulk ? '#16a34a' : '#a8a29e' }} />
-            <p style={{ fontSize: 12, fontWeight: 600, color: isDragOverBulk ? '#15803d' : '#78716c', margin: 0 }}>
-              {isDragOverBulk ? 'Solte para adicionar' : 'Arraste imagens aqui ou clique para selecionar'}
-            </p>
-            <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>
-              Nome do arquivo com o número da peça, ex: <strong>0277_aplique.jpg</strong>
-            </p>
-          </div>
+          {/* ── Body — 2 columns ── */}
+          <div style={{ display: 'flex', height: 560, overflow: 'hidden' }}>
 
-          {/* Entries list */}
-          {bulkThumbEntries.length > 0 && (
-            <div style={{ margin: '12px 28px 0', maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {/* Stats bar */}
-              <div style={{ display: 'flex', gap: 12, padding: '6px 0', borderBottom: '1px solid #f5f5f4', marginBottom: 4 }}>
-                {[
-                  { label: 'Vinculado', count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length, color: '#16a34a', bg: '#f0fdf4' },
-                  { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, color: '#d97706', bg: '#fffbeb' },
-                  { label: 'Enviado', count: bulkThumbEntries.filter(e => e.status === 'done').length, color: '#7c3aed', bg: '#f5f3ff' },
-                  { label: 'Erro', count: bulkThumbEntries.filter(e => e.status === 'error').length, color: '#dc2626', bg: '#fef2f2' },
-                ].map(s => s.count > 0 && (
-                  <span key={s.label} style={{ fontSize: 10, fontWeight: 700, color: s.color, backgroundColor: s.bg, padding: '2px 8px', borderRadius: 4 }}>
-                    {s.count} {s.label}
-                  </span>
-                ))}
+            {/* ── Left panel (controls) ── */}
+            <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', backgroundColor: '#fafaf9' }}>
+
+              {/* Drop zone */}
+              <div style={{ padding: '20px 20px 16px' }}>
+                <div
+                  style={{
+                    padding: '28px 16px', borderRadius: 12,
+                    background: isDragOverBulk ? '#f0fdf4' : '#ffffff',
+                    border: isDragOverBulk ? '2px dashed #16a34a' : '2px dashed #d4d4d0',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    boxShadow: isDragOverBulk ? 'inset 0 0 0 3px rgba(22,163,74,0.08)' : 'none',
+                  }}
+                  onDragOver={e => { e.preventDefault(); setIsDragOverBulk(true); }}
+                  onDragEnter={e => { e.preventDefault(); setIsDragOverBulk(true); }}
+                  onDragLeave={() => setIsDragOverBulk(false)}
+                  onDrop={e => { e.preventDefault(); setIsDragOverBulk(false); if (e.dataTransfer.files.length) handleBulkThumbFilesAdded(e.dataTransfer.files); }}
+                  onClick={() => { const inp = document.getElementById('bulk-thumb-input') as HTMLInputElement; inp?.click(); }}
+                >
+                  <input id="bulk-thumb-input" type="file" accept="image/*" multiple style={{ display: 'none' }}
+                    onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
+                  <div style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: isDragOverBulk ? '#dcfce7' : '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                    <Upload style={{ width: 22, height: 22, color: isDragOverBulk ? '#16a34a' : '#a8a29e' }} />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: isDragOverBulk ? '#15803d' : '#1c1917', margin: '0 0 3px' }}>
+                      {isDragOverBulk ? 'Solte as imagens aqui' : 'Arrastar ou clicar para selecionar'}
+                    </p>
+                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>JPG, PNG, WEBP, SVG</p>
+                  </div>
+                </div>
               </div>
 
-              {bulkThumbEntries.map(entry => {
-                const matchedItem = allItems.find((i: any) => i.id === entry.matchedItemId);
-                const pendingPool = allItems.filter((i: any) => i.status === 'awaiting_submission');
-                return (
-                  <div key={entry.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px', borderRadius: 8,
-                    border: `1px solid ${entry.status === 'done' ? '#bbf7d0' : entry.status === 'error' ? '#fecaca' : entry.matchedItemId ? '#e7e5e4' : '#fde68a'}`,
-                    backgroundColor: entry.status === 'done' ? '#f0fdf4' : entry.status === 'error' ? '#fef2f2' : '#fafaf9',
-                  }}>
-                    {/* Thumb preview */}
-                    <img src={entry.preview} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, flexShrink: 0, border: '1px solid #e7e5e4' }} />
-
-                    {/* Filename */}
-                    <div style={{ width: 130, flexShrink: 0 }}>
-                      <p style={{ fontSize: 10, fontWeight: 600, color: '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {entry.file.name}
-                      </p>
-                    </div>
-
-                    {/* Arrow */}
-                    <ArrowRight style={{ width: 14, height: 14, color: '#d4d4d0', flexShrink: 0 }} />
-
-                    {/* Matched item / picker */}
-                    {entry.status === 'done' ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <CheckCircle style={{ width: 13, height: 13 }} /> Enviado
-                      </span>
-                    ) : entry.status === 'uploading' ? (
-                      <span style={{ fontSize: 11, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #ddd6fe', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite' }} />
-                        Enviando...
-                      </span>
-                    ) : entry.status === 'error' ? (
-                      <span style={{ fontSize: 10, color: '#dc2626' }}>{entry.errorMsg}</span>
-                    ) : (
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <select
-                          value={entry.matchedItemId || ''}
-                          onChange={e => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: e.target.value || null } : en))}
-                          style={{
-                            width: '100%', height: 28, borderRadius: 6, border: `1px solid ${entry.matchedItemId ? '#d4d4d0' : '#fcd34d'}`,
-                            backgroundColor: entry.matchedItemId ? '#ffffff' : '#fffbeb', fontSize: 11, fontWeight: 600,
-                            color: '#1c1917', padding: '0 6px', cursor: 'pointer',
-                          }}
-                        >
-                          <option value="">— Sem vínculo —</option>
-                          {pendingPool.map((item: any) => (
-                            <option key={item.id} value={item.id}>
-                              {item.displayId} · {item.type}{item.description ? ` — ${item.description.slice(0, 28)}` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Remove button */}
-                    {(entry.status === 'pending' || entry.status === 'error') && (
-                      <button
-                        onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.id !== entry.id))}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, flexShrink: 0 }}
-                        onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; }}
-                      >
-                        <X style={{ width: 13, height: 13 }} />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Footer */}
-          <div style={{ padding: '16px 28px', borderTop: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-            <button
-              onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); } }}
-              style={{ height: 34, padding: '0 14px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-            >Cancelar</button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {bulkThumbEntries.filter(e => e.status === 'done').length > 0 && (
-                <button
-                  onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.status !== 'done'))}
-                  style={{ height: 34, padding: '0 12px', borderRadius: 8, background: 'none', border: '1px solid #e7e5e4', color: '#a8a29e', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+              {/* Event filter */}
+              <div style={{ padding: '0 20px 16px' }}>
+                <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 6px' }}>Filtrar itens por evento</p>
+                <select
+                  value={bulkThumbEventFilter}
+                  onChange={e => setBulkThumbEventFilter(e.target.value)}
+                  style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
                 >
-                  Limpar concluídos
-                </button>
+                  <option value="all">Todos os eventos</option>
+                  {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((ev: any) => (
+                    <option key={ev.id} value={ev.id}>{ev.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Stats */}
+              {bulkThumbEntries.length > 0 && (
+                <div style={{ padding: '0 20px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: 0 }}>Resumo</p>
+                  {[
+                    { label: 'Vinculados', count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length, color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+                    { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
+                    { label: 'Enviados', count: bulkThumbEntries.filter(e => e.status === 'done').length, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+                    { label: 'Erro', count: bulkThumbEntries.filter(e => e.status === 'error').length, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+                  ].map(s => (
+                    <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderRadius: 8, backgroundColor: s.count > 0 ? s.bg : '#f5f5f4', border: `1px solid ${s.count > 0 ? s.border : '#e7e5e4'}` }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: s.count > 0 ? s.color : '#a8a29e' }}>{s.label}</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: s.count > 0 ? s.color : '#d4d4d0', fontFamily: '"Space Grotesk", sans-serif' }}>{s.count}</span>
+                    </div>
+                  ))}
+                </div>
               )}
-              <button
-                onClick={handleBulkThumbUpload}
-                disabled={bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0}
-                data-testid="button-bulk-thumb-confirm"
-                style={{
-                  height: 34, padding: '0 18px', borderRadius: 8,
-                  backgroundColor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#e7e5e4' : '#15803d',
-                  border: 'none',
-                  color: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#a8a29e' : '#ffffff',
-                  fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7, cursor: bulkThumbRunning ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (!bulkThumbRunning) e.currentTarget.style.filter = 'brightness(0.9)'; }}
-                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-              >
-                {bulkThumbRunning
-                  ? <><div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
-                  : <><Send style={{ width: 12, height: 12 }} />Enviar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s) para aprovação</>
-                }
-              </button>
+
+              {/* Spacer */}
+              <div style={{ flex: 1 }} />
+
+              {/* Footer actions */}
+              <div style={{ padding: '16px 20px', borderTop: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {bulkThumbEntries.filter(e => e.status === 'done').length > 0 && (
+                  <button
+                    onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.status !== 'done'))}
+                    style={{ width: '100%', height: 34, borderRadius: 8, background: 'none', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                  >
+                    Limpar concluídos
+                  </button>
+                )}
+                <button
+                  onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
+                  style={{ width: '100%', height: 34, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                >Cancelar</button>
+                <button
+                  onClick={handleBulkThumbUpload}
+                  disabled={bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0}
+                  data-testid="button-bulk-thumb-confirm"
+                  style={{
+                    width: '100%', height: 42, borderRadius: 8,
+                    backgroundColor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#e7e5e4' : '#15803d',
+                    border: 'none',
+                    color: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#a8a29e' : '#ffffff',
+                    fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    cursor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!bulkThumbRunning) e.currentTarget.style.filter = 'brightness(0.9)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                >
+                  {bulkThumbRunning
+                    ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+                    : <><Send style={{ width: 13, height: 13 }} />Enviar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s) para aprovação</>
+                  }
+                </button>
+              </div>
+            </div>
+
+            {/* ── Right panel (entries list) ── */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {bulkThumbEntries.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: '#a8a29e' }}>
+                  <div style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Upload style={{ width: 28, height: 28, color: '#d4d4d0' }} />
+                  </div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#a8a29e', margin: 0 }}>Nenhuma imagem adicionada</p>
+                  <p style={{ fontSize: 11, color: '#d4d4d0', margin: 0, textAlign: 'center', maxWidth: 240 }}>Arraste arquivos ou clique na área à esquerda para selecionar</p>
+                </div>
+              ) : (
+                <>
+                  {/* List header */}
+                  <div style={{ padding: '14px 24px 10px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c' }}>
+                      {bulkThumbEntries.length} {bulkThumbEntries.length === 1 ? 'arquivo' : 'arquivos'}
+                    </span>
+                    <span style={{ fontSize: 10, color: '#a8a29e' }}>Vincule cada imagem a uma peça</span>
+                  </div>
+
+                  {/* Scrollable entries */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {bulkThumbEntries.map(entry => {
+                      const pendingPool = allItems.filter((i: any) => {
+                        if (i.status !== 'awaiting_submission') return false;
+                        if (bulkThumbEventFilter !== "all" && i.eventId !== bulkThumbEventFilter) return false;
+                        return true;
+                      });
+                      const matchedItem = allItems.find((i: any) => i.id === entry.matchedItemId);
+                      const isLinked = !!entry.matchedItemId;
+                      return (
+                        <div key={entry.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 14, padding: '12px 14px', borderRadius: 10,
+                          border: `1px solid ${entry.status === 'done' ? '#bbf7d0' : entry.status === 'error' ? '#fecaca' : isLinked ? '#bfdbfe' : '#fde68a'}`,
+                          backgroundColor: entry.status === 'done' ? '#f0fdf4' : entry.status === 'error' ? '#fef2f2' : isLinked ? '#f0f9ff' : '#fffbeb',
+                          transition: 'all 0.1s',
+                        }}>
+                          {/* Thumb preview */}
+                          <div style={{ width: 60, height: 60, borderRadius: 8, overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(0,0,0,0.08)', backgroundColor: '#f3f4f3' }}>
+                            <img src={entry.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </div>
+
+                          {/* File info */}
+                          <div style={{ width: 150, flexShrink: 0 }}>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: '#1c1917', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {entry.file.name}
+                            </p>
+                            <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>
+                              {(entry.file.size / 1024).toFixed(0)} KB
+                            </p>
+                            {matchedItem && entry.status === 'pending' && (
+                              <span style={{ fontSize: 9, fontWeight: 700, color: '#1d4ed8', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '1px 5px', display: 'inline-block', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                {matchedItem.event?.name?.slice(0, 18) || ''}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Arrow */}
+                          <ArrowRight style={{ width: 14, height: 14, color: isLinked ? '#93c5fd' : '#d4d4d0', flexShrink: 0 }} />
+
+                          {/* Status or picker */}
+                          {entry.status === 'done' ? (
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <CheckCircle style={{ width: 16, height: 16, color: '#16a34a' }} />
+                              <div>
+                                <p style={{ fontSize: 12, fontWeight: 700, color: '#15803d', margin: 0 }}>Enviado com sucesso</p>
+                                <p style={{ fontSize: 10, color: '#86efac', margin: 0 }}>{matchedItem?.displayId} · {matchedItem?.type}</p>
+                              </div>
+                            </div>
+                          ) : entry.status === 'uploading' ? (
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #ddd6fe', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                              <span style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600 }}>Enviando...</span>
+                            </div>
+                          ) : entry.status === 'error' ? (
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', margin: 0 }}>Erro no envio</p>
+                              <p style={{ fontSize: 10, color: '#f87171', margin: 0 }}>{entry.errorMsg}</p>
+                            </div>
+                          ) : (
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <select
+                                value={entry.matchedItemId || ''}
+                                onChange={e => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: e.target.value || null } : en))}
+                                style={{
+                                  width: '100%', height: 34, borderRadius: 8,
+                                  border: `1.5px solid ${isLinked ? '#93c5fd' : '#fcd34d'}`,
+                                  backgroundColor: isLinked ? '#ffffff' : '#fffbeb',
+                                  fontSize: 11, fontWeight: 600, color: '#1c1917',
+                                  padding: '0 8px', cursor: 'pointer',
+                                }}
+                              >
+                                <option value="">— Sem vínculo —</option>
+                                {pendingPool.map((item: any) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.displayId} · {item.type}{item.description ? ` — ${item.description.slice(0, 24)}` : ''}{item.event?.name ? ` (${item.event.name.slice(0, 20)})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              {pendingPool.length === 0 && (
+                                <p style={{ fontSize: 10, color: '#f97316', margin: '3px 0 0', fontWeight: 600 }}>
+                                  Nenhuma peça disponível{bulkThumbEventFilter !== "all" ? " neste evento" : ""}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Remove */}
+                          {(entry.status === 'pending' || entry.status === 'error') && (
+                            <button
+                              onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.id !== entry.id))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d4d4d0', padding: 4, flexShrink: 0, borderRadius: 6, transition: 'color 0.12s' }}
+                              onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; }}
+                              onMouseLeave={e => { e.currentTarget.style.color = '#d4d4d0'; }}
+                            >
+                              <X style={{ width: 15, height: 15 }} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </DialogContent>

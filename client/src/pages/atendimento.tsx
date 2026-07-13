@@ -45,6 +45,15 @@ export default function Atendimento() {
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
 
+  // Modal Exportar PDF
+  const [showExportPDFModal, setShowExportPDFModal] = useState(false);
+  const [expEventFilter, setExpEventFilter] = useState("all");
+  const [expSponsorFilter, setExpSponsorFilter] = useState("all");
+  const [expTypeFilter, setExpTypeFilter] = useState("all");
+  const [expIncludeNoThumb, setExpIncludeNoThumb] = useState(true);
+  const [expGroupByEvent, setExpGroupByEvent] = useState(false);
+  const [expStatusFilter, setExpStatusFilter] = useState<"all" | "pending" | "approved">("all");
+
   // Seleção múltipla
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [approvedGroupExpanded, setApprovedGroupExpanded] = useState(false);
@@ -364,6 +373,21 @@ export default function Atendimento() {
     return Array.from(types).sort();
   }, [pendingItems]);
 
+  // Itens filtrados para o modal de exportação PDF (filtros independentes da página)
+  const exportItems = useMemo(() => {
+    return pendingItems.filter(item => {
+      const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
+      if (!hasSponsors && !loadingSponsors) return false;
+      if (expEventFilter !== "all" && item.eventId !== expEventFilter) return false;
+      if (expTypeFilter !== "all" && item.type !== expTypeFilter) return false;
+      if (expSponsorFilter !== "all" && !itemSponsorsMap[item.id]?.some((s: any) => s.id === expSponsorFilter)) return false;
+      if (!expIncludeNoThumb && !item.approvalThumbUrl) return false;
+      if (expStatusFilter === "pending" && isItemFullyApproved(item)) return false;
+      if (expStatusFilter === "approved" && !isItemFullyApproved(item)) return false;
+      return true;
+    });
+  }, [pendingItems, itemSponsorsMap, loadingSponsors, expEventFilter, expTypeFilter, expSponsorFilter, expIncludeNoThumb, expStatusFilter]);
+
   const isItemEligibleForBatch = (item: any): boolean => {
     const itemSps = itemSponsorsMap[item.id] || [];
     if (itemSps.length !== 1) return false;
@@ -495,48 +519,75 @@ export default function Atendimento() {
     );
   }
 
-  const handleExportPDF = () => {
-    const exportItems = filteredItems;
-    if (exportItems.length === 0) {
+  const handleExportPDF = (itemsToExport: any[], groupByEvent: boolean) => {
+    if (itemsToExport.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
       return;
     }
     const win = window.open("", "_blank");
     if (!win) return;
-    const rows = exportItems.map((item: any) => {
-      const thumbUrl = item.approvalThumbUrl || "";
-      const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
-      const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
-      return `
-        <div class="page">
-          <div class="header">
-            <span class="id">${item.displayId || "#—"}</span>
-            <span class="event">${item.event?.name || "Sem Evento"}</span>
-          </div>
-          <div class="body">
-            <div class="thumb">
-              ${isImg
-                ? `<img src="${resolvedThumb}" alt="Thumb" />`
-                : thumbUrl
-                  ? `<div class="no-thumb">Arquivo vinculado</div>`
-                  : `<div class="no-thumb">Sem thumb</div>`
-              }
+
+    // Se agrupar por evento, insere cabeçalho de evento entre grupos
+    const grouped: { eventName: string; items: any[] }[] = [];
+    if (groupByEvent) {
+      const map = new Map<string, any[]>();
+      itemsToExport.forEach(item => {
+        const evName = item.event?.name || "Sem Evento";
+        if (!map.has(evName)) map.set(evName, []);
+        map.get(evName)!.push(item);
+      });
+      map.forEach((items, eventName) => grouped.push({ eventName, items }));
+    } else {
+      grouped.push({ eventName: "", items: itemsToExport });
+    }
+
+    const rows = grouped.map(({ eventName, items: groupItems }) => {
+      const header = groupByEvent && eventName
+        ? `<div class="event-separator"><span>${eventName}</span></div>`
+        : "";
+      const pages = groupItems.map((item: any) => {
+        const thumbUrl = item.approvalThumbUrl || "";
+        const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
+        const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
+        const itemSponsors = itemSponsorsMap[item.id] || [];
+        const sponsorNames = itemSponsors.map((s: any) => s.name).join(", ") || "—";
+        return `
+          <div class="page">
+            <div class="header">
+              <span class="id">${item.displayId || "#—"}</span>
+              <span class="event">${item.event?.name || "Sem Evento"}</span>
             </div>
-            <div class="info">
-              <div class="field"><span class="lbl">Tipo</span><span class="val">${item.type || "—"}</span></div>
-              <div class="field"><span class="lbl">Descrição</span><span class="val">${item.description || "—"}</span></div>
-              <div class="field"><span class="lbl">Quantidade</span><span class="val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
+            <div class="body">
+              <div class="thumb">
+                ${isImg
+                  ? `<img src="${resolvedThumb}" alt="Thumb" />`
+                  : thumbUrl
+                    ? `<div class="no-thumb">Arquivo vinculado</div>`
+                    : `<div class="no-thumb">Sem thumb</div>`
+                }
+              </div>
+              <div class="info">
+                <div class="field"><span class="lbl">Tipo</span><span class="val">${item.type || "—"}</span></div>
+                <div class="field"><span class="lbl">Descrição</span><span class="val">${item.description || "—"}</span></div>
+                <div class="field"><span class="lbl">Quantidade</span><span class="val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
+                <div class="field"><span class="lbl">Patrocinador</span><span class="val">${sponsorNames}</span></div>
+              </div>
             </div>
           </div>
-        </div>
-      `;
+        `;
+      }).join("");
+      return header + pages;
     }).join("");
+
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
       <title>Aprovação — Peças</title>
       <style>
         @page { size: A4 portrait; margin: 14mm; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
+        .event-separator { width: 100%; padding: 10px 0 8px; border-bottom: 3px solid #9d4300; margin-bottom: 0; break-before: page; page-break-before: always; }
+        .event-separator:first-child { break-before: avoid; page-break-before: avoid; }
+        .event-separator span { font-size: 18px; font-weight: 900; color: #9d4300; font-family: 'Helvetica Neue', Arial, sans-serif; letter-spacing: -0.02em; }
         .page { width: 100%; height: 269mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
         .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #9d4300; padding-bottom: 10px; margin-bottom: 14px; flex-shrink: 0; }
@@ -546,7 +597,7 @@ export default function Atendimento() {
         .thumb { flex: 1; min-height: 0; display: flex; align-items: flex-start; }
         .thumb img { width: 100%; height: 100%; max-height: 240mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
         .no-thumb { width: 100%; height: 100%; min-height: 160px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
-        .info { width: 150px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; padding-top: 4px; }
+        .info { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; padding-top: 4px; }
         .field { display: flex; flex-direction: column; gap: 4px; }
         .lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #a8a29e; }
         .val { font-size: 13px; font-weight: 600; color: #1c1917; line-height: 1.35; }
@@ -706,19 +757,19 @@ export default function Atendimento() {
 
           {/* Exportar PDF */}
           <button
-            onClick={handleExportPDF}
+            onClick={() => setShowExportPDFModal(true)}
             data-testid="button-export-pdf"
-            title="Exportar itens filtrados em PDF"
+            title="Exportar itens em PDF"
             style={{
               height: 46, padding: '0 16px', borderRadius: 8,
-              backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-              color: '#78716c', cursor: 'pointer',
+              backgroundColor: '#1c1917', border: 'none',
+              color: '#ffffff', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
+              fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
               whiteSpace: 'nowrap', marginLeft: 'auto',
             }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#1c1917'; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.color = '#78716c'; }}
+            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
           >
             <Printer style={{ width: 15, height: 15 }} />
             Exportar PDF
@@ -1855,6 +1906,262 @@ export default function Atendimento() {
               <CheckCircle style={{ width: 14, height: 14 }} />
               Aprovar Seleção
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL EXPORTAR PDF                                                   */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={showExportPDFModal} onOpenChange={(open) => { if (!open) { setShowExportPDFModal(false); } }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 960, width: '95vw', borderRadius: 14, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.18)' }}>
+          <DialogTitle className="sr-only">Exportar PDF de Aprovação</DialogTitle>
+          <DialogDescription className="sr-only">Configure os filtros e exporte os itens em PDF</DialogDescription>
+
+          {/* Header */}
+          <div style={{ padding: '24px 32px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', borderRadius: '14px 14px 0 0' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#9d4300', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Printer style={{ width: 16, height: 16, color: '#fff' }} />
+                </div>
+                <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.04em', color: '#ffffff', margin: 0, fontFamily: '"Space Grotesk", sans-serif' }}>
+                  Exportar PDF de Aprovação
+                </h2>
+              </div>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0, paddingLeft: 42 }}>
+                Defina os filtros e opções antes de gerar o PDF
+              </p>
+            </div>
+            <button
+              onClick={() => setShowExportPDFModal(false)}
+              style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
+            >
+              <X style={{ width: 18, height: 18 }} />
+            </button>
+          </div>
+
+          {/* Body — 2 colunas */}
+          <div style={{ display: 'flex', height: 540, overflow: 'hidden' }}>
+
+            {/* Painel esquerdo — filtros e opções */}
+            <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', backgroundColor: '#fafaf9' }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+
+                {/* Filtros */}
+                <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 10px' }}>Filtros</p>
+
+                {/* Evento */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Evento</label>
+                  <select
+                    value={expEventFilter}
+                    onChange={e => setExpEventFilter(e.target.value)}
+                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
+                  >
+                    <option value="all">Todos os eventos</option>
+                    {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((ev: any) => (
+                      <option key={ev.id} value={ev.id}>{ev.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Patrocinador */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Patrocinador</label>
+                  <select
+                    value={expSponsorFilter}
+                    onChange={e => setExpSponsorFilter(e.target.value)}
+                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
+                  >
+                    <option value="all">Todos os patrocinadores</option>
+                    {[...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((s: any) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Tipo */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Tipo de peça</label>
+                  <select
+                    value={expTypeFilter}
+                    onChange={e => setExpTypeFilter(e.target.value)}
+                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
+                  >
+                    <option value="all">Todos os tipos</option>
+                    {uniqueItemTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+
+                {/* Status de aprovação */}
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Status</label>
+                  <select
+                    value={expStatusFilter}
+                    onChange={e => setExpStatusFilter(e.target.value as "all" | "pending" | "approved")}
+                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
+                  >
+                    <option value="all">Todos os status</option>
+                    <option value="pending">Aguardando aprovação</option>
+                    <option value="approved">Aprovados</option>
+                  </select>
+                </div>
+
+                {/* Divisor */}
+                <div style={{ borderTop: '1px solid #e7e5e4', marginBottom: 16 }} />
+                <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 12px' }}>Opções do PDF</p>
+
+                {/* Incluir sem thumb */}
+                <div
+                  onClick={() => setExpIncludeNoThumb(!expIncludeNoThumb)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${expIncludeNoThumb ? '#bfdbfe' : '#e7e5e4'}`, backgroundColor: expIncludeNoThumb ? '#f0f9ff' : '#ffffff', cursor: 'pointer', marginBottom: 8, transition: 'all 0.12s' }}
+                >
+                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${expIncludeNoThumb ? '#2563eb' : '#d4d4d0'}`, backgroundColor: expIncludeNoThumb ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
+                    {expIncludeNoThumb && <CheckCircle style={{ width: 10, height: 10, color: '#fff' }} />}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0 }}>Incluir sem thumb</p>
+                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>Peças sem imagem de aprovação</p>
+                  </div>
+                </div>
+
+                {/* Agrupar por evento */}
+                <div
+                  onClick={() => setExpGroupByEvent(!expGroupByEvent)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${expGroupByEvent ? '#bfdbfe' : '#e7e5e4'}`, backgroundColor: expGroupByEvent ? '#f0f9ff' : '#ffffff', cursor: 'pointer', marginBottom: 8, transition: 'all 0.12s' }}
+                >
+                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${expGroupByEvent ? '#2563eb' : '#d4d4d0'}`, backgroundColor: expGroupByEvent ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
+                    {expGroupByEvent && <CheckCircle style={{ width: 10, height: 10, color: '#fff' }} />}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0 }}>Agrupar por evento</p>
+                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>Separador de seção por evento no PDF</p>
+                  </div>
+                </div>
+
+                {/* Limpar filtros */}
+                {(expEventFilter !== "all" || expSponsorFilter !== "all" || expTypeFilter !== "all" || expStatusFilter !== "all") && (
+                  <button
+                    onClick={() => { setExpEventFilter("all"); setExpSponsorFilter("all"); setExpTypeFilter("all"); setExpStatusFilter("all"); }}
+                    style={{ width: '100%', height: 30, borderRadius: 6, background: 'none', border: '1px solid #e7e5e4', color: '#a8a29e', cursor: 'pointer', fontSize: 11, fontWeight: 600, marginTop: 4 }}
+                  >
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+
+              {/* Rodapé com ações */}
+              <div style={{ padding: '16px 20px', borderTop: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  onClick={() => setShowExportPDFModal(false)}
+                  style={{ width: '100%', height: 36, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                >Cancelar</button>
+                <button
+                  onClick={() => { handleExportPDF(exportItems, expGroupByEvent); setShowExportPDFModal(false); }}
+                  disabled={exportItems.length === 0}
+                  data-testid="button-confirm-export-pdf"
+                  style={{
+                    width: '100%', height: 44, borderRadius: 8,
+                    backgroundColor: exportItems.length === 0 ? '#e7e5e4' : '#9d4300',
+                    border: 'none',
+                    color: exportItems.length === 0 ? '#a8a29e' : '#ffffff',
+                    fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    cursor: exportItems.length === 0 ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { if (exportItems.length > 0) e.currentTarget.style.filter = 'brightness(0.88)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                >
+                  <Printer style={{ width: 14, height: 14 }} />
+                  Gerar PDF — {exportItems.length} {exportItems.length === 1 ? 'peça' : 'peças'}
+                </button>
+              </div>
+            </div>
+
+            {/* Painel direito — preview dos itens */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {exportItems.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                  <div style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <FileText style={{ width: 28, height: 28, color: '#d4d4d0' }} />
+                  </div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#a8a29e', margin: 0 }}>Nenhum item encontrado</p>
+                  <p style={{ fontSize: 11, color: '#d4d4d0', margin: 0, textAlign: 'center', maxWidth: 220 }}>Ajuste os filtros à esquerda para encontrar itens</p>
+                </div>
+              ) : (
+                <>
+                  {/* Cabeçalho da lista */}
+                  <div style={{ padding: '14px 24px 10px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c' }}>
+                      {exportItems.length} {exportItems.length === 1 ? 'peça selecionada' : 'peças selecionadas'}
+                    </span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <span style={{ fontSize: 10, color: '#a8a29e' }}>
+                        {exportItems.filter(i => i.approvalThumbUrl).length} com thumb ·{' '}
+                        {exportItems.filter(i => !i.approvalThumbUrl).length} sem thumb
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Lista scrollável */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {exportItems.map((item: any) => {
+                      const hasThumb = !!item.approvalThumbUrl;
+                      const isApproved = isItemFullyApproved(item);
+                      const itemSps = itemSponsorsMap[item.id] || [];
+                      return (
+                        <div key={item.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10,
+                          border: '1px solid #f0ede8', backgroundColor: '#ffffff',
+                        }}>
+                          {/* Thumb preview */}
+                          <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(0,0,0,0.06)', backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {hasThumb
+                              ? <img src={item.approvalThumbUrl.startsWith("/objects/") ? item.approvalThumbUrl : item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : <ImageIcon style={{ width: 18, height: 18, color: '#d4d4d0' }} />
+                            }
+                          </div>
+
+                          {/* Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                              <span style={{ fontSize: 11, fontWeight: 800, color: '#9d4300', fontFamily: 'monospace' }}>{item.displayId}</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                            </div>
+                            <div style={{ fontSize: 10, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item.event?.name || "Sem evento"}{item.description ? ` · ${item.description}` : ''}
+                            </div>
+                            {itemSps.length > 0 && (
+                              <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                                {itemSps.slice(0, 3).map((s: any) => (
+                                  <span key={s.id} style={{ fontSize: 9, fontWeight: 700, color: '#57534e', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 3, padding: '1px 5px' }}>
+                                    {s.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Status badges */}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                            {isApproved
+                              ? <span style={{ fontSize: 9, fontWeight: 800, color: '#15803d', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aprovado</span>
+                              : <span style={{ fontSize: 9, fontWeight: 800, color: '#b45309', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pendente</span>
+                            }
+                            {!hasThumb && (
+                              <span style={{ fontSize: 9, fontWeight: 700, color: '#a8a29e', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sem thumb</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

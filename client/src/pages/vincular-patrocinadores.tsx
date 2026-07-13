@@ -591,10 +591,25 @@ export default function VincularPatrocinadores() {
       return payloads.map(p => p.itemId);
     },
     onMutate: (payloads: SavePayload[]) => {
-      const snapshot = { itemSponsorsMap: { ...itemSponsorsMap }, originalSponsorsMap: { ...originalSponsorsMap } };
+      const snapshot = {
+        itemSponsorsMap: { ...itemSponsorsMap },
+        originalSponsorsMap: { ...originalSponsorsMap },
+        itemsCache: queryClient.getQueryData<any[]>(["/api/items"]),
+      };
+      // Atualização otimista: sponsors locais
       payloads.forEach(({ itemId, sponsorIds }) => {
         setItemSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
         setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
+      });
+      // Atualização otimista: skipApproval no cache do React Query
+      // (necessário para getItemUIStatus ler item.skipApproval correto antes do refetch)
+      queryClient.setQueryData<any[]>(["/api/items"], (old) => {
+        if (!old) return old;
+        return old.map(item => {
+          const p = payloads.find(pl => pl.itemId === item.id);
+          if (!p) return item;
+          return { ...item, skipApproval: p.skipApproval };
+        });
       });
       return snapshot;
     },
@@ -614,6 +629,10 @@ export default function VincularPatrocinadores() {
       if (snapshot) {
         setItemSponsorsMap(snapshot.itemSponsorsMap);
         setOriginalSponsorsMap(snapshot.originalSponsorsMap);
+        // Reverter cache do React Query
+        if (snapshot.itemsCache) {
+          queryClient.setQueryData(["/api/items"], snapshot.itemsCache);
+        }
       }
       toast({
         title: "Erro ao salvar vinculação",

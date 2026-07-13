@@ -154,6 +154,7 @@ export default function VincularPatrocinadores() {
   const [itemFilter, setItemFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
+  const [eventComboOpen, setEventComboOpen] = useState(false);
   
   // Estado local para rastrear mudanças pendentes
   const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});
@@ -1493,19 +1494,52 @@ export default function VincularPatrocinadores() {
             {/* Filtro por Evento */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Evento</label>
-              <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger data-testid="select-event-filter" className="h-auto min-h-9 [&>span]:whitespace-normal [&>span]:text-left">
-                  <SelectValue placeholder="Selecione evento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os eventos</SelectItem>
-                  {[...events].sort((a, b) => a.name.localeCompare(b.name)).map(event => (
-                    <SelectItem key={event.id} value={event.id}>
-                      {event.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={eventComboOpen} onOpenChange={setEventComboOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={eventComboOpen}
+                    data-testid="select-event-filter"
+                    className="w-full justify-between font-normal h-auto min-h-9 px-3 text-left py-2"
+                  >
+                    <span className="flex-1 overflow-hidden">
+                      {eventFilter === "all"
+                        ? <span className="text-muted-foreground">Todos os eventos</span>
+                        : <span className="whitespace-normal">{events.find(e => e.id === eventFilter)?.name ?? "Todos os eventos"}</span>
+                      }
+                    </span>
+                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-72" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar evento..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="todos-os-eventos"
+                          onSelect={() => { setEventFilter("all"); setEventComboOpen(false); }}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${eventFilter === "all" ? "opacity-100" : "opacity-0"}`} />
+                          Todos os eventos
+                        </CommandItem>
+                        {[...events].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(event => (
+                          <CommandItem
+                            key={event.id}
+                            value={event.name}
+                            onSelect={() => { setEventFilter(event.id); setEventComboOpen(false); }}
+                          >
+                            <Check className={`mr-2 h-4 w-4 ${eventFilter === event.id ? "opacity-100" : "opacity-0"}`} />
+                            {event.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Filtro por Patrocinador — Combobox buscável com cor */}

@@ -2391,48 +2391,68 @@ export default function Arte() {
       {/* MODAL 4 — EXPORT PDF GROUP PICKER                                  */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 540, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.1)' }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 700, width: '95vw', borderRadius: 14, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.2)' }}>
           <DialogTitle className="sr-only">Exportar PDF</DialogTitle>
           <DialogDescription className="sr-only">Selecione os grupos e o formato de exportação</DialogDescription>
 
-          {/* Header */}
-          <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f5f5f4', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', color: '#1c1917', margin: '0 0 4px', fontFamily: '"Space Grotesk", sans-serif' }}>
-                Exportar PDF
-              </h2>
-              <p style={{ fontSize: 12, color: '#78716c', margin: 0 }}>Escolha os grupos e o formato de saída</p>
+          {/* ── Dark gradient header ── */}
+          <div style={{ padding: '22px 28px 18px', background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Printer style={{ width: 17, height: 17, color: '#ffffff' }} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.04em', color: '#ffffff', margin: '0 0 3px', fontFamily: '"Space Grotesk", sans-serif' }}>
+                  Exportar PDF
+                </h2>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+                  Selecione os grupos para incluir no relatório
+                </p>
+              </div>
             </div>
             <button
               onClick={() => setShowExportModal(false)}
-              style={{ padding: 6, backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#78716c', lineHeight: 1, flexShrink: 0 }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
+              style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0, transition: 'background 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
             >
               <X style={{ width: 16, height: 16 }} />
             </button>
           </div>
 
-          {/* Group list */}
-          <div style={{ padding: '16px 28px', maxHeight: 340, overflowY: 'auto' }}>
-            {/* Select all / none */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: 0 }}>
-                Grupos ({exportSelectedGroupKeys.size} de {exportGroups.length} selecionados)
-              </p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => setExportSelectedGroupKeys(new Set(exportGroups.map(g => g.key)))}
-                  style={{ fontSize: 10, fontWeight: 600, color: '#7c3aed', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                >Todos</button>
-                <button
-                  onClick={() => setExportSelectedGroupKeys(new Set())}
-                  style={{ fontSize: 10, fontWeight: 600, color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                >Nenhum</button>
+          {/* ── Stats + controls bar ── */}
+          <div style={{ padding: '12px 24px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fafaf9', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Selected groups badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ padding: '3px 10px', borderRadius: 20, backgroundColor: exportSelectedGroupKeys.size > 0 ? '#f3e8ff' : '#f5f5f4', color: exportSelectedGroupKeys.size > 0 ? '#7c3aed' : '#a8a29e', fontSize: 11, fontWeight: 700 }}>
+                  {exportSelectedGroupKeys.size} grupo{exportSelectedGroupKeys.size !== 1 ? 's' : ''}
+                </span>
+                <span style={{ padding: '3px 10px', borderRadius: 20, backgroundColor: exportSelectedGroupKeys.size > 0 ? '#ede9fe' : '#f5f5f4', color: exportSelectedGroupKeys.size > 0 ? '#6d28d9' : '#a8a29e', fontSize: 11, fontWeight: 700 }}>
+                  {exportGroups.filter(g => exportSelectedGroupKeys.has(g.key)).reduce((acc, g) => acc + g.items.length, 0)} peça{exportGroups.filter(g => exportSelectedGroupKeys.has(g.key)).reduce((acc, g) => acc + g.items.length, 0) !== 1 ? 's' : ''}
+                </span>
               </div>
+              <span style={{ color: '#d4d4d0', fontSize: 14 }}>·</span>
+              <span style={{ fontSize: 10, color: '#a8a29e' }}>{exportGroups.length} grupos no total</span>
             </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button
+                onClick={() => setExportSelectedGroupKeys(new Set(exportGroups.map(g => g.key)))}
+                style={{ height: 28, padding: '0 12px', borderRadius: 6, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#7c3aed', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'all 0.12s' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f3e8ff'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+              >Todos</button>
+              <button
+                onClick={() => setExportSelectedGroupKeys(new Set())}
+                style={{ height: 28, padding: '0 12px', borderRadius: 6, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#78716c', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all 0.12s' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+              >Nenhum</button>
+            </div>
+          </div>
 
-            {/* Groups grouped by event */}
+          {/* ── Group list (scrollable) ── */}
+          <div style={{ overflowY: 'auto', maxHeight: 420, padding: '16px 20px' }}>
             {(() => {
               const byEvent: { event: string; groups: ExportGroup[] }[] = [];
               exportGroups.forEach(g => {
@@ -2443,80 +2463,130 @@ export default function Arte() {
                   byEvent.push({ event: g.event, groups: [g] });
                 }
               });
-              return byEvent.map(ev => (
-                <div key={ev.event} style={{ marginBottom: 16 }}>
-                  <div style={{ padding: '5px 10px', backgroundColor: '#1c1917', borderRadius: 6, marginBottom: 6 }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>{ev.event}</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {ev.groups.map(g => {
-                      const selected = exportSelectedGroupKeys.has(g.key);
-                      const thumb = g.items.find(i => i.approvalThumbUrl)?.approvalThumbUrl;
-                      const thumbSrc = thumb ? convertGCSUrlToLocalPath(thumb) : null;
-                      return (
-                        <button
-                          key={g.key}
-                          onClick={() => {
-                            const s = new Set(exportSelectedGroupKeys);
-                            if (s.has(g.key)) s.delete(g.key); else s.add(g.key);
-                            setExportSelectedGroupKeys(s);
-                          }}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px',
-                            borderRadius: 8, cursor: 'pointer', textAlign: 'left', width: '100%',
-                            backgroundColor: selected ? '#f5f3ff' : '#fafaf9',
-                            border: selected ? '1.5px solid #c4b5fd' : '1.5px solid #e7e5e4',
-                            transition: 'all 0.12s',
-                          }}
-                          data-testid={`export-group-${g.key}`}
-                        >
-                          <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? '#7c3aed' : '#e7e5e4', transition: 'background 0.12s' }}>
-                            {selected && <span style={{ color: '#fff', fontSize: 13, fontWeight: 900, lineHeight: 1 }}>✓</span>}
-                          </div>
-                          {thumbSrc ? (
-                            <img src={thumbSrc} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0, border: '1px solid #e7e5e4' }} />
-                          ) : (
-                            <div style={{ width: 36, height: 36, borderRadius: 6, backgroundColor: '#e7e5e4', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <FileImage style={{ width: 14, height: 14, color: '#a8a29e' }} />
+              return byEvent.map(ev => {
+                const evGroupKeys = ev.groups.map(g => g.key);
+                const allEvSelected = evGroupKeys.every(k => exportSelectedGroupKeys.has(k));
+                const someEvSelected = evGroupKeys.some(k => exportSelectedGroupKeys.has(k));
+                const evTotalPieces = ev.groups.reduce((acc, g) => acc + g.items.length, 0);
+                const evSelectedPieces = ev.groups.filter(g => exportSelectedGroupKeys.has(g.key)).reduce((acc, g) => acc + g.items.length, 0);
+                return (
+                  <div key={ev.event} style={{ marginBottom: 20 }}>
+                    {/* Event header */}
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, marginBottom: 8, backgroundColor: allEvSelected ? '#1c1917' : someEvSelected ? '#292524' : '#3c3834', cursor: 'pointer' }}
+                      onClick={() => {
+                        const s = new Set(exportSelectedGroupKeys);
+                        if (allEvSelected) {
+                          evGroupKeys.forEach(k => s.delete(k));
+                        } else {
+                          evGroupKeys.forEach(k => s.add(k));
+                        }
+                        setExportSelectedGroupKeys(s);
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {/* Event checkbox */}
+                        <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${allEvSelected ? '#7c3aed' : 'rgba(255,255,255,0.3)'}`, backgroundColor: allEvSelected ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
+                          {allEvSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                          {!allEvSelected && someEvSelected && <div style={{ width: 8, height: 2, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 1 }} />}
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>{ev.event}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{ev.groups.length} grupo{ev.groups.length !== 1 ? 's' : ''}</span>
+                        <span style={{ padding: '2px 8px', borderRadius: 20, backgroundColor: someEvSelected ? '#7c3aed' : 'rgba(255,255,255,0.12)', color: someEvSelected ? '#ffffff' : 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: 800 }}>
+                          {someEvSelected ? evSelectedPieces : evTotalPieces} peça{evTotalPieces !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Group cards grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      {ev.groups.map(g => {
+                        const selected = exportSelectedGroupKeys.has(g.key);
+                        const thumb = g.items.find(i => i.approvalThumbUrl)?.approvalThumbUrl;
+                        const thumbSrc = thumb ? convertGCSUrlToLocalPath(thumb) : null;
+                        return (
+                          <button
+                            key={g.key}
+                            onClick={() => {
+                              const s = new Set(exportSelectedGroupKeys);
+                              if (s.has(g.key)) s.delete(g.key); else s.add(g.key);
+                              setExportSelectedGroupKeys(s);
+                            }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                              borderRadius: 10, cursor: 'pointer', textAlign: 'left', width: '100%',
+                              backgroundColor: selected ? '#f5f3ff' : '#fafaf9',
+                              border: `1.5px solid ${selected ? '#a78bfa' : '#e7e5e4'}`,
+                              transition: 'all 0.12s',
+                              boxShadow: selected ? '0 0 0 3px rgba(124,58,237,0.08)' : 'none',
+                            }}
+                            data-testid={`export-group-${g.key}`}
+                          >
+                            {/* Checkbox */}
+                            <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? '#7c3aed' : '#e7e5e4', border: selected ? 'none' : '1.5px solid #d4d4d0', transition: 'all 0.12s' }}>
+                              {selected && <span style={{ color: '#fff', fontSize: 11, fontWeight: 900, lineHeight: 1 }}>✓</span>}
                             </div>
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {g.groupName || g.typeName}
-                            </p>
-                            <p style={{ fontSize: 10, color: '#78716c', margin: 0 }}>{g.items.length} {g.items.length === 1 ? 'peça' : 'peças'}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                            {/* Thumbnail */}
+                            {thumbSrc ? (
+                              <img src={thumbSrc} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, flexShrink: 0, border: '1px solid #e7e5e4' }} />
+                            ) : (
+                              <div style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: selected ? '#ede9fe' : '#f0efee', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${selected ? '#c4b5fd' : '#e7e5e4'}` }}>
+                                <FileImage style={{ width: 18, height: 18, color: selected ? '#7c3aed' : '#a8a29e' }} />
+                              </div>
+                            )}
+                            {/* Info */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 12, fontWeight: 700, color: selected ? '#4c1d95' : '#1c1917', margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {g.typeName}
+                              </p>
+                              {g.groupName && (
+                                <p style={{ fontSize: 9, fontWeight: 600, color: selected ? '#7c3aed' : '#a8a29e', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.05em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {g.groupName}
+                                </p>
+                              )}
+                              <span style={{ display: 'inline-block', padding: '1px 7px', borderRadius: 20, backgroundColor: selected ? '#7c3aed' : '#f0efee', color: selected ? '#ffffff' : '#78716c', fontSize: 9, fontWeight: 800 }}>
+                                {g.items.length} {g.items.length === 1 ? 'peça' : 'peças'}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ));
+                );
+              });
             })()}
           </div>
 
-          {/* Footer */}
-          <div style={{ padding: '16px 28px', borderTop: '1px solid #f5f5f4', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-            <button
-              onClick={() => setShowExportModal(false)}
-              style={{ height: 36, padding: '0 16px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-            >Cancelar</button>
-            <button
-              onClick={handleExportPDF}
-              disabled={exportSelectedGroupKeys.size === 0}
-              data-testid="button-export-confirm"
-              style={{
-                height: 36, padding: '0 18px', borderRadius: 8, cursor: exportSelectedGroupKeys.size === 0 ? 'not-allowed' : 'pointer',
-                backgroundColor: exportSelectedGroupKeys.size === 0 ? '#e7e5e4' : '#7c3aed',
-                border: 'none', color: exportSelectedGroupKeys.size === 0 ? '#a8a29e' : '#ffffff',
-                fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => { if (exportSelectedGroupKeys.size > 0) e.currentTarget.style.filter = 'brightness(0.9)'; }}
-              onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-            >
-              <Printer style={{ width: 14, height: 14 }} />
-              Exportar {exportGroups.filter(g => exportSelectedGroupKeys.has(g.key)).reduce((acc, g) => acc + g.items.length, 0)} peça(s)
-            </button>
+          {/* ── Footer ── */}
+          <div style={{ padding: '16px 24px', borderTop: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fafaf9', borderRadius: '0 0 14px 14px' }}>
+            <span style={{ fontSize: 11, color: '#a8a29e' }}>
+              {exportSelectedGroupKeys.size === 0 ? 'Nenhum grupo selecionado' : `${exportSelectedGroupKeys.size} de ${exportGroups.length} grupos`}
+            </span>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setShowExportModal(false)}
+                style={{ height: 38, padding: '0 18px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              >Cancelar</button>
+              <button
+                onClick={handleExportPDF}
+                disabled={exportSelectedGroupKeys.size === 0}
+                data-testid="button-export-confirm"
+                style={{
+                  height: 38, padding: '0 20px', borderRadius: 8, cursor: exportSelectedGroupKeys.size === 0 ? 'not-allowed' : 'pointer',
+                  backgroundColor: exportSelectedGroupKeys.size === 0 ? '#e7e5e4' : '#7c3aed',
+                  border: 'none', color: exportSelectedGroupKeys.size === 0 ? '#a8a29e' : '#ffffff',
+                  fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, transition: 'filter 0.15s',
+                }}
+                onMouseEnter={e => { if (exportSelectedGroupKeys.size > 0) e.currentTarget.style.filter = 'brightness(0.88)'; }}
+                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+              >
+                <Printer style={{ width: 14, height: 14 }} />
+                Exportar {exportGroups.filter(g => exportSelectedGroupKeys.has(g.key)).reduce((acc, g) => acc + g.items.length, 0)} peça(s)
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

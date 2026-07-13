@@ -1126,23 +1126,29 @@ export default function Arte() {
                               >
                                 <Eye style={{ width: 14, height: 14 }} />
                               </button>
-                              {(tabId === "criar-aprovacoes" || tabId === "finalizar-layouts") && (
-                                <button
-                                  onClick={() => handleViewDetails(item)}
-                                  data-testid={`button-action-${item.id}`}
-                                  style={{
-                                    height: 32, padding: '0 12px', borderRadius: 8,
-                                    backgroundColor: tabId === "criar-aprovacoes" ? '#f97316' : '#2563eb',
-                                    color: '#ffffff', border: 'none', cursor: 'pointer',
-                                    fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-                                    transition: 'filter 0.15s',
-                                  }}
-                                  onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
-                                  onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
-                                >
-                                  {tabId === "criar-aprovacoes" ? "Enviar Aprovação" : "Finalizar Arte"}
-                                </button>
-                              )}
+                              {(tabId === "criar-aprovacoes" || tabId === "finalizar-layouts") && (() => {
+                                const isSkip = tabId === "criar-aprovacoes" && item.skipApproval;
+                                const bgColor = tabId === "finalizar-layouts" ? '#2563eb' : isSkip ? '#7c3aed' : '#f97316';
+                                const label = tabId === "finalizar-layouts" ? "Finalizar Arte" : isSkip ? "Enviar Finalização" : "Enviar Aprovação";
+                                return (
+                                  <button
+                                    onClick={() => handleViewDetails(item)}
+                                    data-testid={`button-action-${item.id}`}
+                                    title={isSkip ? "Sem aprovação de patrocinador — vai direto para revisão final" : undefined}
+                                    style={{
+                                      height: 32, padding: '0 12px', borderRadius: 8,
+                                      backgroundColor: bgColor,
+                                      color: '#ffffff', border: 'none', cursor: 'pointer',
+                                      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                                      transition: 'filter 0.15s',
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
+                                    onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+                                  >
+                                    {label}
+                                  </button>
+                                );
+                              })()}
                               {["awaiting_submission", "sponsor_approved"].includes(item.status) && (
                                 <button
                                   onClick={() => { setDispenseItem(item); setDispenseReason(""); }}

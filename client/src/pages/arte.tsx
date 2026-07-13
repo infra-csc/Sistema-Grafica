@@ -1543,7 +1543,7 @@ export default function Arte() {
                     <Check className={cn("mr-2 h-4 w-4", eventFilter === "all" ? "opacity-100" : "opacity-0")} />
                     Todos os eventos
                   </CommandItem>
-                  {events.map((event: any) => (
+                  {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((event: any) => (
                     <CommandItem key={event.id} value={event.name} onSelect={() => { setEventFilter(event.id); setOpenEventCombobox(false); }}>
                       <Check className={cn("mr-2 h-4 w-4", eventFilter === event.id ? "opacity-100" : "opacity-0")} />
                       {event.name}

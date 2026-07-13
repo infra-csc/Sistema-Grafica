@@ -149,6 +149,7 @@ export default function VincularPatrocinadores() {
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   const [itemFilter, setItemFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   
   // Estado local para rastrear mudanças pendentes
   const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});

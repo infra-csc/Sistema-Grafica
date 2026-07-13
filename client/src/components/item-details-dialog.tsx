@@ -133,15 +133,22 @@ export function ItemDetailsDialog({
 
   const createdBy = createdLog?.userName ?? createdLog?.user_name ?? null;
 
+  // Find sponsor linking from audit logs (no dedicated DB timestamp field for this step)
+  const sponsorLinkLog = itemLogs.find((l: any) => {
+    const d = (l.details || l.action || "").toLowerCase();
+    return d.includes("patrocinadores atualizados") || d.includes("patrocinadores vinculados") || d.includes("sponsor");
+  });
+
   const traceRows = [
-    { label: "Solicitado / Criado",        value: item.createdAt,          by: createdBy,              dot: "#2563eb" },
-    { label: "Aprovado pelo Patrocinador", value: item.sponsorApprovedAt,  by: item.sponsorApprovedBy, dot: "#7c3aed" },
-    { label: "Revisado pelo Criador",      value: item.creatorReviewedAt,  by: null,                   dot: "#d946ef" },
-    { label: "Liberado para Produção",     value: item.approvedAt,         by: null,                   dot: "#f97316" },
-    { label: "Produção Iniciada",          value: item.productionStartedAt,by: null,                   dot: "#f59e0b" },
-    { label: "Produzido",                  value: item.producedAt,         by: null,                   dot: "#ec4899" },
-    { label: "Entregue",                   value: item.deliveredAt,        by: item.receivedBy,        dot: "#10b981" },
-  ].filter(r => r.value);
+    { label: "Solicitado / Criado",        value: item.createdAt,                                         by: createdBy,                                                 dot: "#2563eb" },
+    sponsorLinkLog ? { label: "Vinculação de Patrocinador", value: sponsorLinkLog.createdAt ?? sponsorLinkLog.created_at, by: sponsorLinkLog.userName ?? sponsorLinkLog.user_name ?? null, dot: "#8b5cf6" } : null,
+    { label: "Aprovado pelo Patrocinador", value: item.sponsorApprovedAt,                                  by: item.sponsorApprovedBy,                                    dot: "#7c3aed" },
+    { label: "Revisado pelo Criador",      value: item.creatorReviewedAt,                                  by: null,                                                      dot: "#d946ef" },
+    { label: "Liberado para Produção",     value: item.approvedAt,                                         by: null,                                                      dot: "#f97316" },
+    { label: "Produção Iniciada",          value: item.productionStartedAt,                                by: null,                                                      dot: "#f59e0b" },
+    { label: "Produzido",                  value: item.producedAt,                                         by: null,                                                      dot: "#ec4899" },
+    { label: "Entregue",                   value: item.deliveredAt,                                        by: item.receivedBy,                                           dot: "#10b981" },
+  ].filter((r): r is { label: string; value: any; by: any; dot: string } => !!r && !!r.value);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

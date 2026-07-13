@@ -442,6 +442,30 @@ export default function VincularPatrocinadores() {
     return visibleItems.filter(item => item.eventId === eventFilter);
   }, [visibleItems, eventFilter]);
 
+  // Itens que passam em TODOS os filtros ativos (usado no bloco de progresso)
+  const fullyFilteredItems = useMemo(() => {
+    return contextVisibleItems.filter(item => {
+      const event = rawEvents.find(e => e.id === item.eventId);
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!item.type.toLowerCase().includes(q) &&
+            !(item.description?.toLowerCase().includes(q)) &&
+            !(event?.name?.toLowerCase().includes(q))) return false;
+      }
+      if (itemFilter !== "all" && item.type !== itemFilter) return false;
+      if (sponsorFilter !== "all") {
+        const saved = originalSponsorsMap[item.id] || [];
+        if (!saved.includes(sponsorFilter)) return false;
+      }
+      if (statusFilter !== "all") {
+        const orig = originalSponsorsMap[item.id] || [];
+        const pc = pendingChanges[item.id];
+        if (getItemUIStatus(item, orig, pc) !== statusFilter) return false;
+      }
+      return true;
+    });
+  }, [contextVisibleItems, rawEvents, searchQuery, itemFilter, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
+
   // Contadores de contexto: baseados no filtro de evento ativo
   const contextStatusCounts = useMemo(() => {
     const counts = { RASCUNHO: 0, PRONTO: 0, ENVIADO: 0, PENDENTE: 0 };
@@ -1264,9 +1288,9 @@ export default function VincularPatrocinadores() {
   }
 
 
-  // Calcular progresso — usa contextVisibleItems para respeitar o filtro de evento
-  const totalItems = contextVisibleItems.length;
-  const completedItems = contextVisibleItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
+  // Calcular progresso — usa fullyFilteredItems para respeitar todos os filtros ativos
+  const totalItems = fullyFilteredItems.length;
+  const completedItems = fullyFilteredItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
   const progressPercent = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
 
   const toggleItemExpansion = (itemId: string) => {

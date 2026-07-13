@@ -2506,8 +2506,18 @@ export default function Arte() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       {ev.groups.map(g => {
                         const selected = exportSelectedGroupKeys.has(g.key);
-                        const thumb = g.items.find(i => i.approvalThumbUrl)?.approvalThumbUrl;
-                        const thumbSrc = thumb ? convertGCSUrlToLocalPath(thumb) : null;
+                        // Find first item in the group that has an image thumb (not PDF)
+                        const thumb = g.items.find(i => {
+                          const u = i.approvalThumbUrl;
+                          if (!u) return false;
+                          if (/\.pdf$/i.test(u)) return false;
+                          return /\.(png|jpg|jpeg|gif|webp|svg)/i.test(u) || u.startsWith('/objects/') || u.includes('/.private/');
+                        })?.approvalThumbUrl;
+                        const rawPath = thumb ? convertGCSUrlToLocalPath(thumb) : null;
+                        // Make URL absolute so it works in all contexts
+                        const thumbSrc = rawPath
+                          ? (rawPath.startsWith('/') ? `${window.location.origin}${rawPath}` : rawPath)
+                          : null;
                         return (
                           <button
                             key={g.key}
@@ -2530,14 +2540,23 @@ export default function Arte() {
                             <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? '#7c3aed' : '#e7e5e4', border: selected ? 'none' : '1.5px solid #d4d4d0', transition: 'all 0.12s' }}>
                               {selected && <span style={{ color: '#fff', fontSize: 11, fontWeight: 900, lineHeight: 1 }}>✓</span>}
                             </div>
-                            {/* Thumbnail */}
-                            {thumbSrc ? (
-                              <img src={thumbSrc} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, flexShrink: 0, border: '1px solid #e7e5e4' }} />
-                            ) : (
-                              <div style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: selected ? '#ede9fe' : '#f0efee', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${selected ? '#c4b5fd' : '#e7e5e4'}` }}>
+                            {/* Thumbnail: fallback sempre visível, imagem por cima */}
+                            <div style={{ width: 44, height: 44, borderRadius: 8, position: 'relative', flexShrink: 0 }}>
+                              {/* Fallback placeholder (always present behind the image) */}
+                              <div style={{ position: 'absolute', inset: 0, borderRadius: 8, backgroundColor: selected ? '#ede9fe' : '#f0efee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${selected ? '#c4b5fd' : '#e7e5e4'}` }}>
                                 <FileImage style={{ width: 18, height: 18, color: selected ? '#7c3aed' : '#a8a29e' }} />
                               </div>
-                            )}
+                              {/* Actual image on top — hidden on error */}
+                              {thumbSrc && (
+                                <img
+                                  src={thumbSrc}
+                                  alt=""
+                                  loading="lazy"
+                                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, border: '1px solid #e7e5e4', display: 'block' }}
+                                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              )}
+                            </div>
                             {/* Info */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ fontSize: 12, fontWeight: 700, color: selected ? '#4c1d95' : '#1c1917', margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

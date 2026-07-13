@@ -2098,7 +2098,7 @@ export default function VincularPatrocinadores() {
                                         {/* Individual sponsor chips */}
                                         {eventSponsors.map(sponsor => {
                                           const isLinked = linkedSponsors.includes(sponsor.id);
-                                          const colorStyle = getSponsorColorStyle(sponsor);
+                                          const brandColor = sponsor?.color || '#3b82f6';
                                           return (
                                             <button
                                               key={sponsor.id}
@@ -2121,19 +2121,25 @@ export default function VincularPatrocinadores() {
                                               disabled={!isEditable}
                                               data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                               style={{
-                                                display: 'inline-flex', alignItems: 'center', gap: isLinked ? 3 : 0,
+                                                display: 'inline-flex', alignItems: 'center', gap: 5,
                                                 padding: '3px 7px',
-                                                backgroundColor: isLinked ? colorStyle.backgroundColor : '#ffffff',
-                                                color: isLinked ? colorStyle.color : '#78716c',
+                                                backgroundColor: isLinked ? hexToRgba(brandColor, 0.18) : '#fafafa',
+                                                color: isLinked ? brandColor : '#57534e',
                                                 fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
-                                                borderRadius: 4, border: `1px solid ${isLinked ? colorStyle.backgroundColor : '#d6d3d1'}`,
+                                                borderRadius: 4,
+                                                border: `1px solid ${isLinked ? hexToRgba(brandColor, 0.5) : hexToRgba(brandColor, 0.3)}`,
                                                 cursor: isEditable ? 'pointer' : 'not-allowed',
                                                 letterSpacing: '0.03em', whiteSpace: 'nowrap',
-                                                transition: 'all 0.1s',
+                                                transition: 'all 0.12s',
                                               }}
                                             >
-                                              {isLinked && <Check style={{ width: 8, height: 8 }} />}
+                                              <span style={{
+                                                width: 7, height: 7, borderRadius: '50%',
+                                                backgroundColor: isLinked ? brandColor : hexToRgba(brandColor, 0.6),
+                                                flexShrink: 0, display: 'inline-block',
+                                              }} />
                                               {sponsor.name}
+                                              {isLinked && <Check style={{ width: 8, height: 8, marginLeft: 1 }} />}
                                             </button>
                                           );
                                         })}

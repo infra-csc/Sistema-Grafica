@@ -1494,7 +1494,7 @@ export default function VincularPatrocinadores() {
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Evento</label>
               <Select value={eventFilter} onValueChange={setEventFilter}>
-                <SelectTrigger data-testid="select-event-filter">
+                <SelectTrigger data-testid="select-event-filter" className="h-auto min-h-9 [&>span]:whitespace-normal [&>span]:text-left">
                   <SelectValue placeholder="Selecione evento" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1571,7 +1571,7 @@ export default function VincularPatrocinadores() {
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Peça</label>
               <Select value={itemFilter} onValueChange={setItemFilter}>
-                <SelectTrigger data-testid="select-item-filter">
+                <SelectTrigger data-testid="select-item-filter" className="h-auto min-h-9 [&>span]:whitespace-normal [&>span]:text-left">
                   <SelectValue placeholder="Selecione tipo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1589,7 +1589,7 @@ export default function VincularPatrocinadores() {
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Status</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger data-testid="select-status-filter">
+                <SelectTrigger data-testid="select-status-filter" className="h-auto min-h-9 [&>span]:whitespace-normal [&>span]:text-left">
                   <SelectValue placeholder="Todos os status" />
                 </SelectTrigger>
                 <SelectContent>

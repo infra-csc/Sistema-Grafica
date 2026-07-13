@@ -46,6 +46,8 @@ export default function Atendimento() {
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
+  const [eventComboOpen, setEventComboOpen] = useState(false);
+  const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
 
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
@@ -695,22 +697,57 @@ export default function Atendimento() {
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          {/* Filtro Evento */}
-          <select
-            value={eventFilter}
-            onChange={e => setEventFilter(e.target.value)}
-            data-testid="select-event-filter"
-            style={{
-              backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
-              fontSize: 14, fontWeight: 600, padding: '12px 16px',
-              color: '#1c1917', cursor: 'pointer', outline: 'none',
-            }}
-          >
-            <option value="all">Todos os Eventos</option>
-            {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((ev: any) => (
-              <option key={ev.id} value={ev.id}>{ev.name}</option>
-            ))}
-          </select>
+          {/* Filtro Evento — combobox pesquisável */}
+          {(() => {
+            const sortedEvents = [...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'));
+            const selectedEvent = sortedEvents.find((e: any) => e.id === eventFilter);
+            return (
+              <Popover open={eventComboOpen} onOpenChange={setEventComboOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    data-testid="select-event-filter"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
+                      fontSize: 14, fontWeight: 600, padding: '12px 16px',
+                      color: selectedEvent ? '#1c1917' : '#78716c',
+                      cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {selectedEvent ? selectedEvent.name : 'Todos os Eventos'}
+                    <ChevronsUpDown style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" style={{ width: 280 }} align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar evento..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="all"
+                          onSelect={() => { setEventFilter("all"); setEventComboOpen(false); }}
+                        >
+                          <Check style={{ width: 14, height: 14, opacity: eventFilter === "all" ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                          Todos os Eventos
+                        </CommandItem>
+                        {sortedEvents.map((ev: any) => (
+                          <CommandItem
+                            key={ev.id}
+                            value={ev.name}
+                            onSelect={() => { setEventFilter(ev.id); setEventComboOpen(false); }}
+                          >
+                            <Check style={{ width: 14, height: 14, opacity: eventFilter === ev.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                            {ev.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            );
+          })()}
 
           {/* Filtro Tipo */}
           <select
@@ -727,22 +764,61 @@ export default function Atendimento() {
             {uniqueItemTypes.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
 
-          {/* Filtro Patrocinador */}
-          <select
-            value={sponsorFilter}
-            onChange={e => setSponsorFilter(e.target.value)}
-            data-testid="select-sponsor-filter"
-            style={{
-              backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
-              fontSize: 14, fontWeight: 600, padding: '12px 16px',
-              color: '#1c1917', cursor: 'pointer', outline: 'none',
-            }}
-          >
-            <option value="all">Patrocinador</option>
-            {[...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((s: any) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+          {/* Filtro Patrocinador — combobox pesquisável com cores */}
+          {(() => {
+            const sortedSponsors = [...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'));
+            const selectedSponsor = sortedSponsors.find((s: any) => s.id === sponsorFilter);
+            return (
+              <Popover open={sponsorComboOpen} onOpenChange={setSponsorComboOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    data-testid="select-sponsor-filter"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
+                      fontSize: 14, fontWeight: 600, padding: '12px 16px',
+                      color: selectedSponsor ? '#1c1917' : '#78716c',
+                      cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {selectedSponsor && (
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: selectedSponsor.color || '#a8a29e', flexShrink: 0, display: 'inline-block' }} />
+                    )}
+                    {selectedSponsor ? selectedSponsor.name : 'Patrocinador'}
+                    <ChevronsUpDown style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" style={{ width: 260 }} align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar patrocinador..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="all"
+                          onSelect={() => { setSponsorFilter("all"); setSponsorComboOpen(false); }}
+                        >
+                          <Check style={{ width: 14, height: 14, opacity: sponsorFilter === "all" ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                          Todos os Patrocinadores
+                        </CommandItem>
+                        {sortedSponsors.map((s: any) => (
+                          <CommandItem
+                            key={s.id}
+                            value={s.name}
+                            onSelect={() => { setSponsorFilter(s.id); setSponsorComboOpen(false); }}
+                          >
+                            <Check style={{ width: 14, height: 14, opacity: sponsorFilter === s.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0, display: 'inline-block', marginRight: 6 }} />
+                            {s.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            );
+          })()}
 
           {/* Limpar filtros */}
           {(searchTerm || eventFilter !== "all" || itemTypeFilter !== "all" || sponsorFilter !== "all") && (

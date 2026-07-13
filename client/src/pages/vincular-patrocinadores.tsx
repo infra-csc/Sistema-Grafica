@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -150,6 +153,7 @@ export default function VincularPatrocinadores() {
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   const [itemFilter, setItemFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
   
   // Estado local para rastrear mudanças pendentes
   const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});
@@ -1504,22 +1508,63 @@ export default function VincularPatrocinadores() {
               </Select>
             </div>
 
-            {/* Filtro por Patrocinador */}
+            {/* Filtro por Patrocinador — Combobox buscável com cor */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Patrocinador</label>
-              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-                <SelectTrigger data-testid="select-sponsor-filter">
-                  <SelectValue placeholder="Selecione patrocinador" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os patrocinadores</SelectItem>
-                  {[...sponsors].sort((a, b) => a.name.localeCompare(b.name)).map(sponsor => (
-                    <SelectItem key={sponsor.id} value={sponsor.id}>
-                      {sponsor.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={sponsorComboOpen} onOpenChange={setSponsorComboOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={sponsorComboOpen}
+                    data-testid="select-sponsor-filter"
+                    className="w-full justify-between font-normal h-9 px-3 text-left"
+                  >
+                    <span className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                      {sponsorFilter === "all" ? (
+                        <span className="text-muted-foreground truncate">Todos os patrocinadores</span>
+                      ) : (() => {
+                        const s = sponsors.find(sp => sp.id === sponsorFilter);
+                        return s ? (
+                          <>
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: s.color || '#3b82f6', flexShrink: 0, display: 'inline-block' }} />
+                            <span className="truncate">{s.name}</span>
+                          </>
+                        ) : <span className="text-muted-foreground truncate">Todos os patrocinadores</span>;
+                      })()}
+                    </span>
+                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-64" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar patrocinador..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="todos-os-patrocinadores"
+                          onSelect={() => { setSponsorFilter("all"); setSponsorComboOpen(false); }}
+                        >
+                          <Check className={`mr-2 h-4 w-4 ${sponsorFilter === "all" ? "opacity-100" : "opacity-0"}`} />
+                          Todos os patrocinadores
+                        </CommandItem>
+                        {[...sponsors].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(sponsor => (
+                          <CommandItem
+                            key={sponsor.id}
+                            value={sponsor.name}
+                            onSelect={() => { setSponsorFilter(sponsor.id); setSponsorComboOpen(false); }}
+                          >
+                            <Check className={`mr-2 h-4 w-4 ${sponsorFilter === sponsor.id ? "opacity-100" : "opacity-0"}`} />
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0, display: 'inline-block', marginRight: 6 }} />
+                            {sponsor.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Filtro por Item (tipo) */}

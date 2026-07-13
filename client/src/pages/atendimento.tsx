@@ -70,6 +70,7 @@ export default function Atendimento() {
   const [batchRejectReason, setBatchRejectReason]     = useState<string>("");
   const [batchShowRejectForm, setBatchShowRejectForm] = useState<boolean>(false);
   const [batchSelectedItemIds, setBatchSelectedItemIds] = useState<Set<string>>(new Set());
+  const [batchSponsorComboOpen, setBatchSponsorComboOpen] = useState(false);
 
   // Map para rastrear patrocinadores de cada item
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
@@ -897,21 +898,63 @@ export default function Atendimento() {
                   <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#57534e' }}>
                     Filtrar por Patrocinador
                   </label>
-                  <select
-                    value={batchSponsorId}
-                    onChange={e => { setBatchSponsorId(e.target.value); setBatchEventId(""); setBatchShowRejectForm(false); setBatchRejectReason(""); }}
-                    data-testid="select-batch-sponsor"
-                    style={{
-                      width: '100%', backgroundColor: '#1c1917', border: '1px solid #292524',
-                      color: '#ffffff', borderRadius: 8, padding: '12px 16px',
-                      fontSize: 14, cursor: 'pointer', outline: 'none',
-                    }}
-                  >
-                    <option value="">Selecionar patrocinador...</option>
-                    {batchEligibleSponsors.map((s: any) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                  {(() => {
+                    const sortedAllSponsors = [...(sponsors as any[])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+                    const selSponsor = sortedAllSponsors.find(s => s.id === batchSponsorId);
+                    return (
+                      <Popover open={batchSponsorComboOpen} onOpenChange={setBatchSponsorComboOpen}>
+                        <PopoverTrigger asChild>
+                          <button
+                            data-testid="select-batch-sponsor"
+                            style={{
+                              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                              backgroundColor: '#1c1917', border: '1px solid #292524',
+                              color: selSponsor ? '#ffffff' : '#78716c',
+                              borderRadius: 8, padding: '12px 16px',
+                              fontSize: 14, cursor: 'pointer', outline: 'none',
+                            }}
+                          >
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                              {selSponsor && (
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: selSponsor.color || '#a8a29e', flexShrink: 0, display: 'inline-block' }} />
+                              )}
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {selSponsor ? selSponsor.name : 'Selecionar patrocinador...'}
+                              </span>
+                            </span>
+                            <ChevronsUpDown style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0 }} />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0" style={{ width: 260 }} align="start">
+                          <Command>
+                            <CommandInput placeholder="Buscar patrocinador..." />
+                            <CommandList>
+                              <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
+                              <CommandGroup>
+                                {sortedAllSponsors.map((s: any) => (
+                                  <CommandItem
+                                    key={s.id}
+                                    value={s.name}
+                                    onSelect={() => {
+                                      setBatchSponsorId(s.id);
+                                      setBatchEventId("");
+                                      setBatchShowRejectForm(false);
+                                      setBatchRejectReason("");
+                                      setBatchSponsorComboOpen(false);
+                                    }}
+                                  >
+                                    <Check style={{ width: 14, height: 14, opacity: batchSponsorId === s.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                                    <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0, display: 'inline-block', marginRight: 6 }} />
+                                    {s.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  })()}
                 </div>
 
                 {batchSponsorId && (

@@ -654,7 +654,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const prevStatus = item.status;
-      await storage.updateItem(id, { status: 'requested', skipApproval: false });
+      await storage.updateItem(id, { status: 'draft', skipApproval: false });
       await storage.bulkSyncItemSponsors(id, []);
 
       await createAuditLog(

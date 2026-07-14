@@ -35,6 +35,7 @@ export const sponsors = pgTable("sponsors", {
   contactPerson: text("contact_person"), // Pessoa de contato
   notes: text("notes"), // Observações gerais
   color: text("color").default("#3b82f6"), // Cor personalizada do patrocinador (hex)
+  quota: text("quota"), // MASTER, GOLD, SILVER, APOIO, MIDIA, MINISTERIO
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -68,6 +69,15 @@ export const itemSponsorApprovals = pgTable("item_sponsor_approvals", {
   rejectionReason: text("rejection_reason"), // Motivo da reprovação (se houver)
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+// Event Quota Rules — maps sponsor tiers to item types per event
+export const eventQuotaRules = pgTable("event_quota_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  quota: text("quota").notNull(), // MASTER, GOLD, SILVER, APOIO, MIDIA, MINISTERIO
+  itemTypes: text("item_types").array().notNull().default(sql`'{}'::text[]`),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
 // Items table
@@ -228,6 +238,14 @@ export const eventsRelations = relations(events, ({ many }) => ({
   items: many(items),
   notifications: many(notifications),
   eventSponsors: many(eventSponsors),
+  quotaRules: many(eventQuotaRules),
+}));
+
+export const eventQuotaRulesRelations = relations(eventQuotaRules, ({ one }) => ({
+  event: one(events, {
+    fields: [eventQuotaRules.eventId],
+    references: [events.id],
+  }),
 }));
 
 export const sponsorsRelations = relations(sponsors, ({ many }) => ({
@@ -466,6 +484,13 @@ export const insertEventInventoryAllocationSchema = createInsertSchema(eventInve
   allocatedAt: true,
 });
 
+export const insertEventQuotaRuleSchema = createInsertSchema(eventQuotaRules).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  itemTypes: z.array(z.string()).default([]),
+});
+
 // Types
 export type Event = typeof events.$inferSelect;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
@@ -511,3 +536,6 @@ export type InsertInventoryAsset = z.infer<typeof insertInventoryAssetSchema>;
 
 export type EventInventoryAllocation = typeof eventInventoryAllocations.$inferSelect;
 export type InsertEventInventoryAllocation = z.infer<typeof insertEventInventoryAllocationSchema>;
+
+export type EventQuotaRule = typeof eventQuotaRules.$inferSelect;
+export type InsertEventQuotaRule = z.infer<typeof insertEventQuotaRuleSchema>;

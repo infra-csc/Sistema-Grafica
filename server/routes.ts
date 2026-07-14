@@ -499,6 +499,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============ QUOTA RULES ============
+
+  app.get("/api/events/:id/quota-rules", requireAuth, async (req, res) => {
+    try {
+      const rules = await storage.getEventQuotaRules(req.params.id);
+      res.json(rules);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/events/:id/quota-rules", requireAuth, async (req, res) => {
+    try {
+      // Body: { quota: string, itemTypes: string[] }
+      const { quota, itemTypes } = req.body as { quota: string; itemTypes: string[] };
+      if (!quota) return res.status(400).json({ error: "quota é obrigatório" });
+      const rule = await storage.upsertEventQuotaRule(req.params.id, quota, itemTypes ?? []);
+      res.json(rule);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/events/:id/quota-rules/:quota", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteEventQuotaRule(req.params.id, req.params.quota);
+      res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/events/:id/auto-link-preview", requireAuth, async (req, res) => {
+    try {
+      const preview = await storage.previewAutoLink(req.params.id);
+      res.json(preview);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/events/:id/auto-link-sponsors", requireAuth, async (req, res) => {
+    try {
+      const linked = await storage.autoLinkByQuota(req.params.id);
+      res.json({ linked });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ============ EVENT SPONSORS ============
   
   // Get sponsors for an event

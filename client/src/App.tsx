@@ -31,6 +31,7 @@ import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
 import LogsSistema from "@/pages/logs-sistema";
 import Estoque from "@/pages/estoque";
 import TriagemRetorno from "@/pages/triagem-retorno";
+import ConfigurarCotas from "@/pages/configurar-cotas";
 
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType; path?: string }) {
@@ -162,6 +163,9 @@ function Router() {
       </Route>
       <Route path="/triagem-retorno">
         {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/configurar-cotas">
+        {() => <RoleProtectedRoute component={ConfigurarCotas} allowedRoles={["arte", "atendimento", "admin"]} />}
       </Route>
       <Route component={NotFound} />
     </Switch>

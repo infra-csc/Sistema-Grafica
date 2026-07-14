@@ -15,6 +15,7 @@ import {
   itemSponsorApprovals,
   inventoryAssets,
   eventInventoryAllocations,
+  eventQuotaRules,
   type Event, 
   type InsertEvent,
   type Item,
@@ -43,6 +44,7 @@ import {
   type InventoryAsset,
   type InsertInventoryAsset,
   type EventInventoryAllocation,
+  type EventQuotaRule,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, or, lt } from "drizzle-orm";
@@ -153,6 +155,13 @@ export interface IStorage {
   getAssetAllocations(assetId: string): Promise<Array<EventInventoryAllocation & { event: Event }>>;
   allocateAssetToEvent(eventId: string, assetId: string): Promise<EventInventoryAllocation>;
   deallocateAsset(allocationId: string): Promise<boolean>;
+
+  // Quota Rules
+  getEventQuotaRules(eventId: string): Promise<EventQuotaRule[]>;
+  upsertEventQuotaRule(eventId: string, quota: string, itemTypes: string[]): Promise<EventQuotaRule>;
+  deleteEventQuotaRule(eventId: string, quota: string): Promise<void>;
+  previewAutoLink(eventId: string): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>>;
+  autoLinkByQuota(eventId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1063,6 +1072,106 @@ export class DatabaseStorage implements IStorage {
       .set({ trackingStatus: 'NO_GALPAO', updatedAt: new Date() } as any)
       .where(eq(inventoryAssets.id, alloc.assetId));
     return true;
+  }
+
+  // ── Quota Rules ────────────────────────────────────────────
+
+  async getEventQuotaRules(eventId: string): Promise<EventQuotaRule[]> {
+    return await db.select().from(eventQuotaRules)
+      .where(eq(eventQuotaRules.eventId, eventId))
+      .orderBy(eventQuotaRules.quota);
+  }
+
+  async upsertEventQuotaRule(eventId: string, quota: string, itemTypes: string[]): Promise<EventQuotaRule> {
+    // Delete existing rule for this quota+event, then insert fresh
+    await db.delete(eventQuotaRules).where(
+      and(eq(eventQuotaRules.eventId, eventId), eq(eventQuotaRules.quota, quota))
+    );
+    const [rule] = await db.insert(eventQuotaRules)
+      .values({ eventId, quota, itemTypes })
+      .returning();
+    return rule;
+  }
+
+  async deleteEventQuotaRule(eventId: string, quota: string): Promise<void> {
+    await db.delete(eventQuotaRules).where(
+      and(eq(eventQuotaRules.eventId, eventId), eq(eventQuotaRules.quota, quota))
+    );
+  }
+
+  async previewAutoLink(eventId: string): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>> {
+    // Get quota rules for this event
+    const rules = await db.select().from(eventQuotaRules).where(eq(eventQuotaRules.eventId, eventId));
+    if (rules.length === 0) return [];
+
+    // Build quota → itemTypes map
+    const ruleMap: Record<string, string[]> = {};
+    for (const r of rules) ruleMap[r.quota] = r.itemTypes;
+
+    // Get all sponsors linked to this event (with quota info)
+    const evtSponsors = await db.select({
+      sponsorId: sponsors.id,
+      sponsorName: sponsors.name,
+      quota: sponsors.quota,
+    })
+      .from(eventSponsors)
+      .innerJoin(sponsors, eq(sponsors.id, eventSponsors.sponsorId))
+      .where(eq(eventSponsors.eventId, eventId));
+
+    // Get all linkable items for this event
+    const linkableStatuses = ['requested', 'awaiting_linking'];
+    const eventItems = await db.select({
+      id: items.id,
+      displayId: items.displayId,
+      type: items.type,
+      description: items.description,
+    })
+      .from(items)
+      .where(eq(items.eventId, eventId));
+
+    // Get existing item-sponsor links to avoid duplicates
+    const existingLinks = await db.select({ itemId: itemSponsors.itemId, sponsorId: itemSponsors.sponsorId })
+      .from(itemSponsors)
+      .innerJoin(items, eq(items.id, itemSponsors.itemId))
+      .where(eq(items.eventId, eventId));
+    const linkedSet = new Set(existingLinks.map(l => `${l.itemId}:${l.sponsorId}`));
+
+    const preview: Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }> = [];
+
+    for (const sp of evtSponsors) {
+      if (!sp.quota || !ruleMap[sp.quota]) continue;
+      const allowedTypes = ruleMap[sp.quota].map(t => t.toLowerCase().trim());
+      const matchingItems = eventItems.filter(it =>
+        allowedTypes.includes(it.type.toLowerCase().trim()) &&
+        !linkedSet.has(`${it.id}:${sp.sponsorId}`)
+      );
+      if (matchingItems.length > 0) {
+        preview.push({
+          sponsorId: sp.sponsorId,
+          sponsorName: sp.sponsorName,
+          quota: sp.quota,
+          items: matchingItems.map(it => ({ itemId: it.id, displayId: it.displayId, type: it.type, description: it.description })),
+        });
+      }
+    }
+
+    return preview;
+  }
+
+  async autoLinkByQuota(eventId: string): Promise<number> {
+    const preview = await this.previewAutoLink(eventId);
+    let linked = 0;
+    for (const entry of preview) {
+      for (const it of entry.items) {
+        try {
+          await db.insert(itemSponsors).values({ itemId: it.itemId, sponsorId: entry.sponsorId });
+          linked++;
+        } catch (_) {
+          // ignore duplicate key errors
+        }
+      }
+    }
+    return linked;
   }
 }
 

@@ -44,6 +44,15 @@ const PRESET_COLORS = [
 
 const PAGE_SIZE = 10;
 
+const QUOTA_OPTIONS = [
+  { value: "MASTER",     label: "Master",      color: "#ef4444" },
+  { value: "GOLD",       label: "Gold",        color: "#1d4ed8" },
+  { value: "SILVER",     label: "Silver",      color: "#7c3aed" },
+  { value: "APOIO",      label: "Apoio",       color: "#6b7280" },
+  { value: "MIDIA",      label: "Mídia",       color: "#0891b2" },
+  { value: "MINISTERIO", label: "Ministério",  color: "#059669" },
+];
+
 const sponsorSchema = z.object({
   name:          z.string().min(1, "Nome obrigatório"),
   email:         z.string().email("Email inválido").optional().or(z.literal("")),
@@ -52,6 +61,7 @@ const sponsorSchema = z.object({
   contactPerson: z.string().optional(),
   notes:         z.string().optional(),
   color:         z.string().min(1, "Cor obrigatória"),
+  quota:         z.string().optional(),
 });
 type SponsorForm = z.infer<typeof sponsorSchema>;
 
@@ -70,7 +80,7 @@ export default function Patrocinadores() {
 
   const form = useForm<SponsorForm>({
     resolver: zodResolver(sponsorSchema),
-    defaultValues: { name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316" },
+    defaultValues: { name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", quota: "" },
   });
 
   const selectedColor = form.watch("color") || "#f97316";
@@ -116,13 +126,13 @@ export default function Patrocinadores() {
 
   const openCreate = () => {
     setEditingSponsor(null);
-    form.reset({ name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316" });
+    form.reset({ name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", quota: "" });
     setModalOpen(true);
   };
 
   const openEdit = (s: Sponsor) => {
     setEditingSponsor(s);
-    form.reset({ name: s.name, email: s.email || "", phone: s.phone || "", company: s.company || "", contactPerson: s.contactPerson || "", notes: s.notes || "", color: s.color || "#f97316" });
+    form.reset({ name: s.name, email: s.email || "", phone: s.phone || "", company: s.company || "", contactPerson: s.contactPerson || "", notes: s.notes || "", color: s.color || "#f97316", quota: (s as any).quota || "" });
     setModalOpen(true);
   };
 
@@ -236,6 +246,7 @@ export default function Patrocinadores() {
               <thead>
                 <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
                   <th style={thStyle}>Nome do Patrocinador</th>
+                  <th style={thStyle}>Cota</th>
                   <th style={thStyle}>Empresa</th>
                   <th style={thStyle}>Contato Responsável</th>
                   <th style={thStyle}>E-mail</th>
@@ -264,6 +275,18 @@ export default function Patrocinadores() {
                             {sponsor.name}
                           </span>
                         </div>
+                      </td>
+
+                      {/* Cota */}
+                      <td style={{ padding: "16px 20px" }}>
+                        {(sponsor as any).quota ? (() => {
+                          const q = QUOTA_OPTIONS.find(o => o.value === (sponsor as any).quota);
+                          return q ? (
+                            <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", backgroundColor: q.color + "1a", color: q.color, border: `1px solid ${q.color}40`, textTransform: "uppercase" }}>
+                              {q.label}
+                            </span>
+                          ) : null;
+                        })() : <span style={{ color: T.muted, fontStyle: "italic", fontSize: 12 }}>—</span>}
                       </td>
 
                       {/* Empresa */}
@@ -466,6 +489,38 @@ export default function Patrocinadores() {
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
                               />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      </div>
+
+                      {/* Cota Comercial */}
+                      <div style={{ marginTop: 16 }}>
+                        <FormField control={form.control} name="quota" render={({ field }) => (
+                          <FormItem>
+                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Cota Comercial</label>
+                            <FormControl>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => field.onChange("")}
+                                  style={{ padding: "8px 16px", borderRadius: 6, border: `2px solid ${!field.value ? T.dark : T.border}`, backgroundColor: !field.value ? T.dark : "transparent", color: !field.value ? "#fff" : T.second, fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.1em", transition: "all 0.15s" }}
+                                >
+                                  Sem Cota
+                                </button>
+                                {QUOTA_OPTIONS.map(q => (
+                                  <button
+                                    key={q.value}
+                                    type="button"
+                                    data-testid={`quota-btn-${q.value}`}
+                                    onClick={() => field.onChange(field.value === q.value ? "" : q.value)}
+                                    style={{ padding: "8px 16px", borderRadius: 6, border: `2px solid ${field.value === q.value ? q.color : T.border}`, backgroundColor: field.value === q.value ? q.color : "transparent", color: field.value === q.value ? "#fff" : T.second, fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.1em", transition: "all 0.15s" }}
+                                  >
+                                    {q.label}
+                                  </button>
+                                ))}
+                              </div>
                             </FormControl>
                             <FormMessage />
                           </FormItem>

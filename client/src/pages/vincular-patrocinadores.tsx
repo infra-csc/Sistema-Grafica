@@ -16,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink, RotateCcw } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink, RotateCcw, Zap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
@@ -185,6 +185,13 @@ export default function VincularPatrocinadores() {
 
   // Estado para expandir a lista de patrocinadores por item (quando há muitos)
   const [expandedSponsorCells, setExpandedSponsorCells] = useState<Set<string>>(new Set());
+
+  // Estados auto-vincular por cota
+  // preview: array de { sponsorId, sponsorName, quota, items: [{ itemId, displayId, type, description }] }
+  const [autoLinkOpen, setAutoLinkOpen] = useState(false);
+  const [autoLinkPreview, setAutoLinkPreview] = useState<any[] | null>(null);
+  const [autoLinkLoading, setAutoLinkLoading] = useState(false);
+  const [autoLinkConfirming, setAutoLinkConfirming] = useState(false);
 
   // Estado para colapsar grupos de patrocinadores na view Por Patrocinador
   const [collapsedSponsorGroups, setCollapsedSponsorGroups] = useState<Set<string>>(new Set());
@@ -1356,6 +1363,115 @@ export default function VincularPatrocinadores() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Dialog: Auto-vincular por Cota ── */}
+      <Dialog open={autoLinkOpen} onOpenChange={open => { if (!open) { setAutoLinkOpen(false); setAutoLinkPreview(null); } }}>
+        <DialogContent style={{ maxWidth: 560, borderRadius: 12, padding: 0, gap: 0, overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px 16px', borderBottom: '1px solid #f0efed' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Zap style={{ width: 15, height: 15, color: '#fff' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.01em' }}>Auto-vincular por Cota</div>
+                <div style={{ fontSize: 11, color: '#78716c', marginTop: 2 }}>Patrocinadores serão vinculados conforme as regras de cota do evento</div>
+              </div>
+            </div>
+            <button onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid #e7e5e4', background: 'white', cursor: 'pointer', color: '#78716c' }}
+              data-testid="button-close-auto-link">
+              <X style={{ width: 14, height: 14 }} />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '20px 24px', minHeight: 160, maxHeight: 420, overflowY: 'auto' }}>
+            {autoLinkLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, height: 120, color: '#78716c', fontSize: 13 }}>
+                <svg className="animate-spin" style={{ width: 20, height: 20, color: '#4f46e5' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                Carregando pré-visualização...
+              </div>
+            )}
+            {!autoLinkLoading && autoLinkPreview !== null && (
+              <>
+                {autoLinkPreview.length === 0 && (
+                  <div style={{ textAlign: 'center', color: '#78716c', fontSize: 13, padding: '32px 0' }}>
+                    Nenhum item elegível para auto-vínculo neste evento.<br />
+                    <span style={{ fontSize: 11, marginTop: 6, display: 'block' }}>Verifique se os patrocinadores têm cota definida e se há regras configuradas para este evento.</span>
+                  </div>
+                )}
+                {autoLinkPreview.length > 0 && (
+                  <div>
+                    {/* Total count */}
+                    <div style={{ fontSize: 10, fontWeight: 800, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
+                      {autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0)} vínculo{autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0) !== 1 ? 's' : ''} a criar · {autoLinkPreview.length} patrocinador{autoLinkPreview.length !== 1 ? 'es' : ''}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {autoLinkPreview.map((entry: any) => (
+                        <div key={entry.sponsorId} style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: '#f0f0ff', border: '1px solid #e0e0ff' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 700, backgroundColor: '#4f46e5', color: '#fff', textTransform: 'uppercase' }}>
+                              {entry.quota}
+                            </span>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{entry.sponsorName}</span>
+                            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#78716c' }}>{entry.items.length} item{entry.items.length !== 1 ? 's' : ''}</span>
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                            {entry.items.map((it: any) => (
+                              <span key={it.itemId} style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, backgroundColor: '#fff', border: '1px solid #e0e0ff', color: '#4f46e5' }}>
+                                {it.displayId} · {it.type}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <button
+              onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
+              style={{ padding: '9px 20px', backgroundColor: '#f5f5f4', color: '#1c1917', fontWeight: 600, fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}
+              data-testid="button-auto-link-cancel"
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={!autoLinkPreview || autoLinkPreview.length === 0 || autoLinkConfirming}
+              onClick={async () => {
+                if (!autoLinkPreview || autoLinkPreview.length === 0) return;
+                const totalLinks = autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0);
+                setAutoLinkConfirming(true);
+                try {
+                  await apiRequest('POST', `/api/events/${eventFilter}/auto-link-sponsors`);
+                  queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+                  setAutoLinkOpen(false);
+                  setAutoLinkPreview(null);
+                  toast({ title: 'Patrocinadores vinculados!', description: `${totalLinks} vínculo(s) criado(s) com sucesso.` });
+                } catch (e: any) {
+                  toast({ variant: 'destructive', title: 'Erro ao vincular', description: e.message });
+                } finally {
+                  setAutoLinkConfirming(false);
+                }
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px', backgroundColor: !autoLinkPreview || autoLinkPreview.length === 0 ? '#e7e5e4' : '#4f46e5', color: !autoLinkPreview || autoLinkPreview.length === 0 ? '#a8a29e' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: !autoLinkPreview || autoLinkPreview.length === 0 ? 'not-allowed' : 'pointer' }}
+              data-testid="button-auto-link-confirm"
+            >
+              <Zap style={{ width: 13, height: 13 }} />
+              {autoLinkConfirming ? 'Vinculando...' : `Confirmar (${autoLinkPreview?.reduce((a: number, e: any) => a + e.items.length, 0) ?? 0})`}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Page Header ── */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
         <div>
@@ -1370,6 +1486,32 @@ export default function VincularPatrocinadores() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+          <button
+            data-testid="button-auto-vincular"
+            disabled={eventFilter === 'all'}
+            onClick={async () => {
+              if (eventFilter === 'all') return;
+              setAutoLinkOpen(true);
+              setAutoLinkPreview(null);
+              setAutoLinkLoading(true);
+              try {
+                const res = await fetch(`/api/events/${eventFilter}/auto-link-preview`, { credentials: 'include' });
+                const data = await res.json();
+                setAutoLinkPreview(data);
+              } catch {
+                setAutoLinkOpen(false);
+              } finally {
+                setAutoLinkLoading(false);
+              }
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', backgroundColor: eventFilter === 'all' ? '#e7e5e4' : '#4f46e5', color: eventFilter === 'all' ? '#a8a29e' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: eventFilter === 'all' ? 'not-allowed' : 'pointer' }}
+            onMouseEnter={e => { if (eventFilter !== 'all') e.currentTarget.style.filter = 'brightness(1.1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+            title={eventFilter === 'all' ? 'Selecione um evento para usar o auto-vínculo' : 'Vincular patrocinadores automaticamente pela cota'}
+          >
+            <Zap style={{ width: 13, height: 13 }} />
+            Auto-vincular por Cota
+          </button>
           <button
             style={{ padding: '10px 20px', backgroundColor: '#e8e8e7', color: '#1c1917', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#d8d8d7')}

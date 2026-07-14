@@ -1,7 +1,7 @@
 import {
   Calendar, CheckCircle, Factory, Home, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, ScrollText, Archive, ScanSearch, Compass,
+  Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
@@ -44,7 +44,8 @@ const productionItems: MenuItem[] = [
 
 // Patrocinadores: visível p/ solicitação, atendimento e admin
 const sponsorItems: MenuItem[] = [
-  { title: "Patrocinadores", url: "/patrocinadores", icon: Building2, roles: ["solicitacao", "atendimento", "admin"] },
+  { title: "Patrocinadores",   url: "/patrocinadores",   icon: Building2,  roles: ["solicitacao", "atendimento", "admin"] },
+  { title: "Configurar Cotas", url: "/configurar-cotas", icon: Settings2,  roles: ["arte", "atendimento", "admin"] },
 ];
 
 // Estoque: apenas admin

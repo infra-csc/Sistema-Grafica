@@ -50,10 +50,11 @@ const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
 // ── Editable row for import preview table ────────────────────────────────
-function ImportPreviewRow({ row, idx, onChange, onDelete }: {
+function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {
   row: any; idx: number;
   onChange: (updated: any) => void;
   onDelete: () => void;
+  eventSponsorsList: { sponsorId: string; name: string }[];
 }) {
   const [editField, setEditField] = useState<string | null>(null);
 
@@ -112,6 +113,19 @@ function ImportPreviewRow({ row, idx, onChange, onDelete }: {
       {cell('material', row.material)}
       {cell('finish', row.finish)}
       {cell('observations', row.observations, { dim: true })}
+      {/* Sponsor suggestion cell */}
+      <td style={{ padding: '4px 8px', borderBottom: '1px solid #f0efed', backgroundColor: idx % 2 === 0 ? '#fff' : '#fafaf9', minWidth: 130 }}>
+        <select
+          value={row.suggestedSponsorId ?? ''}
+          onChange={e => onChange({ ...row, suggestedSponsorId: e.target.value || null })}
+          style={{ fontSize: 11, border: '1px solid #e2deda', borderRadius: 4, padding: '2px 4px', backgroundColor: row.suggestedSponsorId ? '#f0fdf4' : '#fafaf9', color: row.suggestedSponsorId ? '#166534' : '#a8a29e', width: '100%', cursor: 'pointer', outline: 'none' }}
+        >
+          <option value="">— nenhum —</option>
+          {eventSponsorsList.map(s => (
+            <option key={s.sponsorId} value={s.sponsorId}>{s.name}</option>
+          ))}
+        </select>
+      </td>
       <td style={{ padding: '4px 8px', borderBottom: '1px solid #f0efed', backgroundColor: idx % 2 === 0 ? '#fff' : '#fafaf9' }}>
         <button
           onClick={onDelete}
@@ -222,6 +236,20 @@ export default function EventDetail() {
   const sponsors = allSponsors.filter(sponsor => 
     eventSponsors.some(es => es.sponsorId === sponsor.id)
   );
+
+  // Cotas configuradas para este evento (usadas na sugestão de patrocinador na importação)
+  const { data: eventQuotaRules = [] } = useQuery<any[]>({
+    queryKey: ["/api/events", eventId, "quota-rules"],
+    queryFn: () => fetch(`/api/events/${eventId}/quota-rules`).then(r => r.json()),
+    enabled: !!eventId,
+  });
+
+  // Lista enriquecida: eventSponsors + nome do patrocinador (para sugestão na importação)
+  const eventSponsorsList = eventSponsors.map((es: any) => ({
+    sponsorId: es.sponsorId,
+    quota: es.quota,
+    name: allSponsors.find((s: any) => s.id === es.sponsorId)?.name ?? '',
+  })).filter(es => es.name);
 
   // Buscar todos os eventos (para seletor de clone)
   const { data: allEvents = [] } = useQuery<any[]>({
@@ -400,7 +428,34 @@ export default function EventDetail() {
       return response.json();
     },
     onSuccess: (data: any) => {
-      const withIds = (data.items as any[]).map((item: any, i: number) => ({ ...item, _id: `row-${i}` }));
+      // Normalize text for matching (strip accents, lowercase)
+      const norm = (s: string) =>
+        (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').trim();
+
+      const suggestSponsor = (item: any): string | null => {
+        const descNorm = norm(item.description ?? '');
+        // 1. Try to find sponsor name in description
+        for (const es of eventSponsorsList) {
+          const nameNorm = norm(es.name);
+          if (nameNorm.length > 2 && descNorm.includes(nameNorm)) return es.sponsorId;
+        }
+        // 2. Fallback: quota rules → find quotas that include this item type → first matching event sponsor
+        const itemTypeNorm = norm(item.type ?? '');
+        const matchingQuotas = eventQuotaRules
+          .filter((r: any) => (r.itemTypes ?? []).some((t: string) => norm(t) === itemTypeNorm))
+          .map((r: any) => r.quota);
+        for (const quota of matchingQuotas) {
+          const match = eventSponsorsList.find(es => es.quota === quota);
+          if (match) return match.sponsorId;
+        }
+        return null;
+      };
+
+      const withIds = (data.items as any[]).map((item: any, i: number) => ({
+        ...item,
+        _id: `row-${i}`,
+        suggestedSponsorId: suggestSponsor(item),
+      }));
       setImportPreviewItems(withIds);
       setImportFileName(data.fileName || "");
       setImportDialogOpen(false);
@@ -2767,7 +2822,7 @@ export default function EventDetail() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8f7f6', position: 'sticky', top: 0, zIndex: 1 }}>
-                  {['Tipo', 'Descrição', 'Qtd', 'L.Visual', 'A.Visual', 'L.Arquivo', 'A.Arquivo', 'M²', 'Material', 'Acabamento', 'Obs', ''].map((h) => (
+                  {['Tipo', 'Descrição', 'Qtd', 'L.Visual', 'A.Visual', 'L.Arquivo', 'A.Arquivo', 'M²', 'Material', 'Acabamento', 'Obs', 'Patrocinador', ''].map((h) => (
                     <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #ebe9e7', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -2806,6 +2861,7 @@ export default function EventDetail() {
                           idx={rowIdx}
                           onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
                           onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
+                          eventSponsorsList={eventSponsorsList}
                         />
                       ))}
                     </>

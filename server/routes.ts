@@ -1863,6 +1863,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const created = await storage.createBulkItems(validated);
 
+      // Link suggested sponsors when provided
+      const sponsorLinks: Promise<any>[] = [];
+      for (let i = 0; i < created.length; i++) {
+        const sponsorId = items[i]?.suggestedSponsorId;
+        if (sponsorId && typeof sponsorId === 'string') {
+          sponsorLinks.push(
+            storage.addSponsorToItem({ itemId: created[i].id, sponsorId }).catch(() => {})
+          );
+        }
+      }
+      if (sponsorLinks.length > 0) await Promise.all(sponsorLinks);
+
       await createAuditLog(
         (req as any).userName, 'created', 'item', event.id,
         `${created.length} itens importados via Excel${fileName ? ` ("${fileName}")` : ""}`

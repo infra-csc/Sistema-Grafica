@@ -275,7 +275,7 @@ export default function Arte() {
     body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   `;
 
-  // ── Modo único: uma prova por página, com divisores de grupo ────────────────
+  // ── Modo único: uma prova por página ────────────────────────────────────────
   const exportItemsToPDF = (items: any[], title = "Arte — Peças") => {
     if (items.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
@@ -284,207 +284,216 @@ export default function Arte() {
     const win = window.open("", "_blank");
     if (!win) return;
 
-    const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-      solicitado:                { label: "Solicitado",           color: "#92400e", bg: "#fef3c7" },
-      aguardando_vinculacao:     { label: "Ag. Vinculação",       color: "#6b21a8", bg: "#f5f3ff" },
-      aguardando_envio:          { label: "Ag. Envio",            color: "#1e40af", bg: "#eff6ff" },
-      aguardando_aprovacao:      { label: "Ag. Aprovação",        color: "#b45309", bg: "#fff7ed" },
-      aguardando_finalizacao:    { label: "Ag. Finalização",      color: "#0369a1", bg: "#e0f2fe" },
-      aguardando_revisao_final:  { label: "Ag. Revisão Final",    color: "#9d174d", bg: "#fdf2f8" },
-      pronto_para_producao:      { label: "Pronto para Produção", color: "#065f46", bg: "#d1fae5" },
-      liberado:                  { label: "Liberado",             color: "#065f46", bg: "#d1fae5" },
-      em_producao:               { label: "Em Produção",          color: "#1e40af", bg: "#dbeafe" },
-      produzido:                 { label: "Produzido",            color: "#1e3a5f", bg: "#bfdbfe" },
-      entregue:                  { label: "Entregue",             color: "#1c1917", bg: "#e7e5e4" },
-    };
-
     const now = new Date();
-    const today = now.toLocaleDateString('pt-BR');
-    const nowStr = now.toLocaleString('pt-BR');
+    const nowStr = now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const logoUrl = `${window.location.origin}/norte-logo.jpg`;
 
-    const rows = items.map((item, idx) => {
+    const pages = items.map((item, idx) => {
       const thumbUrl = item.approvalThumbUrl || "";
       const isImg = thumbUrl && !/\.pdf$/i.test(thumbUrl) && (/\.(png|jpg|jpeg|gif|webp|svg)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/") || thumbUrl.includes("/.private/"));
       const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
 
-      const dims = item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight} cm` : "—";
-      const dimsSang = item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight} cm` : "";
-      const groupLabel = typeToGroup[item.type] ? typeToGroup[item.type] : "";
-      const status = STATUS_LABELS[item.status] || { label: item.status || "—", color: "#78716c", bg: "#f5f5f4" };
+      const visualW = parseFloat(item.visualWidth) || 0;
+      const visualH = parseFloat(item.visualHeight) || 0;
+      const fileW   = parseFloat(item.fileWidth)   || 0;
+      const fileH   = parseFloat(item.fileHeight)  || 0;
 
-      const startDate = item.event?.startDate
-        ? new Date(item.event.startDate).toLocaleDateString('pt-BR')
-        : "";
-      const truckDate = item.event?.truckDepartureDate
-        ? new Date(item.event.truckDepartureDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : "";
+      const dimsVisual = visualW && visualH ? `${visualW} × ${visualH} m` : (item.measurement || "—");
+      const dimsSang   = fileW && fileH ? `${fileW} × ${fileH} m` : "";
+      const m2Val = item.calculatedM2 ? parseFloat(item.calculatedM2).toFixed(2) : "";
 
       const sponsorsHtml = item.sponsors?.length
         ? item.sponsors.map((s: any) => {
             const c = s.color || "#3b82f6";
-            return `<span class="sponsor-chip" style="border-color:${c}33;background:${c}11">
-              <span class="sponsor-dot" style="background:${c}"></span>${s.name}
-            </span>`;
+            return `<span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${s.name}</span>`;
           }).join("")
-        : `<span style="font-size:10px;color:#a8a29e;">—</span>`;
+        : "";
 
       const pageNum = `${idx + 1} / ${items.length}`;
+      const itemName = item.description || item.type || "Sem nome";
+      const typeLabel = item.type || "—";
 
       return `
         <div class="page">
-          <!-- Brand strip -->
-          <div class="brand-strip">
-            <div class="brand-left">
-              <span class="brand-n">N</span>
-              <span class="brand-name">NORTE <span class="brand-sub">Marketing Esportivo</span></span>
-            </div>
-            <div class="brand-right">
-              <span class="brand-gen">Gerado em ${nowStr}</span>
-              <span class="brand-pg">${pageNum}</span>
-            </div>
-          </div>
 
-          <!-- Header -->
-          <div class="header">
-            <div class="id-block">
-              <div class="id-badge">${item.displayId || "#—"}</div>
-              <div class="status-pill" style="color:${status.color};background:${status.bg};">${status.label}</div>
-            </div>
-            <div class="header-text">
-              <div class="event-name">${item.event?.name || "Sem Evento"}</div>
-              <div class="type-row">
-                ${groupLabel ? `<span class="group-crumb">${groupLabel}</span><span class="crumb-sep">›</span>` : ""}
-                <span class="type-label">${item.type || "—"}</span>
+          <!-- HEADER -->
+          <div class="doc-header">
+            <div class="hdr-left">
+              <img src="${logoUrl}" class="hdr-logo" alt="NORTE" />
+              <div class="hdr-brand">
+                <span class="hdr-norte">NORTE</span>
+                <span class="hdr-sub">Marketing Esportivo</span>
               </div>
             </div>
+            <div class="hdr-right">
+              <span class="id-chip">${item.displayId || "#—"}</span>
+            </div>
           </div>
 
-          <!-- Body -->
+          <!-- TÍTULO DA PEÇA -->
+          <div class="piece-title-bar">
+            <span class="piece-name">${itemName}</span>
+            <span class="type-badge">${typeLabel}</span>
+          </div>
+
+          <!-- CORPO -->
           <div class="body">
-            <!-- Thumbnail -->
-            <div class="thumb-wrap">
-              ${isImg
-                ? `<img src="${resolvedThumb}" alt="Thumbnail" />`
-                : thumbUrl
-                  ? `<div class="no-thumb"><div class="no-thumb-icon">PDF</div><div class="no-thumb-sub">Arquivo PDF vinculado</div></div>`
-                  : `<div class="no-thumb"><div class="no-thumb-icon">—</div><div class="no-thumb-sub">Sem thumbnail</div></div>`
-              }
-            </div>
 
-            <!-- Info panel -->
-            <div class="info">
-              <!-- Section: Identificação -->
-              <div class="section-title">Identificação</div>
-              <div class="field"><span class="lbl">Tipo de Peça</span><span class="val">${item.type || "—"}</span></div>
-              ${item.description ? `<div class="field"><span class="lbl">Descrição</span><span class="val">${item.description}</span></div>` : ""}
-              <div class="field"><span class="lbl">Quantidade</span><span class="val big-val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
-
-              <!-- Section: Técnico -->
-              <div class="section-title" style="margin-top:10px;">Técnico</div>
-              <div class="field">
-                <span class="lbl">Medidas Visuais</span>
-                <span class="val">${dims}${dimsSang ? `<span class="val-sub">Sangria: ${dimsSang}</span>` : ""}</span>
+            <!-- Coluna esquerda: imagem -->
+            <div class="col-img">
+              <div class="img-frame">
+                ${isImg
+                  ? `<img src="${resolvedThumb}" alt="Referência" class="ref-img" />`
+                  : thumbUrl
+                    ? `<div class="no-img"><div class="no-img-icon">PDF</div><div class="no-img-sub">Arquivo PDF vinculado</div></div>`
+                    : `<div class="no-img"><div class="no-img-icon">—</div><div class="no-img-sub">Sem imagem de referência</div></div>`
+                }
               </div>
-              ${item.calculatedM2 ? `<div class="field"><span class="lbl">Área (m²)</span><span class="val">${item.calculatedM2}</span></div>` : ""}
-              ${item.material ? `<div class="field"><span class="lbl">Material</span><span class="val">${item.material}</span></div>` : ""}
-              ${item.finish ? `<div class="field"><span class="lbl">Acabamento</span><span class="val">${item.finish}</span></div>` : ""}
-              ${item.observations ? `<div class="field"><span class="lbl">Observações</span><span class="val obs-val">${item.observations}</span></div>` : ""}
-
-              <!-- Section: Evento -->
-              ${(startDate || truckDate) ? `
-              <div class="section-title" style="margin-top:10px;">Evento</div>
-              ${startDate ? `<div class="field"><span class="lbl">Data do Evento</span><span class="val">${startDate}</span></div>` : ""}
-              ${truckDate ? `<div class="field"><span class="lbl">Saída Caminhão</span><span class="val">${truckDate}</span></div>` : ""}
-              ` : ""}
-
-              <!-- Section: Patrocinadores -->
-              ${item.sponsors?.length ? `
-              <div class="section-title" style="margin-top:10px;">Patrocinadores</div>
-              <div class="sponsors-wrap">${sponsorsHtml}</div>
-              ` : ""}
+              <div class="img-caption">Foto de referência</div>
             </div>
+
+            <!-- Coluna direita: ficha técnica -->
+            <div class="col-info">
+              <div class="info-card">
+
+                <!-- Identificação -->
+                <div class="sec-label">Identificação</div>
+                ${item.description ? `
+                <div class="field">
+                  <div class="fld-lbl">Descrição</div>
+                  <div class="fld-val">${item.description}</div>
+                </div>` : ""}
+                <div class="field">
+                  <div class="fld-lbl">Quantidade</div>
+                  <div class="fld-val qty-val">${item.quantity ? item.quantity + " un." : "—"}</div>
+                </div>
+
+                <div class="sep"></div>
+
+                <!-- Especificação Técnica -->
+                <div class="sec-label">Especificação Técnica</div>
+                <div class="field">
+                  <div class="fld-lbl">Medidas Visuais</div>
+                  <div class="fld-val dims-val">${dimsVisual}</div>
+                  ${dimsSang ? `<div class="fld-sub">Sangria: ${dimsSang}</div>` : ""}
+                </div>
+                ${m2Val ? `
+                <div class="field">
+                  <div class="fld-lbl">Área (m²)</div>
+                  <div class="fld-val"><span class="m2-badge">${m2Val} m²</span></div>
+                </div>` : ""}
+                ${item.material ? `
+                <div class="field">
+                  <div class="fld-lbl">Material</div>
+                  <div class="fld-val"><span class="mat-badge">${item.material}</span></div>
+                </div>` : ""}
+                ${item.finish ? `
+                <div class="field">
+                  <div class="fld-lbl">Acabamento</div>
+                  <div class="fld-val"><span class="mat-badge">${item.finish}</span></div>
+                </div>` : ""}
+
+                ${item.observations ? `
+                <div class="sep"></div>
+                <div class="sec-label">Observações</div>
+                <div class="obs-box">${item.observations}</div>
+                ` : ""}
+
+                ${sponsorsHtml ? `
+                <div class="sep"></div>
+                <div class="sec-label">Patrocinadores</div>
+                <div class="sponsors-wrap">${sponsorsHtml}</div>
+                ` : ""}
+
+              </div>
+            </div>
+
           </div>
 
-          <!-- Footer -->
-          <div class="page-footer">
-            <div class="footer-left">
-              <span class="footer-brand">NORTE Marketing Esportivo</span>
-              <span class="footer-dot">·</span>
-              <span class="footer-copy">Documento interno — uso exclusivo da equipe de produção gráfica</span>
-            </div>
-            <span class="footer-meta">${item.displayId || ""} · ${today}</span>
+          <!-- RODAPÉ -->
+          <div class="doc-footer">
+            <span class="ft-gen">Gerado em ${nowStr}</span>
+            <span class="ft-pg">Página ${pageNum}</span>
           </div>
+
         </div>
       `;
     }).join("");
 
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
+      <meta charset="UTF-8"/>
       <title>${title}</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com"/>
+      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
       <style>
-        ${pdfStyles}
-        /* ── Page ── */
-        .page { width: 100%; height: 273mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; gap: 0; }
+        @page { size: A4 portrait; margin: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+        /* ── Page container ── */
+        .page { width: 210mm; min-height: 297mm; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
 
-        /* ── Brand strip ── */
-        .brand-strip { display: flex; align-items: center; justify-content: space-between; background: #1c1917; border-radius: 6px; padding: 6px 14px; margin-bottom: 14px; flex-shrink: 0; }
-        .brand-left { display: flex; align-items: center; gap: 8px; }
-        .brand-n { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #f97316; border-radius: 4px; font-size: 11px; font-weight: 900; color: #fff; letter-spacing: -0.02em; flex-shrink: 0; }
-        .brand-name { font-size: 11px; font-weight: 800; color: #ffffff; letter-spacing: 0.04em; text-transform: uppercase; }
-        .brand-sub { font-weight: 400; color: rgba(255,255,255,0.5); font-size: 10px; text-transform: none; letter-spacing: 0; }
-        .brand-right { display: flex; align-items: center; gap: 12px; }
-        .brand-gen { font-size: 8px; color: rgba(255,255,255,0.4); }
-        .brand-pg { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.35); font-family: monospace; }
+        /* ── HEADER ── */
+        .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
+        .hdr-left { display: flex; align-items: center; gap: 12px; }
+        .hdr-logo { height: 34px; width: auto; object-fit: contain; display: block; flex-shrink: 0; }
+        .hdr-brand { display: flex; flex-direction: column; gap: 1px; }
+        .hdr-norte { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.04em; line-height: 1; }
+        .hdr-sub { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.55); line-height: 1; }
+        .hdr-right { flex-shrink: 0; }
+        .id-chip { font-family: 'DM Mono', 'Courier New', monospace; font-size: 16px; font-weight: 700; color: #ffffff; background: #f97316; padding: 6px 14px; border-radius: 8px; letter-spacing: 0.02em; }
 
-        /* ── Header ── */
-        .header { display: flex; align-items: flex-start; gap: 16px; border-bottom: 2px solid #f0ede8; padding-bottom: 12px; margin-bottom: 14px; flex-shrink: 0; }
-        .id-block { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; flex-shrink: 0; }
-        .id-badge { font-family: 'Courier New', monospace; font-size: 15px; font-weight: 900; color: #fff; background: #f97316; padding: 3px 10px; border-radius: 5px; line-height: 1.3; letter-spacing: 0.02em; }
-        .status-pill { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
-        .header-text { flex: 1; min-width: 0; padding-top: 2px; }
-        .event-name { font-size: 22px; font-weight: 800; color: #1c1917; line-height: 1.15; letter-spacing: -0.025em; word-break: break-word; overflow-wrap: break-word; }
-        .type-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-        .group-crumb { font-size: 10px; font-weight: 600; color: #a8a29e; text-transform: uppercase; letter-spacing: 0.06em; }
-        .crumb-sep { font-size: 10px; color: #d4d0cc; }
-        .type-label { font-size: 10px; font-weight: 800; color: #f97316; text-transform: uppercase; letter-spacing: 0.08em; }
+        /* ── TÍTULO DA PEÇA ── */
+        .piece-title-bar { padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+        .piece-name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; letter-spacing: -0.02em; }
+        .type-badge { display: inline-block; margin-top: 6px; background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
 
-        /* ── Body ── */
-        .body { display: flex; gap: 20px; flex: 1; min-height: 0; }
+        /* ── CORPO ── */
+        .body { display: flex; gap: 0; flex: 1; padding: 24px 32px; gap: 24px; min-height: 0; }
 
-        /* ── Thumbnail ── */
-        .thumb-wrap { flex: 1; min-height: 0; min-width: 0; display: flex; align-items: flex-start; background: #fafaf9; border-radius: 8px; border: 1px solid #e7e5e4; overflow: hidden; }
-        .thumb-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
-        .no-thumb { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px 16px; }
-        .no-thumb-icon { font-size: 22px; font-weight: 800; color: #d4d4d0; }
-        .no-thumb-sub { font-size: 11px; color: #a8a29e; }
+        /* ── Coluna imagem ── */
+        .col-img { flex: 0 0 58%; display: flex; flex-direction: column; gap: 0; }
+        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 320px; max-height: 420px; }
+        .ref-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
+        .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
+        .no-img-sub { font-size: 11px; color: #94a3b8; }
+        .img-caption { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 7px; }
 
-        /* ── Info panel ── */
-        .info { width: 185px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1.5px solid #f0ede8; padding-left: 18px; overflow: hidden; }
-        .section-title { font-size: 7px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color: #c4bfbb; padding-bottom: 6px; border-bottom: 1px solid #f0ede8; margin-bottom: 4px; }
-        .field { padding: 7px 0; border-bottom: 1px solid #f9f8f7; }
-        .field:last-child { border-bottom: none; }
-        .lbl { font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #a8a29e; display: block; margin-bottom: 3px; }
-        .val { font-size: 11.5px; font-weight: 600; color: #1c1917; line-height: 1.35; word-break: break-word; overflow-wrap: break-word; display: block; }
-        .big-val { font-size: 15px; font-weight: 800; color: #f97316; }
-        .val-sub { display: block; font-size: 9.5px; color: #78716c; font-weight: 500; margin-top: 2px; }
-        .obs-val { font-size: 10px; font-weight: 400; color: #57534e; font-style: italic; }
+        /* ── Coluna info ── */
+        .col-info { flex: 0 0 42%; display: flex; flex-direction: column; }
+        .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; flex: 1; }
 
-        /* ── Sponsor chips ── */
-        .sponsors-wrap { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
-        .sponsor-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #1c1917; padding: 3px 7px; border-radius: 20px; border: 1px solid transparent; }
-        .sponsor-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .sec-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; }
+        .sep { height: 1px; background: #e2e8f0; margin: 14px 0; }
 
-        /* ── Footer ── */
-        .page-footer { flex-shrink: 0; margin-top: 10px; padding-top: 8px; border-top: 1.5px solid #f0ede8; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-        .footer-left { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
-        .footer-brand { font-size: 7.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; color: #f97316; white-space: nowrap; }
-        .footer-dot { font-size: 7.5px; color: #d4d0cc; }
-        .footer-copy { font-size: 7px; color: #c4bfbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .footer-meta { font-family: monospace; font-size: 8px; color: #c4bfbb; white-space: nowrap; flex-shrink: 0; }
+        .field { margin-bottom: 12px; }
+        .field:last-child { margin-bottom: 0; }
+        .fld-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 2px; }
+        .fld-val { font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.3; }
+        .fld-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+
+        .qty-val { font-size: 16px; font-weight: 800; color: #f97316; }
+        .dims-val { font-size: 16px; font-weight: 800; color: #0f172a; }
+
+        .m2-badge { display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; border-radius: 6px; padding: 3px 10px; font-weight: 700; font-size: 13px; }
+        .mat-badge { display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+
+        .obs-box { font-size: 12px; color: #64748b; font-style: italic; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; line-height: 1.5; margin-bottom: 0; }
+
+        .sponsors-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+        .sp-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #1c1917; padding: 3px 8px; border-radius: 20px; border: 1px solid transparent; }
+        .sp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+        /* ── RODAPÉ ── */
+        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
+        .ft-gen { font-size: 9px; color: #94a3b8; }
+        .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }
       </style>
-    </head><body>${rows}</body></html>`);
+    </head><body>${pages}</body></html>`);
     win.document.close();
-    setTimeout(() => win.print(), 600);
+    setTimeout(() => win.print(), 800);
   };
 
   // ── Modo 2: tabela resumo agrupada por Evento › Grupo ───────────────────────

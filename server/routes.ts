@@ -1777,14 +1777,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const candidate = parseSheet(entry.getData().toString("utf8"));
         for (const [rn, cells] of Object.entries(candidate)) {
           const vals = Object.values(cells).map(v => normHdr(v));
-          const hasItem = vals.some(v => v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" || v === "nome" || v === "produto");
-          const hasQty  = vals.some(v => v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" || v === "und" || v === "unid" || v === "unidade" || v === "qnt");
+          const isItemCol = (v: string) =>
+            v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" || v === "nome" || v === "produto" || v === "tipo" ||
+            v.includes("peca") || v.includes("item") || v.startsWith("descri") || v.startsWith("tipo de");
+          const isQtyCol = (v: string) =>
+            v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" || v === "und" || v === "unid" || v === "unidade" || v === "qnt" || v === "un" || v === "un." || v === "total" ||
+            v.startsWith("qtd") || v.startsWith("quan") || v.includes("quantidade");
+          const hasItem = vals.some(isItemCol);
+          const hasQty  = vals.some(isQtyCol);
           if (hasItem && hasQty) {
             headerRow = parseInt(rn); rows = candidate;
             for (const [col, val] of Object.entries(cells)) {
               const v = normHdr(val);
-              if (!colMap["item"]     && (v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" || v === "nome" || v === "produto")) colMap["item"] = col;
-              else if (!colMap["qty"] && (v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" || v === "und" || v === "unid" || v === "unidade" || v === "qnt")) colMap["qty"] = col;
+              if (!colMap["item"]     && isItemCol(v)) colMap["item"] = col;
+              else if (!colMap["qty"] && isQtyCol(v)) colMap["qty"] = col;
               else if (!colMap["width"]  && (v.startsWith("area") || v === "compr" || v === "largura" || v === "larg" || v === "l")) colMap["width"] = col;
               else if (!colMap["height"] && (v === "visual" || v === "altura" || v === "alt" || v === "a")) colMap["height"] = col;
               else if (!colMap["material"] && v === "material") colMap["material"] = col;
@@ -1800,7 +1806,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (headerRow === -1) {
-        console.error("[preview-xlsx] header not found. File:", file.originalname, "Sheets tried:", sheetEntries);
+        // Log all row values found to aid debugging
+        const allRowSamples: string[] = [];
+        for (const sn of sheetEntries.slice(0, 2)) {
+          const entry = zip.getEntry(sn);
+          if (!entry) continue;
+          const candidate = parseSheet(entry.getData().toString("utf8"));
+          for (const [rn, cells] of Object.entries(candidate).slice(0, 10)) {
+            const vals = Object.values(cells as CellMap).map((v: string) => normHdr(v)).filter(Boolean);
+            if (vals.length > 0) allRowSamples.push(`  row ${rn} [${sn}]: ${vals.join(" | ")}`);
+          }
+        }
+        console.error("[preview-xlsx] header not found. File:", file.originalname, "\nRows scanned:\n" + allRowSamples.join("\n"));
         return res.status(400).json({ error: "Cabeçalho não encontrado. A planilha deve ter colunas 'item' (ou 'peça'/'descrição') e 'qtde' (ou 'quantidade')." });
       }
 

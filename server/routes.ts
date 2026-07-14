@@ -1695,14 +1695,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!file) return res.status(400).json({ error: "Arquivo .xlsx não encontrado" });
 
       const { default: AdmZip } = await import("adm-zip");
-      const zip = new AdmZip(file.buffer);
+      let zip: any;
+      try { zip = new AdmZip(file.buffer); }
+      catch (e: any) { return res.status(400).json({ error: `Arquivo inválido ou corrompido: ${e.message}` }); }
 
-      const ssEntry = zip.getEntry("xl/sharedStrings.xml");
+      // Parse sharedStrings correctly — each <si> = one entry, concat all <t> children
       const sharedStrings: string[] = [];
+      const ssEntry = zip.getEntry("xl/sharedStrings.xml");
       if (ssEntry) {
         const ssXml = ssEntry.getData().toString("utf8");
-        for (const m of ssXml.matchAll(/<t[^>]*>([^<]*)<\/t>/g)) sharedStrings.push(m[1]);
+        for (const siM of ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
+          const parts: string[] = [];
+          for (const tM of siM[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)) parts.push(tM[1]);
+          sharedStrings.push(parts.join(""));
+        }
       }
+
+      const decodeXml = (s: string) =>
+        s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+         .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_,n) => String.fromCharCode(+n));
 
       type CellMap = Record<string, string>;
       function parseSheet(sheetXml: string): Record<number, CellMap> {
@@ -1710,10 +1721,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const rowM of sheetXml.matchAll(/<row r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
           const rowNum = parseInt(rowM[1]);
           const cellMap: CellMap = {};
-          for (const cm of rowM[2].matchAll(/<c r="([A-Z]+)\d+"[^>]*t="s"[^>]*><v>(\d+)<\/v><\/c>/g))
-            cellMap[cm[1]] = (sharedStrings[parseInt(cm[2])] ?? "").trim();
-          for (const cm of rowM[2].matchAll(/<c r="([A-Z]+)\d+"(?![^>]*t="s")[^>]*><v>([^<]+)<\/v><\/c>/g))
-            if (!cellMap[cm[1]]) cellMap[cm[1]] = cm[2].trim();
+          // Parse each cell individually to handle all types: s, str, inlineStr, numeric
+          for (const cm of rowM[2].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)) {
+            const col = cm[1];
+            const attrs = cm[2];
+            const content = cm[3];
+            const typeM = attrs.match(/\bt="([^"]+)"/);
+            const t = typeM ? typeM[1] : "";
+            let val = "";
+            if (t === "s") {
+              const vM = content.match(/<v>(\d+)<\/v>/);
+              if (vM) val = decodeXml(sharedStrings[parseInt(vM[1])] ?? "");
+            } else if (t === "inlineStr") {
+              const parts: string[] = [];
+              for (const tM of content.matchAll(/<t[^>]*>([^<]*)<\/t>/g)) parts.push(tM[1]);
+              val = decodeXml(parts.join(""));
+            } else {
+              // t="str" (formula string), t="" (number), t="b" (boolean), etc.
+              // <f> may appear before <v> in formula cells — use [\s\S]*? to skip it
+              const vM = content.match(/<v>([^<]+)<\/v>/);
+              if (vM) val = decodeXml(vM[1].trim());
+            }
+            if (val.trim()) cellMap[col] = val.trim();
+          }
           if (Object.keys(cellMap).length > 0) result[rowNum] = cellMap;
         }
         return result;
@@ -1723,25 +1753,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let headerRow = -1;
       let colMap: Record<string, string> = {};
 
-      for (const sn of ["xl/worksheets/sheet2.xml","xl/worksheets/sheet1.xml","xl/worksheets/sheet3.xml","xl/worksheets/sheet4.xml"]) {
+      // Normalise text for header matching (strip accents, lowercase)
+      const normHdr = (s: string) =>
+        s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+
+      // Collect all worksheet entries from the ZIP
+      const sheetEntries: string[] = [];
+      for (const entry of zip.getEntries()) {
+        if (/^xl\/worksheets\/sheet\d+\.xml$/.test(entry.entryName)) sheetEntries.push(entry.entryName);
+      }
+      // Try sheet2 first (common for multi-sheet workbooks), then sheet1, then rest
+      sheetEntries.sort((a, b) => {
+        const na = parseInt(a.match(/(\d+)/)?.[1] ?? "0");
+        const nb = parseInt(b.match(/(\d+)/)?.[1] ?? "0");
+        if (na === 2) return -1; if (nb === 2) return 1;
+        if (na === 1) return -1; if (nb === 1) return 1;
+        return na - nb;
+      });
+
+      for (const sn of sheetEntries) {
         const entry = zip.getEntry(sn);
         if (!entry) continue;
         const candidate = parseSheet(entry.getData().toString("utf8"));
         for (const [rn, cells] of Object.entries(candidate)) {
-          const vals = Object.values(cells).map(v => v.toLowerCase().trim());
-          if (vals.includes("item") && (vals.includes("qtde") || vals.includes("qtd") || vals.includes("quantidade"))) {
+          const vals = Object.values(cells).map(v => normHdr(v));
+          const hasItem = vals.some(v => v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" || v === "nome" || v === "produto");
+          const hasQty  = vals.some(v => v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" || v === "und" || v === "unid" || v === "unidade" || v === "qnt");
+          if (hasItem && hasQty) {
             headerRow = parseInt(rn); rows = candidate;
             for (const [col, val] of Object.entries(cells)) {
-              const v = val.toLowerCase().replace(/\s+/g, " ").trim();
-              if (v === "item") colMap["item"] = col;
-              else if (v === "qtde" || v === "qtd" || v === "quantidade") colMap["qty"] = col;
-              else if (v.startsWith("área") || v === "area" || v === "compr") colMap["width"] = col;
-              else if (v === "visual" || v === "altura") colMap["height"] = col;
-              else if (v === "material") colMap["material"] = col;
-              else if (v === "acabamento") colMap["finish"] = col;
-              else if (v.startsWith("medida do arquivo") || v === "medida arquivo") colMap["fileSize"] = col;
-              else if (v === "m²" || v === "m2") colMap["m2"] = col;
-              else if (v === "obs" || v.startsWith("observa")) colMap["obs"] = col;
+              const v = normHdr(val);
+              if (!colMap["item"]     && (v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" || v === "nome" || v === "produto")) colMap["item"] = col;
+              else if (!colMap["qty"] && (v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" || v === "und" || v === "unid" || v === "unidade" || v === "qnt")) colMap["qty"] = col;
+              else if (!colMap["width"]  && (v.startsWith("area") || v === "compr" || v === "largura" || v === "larg" || v === "l")) colMap["width"] = col;
+              else if (!colMap["height"] && (v === "visual" || v === "altura" || v === "alt" || v === "a")) colMap["height"] = col;
+              else if (!colMap["material"] && v === "material") colMap["material"] = col;
+              else if (!colMap["finish"]   && (v === "acabamento" || v === "acab")) colMap["finish"] = col;
+              else if (!colMap["fileSize"] && (v.startsWith("medida") || v === "medida arquivo" || v === "dimensao" || v === "dimensoes")) colMap["fileSize"] = col;
+              else if (!colMap["m2"]  && (v === "m2" || v === "m\u00b2" || v === "metragem")) colMap["m2"] = col;
+              else if (!colMap["obs"] && (v === "obs" || v.startsWith("observa"))) colMap["obs"] = col;
             }
             break;
           }
@@ -1749,7 +1799,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (headerRow !== -1) break;
       }
 
-      if (headerRow === -1) return res.status(400).json({ error: "Cabeçalho não encontrado. A planilha deve ter colunas 'item' e 'qtde'." });
+      if (headerRow === -1) {
+        console.error("[preview-xlsx] header not found. File:", file.originalname, "Sheets tried:", sheetEntries);
+        return res.status(400).json({ error: "Cabeçalho não encontrado. A planilha deve ter colunas 'item' (ou 'peça'/'descrição') e 'qtde' (ou 'quantidade')." });
+      }
 
       const hdrRow = rows[headerRow] ?? {};
       for (const [col, val] of Object.entries(hdrRow)) {
@@ -1820,10 +1873,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      if (items.length === 0) return res.status(400).json({ error: "Nenhum item válido encontrado." });
+      if (items.length === 0) return res.status(400).json({ error: "Nenhum item válido encontrado. Verifique se há linhas com quantidade > 0." });
       res.json({ items, fileName: file.originalname });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      console.error("[preview-xlsx] unhandled error:", error.message, error.stack?.slice(0, 600));
+      res.status(400).json({ error: error.message || "Erro ao processar arquivo" });
     }
   });
 

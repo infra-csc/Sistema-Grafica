@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock, HelpCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -77,6 +77,7 @@ export default function Eventos() {
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
   const [selectedEventForPriority, setSelectedEventForPriority] = useState<any>(null);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const { data: events = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -297,6 +298,7 @@ export default function Eventos() {
     setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
     setSelectedSponsorIds([]);
     setSponsorQuotaMap({});
+    setSponsorSearch("");
     setPrazosExpanded(false);
   };
 
@@ -1014,7 +1016,7 @@ export default function Eventos() {
               <div
                 className="opacity-0 group-hover:opacity-100"
                 style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
-                onClick={(e) => e.preventDefault()}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
               >
                 {!dark && (
                   <button
@@ -1044,8 +1046,8 @@ export default function Eventos() {
             // ── Card Concluído: branco com borda verde e ícone decorativo ──
             if (isCompleted) {
               return (
-                <Link key={event.id} href={`/eventos/${event.id}`}>
                   <div
+                    key={event.id}
                     className="group relative cursor-pointer bg-white rounded-xl flex flex-col gap-4 overflow-hidden"
                     style={{
                       border: '1px solid #e7e5e4',
@@ -1054,6 +1056,7 @@ export default function Eventos() {
                       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                       transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                     }}
+                    onClick={() => setLocation(`/eventos/${event.id}`)}
                     onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
                     data-testid={`card-event-${event.id}`}
@@ -1117,14 +1120,13 @@ export default function Eventos() {
                       </div>
                     </div>
                   </div>
-                </Link>
               );
             }
 
             // ── Card Normal (com prioridade) ──
             return (
-              <Link key={event.id} href={`/eventos/${event.id}`}>
                 <div
+                  key={event.id}
                   className="group relative cursor-pointer bg-white rounded-xl flex flex-col gap-4"
                   style={{
                     border: '1px solid #e7e5e4',
@@ -1133,6 +1135,7 @@ export default function Eventos() {
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                   }}
+                  onClick={() => setLocation(`/eventos/${event.id}`)}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
                   data-testid={`card-event-${event.id}`}
@@ -1198,7 +1201,6 @@ export default function Eventos() {
                     </div>
                   </div>
                 </div>
-              </Link>
             );
           })}
 

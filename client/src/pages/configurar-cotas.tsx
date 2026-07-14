@@ -134,7 +134,7 @@ export default function ConfigurarCotas() {
   const selectedEvent = events.find(e => e.id === selectedEventId);
 
   return (
-    <div style={{ backgroundColor: T.bg, minHeight: "100%", overflowY: "auto", padding: "36px 40px 80px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "36px 40px 80px" }}>
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 36 }}>

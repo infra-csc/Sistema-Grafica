@@ -1,3 +1,4 @@
 - [Quota per-event design](quota-per-event.md) — sponsor quotas live on `event_sponsors.quota`, NOT on `sponsors.quota` (global is just default/hint)
 - [React component in .map() crashes Radix Dialog](react-component-in-map-crash.md) — never define a JSX component type inside .map(); causes unmount/remount that crashes open Radix Dialogs.
 - [Radix Checkbox BubbleInput synthetic click loop](radix-bubbleinput-loop.md) — parent div onClick + Radix Checkbox = infinite loop; guard with `if (!e.isTrusted) return;`
+- [Norte Excel format](norte-excel-format.md) — EcoRun/Inverno/etc: item names in unlabeled col C; "cód peça" in D; infer item=col-before-code, width=col-before-visual, fileH=col-after-fileW.

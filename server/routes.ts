@@ -1777,27 +1777,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const candidate = parseSheet(entry.getData().toString("utf8"));
         for (const [rn, cells] of Object.entries(candidate)) {
           const vals = Object.values(cells).map(v => normHdr(v));
+          // Exact-match item column (direct labels only — "cód peça" is a code col, not item)
           const isItemCol = (v: string) =>
-            v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" || v === "nome" || v === "produto" || v === "tipo" ||
-            v.includes("peca") || v.includes("item") || v.startsWith("descri") || v.startsWith("tipo de");
+            v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" ||
+            v === "nome" || v === "produto" || v === "tipo" ||
+            v.startsWith("descri") || v.startsWith("tipo de");
+          // Code column ("cód peça", "codigo peca", etc.) — item col is inferred from the preceding column
+          const isCodeCol = (v: string) =>
+            (v.startsWith("cod") || v.startsWith("codigo")) && v.includes("peca");
           const isQtyCol = (v: string) =>
-            v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" || v === "und" || v === "unid" || v === "unidade" || v === "qnt" || v === "un" || v === "un." || v === "total" ||
+            v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" ||
+            v === "und" || v === "unid" || v === "unidade" || v === "qnt" || v === "un" || v === "un." ||
             v.startsWith("qtd") || v.startsWith("quan") || v.includes("quantidade");
-          const hasItem = vals.some(isItemCol);
+
+          const hasItem = vals.some(v => isItemCol(v) || isCodeCol(v));
           const hasQty  = vals.some(isQtyCol);
           if (hasItem && hasQty) {
             headerRow = parseInt(rn); rows = candidate;
+            let codeColLetter: string | null = null;
             for (const [col, val] of Object.entries(cells)) {
               const v = normHdr(val);
-              if (!colMap["item"]     && isItemCol(v)) colMap["item"] = col;
-              else if (!colMap["qty"] && isQtyCol(v)) colMap["qty"] = col;
-              else if (!colMap["width"]  && (v.startsWith("area") || v === "compr" || v === "largura" || v === "larg" || v === "l")) colMap["width"] = col;
-              else if (!colMap["height"] && (v === "visual" || v === "altura" || v === "alt" || v === "a")) colMap["height"] = col;
+              if (!colMap["item"] && isItemCol(v))          colMap["item"] = col;
+              else if (isCodeCol(v))                        codeColLetter = col;
+              else if (!colMap["qty"] && isQtyCol(v))       colMap["qty"] = col;
+              else if (!colMap["width"]  && (v.startsWith("area") || v === "compr" || v === "largura" || v === "larg")) colMap["width"] = col;
+              else if (!colMap["height"] && (v === "visual" || v === "visu" || v === "altura" || v === "alt")) colMap["height"] = col;
               else if (!colMap["material"] && v === "material") colMap["material"] = col;
               else if (!colMap["finish"]   && (v === "acabamento" || v === "acab")) colMap["finish"] = col;
               else if (!colMap["fileSize"] && (v.startsWith("medida") || v === "medida arquivo" || v === "dimensao" || v === "dimensoes")) colMap["fileSize"] = col;
               else if (!colMap["m2"]  && (v === "m2" || v === "m\u00b2" || v === "metragem")) colMap["m2"] = col;
               else if (!colMap["obs"] && (v === "obs" || v.startsWith("observa"))) colMap["obs"] = col;
+            }
+            // Infer item col = column immediately before code col (Norte standard format)
+            if (!colMap["item"] && codeColLetter) {
+              const codeIdx = codeColLetter.charCodeAt(0) - 65;
+              if (codeIdx > 0) colMap["item"] = String.fromCharCode(65 + codeIdx - 1);
             }
             break;
           }
@@ -1824,16 +1838,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hdrRow = rows[headerRow] ?? {};
       for (const [col, val] of Object.entries(hdrRow)) {
         const v = val.toLowerCase().trim();
-        if (!colMap["width"] && (v.startsWith("área") || v === "area")) colMap["width"] = col;
-        if (!colMap["height"] && v === "visual") colMap["height"] = col;
+        if (!colMap["width"] && (v.startsWith("área") || v.startsWith("area"))) colMap["width"] = col;
+        if (!colMap["height"] && (v === "visual" || v === "visu")) colMap["height"] = col;
         if (!colMap["fileW"] && v.startsWith("medida do arquivo")) colMap["fileW"] = col;
         if (!colMap["fileH"] && v === "compr") colMap["fileH"] = col;
+        if (!colMap["obs"] && (v === "obs" || v.startsWith("observa"))) colMap["obs"] = col;
       }
       const finCol = colMap["finish"];
       if (finCol && !colMap["fileW"]) {
         const fi = finCol.charCodeAt(0) - 65;
         colMap["fileW"] = String.fromCharCode(65 + fi + 1);
         colMap["fileH"] = String.fromCharCode(65 + fi + 2);
+      }
+      // If fileW found but fileH not set, infer fileH = next column after fileW
+      if (colMap["fileW"] && !colMap["fileH"]) {
+        const fwIdx = colMap["fileW"].charCodeAt(0) - 65;
+        colMap["fileH"] = String.fromCharCode(65 + fwIdx + 1);
+      }
+      // If height found but width not set, infer width = column immediately before height
+      if (colMap["height"] && !colMap["width"]) {
+        const hIdx = colMap["height"].charCodeAt(0) - 65;
+        if (hIdx > 0) colMap["width"] = String.fromCharCode(65 + hIdx - 1);
       }
 
       const parseNum = (s: string) => { if (!s) return 0; return parseFloat(s.replace(",", ".").replace(/[^\d.eE+\-]/g, "")) || 0; };

@@ -21,6 +21,16 @@ const T = {
   accent: "#f97316", dark: "#1c1917", low: "#f3f4f3",
 };
 
+// Regras padrão da tabela de cotas (Arena — conforme PDF)
+const DEFAULT_QUOTA_RULES: Record<string, string[]> = {
+  MASTER:     ["Palco", "Gradil", "Pórtico", "Rolo"],
+  GOLD:       ["Palco", "Gradil", "Pórtico", "Rolo"],
+  SILVER:     ["Palco", "Gradil", "Pórtico"],
+  APOIO:      ["Palco", "Gradil", "Pórtico"],
+  MIDIA:      ["Palco", "Gradil", "Pórtico", "Rolo"],
+  MINISTERIO: [],
+};
+
 export default function ConfigurarCotas() {
   const { toast } = useToast();
 
@@ -49,17 +59,34 @@ export default function ConfigurarCotas() {
   // Extract unique item types from the event's actual items
   const itemTypes = Array.from(new Set(eventItems.map((i: any) => i.type))).sort() as string[];
 
-  // Sync matrix when rules load
+  // Sync matrix when rules load; apply defaults when event has no saved rules yet
   useEffect(() => {
     if (!selectedEventId) return;
     const m: Record<string, Set<string>> = {};
     for (const q of QUOTAS) m[q.key] = new Set();
-    for (const rule of rules) {
-      m[rule.quota] = new Set(rule.itemTypes);
+
+    if (rules.length > 0) {
+      // Use saved rules
+      for (const rule of rules) {
+        m[rule.quota] = new Set(rule.itemTypes);
+      }
+      setDirty(new Set());
+    } else {
+      // No rules saved yet — pre-fill with defaults (only types present in the event)
+      for (const q of QUOTAS) {
+        const defaults = DEFAULT_QUOTA_RULES[q.key] ?? [];
+        m[q.key] = new Set(
+          itemTypes.length > 0
+            ? defaults.filter(t => itemTypes.includes(t))
+            : defaults
+        );
+      }
+      // Mark all quotas dirty so user knows they need to be saved
+      setDirty(new Set(QUOTAS.map(q => q.key)));
     }
+
     setMatrix(m);
-    setDirty(new Set());
-  }, [rules, selectedEventId]);
+  }, [rules, selectedEventId, itemTypes.join(",")]);
 
   /* ── Save mutation ── */
   const saveMutation = useMutation({

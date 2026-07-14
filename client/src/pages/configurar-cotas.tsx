@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Save, ChevronDown, Settings2, Info } from "lucide-react";
-import type { Event, StandardItem, EventQuotaRule } from "@shared/schema";
+import type { Event, EventQuotaRule } from "@shared/schema";
 
 /* ── Constants ── */
 const QUOTAS = [
@@ -33,7 +33,12 @@ export default function ConfigurarCotas() {
 
   /* ── Queries ── */
   const { data: events = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
-  const { data: standardItems = [] } = useQuery<StandardItem[]>({ queryKey: ["/api/standard-items"] });
+
+  const { data: eventItems = [] } = useQuery<any[]>({
+    queryKey: ["/api/items", selectedEventId],
+    queryFn: () => fetch(`/api/items?eventId=${selectedEventId}`).then(r => r.json()),
+    enabled: !!selectedEventId,
+  });
 
   const { data: rules = [], isLoading: rulesLoading } = useQuery<EventQuotaRule[]>({
     queryKey: ["/api/events", selectedEventId, "quota-rules"],
@@ -41,8 +46,8 @@ export default function ConfigurarCotas() {
     enabled: !!selectedEventId,
   });
 
-  // Extract unique item types from standardItems
-  const itemTypes = Array.from(new Set(standardItems.map(si => si.type))).sort();
+  // Extract unique item types from the event's actual items
+  const itemTypes = Array.from(new Set(eventItems.map((i: any) => i.type))).sort() as string[];
 
   // Sync matrix when rules load
   useEffect(() => {

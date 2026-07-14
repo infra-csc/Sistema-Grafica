@@ -162,6 +162,7 @@ export interface IStorage {
   deleteEventQuotaRule(eventId: string, quota: string): Promise<void>;
   previewAutoLink(eventId: string): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>>;
   autoLinkByQuota(eventId: string): Promise<number>;
+  updateEventSponsorQuota(eventId: string, sponsorId: string, quota: string | null): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1108,11 +1109,11 @@ export class DatabaseStorage implements IStorage {
     const ruleMap: Record<string, string[]> = {};
     for (const r of rules) ruleMap[r.quota] = r.itemTypes;
 
-    // Get all sponsors linked to this event (with quota info)
+    // Get all sponsors linked to this event (using per-event quota from event_sponsors)
     const evtSponsors = await db.select({
-      sponsorId: sponsors.id,
+      sponsorId: eventSponsors.sponsorId,
       sponsorName: sponsors.name,
-      quota: sponsors.quota,
+      quota: eventSponsors.quota,
     })
       .from(eventSponsors)
       .innerJoin(sponsors, eq(sponsors.id, eventSponsors.sponsorId))
@@ -1156,6 +1157,12 @@ export class DatabaseStorage implements IStorage {
     }
 
     return preview;
+  }
+
+  async updateEventSponsorQuota(eventId: string, sponsorId: string, quota: string | null): Promise<void> {
+    await db.update(eventSponsors)
+      .set({ quota })
+      .where(and(eq(eventSponsors.eventId, eventId), eq(eventSponsors.sponsorId, sponsorId)));
   }
 
   async autoLinkByQuota(eventId: string): Promise<number> {

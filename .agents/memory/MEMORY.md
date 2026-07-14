@@ -1,2 +1,1 @@
-- [Norte xlsx format](norte-xlsx-format.md) — Norte xlsx files use sheet2 (not sheet1); data rows B=grupo, C=item, E=qtde, G=width, H=height, I=material, J=acabamento, K=fileW, L=fileH.
-- [xlsx multer upload](xlsx-multer.md) — Use multipart/form-data with multer (not base64 JSON) to avoid Express body-parser 413 limits for file uploads.
+- [Quota per-event design](quota-per-event.md) — sponsor quotas live on `event_sponsors.quota`, NOT on `sponsors.quota` (global is just default/hint)

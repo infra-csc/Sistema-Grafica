@@ -45,6 +45,7 @@ export const eventSponsors = pgTable("event_sponsors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   sponsorId: varchar("sponsor_id").notNull().references(() => sponsors.id, { onDelete: "cascade" }),
+  quota: text("quota"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

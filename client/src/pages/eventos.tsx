@@ -42,6 +42,15 @@ import { useAuth } from "@/contexts/auth-context";
 
 type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'completed' | 'sem_prioridade';
 
+const QUOTA_OPTIONS = [
+  { value: "MASTER",     label: "Master",     color: "#ef4444" },
+  { value: "GOLD",       label: "Gold",       color: "#1d4ed8" },
+  { value: "SILVER",     label: "Silver",     color: "#7c3aed" },
+  { value: "APOIO",      label: "Apoio",      color: "#6b7280" },
+  { value: "MIDIA",      label: "Mídia",      color: "#0891b2" },
+  { value: "MINISTERIO", label: "Ministério", color: "#059669" },
+];
+
 export default function Eventos() {
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
@@ -61,6 +70,7 @@ export default function Eventos() {
   });
   const [prazosExpanded, setPrazosExpanded] = useState(false);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
+  const [sponsorQuotaMap, setSponsorQuotaMap] = useState<Record<string, string>>({});
   const [sponsorSearch, setSponsorSearch] = useState("");
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
@@ -88,7 +98,7 @@ export default function Eventos() {
         if (selectedSponsorIds.length > 0) {
           await Promise.all(
             selectedSponsorIds.map((sponsorId) =>
-              apiRequest("POST", `/api/events/${event.id}/sponsors`, { sponsorId })
+              apiRequest("POST", `/api/events/${event.id}/sponsors`, { sponsorId, quota: sponsorQuotaMap[sponsorId] || null })
             )
           );
         }
@@ -103,6 +113,7 @@ export default function Eventos() {
       setOpen(false);
       setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
       setSelectedSponsorIds([]);
+      setSponsorQuotaMap({});
       setPrazosExpanded(false);
       toast({
         title: "Evento criado",
@@ -128,20 +139,25 @@ export default function Eventos() {
         const currentSponsorsRes = await apiRequest("GET", `/api/events/${id}/sponsors`);
         const currentSponsors = await currentSponsorsRes.json();
         const currentSponsorIds = currentSponsors.map((es: any) => es.sponsorId);
+        const currentQuotaMap: Record<string, string> = {};
+        currentSponsors.forEach((es: any) => { currentQuotaMap[es.sponsorId] = es.quota || ''; });
         
         // Calcular operações necessárias
         const toRemove = currentSponsorIds.filter((id: string) => !selectedSponsorIds.includes(id));
         const toAdd = selectedSponsorIds.filter((id: string) => !currentSponsorIds.includes(id));
+        const toUpdateQuota = selectedSponsorIds.filter(
+          (sid: string) => currentSponsorIds.includes(sid) && (sponsorQuotaMap[sid] || '') !== (currentQuotaMap[sid] || '')
+        );
         
-        // Executar todas as operações em paralelo com Promise.all
-        // Nota: Falha em qualquer operação cancela todas, mas operações bem-sucedidas não são revertidas.
-        // Para transações atômicas completas, considere implementar endpoint backend dedicado.
         const operations = [
           ...toRemove.map((sponsorId: string) => 
             apiRequest("DELETE", `/api/events/${id}/sponsors/${sponsorId}`)
           ),
           ...toAdd.map((sponsorId: string) => 
-            apiRequest("POST", `/api/events/${id}/sponsors`, { sponsorId })
+            apiRequest("POST", `/api/events/${id}/sponsors`, { sponsorId, quota: sponsorQuotaMap[sponsorId] || null })
+          ),
+          ...toUpdateQuota.map((sponsorId: string) =>
+            apiRequest("PATCH", `/api/events/${id}/sponsors/${sponsorId}`, { quota: sponsorQuotaMap[sponsorId] || null })
           ),
         ];
         
@@ -157,6 +173,7 @@ export default function Eventos() {
       setEditingEvent(null);
       setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
       setSelectedSponsorIds([]);
+      setSponsorQuotaMap({});
       setPrazosExpanded(false);
       toast({
         title: "Evento atualizado",
@@ -276,6 +293,7 @@ export default function Eventos() {
     setEditingEvent(null);
     setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
     setSelectedSponsorIds([]);
+    setSponsorQuotaMap({});
     setPrazosExpanded(false);
   };
 
@@ -286,11 +304,15 @@ export default function Eventos() {
         .then((res) => res.json())
         .then((eventSponsors) => {
           const sponsorIds = eventSponsors.map((es: any) => es.sponsorId);
+          const quotaMap: Record<string, string> = {};
+          eventSponsors.forEach((es: any) => { if (es.quota) quotaMap[es.sponsorId] = es.quota; });
           setSelectedSponsorIds(sponsorIds);
+          setSponsorQuotaMap(quotaMap);
         })
         .catch((error) => {
           console.error("Erro ao buscar patrocinadores:", error);
           setSelectedSponsorIds([]);
+          setSponsorQuotaMap({});
         });
     }
   }, [editingEvent]);
@@ -616,46 +638,79 @@ export default function Eventos() {
                             return filtered.map((sponsor) => {
                               const isSelected = selectedSponsorIds.includes(sponsor.id);
                               const color = (sponsor as any).color || '#3b82f6';
+                              const currentQuota = sponsorQuotaMap[sponsor.id] || '';
+                              const quotaOpt = QUOTA_OPTIONS.find(q => q.value === currentQuota);
                               return (
-                                <label
-                                  key={sponsor.id}
-                                  htmlFor={`sponsor-${sponsor.id}`}
-                                  style={{
-                                    display: 'flex', alignItems: 'center', gap: '10px',
-                                    padding: '8px 14px', cursor: 'pointer',
-                                    backgroundColor: isSelected ? '#fff7ed' : 'transparent',
-                                    transition: 'background-color 0.1s',
-                                  }}
-                                  onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = '#ebe9e7'; }}
-                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? '#fff7ed' : 'transparent'; }}
-                                >
-                                  {/* Color dot */}
-                                  <span style={{
-                                    width: 10, height: 10, borderRadius: '50%',
-                                    backgroundColor: color, flexShrink: 0,
-                                    boxShadow: `0 0 0 2px ${color}33`,
-                                  }} />
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <span style={{ fontSize: '13px', fontWeight: isSelected ? '700' : '500', color: '#1a1c1c', lineHeight: 1.2, display: 'block' }}>
-                                      {sponsor.name}
-                                    </span>
-                                    {sponsor.company && (
-                                      <span style={{ fontSize: '10px', color: '#78716c', lineHeight: 1, fontWeight: '400', display: 'block', marginTop: 1 }}>
-                                        {sponsor.company}
+                                <div key={sponsor.id} style={{ borderBottom: '1px solid #ebe9e7' }}>
+                                  {/* Main row */}
+                                  <label
+                                    htmlFor={`sponsor-${sponsor.id}`}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: '10px',
+                                      padding: '8px 14px', cursor: 'pointer',
+                                      backgroundColor: isSelected ? '#fff7ed' : 'transparent',
+                                      transition: 'background-color 0.1s',
+                                    }}
+                                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = '#ebe9e7'; }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? '#fff7ed' : 'transparent'; }}
+                                  >
+                                    <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, flexShrink: 0, boxShadow: `0 0 0 2px ${color}33` }} />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <span style={{ fontSize: '13px', fontWeight: isSelected ? '700' : '500', color: '#1a1c1c', lineHeight: 1.2, display: 'block' }}>
+                                        {sponsor.name}
+                                      </span>
+                                      {sponsor.company && (
+                                        <span style={{ fontSize: '10px', color: '#78716c', lineHeight: 1, fontWeight: '400', display: 'block', marginTop: 1 }}>{sponsor.company}</span>
+                                      )}
+                                    </div>
+                                    {/* Quota badge preview (when set) */}
+                                    {isSelected && quotaOpt && (
+                                      <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 9, fontWeight: 800, backgroundColor: quotaOpt.color + '20', color: quotaOpt.color, textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0 }}>
+                                        {quotaOpt.label}
                                       </span>
                                     )}
-                                  </div>
-                                  <Checkbox
-                                    id={`sponsor-${sponsor.id}`}
-                                    checked={isSelected}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
-                                      else setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
-                                    }}
-                                    data-testid={`checkbox-sponsor-${sponsor.id}`}
-                                    className="border-[#c4bfbb] bg-white data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-sm flex-shrink-0"
-                                  />
-                                </label>
+                                    <Checkbox
+                                      id={`sponsor-${sponsor.id}`}
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                                          // Pre-fill with sponsor's default quota if set
+                                          const defaultQ = (sponsor as any).quota;
+                                          if (defaultQ) setSponsorQuotaMap(prev => ({ ...prev, [sponsor.id]: defaultQ }));
+                                        } else {
+                                          setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                                          setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });
+                                        }
+                                      }}
+                                      data-testid={`checkbox-sponsor-${sponsor.id}`}
+                                      className="border-[#c4bfbb] bg-white data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-sm flex-shrink-0"
+                                    />
+                                  </label>
+                                  {/* Quota pill selector (visible when selected) */}
+                                  {isSelected && (
+                                    <div style={{ padding: '4px 14px 10px 34px', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; })}
+                                        style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 9, fontWeight: 700, border: `1px solid ${!currentQuota ? '#1a1c1c' : '#d8d5d2'}`, backgroundColor: !currentQuota ? '#1a1c1c' : 'transparent', color: !currentQuota ? '#fff' : '#78716c', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em' }}
+                                      >
+                                        Sem cota
+                                      </button>
+                                      {QUOTA_OPTIONS.map(q => (
+                                        <button
+                                          key={q.value}
+                                          type="button"
+                                          data-testid={`quota-${sponsor.id}-${q.value}`}
+                                          onClick={() => setSponsorQuotaMap(prev => ({ ...prev, [sponsor.id]: q.value }))}
+                                          style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 9, fontWeight: 700, border: `1px solid ${currentQuota === q.value ? q.color : '#d8d5d2'}`, backgroundColor: currentQuota === q.value ? q.color + '20' : 'transparent', color: currentQuota === q.value ? q.color : '#78716c', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'all 0.1s' }}
+                                        >
+                                          {q.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               );
                             });
                           })()}

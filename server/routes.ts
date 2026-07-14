@@ -561,12 +561,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update sponsor quota on event
+  app.patch("/api/events/:eventId/sponsors/:sponsorId", requireAuth, async (req, res) => {
+    try {
+      const { eventId, sponsorId } = req.params;
+      const quota = req.body.quota || null;
+      await storage.updateEventSponsorQuota(eventId, sponsorId, quota);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Add sponsor to event
   app.post("/api/events/:id/sponsors", requireAuth, async (req, res) => {
     try {
       const validatedData = insertEventSponsorSchema.parse({
         eventId: req.params.id,
         sponsorId: req.body.sponsorId,
+        quota: req.body.quota || null,
       });
 
       const eventSponsor = await storage.addSponsorToEvent(validatedData);

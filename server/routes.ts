@@ -1679,6 +1679,210 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Preview Excel items (parse without saving) ───────────────────────────
+  app.post("/api/events/:id/preview-xlsx", async (req, res) => {
+    try {
+      const event = await storage.getEvent(req.params.id);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+
+      const multer = (await import("multer")).default;
+      const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+      await new Promise<void>((resolve, reject) =>
+        upload.single("file")(req as any, res as any, (err: any) => err ? reject(err) : resolve())
+      );
+
+      const file = (req as any).file as { buffer: Buffer; originalname: string } | undefined;
+      if (!file) return res.status(400).json({ error: "Arquivo .xlsx não encontrado" });
+
+      const { default: AdmZip } = await import("adm-zip");
+      const zip = new AdmZip(file.buffer);
+
+      const ssEntry = zip.getEntry("xl/sharedStrings.xml");
+      const sharedStrings: string[] = [];
+      if (ssEntry) {
+        const ssXml = ssEntry.getData().toString("utf8");
+        for (const m of ssXml.matchAll(/<t[^>]*>([^<]*)<\/t>/g)) sharedStrings.push(m[1]);
+      }
+
+      type CellMap = Record<string, string>;
+      function parseSheet(sheetXml: string): Record<number, CellMap> {
+        const result: Record<number, CellMap> = {};
+        for (const rowM of sheetXml.matchAll(/<row r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
+          const rowNum = parseInt(rowM[1]);
+          const cellMap: CellMap = {};
+          for (const cm of rowM[2].matchAll(/<c r="([A-Z]+)\d+"[^>]*t="s"[^>]*><v>(\d+)<\/v><\/c>/g))
+            cellMap[cm[1]] = (sharedStrings[parseInt(cm[2])] ?? "").trim();
+          for (const cm of rowM[2].matchAll(/<c r="([A-Z]+)\d+"(?![^>]*t="s")[^>]*><v>([^<]+)<\/v><\/c>/g))
+            if (!cellMap[cm[1]]) cellMap[cm[1]] = cm[2].trim();
+          if (Object.keys(cellMap).length > 0) result[rowNum] = cellMap;
+        }
+        return result;
+      }
+
+      let rows: Record<number, CellMap> = {};
+      let headerRow = -1;
+      let colMap: Record<string, string> = {};
+
+      for (const sn of ["xl/worksheets/sheet2.xml","xl/worksheets/sheet1.xml","xl/worksheets/sheet3.xml","xl/worksheets/sheet4.xml"]) {
+        const entry = zip.getEntry(sn);
+        if (!entry) continue;
+        const candidate = parseSheet(entry.getData().toString("utf8"));
+        for (const [rn, cells] of Object.entries(candidate)) {
+          const vals = Object.values(cells).map(v => v.toLowerCase().trim());
+          if (vals.includes("item") && (vals.includes("qtde") || vals.includes("qtd") || vals.includes("quantidade"))) {
+            headerRow = parseInt(rn); rows = candidate;
+            for (const [col, val] of Object.entries(cells)) {
+              const v = val.toLowerCase().replace(/\s+/g, " ").trim();
+              if (v === "item") colMap["item"] = col;
+              else if (v === "qtde" || v === "qtd" || v === "quantidade") colMap["qty"] = col;
+              else if (v.startsWith("área") || v === "area" || v === "compr") colMap["width"] = col;
+              else if (v === "visual" || v === "altura") colMap["height"] = col;
+              else if (v === "material") colMap["material"] = col;
+              else if (v === "acabamento") colMap["finish"] = col;
+              else if (v.startsWith("medida do arquivo") || v === "medida arquivo") colMap["fileSize"] = col;
+              else if (v === "m²" || v === "m2") colMap["m2"] = col;
+              else if (v === "obs" || v.startsWith("observa")) colMap["obs"] = col;
+            }
+            break;
+          }
+        }
+        if (headerRow !== -1) break;
+      }
+
+      if (headerRow === -1) return res.status(400).json({ error: "Cabeçalho não encontrado. A planilha deve ter colunas 'item' e 'qtde'." });
+
+      const hdrRow = rows[headerRow] ?? {};
+      for (const [col, val] of Object.entries(hdrRow)) {
+        const v = val.toLowerCase().trim();
+        if (!colMap["width"] && (v.startsWith("área") || v === "area")) colMap["width"] = col;
+        if (!colMap["height"] && v === "visual") colMap["height"] = col;
+        if (!colMap["fileW"] && v.startsWith("medida do arquivo")) colMap["fileW"] = col;
+        if (!colMap["fileH"] && v === "compr") colMap["fileH"] = col;
+      }
+      const finCol = colMap["finish"];
+      if (finCol && !colMap["fileW"]) {
+        const fi = finCol.charCodeAt(0) - 65;
+        colMap["fileW"] = String.fromCharCode(65 + fi + 1);
+        colMap["fileH"] = String.fromCharCode(65 + fi + 2);
+      }
+
+      const parseNum = (s: string) => { if (!s) return 0; return parseFloat(s.replace(",", ".").replace(/[^\d.eE+\-]/g, "")) || 0; };
+      const itemCol = colMap["item"]!;
+      const itemColIdx = itemCol.charCodeAt(0) - 65;
+      const groupCol = itemColIdx > 0 ? String.fromCharCode(65 + itemColIdx - 1) : null;
+
+      let currentGroup = "";
+      const items: any[] = [];
+      const numRows = Math.max(...Object.keys(rows).map(Number));
+
+      for (let r = headerRow + 1; r <= numRows; r++) {
+        const row = rows[r];
+        if (!row) continue;
+        if (groupCol && row[groupCol]) currentGroup = row[groupCol];
+        const itemVal = colMap["item"] ? (row[colMap["item"]] || "").trim() : "";
+        const qtyStr  = colMap["qty"]  ? (row[colMap["qty"]]  || "").trim() : "";
+        if (!itemVal) continue;
+        const qty = parseInt(qtyStr) || 0;
+        if (qty === 0) continue;
+
+        const matVal = colMap["material"] ? (row[colMap["material"]] || "").trim() : "";
+        const finVal = colMap["finish"]   ? (row[colMap["finish"]]   || "").trim() : "";
+        const wVal   = colMap["width"]    ? (row[colMap["width"]]    || "").trim() : "";
+        const hVal   = colMap["height"]   ? (row[colMap["height"]]   || "").trim() : "";
+        const fwVal  = colMap["fileW"]    ? (row[colMap["fileW"]]    || "").trim() : "";
+        const fhVal  = colMap["fileH"]    ? (row[colMap["fileH"]]    || "").trim() : "";
+        const fileSizeVal = colMap["fileSize"] ? (row[colMap["fileSize"]] || "").trim() : "";
+        const obsVal = colMap["obs"]      ? (row[colMap["obs"]]      || "").trim() : "";
+
+        const visualW = parseNum(wVal);
+        const visualH = parseNum(hVal);
+        let fileW = parseNum(fwVal) || visualW;
+        let fileH = parseNum(fhVal) || visualH;
+        if (fileSizeVal && (!fileW || !fileH)) {
+          const parts = fileSizeVal.replace(/,/g, ".").replace(/\s/g, "").split(/[xX×]/);
+          if (parts.length >= 2) { fileW = parseFloat(parts[0]) || fileW; fileH = parseFloat(parts[1]) || fileH; }
+        }
+
+        const cap = (s: string) => s ? (s.charAt(0).toUpperCase() + s.slice(1)) : s;
+        items.push({
+          type: currentGroup || itemVal,
+          description: itemVal,
+          quantity: qty,
+          visualWidth: visualW || null,
+          visualHeight: visualH || null,
+          fileWidth: fileW || null,
+          fileHeight: fileH || null,
+          calculatedM2: fileW && fileH ? qty * fileW * fileH : 0,
+          material: cap(matVal) || "Lona",
+          finish: cap(finVal) || "Ilhós",
+          measurement: fileW && fileH ? `${fileW.toFixed(2)} × ${fileH.toFixed(2)}` : (visualW && visualH ? `${visualW.toFixed(2)} × ${visualH.toFixed(2)}` : ""),
+          observations: obsVal,
+        });
+      }
+
+      if (items.length === 0) return res.status(400).json({ error: "Nenhum item válido encontrado." });
+      res.json({ items, fileName: file.originalname });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ── Confirm import (save pre-reviewed items) ─────────────────────────────
+  app.post("/api/events/:id/confirm-import", requireAuth, async (req, res) => {
+    try {
+      const event = await storage.getEvent(req.params.id);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+
+      const { items, fileName } = req.body as { items: any[]; fileName?: string };
+      if (!items || !Array.isArray(items) || items.length === 0)
+        return res.status(400).json({ error: "Nenhum item para importar" });
+
+      const toCreate = items.map((item: any) => ({
+        eventId: event.id,
+        type: item.type,
+        description: item.description,
+        quantity: Number(item.quantity),
+        area: Number(item.visualWidth) || Number(item.fileWidth) || 0,
+        visual: Number(item.visualHeight) || Number(item.fileHeight) || 0,
+        visualWidth: item.visualWidth !== null && item.visualWidth !== undefined ? Number(item.visualWidth) : null,
+        visualHeight: item.visualHeight !== null && item.visualHeight !== undefined ? Number(item.visualHeight) : null,
+        fileWidth: item.fileWidth !== null && item.fileWidth !== undefined ? Number(item.fileWidth) : null,
+        fileHeight: item.fileHeight !== null && item.fileHeight !== undefined ? Number(item.fileHeight) : null,
+        calculatedM2: Number(item.calculatedM2) || 0,
+        material: item.material || "Lona",
+        finish: item.finish || "Ilhós",
+        measurement: item.measurement || "",
+        observations: item.observations || "",
+        status: "requested",
+      }));
+
+      const validated = toCreate.map((item, i) => {
+        try { return insertItemSchema.parse(item); }
+        catch (e: any) { throw new Error(`Item ${i + 1} (${item.description}): ${e.message}`); }
+      });
+
+      const created = await storage.createBulkItems(validated);
+
+      await createAuditLog(
+        (req as any).userName, 'created', 'item', event.id,
+        `${created.length} itens importados via Excel${fileName ? ` ("${fileName}")` : ""}`
+      );
+      const notification = await storage.createNotification({
+        type: "itemAdded",
+        message: `${created.length} itens importados via Excel — Evento: ${event.name}`,
+        eventId: event.id,
+        targetRoles: ["arte", "grafica"],
+      });
+      broadcast({ type: "notification_created", notification });
+      broadcast({ type: "items_bulk_created", items: created, eventId: event.id });
+      await updateEventStatus(event.id);
+
+      res.status(201).json({ imported: created.length, items: created });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // ── Clone items from another event ───────────────────────────────────────
   app.post("/api/events/:id/clone-items", async (req, res) => {
     try {

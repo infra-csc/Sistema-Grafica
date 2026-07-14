@@ -75,6 +75,9 @@ export default function EventDetail() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<{ total: number; groups: string[] } | null>(null);
+  const [importPreviewItems, setImportPreviewItems] = useState<any[] | null>(null);
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [importFileName, setImportFileName] = useState<string>("");
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const { toast } = useToast();
@@ -298,6 +301,58 @@ export default function EventDetail() {
         title: `${data.imported} peças importadas com sucesso`,
         description: "Os itens foram adicionados ao evento.",
       });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // ── Preview Excel mutation (parse → show review modal) ─────────────────
+  const previewXlsxMutation = useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(`/api/events/${eventId}/preview-xlsx`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Erro ao processar arquivo");
+      }
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      const withIds = (data.items as any[]).map((item: any, i: number) => ({ ...item, _id: `row-${i}` }));
+      setImportPreviewItems(withIds);
+      setImportFileName(data.fileName || "");
+      setImportDialogOpen(false);
+      setImportPreviewOpen(true);
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao processar planilha", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // ── Confirm import mutation (save reviewed items) ──────────────────────
+  const confirmImportMutation = useMutation({
+    mutationFn: async ({ items, fileName }: { items: any[]; fileName: string }) => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, { items, fileName });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Erro ao importar");
+      }
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setImportPreviewOpen(false);
+      setImportPreviewItems(null);
+      setImportFile(null);
+      setImportFileName("");
+      toast({ title: `${data.imported} peças importadas com sucesso`, description: "Os itens foram adicionados ao evento." });
     },
     onError: (error: any) => {
       toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
@@ -2587,17 +2642,102 @@ export default function EventDetail() {
               Cancelar
             </Button>
             <Button
-              onClick={() => { if (importFile) importXlsxMutation.mutate({ file: importFile }); }}
-              disabled={!importFile || importXlsxMutation.isPending}
-              data-testid="button-confirm-import"
+              onClick={() => { if (importFile) previewXlsxMutation.mutate({ file: importFile }); }}
+              disabled={!importFile || previewXlsxMutation.isPending}
+              data-testid="button-preview-import"
               style={{ backgroundColor: '#22c55e', color: '#ffffff' }}
             >
-              {importXlsxMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...</>
+              {previewXlsxMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processando...</>
               ) : (
-                <><Upload className="h-4 w-4 mr-2" /> Importar Peças</>
+                <><List className="h-4 w-4 mr-2" /> Pré-visualizar Peças</>
               )}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Revisão de importação Excel ────────────────────────────── */}
+      <Dialog open={importPreviewOpen} onOpenChange={(v) => { if (!v) { setImportPreviewOpen(false); } }}>
+        <DialogContent style={{ maxWidth: '95vw', width: '1100px', maxHeight: '90vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Header */}
+          <div style={{ padding: '20px 28px 16px', borderBottom: '1px solid #f0efed', backgroundColor: '#fafaf9', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <List style={{ width: 18, height: 18, color: '#22c55e' }} />
+                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
+                  Revisão de Importação
+                </DialogTitle>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, color: '#78716c' }}>
+                  {importFileName && <><strong>{importFileName}</strong> · </>}
+                  <strong style={{ color: '#1a1c1c' }}>{importPreviewItems?.length ?? 0}</strong> peças detectadas
+                </span>
+                {importPreviewItems && importPreviewItems.length > 0 && (
+                  <span style={{ padding: '3px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 700, backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
+                    {importPreviewItems.length} itens
+                  </span>
+                )}
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: '#78716c', margin: '4px 0 0 28px' }}>
+              Revise os dados abaixo. Você pode editar qualquer campo ou remover peças antes de confirmar.
+            </p>
+          </div>
+
+          {/* Table */}
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8f7f6', position: 'sticky', top: 0, zIndex: 1 }}>
+                  {['Tipo', 'Descrição', 'Qtd', 'L.Visual', 'A.Visual', 'L.Arquivo', 'A.Arquivo', 'M²', 'Material', 'Acabamento', 'Obs', ''].map((h) => (
+                    <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #ebe9e7', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(importPreviewItems ?? []).map((row, idx) => (
+                  <ImportPreviewRow
+                    key={row._id}
+                    row={row}
+                    idx={idx}
+                    onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
+                    onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
+                  />
+                ))}
+              </tbody>
+            </table>
+            {(!importPreviewItems || importPreviewItems.length === 0) && (
+              <div style={{ padding: 40, textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
+                Nenhuma peça para importar.
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '14px 28px 20px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, backgroundColor: '#fafaf9' }}>
+            <Button variant="outline" onClick={() => { setImportPreviewOpen(false); setImportDialogOpen(true); }}>
+              Voltar
+            </Button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 12, color: '#78716c' }}>{importPreviewItems?.length ?? 0} peças serão importadas</span>
+              <Button
+                onClick={() => {
+                  if (importPreviewItems && importPreviewItems.length > 0)
+                    confirmImportMutation.mutate({ items: importPreviewItems, fileName: importFileName });
+                }}
+                disabled={!importPreviewItems || importPreviewItems.length === 0 || confirmImportMutation.isPending}
+                data-testid="button-confirm-import"
+                style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
+              >
+                {confirmImportMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...</>
+                ) : (
+                  <><Upload className="h-4 w-4 mr-2" /> Confirmar Importação</>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

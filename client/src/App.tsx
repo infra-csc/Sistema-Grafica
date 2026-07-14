@@ -10,7 +10,7 @@ import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "./lib/queryClient";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { useEffect } from "react";
+import { useEffect, Component, type ReactNode } from "react";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import ChangePassword from "@/pages/change-password";
@@ -33,6 +33,29 @@ import Estoque from "@/pages/estoque";
 import TriagemRetorno from "@/pages/triagem-retorno";
 import ConfigurarCotas from "@/pages/configurar-cotas";
 
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: { componentStack: string }) {
+    console.error("[ErrorBoundary] CRASH:", error.message, error.stack, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      const err = this.state.error as Error;
+      return (
+        <div style={{ padding: '2rem', fontFamily: 'monospace' }}>
+          <h2 style={{ color: '#ef4444' }}>Erro de renderização</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', color: '#ef4444', fontSize: 12 }}>{err.message}{"\n"}{err.stack}</pre>
+          <button onClick={() => this.setState({ error: null })} style={{ marginTop: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            Tentar novamente
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType; path?: string }) {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -301,7 +324,9 @@ export default function App() {
       <TooltipProvider>
         <AuthProvider>
           <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-            <AppContent />
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
           </SidebarProvider>
           <Toaster />
         </AuthProvider>

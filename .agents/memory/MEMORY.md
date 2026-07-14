@@ -1,1 +1,2 @@
 - [Quota per-event design](quota-per-event.md) — sponsor quotas live on `event_sponsors.quota`, NOT on `sponsors.quota` (global is just default/hint)
+- [React component in .map() crashes Radix Dialog](react-component-in-map-crash.md) — never define a JSX component type inside .map(); causes unmount/remount that crashes open Radix Dialogs.

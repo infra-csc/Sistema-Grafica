@@ -51,6 +51,57 @@ const QUOTA_OPTIONS = [
   { value: "MINISTERIO", label: "Ministério", color: "#059669" },
 ];
 
+function EventCardActions({
+  event,
+  cardBorderHex,
+  dark = false,
+  onEdit,
+  onDelete,
+  onSetPriority,
+  canEdit,
+  canDelete,
+}: {
+  event: any;
+  cardBorderHex: string;
+  dark?: boolean;
+  onEdit: (event: any, e: React.MouseEvent) => void;
+  onDelete: (id: string, e: React.MouseEvent) => void;
+  onSetPriority: (event: any, e: React.MouseEvent) => void;
+  canEdit: boolean;
+  canDelete: boolean;
+}) {
+  return (
+    <div
+      className="opacity-0 group-hover:opacity-100"
+      style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+    >
+      {!dark && (
+        <button
+          onClick={(e) => onSetPriority(event, e)}
+          title="Definir prioridade"
+          data-testid={`button-priority-event-${event.id}`}
+          style={{ padding: '8px', backgroundColor: '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: event.priority ? cardBorderHex : '#a8a29e', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
+        >
+          <Flag style={{ width: '13px', height: '13px', fill: event.priority ? cardBorderHex : 'none' }} />
+        </button>
+      )}
+      {canEdit && (
+        <button onClick={(e) => onEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
+          style={{ padding: '8px', backgroundColor: dark ? 'rgba(255,255,255,0.1)' : '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#d4d0cb' : '#78716c', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
+          <Pencil style={{ width: '13px', height: '13px' }} />
+        </button>
+      )}
+      {canDelete && (
+        <button onClick={(e) => onDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
+          style={{ padding: '8px', backgroundColor: dark ? 'rgba(239,68,68,0.15)' : '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#f87171' : '#ef4444', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
+          <Trash2 style={{ width: '13px', height: '13px' }} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Eventos() {
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
@@ -633,7 +684,7 @@ export default function Eventos() {
                           {(() => {
                             const q = sponsorSearch.toLowerCase();
                             const filtered = [...sponsors]
-                              .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+                              .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
                               .filter(s => !q || s.name.toLowerCase().includes(q) || (s.company || '').toLowerCase().includes(q));
                             if (filtered.length === 0) return (
                               <p style={{ fontSize: '12px', color: '#a8a29e', textAlign: 'center', padding: '16px 12px' }}>
@@ -1011,37 +1062,8 @@ export default function Eventos() {
             const truckColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#6ee7b7' : '#78716c');
             const truckTextColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#d1fae5' : '#1c1917');
 
-            // ── Shared action buttons (invisible until hover) ──
-            const ActionButtons = ({ dark = false }: { dark?: boolean }) => (
-              <div
-                className="opacity-0 group-hover:opacity-100"
-                style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-              >
-                {!dark && (
-                  <button
-                    onClick={(e) => handleSetPriority(event, e)}
-                    title="Definir prioridade"
-                    data-testid={`button-priority-event-${event.id}`}
-                    style={{ padding: '8px', backgroundColor: '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: event.priority ? cardBorderHex : '#a8a29e', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
-                  >
-                    <Flag style={{ width: '13px', height: '13px', fill: event.priority ? cardBorderHex : 'none' }} />
-                  </button>
-                )}
-                {(hasPermission("admin") || hasPermission("solicitacao")) && (
-                  <button onClick={(e) => handleEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
-                    style={{ padding: '8px', backgroundColor: dark ? 'rgba(255,255,255,0.1)' : '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#d4d0cb' : '#78716c', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
-                    <Pencil style={{ width: '13px', height: '13px' }} />
-                  </button>
-                )}
-                {hasPermission("admin") && (
-                  <button onClick={(e) => handleDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
-                    style={{ padding: '8px', backgroundColor: dark ? 'rgba(239,68,68,0.15)' : '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#f87171' : '#ef4444', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
-                    <Trash2 style={{ width: '13px', height: '13px' }} />
-                  </button>
-                )}
-              </div>
-            );
+            const canEdit = hasPermission("admin") || hasPermission("solicitacao");
+            const canDelete = hasPermission("admin");
 
             // ── Card Concluído: branco com borda verde e ícone decorativo ──
             if (isCompleted) {
@@ -1066,7 +1088,15 @@ export default function Eventos() {
                       <CheckCircle style={{ width: '120px', height: '120px', color: '#10b981' }} />
                     </div>
 
-                    <ActionButtons />
+                    <EventCardActions
+                      event={event}
+                      cardBorderHex="#10b981"
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onSetPriority={handleSetPriority}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                    />
 
                     {/* Topo: badge + id */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
@@ -1140,7 +1170,15 @@ export default function Eventos() {
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
                   data-testid={`card-event-${event.id}`}
                 >
-                  <ActionButtons />
+                  <EventCardActions
+                    event={event}
+                    cardBorderHex={cardBorderHex}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onSetPriority={handleSetPriority}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                  />
 
                   {/* Linha 1: badge prioridade + id */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

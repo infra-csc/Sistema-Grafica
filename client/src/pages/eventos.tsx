@@ -170,6 +170,7 @@ export default function Eventos() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setOpen(false);
       setEditingEvent(null);
       setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
       setSelectedSponsorIds([]);
@@ -260,6 +261,8 @@ export default function Eventos() {
   const handleEdit = (event: any, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setSelectedSponsorIds([]);
+    setSponsorQuotaMap({});
     setEditingEvent(event);
     setFormData({
       name: event.name || "",

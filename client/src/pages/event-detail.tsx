@@ -2919,7 +2919,7 @@ export default function EventDetail() {
 
       {/* ── Dialog: Revisão de importação Excel ────────────────────────────── */}
       <Dialog open={importPreviewOpen} onOpenChange={(v) => { if (!v) { setImportPreviewOpen(false); } }}>
-        <DialogContent style={{ maxWidth: '95vw', width: '1100px', maxHeight: '90vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <DialogContent className="[&>button:last-child]:right-5 [&>button:last-child]:top-5" style={{ maxWidth: '95vw', width: '1100px', maxHeight: '90vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
           {(() => {
             const allItems = importPreviewItems ?? [];

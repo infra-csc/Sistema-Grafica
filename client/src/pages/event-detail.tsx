@@ -2773,15 +2773,44 @@ export default function EventDetail() {
                 </tr>
               </thead>
               <tbody>
-                {(importPreviewItems ?? []).map((row, idx) => (
-                  <ImportPreviewRow
-                    key={row._id}
-                    row={row}
-                    idx={idx}
-                    onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
-                    onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
-                  />
-                ))}
+                {(() => {
+                  const items = importPreviewItems ?? [];
+                  const groupMap = new Map<string, any[]>();
+                  for (const item of items) {
+                    const t = item.type || '—';
+                    if (!groupMap.has(t)) groupMap.set(t, []);
+                    groupMap.get(t)!.push(item);
+                  }
+                  const groups = Array.from(groupMap.entries());
+                  return groups.map(([type, groupItems], gIdx) => (
+                    <>
+                      {gIdx > 0 && (
+                        <tr key={`spacer-${type}-${gIdx}`}>
+                          <td colSpan={12} style={{ height: 10, backgroundColor: '#f5f4f2', borderTop: '2px solid #e8e6e3', borderBottom: '1px solid #e8e6e3' }} />
+                        </tr>
+                      )}
+                      <tr key={`header-${type}-${gIdx}`}>
+                        <td colSpan={12} style={{ padding: '8px 12px 6px', backgroundColor: '#f0eeec', borderBottom: '1px solid #e2deda' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 800, fontSize: 13, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em' }}>{type}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c', backgroundColor: '#e2deda', borderRadius: 9999, padding: '1px 9px' }}>
+                              {groupItems.length} {groupItems.length === 1 ? 'peça' : 'peças'}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {groupItems.map((row, rowIdx) => (
+                        <ImportPreviewRow
+                          key={row._id}
+                          row={row}
+                          idx={rowIdx}
+                          onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
+                          onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
+                        />
+                      ))}
+                    </>
+                  ));
+                })()}
               </tbody>
             </table>
             {(!importPreviewItems || importPreviewItems.length === 0) && (

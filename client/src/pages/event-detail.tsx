@@ -49,6 +49,82 @@ const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso"
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
+// ── Editable row for import preview table ────────────────────────────────
+function ImportPreviewRow({ row, idx, onChange, onDelete }: {
+  row: any; idx: number;
+  onChange: (updated: any) => void;
+  onDelete: () => void;
+}) {
+  const [editField, setEditField] = useState<string | null>(null);
+
+  const update = (field: string, value: string) => {
+    const updated = { ...row, [field]: value };
+    // Recalculate m² when qty or dims change
+    if (['quantity', 'fileWidth', 'fileHeight'].includes(field)) {
+      const qty = parseFloat(field === 'quantity' ? value : row.quantity) || 0;
+      const fw  = parseFloat(field === 'fileWidth'  ? value : (row.fileWidth  ?? row.visualWidth  ?? 0)) || 0;
+      const fh  = parseFloat(field === 'fileHeight' ? value : (row.fileHeight ?? row.visualHeight ?? 0)) || 0;
+      updated.calculatedM2 = fw && fh ? (qty * fw * fh).toFixed(2) : '0';
+      if (fw && fh) updated.measurement = `${fw.toFixed(2)} × ${fh.toFixed(2)}`;
+    }
+    onChange(updated);
+  };
+
+  const cell = (field: string, val: any, opts?: { narrow?: boolean; dim?: boolean }) => {
+    const isEditing = editField === field;
+    const display = val !== null && val !== undefined && val !== '' ? String(val) : '—';
+    return (
+      <td
+        style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', cursor: 'pointer', backgroundColor: isEditing ? '#fffbeb' : (idx % 2 === 0 ? '#fff' : '#fafaf9'), whiteSpace: opts?.narrow ? 'nowrap' : undefined, minWidth: opts?.narrow ? 52 : undefined }}
+        onClick={() => setEditField(field)}
+      >
+        {isEditing ? (
+          <input
+            autoFocus
+            defaultValue={val ?? ''}
+            onBlur={e => { update(field, e.target.value); setEditField(null); }}
+            onKeyDown={e => { if (e.key === 'Enter') { update(field, (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
+            style={{ width: '100%', border: '1px solid #f97316', borderRadius: 4, padding: '2px 6px', fontSize: 12, outline: 'none', backgroundColor: '#fffbeb' }}
+          />
+        ) : (
+          <span style={{ color: display === '—' ? '#c4bfbb' : (opts?.dim ? '#78716c' : '#1a1c1c'), fontSize: 12 }}>{display}</span>
+        )}
+      </td>
+    );
+  };
+
+  const m2 = parseFloat(row.calculatedM2) || 0;
+
+  return (
+    <tr>
+      {cell('type', row.type)}
+      {cell('description', row.description)}
+      {cell('quantity', row.quantity, { narrow: true })}
+      {cell('visualWidth',  row.visualWidth,  { narrow: true, dim: true })}
+      {cell('visualHeight', row.visualHeight, { narrow: true, dim: true })}
+      {cell('fileWidth',    row.fileWidth,    { narrow: true })}
+      {cell('fileHeight',   row.fileHeight,   { narrow: true })}
+      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: idx % 2 === 0 ? '#fff' : '#fafaf9' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: m2 > 0 ? '#f97316' : '#c4bfbb', fontFamily: 'DM Mono, monospace' }}>
+          {m2 > 0 ? m2.toFixed(2) : '—'}
+        </span>
+      </td>
+      {cell('material', row.material)}
+      {cell('finish', row.finish)}
+      {cell('observations', row.observations, { dim: true })}
+      <td style={{ padding: '4px 8px', borderBottom: '1px solid #f0efed', backgroundColor: idx % 2 === 0 ? '#fff' : '#fafaf9' }}>
+        <button
+          onClick={onDelete}
+          title="Remover peça"
+          style={{ width: 22, height: 22, borderRadius: 4, border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}
+        >
+          <X style={{ width: 13, height: 13 }} />
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();
   const [, params] = useRoute("/eventos/:id");

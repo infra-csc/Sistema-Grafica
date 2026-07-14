@@ -1417,28 +1417,81 @@ export default function VincularPatrocinadores() {
         </div>
       </div>
 
-      {/* ── Progress Grid 3-col ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {/* Col 1-2: barra de progresso */}
-        <div className="md:col-span-2 flex flex-col justify-between" style={{ backgroundColor: '#f3f4f3', borderRadius: 10, padding: '20px 24px' }}>
-          <div className="flex justify-between items-end mb-4">
-            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#78716c' }}>Progresso de Envio</span>
-            <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 900, color: '#1a1c1c', letterSpacing: '-0.03em' }}>
-              {completedItems} <span style={{ color: '#a8a29e' }}>de</span> {totalItems}{' '}
-              <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>enviados</span>
-            </span>
-          </div>
-          <div style={{ width: '100%', height: 8, backgroundColor: '#e7e5e4', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', backgroundColor: '#f97316', borderRadius: 4, width: `${progressPercent}%`, transition: 'width 0.5s ease' }} />
-          </div>
+      {/* ── Progress Section ── */}
+      <div style={{ backgroundColor: '#f3f4f3', borderRadius: 12, padding: '20px 24px', marginBottom: 32 }}>
+        {/* Row 1: título + número total */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#78716c' }}>Progresso de Envio</span>
+          <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 900, color: '#1a1c1c', letterSpacing: '-0.03em' }}>
+            {completedItems} <span style={{ color: '#a8a29e' }}>de</span> {totalItems}{' '}
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>enviados</span>
+          </span>
         </div>
 
-        {/* Col 3: alertas de ação */}
-        <div className="space-y-3">
-          <div style={{ backgroundColor: '#f3f4f3', borderLeft: '4px solid #f97316', padding: '14px 16px', borderRadius: '0 8px 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Barra segmentada: PENDENTE | RASCUNHO | PRONTO | ENVIADO */}
+        {(() => {
+          const total = totalItems || 1;
+          const segs = [
+            { key: 'PENDENTE', color: '#d4d0cc', pct: (contextStatusCounts.PENDENTE / total) * 100 },
+            { key: 'RASCUNHO', color: '#fb923c', pct: (contextStatusCounts.RASCUNHO / total) * 100 },
+            { key: 'PRONTO',   color: '#4ade80', pct: (contextStatusCounts.PRONTO   / total) * 100 },
+            { key: 'ENVIADO',  color: '#1c1917', pct: (contextStatusCounts.ENVIADO  / total) * 100 },
+          ].filter(s => s.pct > 0);
+          return (
+            <div style={{ width: '100%', height: 10, backgroundColor: '#e7e5e4', borderRadius: 6, overflow: 'hidden', display: 'flex' }}>
+              {segs.map((s, i) => (
+                <div key={s.key} style={{
+                  height: '100%', backgroundColor: s.color,
+                  width: `${s.pct}%`,
+                  transition: 'width 0.5s ease',
+                  borderRadius: i === 0 && segs.length === 1 ? 6 : i === 0 ? '6px 0 0 6px' : i === segs.length - 1 ? '0 6px 6px 0' : 0,
+                }} />
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Legenda inline dos segmentos */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Sem ação',  color: '#a8a29e', count: contextStatusCounts.PENDENTE, bg: '#e8e8e7' },
+            { label: 'Rascunho',  color: '#c2410c', count: contextStatusCounts.RASCUNHO, bg: '#ffedd5' },
+            { label: 'Pronto',    color: '#166534', count: contextStatusCounts.PRONTO,   bg: '#dcfce7' },
+            { label: 'Enviado',   color: '#ffffff', count: contextStatusCounts.ENVIADO,  bg: '#1c1917' },
+          ].map(s => (
+            <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.bg === '#e8e8e7' ? '#a8a29e' : s.bg === '#ffedd5' ? '#fb923c' : s.bg === '#dcfce7' ? '#4ade80' : '#1c1917', flexShrink: 0 }} />
+              <span style={{ fontSize: 10, fontWeight: 600, color: '#78716c' }}>
+                {s.label} <strong style={{ color: '#1a1c1c' }}>{s.count}</strong>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Row 2: 3 cartões de status acionáveis */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 16 }}>
+
+          {/* PENDENTE */}
+          <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #d4d0cc' }}>
             <div>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Ação Pendente</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c' }}>{contextStatusCounts.RASCUNHO} {contextStatusCounts.RASCUNHO !== 1 ? 'itens' : 'item'} em RASCUNHO</p>
+              <p style={{ fontSize: 9, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Sem ação</p>
+              <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1c1c', lineHeight: 1 }}>
+                {contextStatusCounts.PENDENTE}
+                <span style={{ fontSize: 11, fontWeight: 500, color: '#78716c', marginLeft: 4 }}>{contextStatusCounts.PENDENTE !== 1 ? 'itens' : 'item'}</span>
+              </p>
+              <p style={{ fontSize: 10, color: '#a8a29e', marginTop: 2 }}>Aguardando vinculação</p>
+            </div>
+          </div>
+
+          {/* RASCUNHO */}
+          <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #fb923c' }}>
+            <div>
+              <p style={{ fontSize: 9, fontWeight: 800, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Rascunho</p>
+              <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1c1c', lineHeight: 1 }}>
+                {contextStatusCounts.RASCUNHO}
+                <span style={{ fontSize: 11, fontWeight: 500, color: '#78716c', marginLeft: 4 }}>{contextStatusCounts.RASCUNHO !== 1 ? 'itens' : 'item'}</span>
+              </p>
+              <p style={{ fontSize: 10, color: '#a8a29e', marginTop: 2 }}>Patrocinador adicionado, não salvo</p>
             </div>
             {contextStatusCounts.RASCUNHO > 0 && (
               <button
@@ -1451,16 +1504,23 @@ export default function VincularPatrocinadores() {
                   setSaveConfirmModal({ payloads, items: rascunhoItems });
                 }}
                 disabled={saveLinkingMutation.isPending}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', display: 'flex', alignItems: 'center' }}
+                title="Salvar todos os rascunhos"
+                style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, cursor: 'pointer', color: '#c2410c', display: 'flex', alignItems: 'center', padding: '6px 8px', flexShrink: 0 }}
               >
-                <Save style={{ width: 16, height: 16 }} />
+                <Save style={{ width: 14, height: 14 }} />
               </button>
             )}
           </div>
-          <div style={{ backgroundColor: '#f3f4f3', borderLeft: '4px solid #166534', padding: '14px 16px', borderRadius: '0 8px 8px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+          {/* PRONTO */}
+          <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #4ade80' }}>
             <div>
-              <p style={{ fontSize: 10, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Pronto para Envio</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c' }}>{contextStatusCounts.PRONTO} {contextStatusCounts.PRONTO !== 1 ? 'itens' : 'item'} aguardando</p>
+              <p style={{ fontSize: 9, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Pronto para Envio</p>
+              <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1c1c', lineHeight: 1 }}>
+                {contextStatusCounts.PRONTO}
+                <span style={{ fontSize: 11, fontWeight: 500, color: '#78716c', marginLeft: 4 }}>{contextStatusCounts.PRONTO !== 1 ? 'itens' : 'item'}</span>
+              </p>
+              <p style={{ fontSize: 10, color: '#a8a29e', marginTop: 2 }}>Salvo, aguardando envio à Arte</p>
             </div>
             {contextStatusCounts.PRONTO > 0 && (
               <button
@@ -1472,12 +1532,14 @@ export default function VincularPatrocinadores() {
                   setSendConfirmModal({ items: prontoItems, pendingByItem });
                 }}
                 disabled={sendToArteMutation.isPending}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center' }}
+                title="Enviar todos para Arte"
+                style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center', padding: '6px 8px', flexShrink: 0 }}
               >
-                <Send style={{ width: 16, height: 16 }} />
+                <Send style={{ width: 14, height: 14 }} />
               </button>
             )}
           </div>
+
         </div>
       </div>
 

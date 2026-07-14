@@ -50,18 +50,27 @@ const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
 // ── Editable row for import preview table ────────────────────────────────
+const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: string }> = {
+  MASTER:     { bg: '#fff1f1', color: '#dc2626', border: '#fecaca' },
+  GOLD:       { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+  SILVER:     { bg: '#f5f3ff', color: '#7c3aed', border: '#ddd6fe' },
+  APOIO:      { bg: '#f9fafb', color: '#6b7280', border: '#e5e7eb' },
+  MIDIA:      { bg: '#ecfeff', color: '#0891b2', border: '#a5f3fc' },
+  MINISTERIO: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+};
+
 function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {
   row: any; idx: number;
   onChange: (updated: any) => void;
   onDelete: () => void;
-  eventSponsorsList: { sponsorId: string; name: string }[];
+  eventSponsorsList: { sponsorId: string; quota: string; name: string }[];
 }) {
   const [editField, setEditField] = useState<string | null>(null);
+  const [hovered, setHovered] = useState(false);
 
   const update = (field: string, value: string) => {
     const updated = { ...row, [field]: value };
-    // Recalculate m² when qty or dims change
-    if (['quantity', 'fileWidth', 'fileHeight'].includes(field)) {
+    if (['quantity', 'fileWidth', 'fileHeight', 'visualWidth', 'visualHeight'].includes(field)) {
       const qty = parseFloat(field === 'quantity' ? value : row.quantity) || 0;
       const fw  = parseFloat(field === 'fileWidth'  ? value : (row.fileWidth  ?? row.visualWidth  ?? 0)) || 0;
       const fh  = parseFloat(field === 'fileHeight' ? value : (row.fileHeight ?? row.visualHeight ?? 0)) || 0;
@@ -71,66 +80,147 @@ function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {
     onChange(updated);
   };
 
-  const cell = (field: string, val: any, opts?: { narrow?: boolean; dim?: boolean }) => {
+  const cell = (field: string, val: any, opts?: { dim?: boolean; mono?: boolean; wide?: boolean }) => {
     const isEditing = editField === field;
     const display = val !== null && val !== undefined && val !== '' ? String(val) : '—';
+    const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
     return (
       <td
-        style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', cursor: 'pointer', backgroundColor: isEditing ? '#fffbeb' : (idx % 2 === 0 ? '#fff' : '#fafaf9'), whiteSpace: opts?.narrow ? 'nowrap' : undefined, minWidth: opts?.narrow ? 52 : undefined }}
         onClick={() => setEditField(field)}
+        title="Clique para editar"
+        style={{
+          padding: '8px 10px',
+          borderBottom: '1px solid #f0efed',
+          cursor: 'text',
+          backgroundColor: isEditing ? '#fffbeb' : rowBg,
+          maxWidth: opts?.wide ? 220 : 160,
+        }}
       >
         {isEditing ? (
           <input
             autoFocus
             defaultValue={val ?? ''}
             onBlur={e => { update(field, e.target.value); setEditField(null); }}
-            onKeyDown={e => { if (e.key === 'Enter') { update(field, (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
-            style={{ width: '100%', border: '1px solid #f97316', borderRadius: 4, padding: '2px 6px', fontSize: 12, outline: 'none', backgroundColor: '#fffbeb' }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { update(field, (e.target as HTMLInputElement).value); setEditField(null); }
+              if (e.key === 'Escape') setEditField(null);
+            }}
+            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 12, outline: 'none', backgroundColor: 'transparent', fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit' }}
           />
         ) : (
-          <span style={{ color: display === '—' ? '#c4bfbb' : (opts?.dim ? '#78716c' : '#1a1c1c'), fontSize: 12 }}>{display}</span>
+          <span style={{
+            color: display === '—' ? '#d0cdc9' : (opts?.dim ? '#9c9490' : '#1a1c1c'),
+            fontSize: 12,
+            fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit',
+            display: 'block',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>{display}</span>
         )}
       </td>
     );
   };
 
+  const dimCell = (fieldW: string, fieldH: string, valW: any, valH: any, dimStyle?: boolean) => {
+    const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
+    const editingW = editField === fieldW;
+    const editingH = editField === fieldH;
+    const dispW = valW !== null && valW !== undefined && valW !== '' ? String(valW) : '—';
+    const dispH = valH !== null && valH !== undefined && valH !== '' ? String(valH) : '—';
+    return (
+      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          {editingW ? (
+            <input autoFocus defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
+              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', outline: 'none', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
+          ) : (
+            <span onClick={() => setEditField(fieldW)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#9c9490' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispW}</span>
+          )}
+          <span style={{ color: '#d0cdc9', fontSize: 10, userSelect: 'none' }}>×</span>
+          {editingH ? (
+            <input autoFocus defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
+              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', outline: 'none', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
+          ) : (
+            <span onClick={() => setEditField(fieldH)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#9c9490' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispH}</span>
+          )}
+        </div>
+      </td>
+    );
+  };
+
   const m2 = parseFloat(row.calculatedM2) || 0;
+  const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#ea580c' : m2 > 0 ? '#16a34a' : '#d0cdc9';
+
+  const suggestedSponsor = eventSponsorsList.find(s => s.sponsorId === row.suggestedSponsorId);
+  const qStyle = suggestedSponsor ? (IMPORT_QUOTA_COLORS[suggestedSponsor.quota] ?? { bg: '#f0f9ff', color: '#0369a1', border: '#bae6fd' }) : null;
+  const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
 
   return (
-    <tr>
-      {cell('type', row.type)}
-      {cell('description', row.description)}
-      {cell('quantity', row.quantity, { narrow: true })}
-      {cell('visualWidth',  row.visualWidth,  { narrow: true, dim: true })}
-      {cell('visualHeight', row.visualHeight, { narrow: true, dim: true })}
-      {cell('fileWidth',    row.fileWidth,    { narrow: true })}
-      {cell('fileHeight',   row.fileHeight,   { narrow: true })}
-      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: idx % 2 === 0 ? '#fff' : '#fafaf9' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: m2 > 0 ? '#f97316' : '#c4bfbb', fontFamily: 'DM Mono, monospace' }}>
+    <tr
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ transition: 'background 0.12s' }}
+    >
+      {cell('description', row.description, { wide: true })}
+      {cell('quantity', row.quantity, { mono: true })}
+      {dimCell('visualWidth', 'visualHeight', row.visualWidth, row.visualHeight, true)}
+      {dimCell('fileWidth', 'fileHeight', row.fileWidth, row.fileHeight, false)}
+
+      {/* M² */}
+      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: m2Color, fontFamily: 'DM Mono, monospace', letterSpacing: '-0.02em' }}>
           {m2 > 0 ? m2.toFixed(2) : '—'}
         </span>
       </td>
+
       {cell('material', row.material)}
       {cell('finish', row.finish)}
       {cell('observations', row.observations, { dim: true })}
-      {/* Sponsor suggestion cell */}
-      <td style={{ padding: '4px 8px', borderBottom: '1px solid #f0efed', backgroundColor: idx % 2 === 0 ? '#fff' : '#fafaf9', minWidth: 130 }}>
-        <select
-          value={row.suggestedSponsorId ?? ''}
-          onChange={e => onChange({ ...row, suggestedSponsorId: e.target.value || null })}
-          style={{ fontSize: 11, border: '1px solid #e2deda', borderRadius: 4, padding: '2px 4px', backgroundColor: row.suggestedSponsorId ? '#f0fdf4' : '#fafaf9', color: row.suggestedSponsorId ? '#166534' : '#a8a29e', width: '100%', cursor: 'pointer', outline: 'none' }}
-        >
-          <option value="">— nenhum —</option>
-          {eventSponsorsList.map(s => (
-            <option key={s.sponsorId} value={s.sponsorId}>{s.name}</option>
-          ))}
-        </select>
+
+      {/* Sponsor cell */}
+      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, minWidth: 140 }}>
+        <div style={{ position: 'relative' }}>
+          <select
+            value={row.suggestedSponsorId ?? ''}
+            onChange={e => onChange({ ...row, suggestedSponsorId: e.target.value || null })}
+            style={{
+              width: '100%',
+              fontSize: 11,
+              fontWeight: row.suggestedSponsorId ? 700 : 400,
+              borderRadius: 6,
+              padding: '4px 8px',
+              border: `1.5px solid ${qStyle?.border ?? '#e2deda'}`,
+              backgroundColor: qStyle?.bg ?? (hovered ? '#f7f6f4' : '#fafaf9'),
+              color: qStyle?.color ?? '#a8a29e',
+              cursor: 'pointer',
+              outline: 'none',
+              appearance: 'none',
+              transition: 'all 0.15s',
+            }}
+          >
+            <option value="">— sem patrocinador —</option>
+            {eventSponsorsList.map(s => {
+              const qc = IMPORT_QUOTA_COLORS[s.quota];
+              return <option key={s.sponsorId} value={s.sponsorId}>{s.name} ({s.quota})</option>;
+            })}
+          </select>
+          {/* Auto-suggest indicator */}
+          {row.suggestedSponsorId && (
+            <span
+              title="Patrocinador sugerido automaticamente"
+              style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: '50%', backgroundColor: qStyle?.color ?? '#16a34a', border: '2px solid #fff', display: 'block' }}
+            />
+          )}
+        </div>
       </td>
-      <td style={{ padding: '4px 8px', borderBottom: '1px solid #f0efed', backgroundColor: idx % 2 === 0 ? '#fff' : '#fafaf9' }}>
+
+      {/* Delete */}
+      <td style={{ padding: '6px 6px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg }}>
         <button
           onClick={onDelete}
           title="Remover peça"
-          style={{ width: 22, height: 22, borderRadius: 4, border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}
+          style={{ width: 26, height: 26, borderRadius: 6, border: 'none', backgroundColor: hovered ? '#fef2f2' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: hovered ? '#dc2626' : '#d0cdc9', transition: 'all 0.15s' }}
         >
           <X style={{ width: 13, height: 13 }} />
         </button>
@@ -2792,38 +2882,75 @@ export default function EventDetail() {
       <Dialog open={importPreviewOpen} onOpenChange={(v) => { if (!v) { setImportPreviewOpen(false); } }}>
         <DialogContent style={{ maxWidth: '95vw', width: '1100px', maxHeight: '90vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
-          <div style={{ padding: '20px 28px 16px', borderBottom: '1px solid #f0efed', backgroundColor: '#fafaf9', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <List style={{ width: 18, height: 18, color: '#22c55e' }} />
-                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
-                  Revisão de Importação
-                </DialogTitle>
+          {(() => {
+            const allItems = importPreviewItems ?? [];
+            const totalM2 = allItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
+            const linkedCount = allItems.filter(i => i.suggestedSponsorId).length;
+            const typeCount = new Set(allItems.map(i => i.type)).size;
+            const pct = allItems.length > 0 ? Math.round((linkedCount / allItems.length) * 100) : 0;
+            return (
+              <div style={{ padding: '20px 28px 18px', borderBottom: '2px solid #ebe9e7', background: 'linear-gradient(135deg, #fafaf9 0%, #f5f4f2 100%)', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <List style={{ width: 16, height: 16, color: '#16a34a' }} />
+                      </div>
+                      <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
+                        Revisão de Importação
+                      </DialogTitle>
+                      {importFileName && (
+                        <span style={{ fontSize: 11, color: '#78716c', backgroundColor: '#f0efed', border: '1px solid #e2deda', borderRadius: 6, padding: '2px 8px', fontFamily: 'DM Mono, monospace' }}>
+                          {importFileName}
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: 12, color: '#9c9490', margin: 0, paddingLeft: 42 }}>
+                      Clique em qualquer célula para editar. Ajuste o patrocinador sugerido se necessário e confirme.
+                    </p>
+                  </div>
+                  {/* Stats */}
+                  <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+                    <div style={{ textAlign: 'center', padding: '8px 14px', backgroundColor: '#fff', border: '1px solid #ebe9e7', borderRadius: 10 }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{allItems.length}</div>
+                      <div style={{ fontSize: 10, color: '#9c9490', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>peças</div>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: '8px 14px', backgroundColor: '#fff', border: '1px solid #ebe9e7', borderRadius: 10 }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{typeCount}</div>
+                      <div style={{ fontSize: 10, color: '#9c9490', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>tipos</div>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: '8px 14px', backgroundColor: '#fff8f1', border: '1px solid #fed7aa', borderRadius: 10 }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#ea580c', fontFamily: 'DM Mono, monospace', lineHeight: 1 }}>{totalM2.toFixed(0)}</div>
+                      <div style={{ fontSize: 10, color: '#9c9490', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>m² total</div>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: '8px 14px', backgroundColor: pct === 100 ? '#f0fdf4' : '#fffbeb', border: `1px solid ${pct === 100 ? '#bbf7d0' : '#fde68a'}`, borderRadius: 10 }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: pct === 100 ? '#16a34a' : '#d97706', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{pct}%</div>
+                      <div style={{ fontSize: 10, color: '#9c9490', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>vinculados</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 12, color: '#78716c' }}>
-                  {importFileName && <><strong>{importFileName}</strong> · </>}
-                  <strong style={{ color: '#1a1c1c' }}>{importPreviewItems?.length ?? 0}</strong> peças detectadas
-                </span>
-                {importPreviewItems && importPreviewItems.length > 0 && (
-                  <span style={{ padding: '3px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 700, backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>
-                    {importPreviewItems.length} itens
-                  </span>
-                )}
-              </div>
-            </div>
-            <p style={{ fontSize: 12, color: '#78716c', margin: '4px 0 0 28px' }}>
-              Revise os dados abaixo. Você pode editar qualquer campo ou remover peças antes de confirmar.
-            </p>
-          </div>
+            );
+          })()}
 
           {/* Table */}
           <div style={{ flex: 1, overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ backgroundColor: '#f8f7f6', position: 'sticky', top: 0, zIndex: 1 }}>
-                  {['Tipo', 'Descrição', 'Qtd', 'L.Visual', 'A.Visual', 'L.Arquivo', 'A.Arquivo', 'M²', 'Material', 'Acabamento', 'Obs', 'Patrocinador', ''].map((h) => (
-                    <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #ebe9e7', whiteSpace: 'nowrap' }}>{h}</th>
+                <tr style={{ backgroundColor: '#f5f4f2', position: 'sticky', top: 0, zIndex: 2, boxShadow: '0 1px 0 #e8e6e3' }}>
+                  {[
+                    { label: 'Descrição', tip: 'Nome da peça' },
+                    { label: 'Qtd', tip: 'Quantidade' },
+                    { label: 'Visual', tip: 'Largura × Altura visual (m)' },
+                    { label: 'Arquivo', tip: 'Largura × Altura do arquivo (m)' },
+                    { label: 'M²', tip: 'Metros quadrados calculados' },
+                    { label: 'Material', tip: '' },
+                    { label: 'Acabamento', tip: '' },
+                    { label: 'Obs', tip: 'Observações' },
+                    { label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar' },
+                    { label: '', tip: '' },
+                  ].map((h, i) => (
+                    <th key={i} title={h.tip} style={{ padding: '10px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h.label}</th>
                   ))}
                 </tr>
               </thead>
@@ -2837,69 +2964,100 @@ export default function EventDetail() {
                     groupMap.get(t)!.push(item);
                   }
                   const groups = Array.from(groupMap.entries());
-                  return groups.map(([type, groupItems], gIdx) => (
-                    <>
-                      {gIdx > 0 && (
-                        <tr key={`spacer-${type}-${gIdx}`}>
-                          <td colSpan={12} style={{ height: 10, backgroundColor: '#f5f4f2', borderTop: '2px solid #e8e6e3', borderBottom: '1px solid #e8e6e3' }} />
+                  return groups.map(([type, groupItems], gIdx) => {
+                    const groupM2 = groupItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
+                    const groupLinked = groupItems.filter(i => i.suggestedSponsorId).length;
+                    return (
+                      <>
+                        {gIdx > 0 && (
+                          <tr key={`spacer-${type}-${gIdx}`}>
+                            <td colSpan={10} style={{ height: 6, backgroundColor: '#f0efed' }} />
+                          </tr>
+                        )}
+                        <tr key={`header-${type}-${gIdx}`}>
+                          <td colSpan={10} style={{ padding: '10px 14px 9px', background: 'linear-gradient(90deg, #f0eeec 0%, #f5f4f2 100%)', borderTop: gIdx > 0 ? '2px solid #e2deda' : undefined, borderBottom: '1px solid #e2deda' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 4, height: 18, backgroundColor: '#f97316', borderRadius: 2, flexShrink: 0 }} />
+                                <span style={{ fontWeight: 800, fontSize: 14, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em' }}>{type}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '2px 10px' }}>
+                                  {groupItems.length} {groupItems.length === 1 ? 'peça' : 'peças'}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                {groupM2 > 0 && (
+                                  <span style={{ fontSize: 11, color: '#78716c' }}>
+                                    <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700, color: '#ea580c' }}>{groupM2.toFixed(2)}</span> m²
+                                  </span>
+                                )}
+                                <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? '#16a34a' : '#d97706', fontWeight: 600 }}>
+                                  {groupLinked}/{groupItems.length} vinculados
+                                </span>
+                              </div>
+                            </div>
+                          </td>
                         </tr>
-                      )}
-                      <tr key={`header-${type}-${gIdx}`}>
-                        <td colSpan={12} style={{ padding: '8px 12px 6px', backgroundColor: '#f0eeec', borderBottom: '1px solid #e2deda' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontWeight: 800, fontSize: 13, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em' }}>{type}</span>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c', backgroundColor: '#e2deda', borderRadius: 9999, padding: '1px 9px' }}>
-                              {groupItems.length} {groupItems.length === 1 ? 'peça' : 'peças'}
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                      {groupItems.map((row, rowIdx) => (
-                        <ImportPreviewRow
-                          key={row._id}
-                          row={row}
-                          idx={rowIdx}
-                          onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
-                          onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
-                          eventSponsorsList={eventSponsorsList}
-                        />
-                      ))}
-                    </>
-                  ));
+                        {groupItems.map((row, rowIdx) => (
+                          <ImportPreviewRow
+                            key={row._id}
+                            row={row}
+                            idx={rowIdx}
+                            onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
+                            onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
+                            eventSponsorsList={eventSponsorsList}
+                          />
+                        ))}
+                      </>
+                    );
+                  });
                 })()}
               </tbody>
             </table>
             {(!importPreviewItems || importPreviewItems.length === 0) && (
-              <div style={{ padding: 40, textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
-                Nenhuma peça para importar.
+              <div style={{ padding: 60, textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
+                <List style={{ width: 32, height: 32, color: '#d0cdc9', margin: '0 auto 12px' }} />
+                <div>Nenhuma peça para importar.</div>
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '14px 28px 20px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, backgroundColor: '#fafaf9' }}>
-            <Button variant="outline" onClick={() => { setImportPreviewOpen(false); setImportDialogOpen(true); }}>
-              Voltar
-            </Button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 12, color: '#78716c' }}>{importPreviewItems?.length ?? 0} peças serão importadas</span>
-              <Button
-                onClick={() => {
-                  if (importPreviewItems && importPreviewItems.length > 0)
-                    confirmImportMutation.mutate({ items: importPreviewItems, fileName: importFileName });
-                }}
-                disabled={!importPreviewItems || importPreviewItems.length === 0 || confirmImportMutation.isPending}
-                data-testid="button-confirm-import"
-                style={{ backgroundColor: '#1c1917', color: '#ffffff' }}
-              >
-                {confirmImportMutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...</>
-                ) : (
-                  <><Upload className="h-4 w-4 mr-2" /> Confirmar Importação</>
-                )}
-              </Button>
-            </div>
-          </div>
+          {(() => {
+            const allItems = importPreviewItems ?? [];
+            const totalM2 = allItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
+            const linkedCount = allItems.filter(i => i.suggestedSponsorId).length;
+            return (
+              <div style={{ padding: '14px 28px 18px', borderTop: '2px solid #ebe9e7', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, backgroundColor: '#fafaf9', gap: 16 }}>
+                <Button variant="outline" onClick={() => { setImportPreviewOpen(false); setImportDialogOpen(true); }}>
+                  Voltar
+                </Button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#9c9490' }}>
+                    <span><strong style={{ color: '#1a1c1c' }}>{allItems.length}</strong> peças</span>
+                    <span>·</span>
+                    <span><strong style={{ color: '#ea580c', fontFamily: 'DM Mono, monospace' }}>{totalM2.toFixed(2)}</strong> m²</span>
+                    <span>·</span>
+                    <span><strong style={{ color: linkedCount === allItems.length && allItems.length > 0 ? '#16a34a' : '#d97706' }}>{linkedCount}</strong>/{allItems.length} vinculados</span>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (allItems.length > 0)
+                        confirmImportMutation.mutate({ items: allItems, fileName: importFileName });
+                    }}
+                    disabled={allItems.length === 0 || confirmImportMutation.isPending}
+                    data-testid="button-confirm-import"
+                    style={{ backgroundColor: '#1c1917', color: '#ffffff', minWidth: 180 }}
+                  >
+                    {confirmImportMutation.isPending ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...</>
+                    ) : (
+                      <><Upload className="h-4 w-4 mr-2" /> Confirmar Importação</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

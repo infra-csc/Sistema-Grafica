@@ -561,17 +561,17 @@ export default function Eventos() {
           </div>
 
           {/* Botão Novo Evento */}
-          <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(isOpen); }}>
-            <DialogTrigger asChild>
-              <Button
-                data-testid="button-create-event"
-                style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: '10px', fontWeight: '700', fontSize: '14px', padding: '0 20px', height: '40px', gap: '8px', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}
-              >
-                <Plus className="h-4 w-4" />
-                Novo Evento
-              </Button>
-            </DialogTrigger>
+          <Button
+            data-testid="button-create-event"
+            onClick={() => { setEditingEvent(null); setOpen(true); }}
+            style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: '10px', fontWeight: '700', fontSize: '14px', padding: '0 20px', height: '40px', gap: '8px', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}
+          >
+            <Plus className="h-4 w-4" />
+            Novo Evento
+          </Button>
 
+          {/* ── MODAL CRIAR / EDITAR (Dialog 100% controlado, sem DialogTrigger) ── */}
+          <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(isOpen); }}>
             {/* ── MODAL CRIAR / EDITAR ── */}
             <DialogContent className="sm:max-w-[720px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' }}>
               {/* Cabeçalho */}

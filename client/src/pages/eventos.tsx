@@ -641,75 +641,95 @@ export default function Eventos() {
                               const currentQuota = sponsorQuotaMap[sponsor.id] || '';
                               const quotaOpt = QUOTA_OPTIONS.find(q => q.value === currentQuota);
                               return (
-                                <div key={sponsor.id} style={{ borderBottom: '1px solid #ebe9e7' }}>
-                                  {/* Main row */}
-                                  <label
-                                    htmlFor={`sponsor-${sponsor.id}`}
-                                    style={{
-                                      display: 'flex', alignItems: 'center', gap: '10px',
-                                      padding: '8px 14px', cursor: 'pointer',
-                                      backgroundColor: isSelected ? '#fff7ed' : 'transparent',
-                                      transition: 'background-color 0.1s',
-                                    }}
-                                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = '#ebe9e7'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? '#fff7ed' : 'transparent'; }}
-                                  >
-                                    <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, flexShrink: 0, boxShadow: `0 0 0 2px ${color}33` }} />
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <span style={{ fontSize: '13px', fontWeight: isSelected ? '700' : '500', color: '#1a1c1c', lineHeight: 1.2, display: 'block' }}>
-                                        {sponsor.name}
-                                      </span>
-                                      {sponsor.company && (
-                                        <span style={{ fontSize: '10px', color: '#78716c', lineHeight: 1, fontWeight: '400', display: 'block', marginTop: 1 }}>{sponsor.company}</span>
-                                      )}
-                                    </div>
-                                    {/* Quota badge preview (when set) */}
-                                    {isSelected && quotaOpt && (
-                                      <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 9, fontWeight: 800, backgroundColor: quotaOpt.color + '20', color: quotaOpt.color, textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0 }}>
-                                        {quotaOpt.label}
-                                      </span>
+                                <div
+                                  key={sponsor.id}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '9px 14px',
+                                    borderBottom: '1px solid #f0efed',
+                                    backgroundColor: isSelected ? '#fff8f2' : 'transparent',
+                                    transition: 'background-color 0.12s',
+                                    cursor: 'pointer',
+                                  }}
+                                  onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = '#f5f4f2'; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? '#fff8f2' : 'transparent'; }}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                                      setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });
+                                    } else {
+                                      setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                                    }
+                                  }}
+                                >
+                                  {/* Color dot */}
+                                  <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: color, flexShrink: 0, boxShadow: `0 0 0 2px ${color}33` }} />
+
+                                  {/* Name */}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500, color: '#1a1c1c', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {sponsor.name}
+                                    </span>
+                                    {sponsor.company && (
+                                      <span style={{ fontSize: 10, color: '#a8a29e', display: 'block', lineHeight: 1.2 }}>{sponsor.company}</span>
                                     )}
-                                    <Checkbox
-                                      id={`sponsor-${sponsor.id}`}
-                                      checked={isSelected}
-                                      onCheckedChange={(checked) => {
-                                        if (checked) {
-                                          setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
-                                          // Pre-fill with sponsor's default quota if set
-                                          const defaultQ = (sponsor as any).quota;
-                                          if (defaultQ) setSponsorQuotaMap(prev => ({ ...prev, [sponsor.id]: defaultQ }));
-                                        } else {
-                                          setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
-                                          setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });
-                                        }
-                                      }}
-                                      data-testid={`checkbox-sponsor-${sponsor.id}`}
-                                      className="border-[#c4bfbb] bg-white data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-sm flex-shrink-0"
-                                    />
-                                  </label>
-                                  {/* Quota pill selector (visible when selected) */}
+                                  </div>
+
+                                  {/* Quota select — only when selected */}
                                   {isSelected && (
-                                    <div style={{ padding: '4px 14px 10px 34px', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; })}
-                                        style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 9, fontWeight: 700, border: `1px solid ${!currentQuota ? '#1a1c1c' : '#d8d5d2'}`, backgroundColor: !currentQuota ? '#1a1c1c' : 'transparent', color: !currentQuota ? '#fff' : '#78716c', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em' }}
-                                      >
-                                        Sem cota
-                                      </button>
+                                    <select
+                                      value={currentQuota}
+                                      onClick={e => e.stopPropagation()}
+                                      onChange={e => {
+                                        const v = e.target.value;
+                                        setSponsorQuotaMap(prev => {
+                                          const n = { ...prev };
+                                          if (v) n[sponsor.id] = v; else delete n[sponsor.id];
+                                          return n;
+                                        });
+                                      }}
+                                      data-testid={`quota-select-${sponsor.id}`}
+                                      style={{
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        letterSpacing: '0.05em',
+                                        textTransform: 'uppercase',
+                                        borderRadius: 6,
+                                        border: `1.5px solid ${quotaOpt ? quotaOpt.color : '#d8d5d2'}`,
+                                        backgroundColor: quotaOpt ? quotaOpt.color + '15' : '#f5f4f2',
+                                        color: quotaOpt ? quotaOpt.color : '#78716c',
+                                        padding: '4px 8px',
+                                        cursor: 'pointer',
+                                        outline: 'none',
+                                        flexShrink: 0,
+                                        minWidth: 90,
+                                      }}
+                                    >
+                                      <option value="">Sem cota</option>
                                       {QUOTA_OPTIONS.map(q => (
-                                        <button
-                                          key={q.value}
-                                          type="button"
-                                          data-testid={`quota-${sponsor.id}-${q.value}`}
-                                          onClick={() => setSponsorQuotaMap(prev => ({ ...prev, [sponsor.id]: q.value }))}
-                                          style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 9, fontWeight: 700, border: `1px solid ${currentQuota === q.value ? q.color : '#d8d5d2'}`, backgroundColor: currentQuota === q.value ? q.color + '20' : 'transparent', color: currentQuota === q.value ? q.color : '#78716c', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'all 0.1s' }}
-                                        >
+                                        <option key={q.value} value={q.value} data-testid={`quota-${sponsor.id}-${q.value}`}>
                                           {q.label}
-                                        </button>
+                                        </option>
                                       ))}
-                                    </div>
+                                    </select>
                                   )}
+
+                                  {/* Checkbox */}
+                                  <Checkbox
+                                    id={`sponsor-${sponsor.id}`}
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                                      } else {
+                                        setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                                        setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });
+                                      }
+                                    }}
+                                    onClick={e => e.stopPropagation()}
+                                    data-testid={`checkbox-sponsor-${sponsor.id}`}
+                                    className="border-[#c4bfbb] bg-white data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-sm flex-shrink-0"
+                                  />
                                 </div>
                               );
                             });

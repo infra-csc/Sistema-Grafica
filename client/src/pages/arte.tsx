@@ -284,107 +284,203 @@ export default function Arte() {
     const win = window.open("", "_blank");
     if (!win) return;
 
-    // Detect group changes to add group banners
-    const multipleGroups = (() => {
-      const keys = new Set(items.map(i => `${i.event?.name || ""}|||${i.type}`));
-      return keys.size > 1;
-    })();
+    const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
+      solicitado:                { label: "Solicitado",           color: "#92400e", bg: "#fef3c7" },
+      aguardando_vinculacao:     { label: "Ag. Vinculação",       color: "#6b21a8", bg: "#f5f3ff" },
+      aguardando_envio:          { label: "Ag. Envio",            color: "#1e40af", bg: "#eff6ff" },
+      aguardando_aprovacao:      { label: "Ag. Aprovação",        color: "#b45309", bg: "#fff7ed" },
+      aguardando_finalizacao:    { label: "Ag. Finalização",      color: "#0369a1", bg: "#e0f2fe" },
+      aguardando_revisao_final:  { label: "Ag. Revisão Final",    color: "#9d174d", bg: "#fdf2f8" },
+      pronto_para_producao:      { label: "Pronto para Produção", color: "#065f46", bg: "#d1fae5" },
+      liberado:                  { label: "Liberado",             color: "#065f46", bg: "#d1fae5" },
+      em_producao:               { label: "Em Produção",          color: "#1e40af", bg: "#dbeafe" },
+      produzido:                 { label: "Produzido",            color: "#1e3a5f", bg: "#bfdbfe" },
+      entregue:                  { label: "Entregue",             color: "#1c1917", bg: "#e7e5e4" },
+    };
 
-    let lastGroupKey = "";
-    const rows = items.map(item => {
-      const groupKey = `${item.event?.name || "Sem Evento"}|||${item.type}`;
-      const isFirstOfGroup = groupKey !== lastGroupKey;
-      lastGroupKey = groupKey;
+    const now = new Date();
+    const today = now.toLocaleDateString('pt-BR');
+    const nowStr = now.toLocaleString('pt-BR');
 
-      const groupBanner = (multipleGroups && isFirstOfGroup)
-        ? `<div class="group-banner">
-             <span class="group-banner-event">${item.event?.name || "Sem Evento"}</span>
-             <span class="group-banner-sep"> › </span>
-             <span class="group-banner-type">${typeToGroup[item.type] ? typeToGroup[item.type] + " — " : ""}${item.type}</span>
-           </div>`
-        : "";
-
+    const rows = items.map((item, idx) => {
       const thumbUrl = item.approvalThumbUrl || "";
       const isImg = thumbUrl && !/\.pdf$/i.test(thumbUrl) && (/\.(png|jpg|jpeg|gif|webp|svg)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/") || thumbUrl.includes("/.private/"));
       const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
-      const dims = item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—";
-      const dimsSang = item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : "";
-      const groupLabel = typeToGroup[item.type] ? `${typeToGroup[item.type]} › ${item.type}` : item.type;
-      const sponsorsList = item.sponsors?.length ? item.sponsors.map((s: any) => s.name).join(', ') : "";
-      const today = new Date().toLocaleDateString('pt-BR');
+
+      const dims = item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight} cm` : "—";
+      const dimsSang = item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight} cm` : "";
+      const groupLabel = typeToGroup[item.type] ? typeToGroup[item.type] : "";
+      const status = STATUS_LABELS[item.status] || { label: item.status || "—", color: "#78716c", bg: "#f5f5f4" };
+
+      const startDate = item.event?.startDate
+        ? new Date(item.event.startDate).toLocaleDateString('pt-BR')
+        : "";
+      const truckDate = item.event?.truckDepartureDate
+        ? new Date(item.event.truckDepartureDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : "";
+
+      const sponsorsHtml = item.sponsors?.length
+        ? item.sponsors.map((s: any) => {
+            const c = s.color || "#3b82f6";
+            return `<span class="sponsor-chip" style="border-color:${c}33;background:${c}11">
+              <span class="sponsor-dot" style="background:${c}"></span>${s.name}
+            </span>`;
+          }).join("")
+        : `<span style="font-size:10px;color:#a8a29e;">—</span>`;
+
+      const pageNum = `${idx + 1} / ${items.length}`;
+
       return `
         <div class="page">
-          ${groupBanner}
+          <!-- Brand strip -->
+          <div class="brand-strip">
+            <div class="brand-left">
+              <span class="brand-n">N</span>
+              <span class="brand-name">NORTE <span class="brand-sub">Marketing Esportivo</span></span>
+            </div>
+            <div class="brand-right">
+              <span class="brand-gen">Gerado em ${nowStr}</span>
+              <span class="brand-pg">${pageNum}</span>
+            </div>
+          </div>
+
+          <!-- Header -->
           <div class="header">
-            <span class="id-badge">${item.displayId || "#—"}</span>
+            <div class="id-block">
+              <div class="id-badge">${item.displayId || "#—"}</div>
+              <div class="status-pill" style="color:${status.color};background:${status.bg};">${status.label}</div>
+            </div>
             <div class="header-text">
               <div class="event-name">${item.event?.name || "Sem Evento"}</div>
-              <div class="type-label">${groupLabel}</div>
+              <div class="type-row">
+                ${groupLabel ? `<span class="group-crumb">${groupLabel}</span><span class="crumb-sep">›</span>` : ""}
+                <span class="type-label">${item.type || "—"}</span>
+              </div>
             </div>
           </div>
+
+          <!-- Body -->
           <div class="body">
-            <div class="thumb">
+            <!-- Thumbnail -->
+            <div class="thumb-wrap">
               ${isImg
-                ? `<img src="${resolvedThumb}" alt="Thumb" />`
+                ? `<img src="${resolvedThumb}" alt="Thumbnail" />`
                 : thumbUrl
-                  ? `<div class="no-thumb"><div class="no-thumb-icon">PDF</div><span>Arquivo vinculado</span></div>`
-                  : `<div class="no-thumb"><div class="no-thumb-icon">—</div><span>Sem thumbnail</span></div>`
+                  ? `<div class="no-thumb"><div class="no-thumb-icon">PDF</div><div class="no-thumb-sub">Arquivo PDF vinculado</div></div>`
+                  : `<div class="no-thumb"><div class="no-thumb-icon">—</div><div class="no-thumb-sub">Sem thumbnail</div></div>`
               }
             </div>
+
+            <!-- Info panel -->
             <div class="info">
-              <div class="field"><span class="lbl">Tipo</span><span class="val">${item.type || "—"}</span></div>
+              <!-- Section: Identificação -->
+              <div class="section-title">Identificação</div>
+              <div class="field"><span class="lbl">Tipo de Peça</span><span class="val">${item.type || "—"}</span></div>
               ${item.description ? `<div class="field"><span class="lbl">Descrição</span><span class="val">${item.description}</span></div>` : ""}
-              <div class="field"><span class="lbl">Quantidade</span><span class="val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
-              <div class="field"><span class="lbl">Medidas (V × A)</span><span class="val">${dims}${dimsSang ? `<span class="val-sub">${dimsSang} (sangria)</span>` : ""}</span></div>
+              <div class="field"><span class="lbl">Quantidade</span><span class="val big-val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
+
+              <!-- Section: Técnico -->
+              <div class="section-title" style="margin-top:10px;">Técnico</div>
+              <div class="field">
+                <span class="lbl">Medidas Visuais</span>
+                <span class="val">${dims}${dimsSang ? `<span class="val-sub">Sangria: ${dimsSang}</span>` : ""}</span>
+              </div>
+              ${item.calculatedM2 ? `<div class="field"><span class="lbl">Área (m²)</span><span class="val">${item.calculatedM2}</span></div>` : ""}
               ${item.material ? `<div class="field"><span class="lbl">Material</span><span class="val">${item.material}</span></div>` : ""}
               ${item.finish ? `<div class="field"><span class="lbl">Acabamento</span><span class="val">${item.finish}</span></div>` : ""}
-              ${sponsorsList ? `<div class="field"><span class="lbl">Patrocinadores</span><span class="val">${sponsorsList}</span></div>` : ""}
+              ${item.observations ? `<div class="field"><span class="lbl">Observações</span><span class="val obs-val">${item.observations}</span></div>` : ""}
+
+              <!-- Section: Evento -->
+              ${(startDate || truckDate) ? `
+              <div class="section-title" style="margin-top:10px;">Evento</div>
+              ${startDate ? `<div class="field"><span class="lbl">Data do Evento</span><span class="val">${startDate}</span></div>` : ""}
+              ${truckDate ? `<div class="field"><span class="lbl">Saída Caminhão</span><span class="val">${truckDate}</span></div>` : ""}
+              ` : ""}
+
+              <!-- Section: Patrocinadores -->
+              ${item.sponsors?.length ? `
+              <div class="section-title" style="margin-top:10px;">Patrocinadores</div>
+              <div class="sponsors-wrap">${sponsorsHtml}</div>
+              ` : ""}
             </div>
           </div>
+
+          <!-- Footer -->
           <div class="page-footer">
-            <span class="footer-brand">NORTE Marketing Esportivo</span>
-            <span class="footer-meta">${item.displayId} · ${today}</span>
+            <div class="footer-left">
+              <span class="footer-brand">NORTE Marketing Esportivo</span>
+              <span class="footer-dot">·</span>
+              <span class="footer-copy">Documento interno — uso exclusivo da equipe de produção gráfica</span>
+            </div>
+            <span class="footer-meta">${item.displayId || ""} · ${today}</span>
           </div>
         </div>
       `;
     }).join("");
+
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
       <title>${title}</title>
       <style>
         ${pdfStyles}
-        /* Page */
-        .page { width: 100%; height: 273mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
+        /* ── Page ── */
+        .page { width: 100%; height: 273mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; gap: 0; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
-        /* Group banner */
-        .group-banner { display: flex; align-items: center; background: #1c1917; border-radius: 6px; padding: 7px 14px; margin-bottom: 12px; flex-shrink: 0; }
-        .group-banner-event { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.75); }
-        .group-banner-sep { font-size: 10px; color: rgba(255,255,255,0.35); margin: 0 8px; }
-        .group-banner-type { font-size: 10px; font-weight: 700; color: #fb923c; }
-        /* Header */
-        .header { display: flex; align-items: flex-start; gap: 14px; border-bottom: 2.5px solid #f97316; padding-bottom: 12px; margin-bottom: 16px; flex-shrink: 0; }
-        .id-badge { font-family: 'Courier New', monospace; font-size: 17px; font-weight: 800; color: #f97316; flex-shrink: 0; line-height: 1.2; padding-top: 3px; }
-        .header-text { flex: 1; min-width: 0; }
-        .event-name { font-size: 20px; font-weight: 800; color: #1c1917; line-height: 1.2; letter-spacing: -0.02em; word-break: break-word; overflow-wrap: break-word; }
-        .type-label { font-size: 10px; font-weight: 700; color: #a8a29e; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 5px; }
-        /* Body */
-        .body { display: flex; gap: 22px; flex: 1; min-height: 0; }
-        .thumb { flex: 1; min-height: 0; min-width: 0; display: flex; align-items: flex-start; }
-        .thumb img { width: 100%; height: 100%; max-height: 210mm; object-fit: contain; border-radius: 8px; border: 1px solid #e7e5e4; display: block; }
-        .no-thumb { width: 100%; min-height: 140px; background: #f9f8f7; border-radius: 8px; border: 1.5px dashed #d4d4d0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
-        .no-thumb-icon { font-size: 18px; font-weight: 800; color: #d4d4d0; }
-        .no-thumb span { font-size: 11px; color: #a8a29e; }
-        /* Info panel */
-        .info { width: 190px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1.5px solid #f0ede8; padding-left: 20px; }
-        .field { padding: 10px 0; border-bottom: 1px solid #f5f5f4; }
-        .field:first-child { padding-top: 0; }
+
+        /* ── Brand strip ── */
+        .brand-strip { display: flex; align-items: center; justify-content: space-between; background: #1c1917; border-radius: 6px; padding: 6px 14px; margin-bottom: 14px; flex-shrink: 0; }
+        .brand-left { display: flex; align-items: center; gap: 8px; }
+        .brand-n { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: #f97316; border-radius: 4px; font-size: 11px; font-weight: 900; color: #fff; letter-spacing: -0.02em; flex-shrink: 0; }
+        .brand-name { font-size: 11px; font-weight: 800; color: #ffffff; letter-spacing: 0.04em; text-transform: uppercase; }
+        .brand-sub { font-weight: 400; color: rgba(255,255,255,0.5); font-size: 10px; text-transform: none; letter-spacing: 0; }
+        .brand-right { display: flex; align-items: center; gap: 12px; }
+        .brand-gen { font-size: 8px; color: rgba(255,255,255,0.4); }
+        .brand-pg { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.35); font-family: monospace; }
+
+        /* ── Header ── */
+        .header { display: flex; align-items: flex-start; gap: 16px; border-bottom: 2px solid #f0ede8; padding-bottom: 12px; margin-bottom: 14px; flex-shrink: 0; }
+        .id-block { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; flex-shrink: 0; }
+        .id-badge { font-family: 'Courier New', monospace; font-size: 15px; font-weight: 900; color: #fff; background: #f97316; padding: 3px 10px; border-radius: 5px; line-height: 1.3; letter-spacing: 0.02em; }
+        .status-pill { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+        .header-text { flex: 1; min-width: 0; padding-top: 2px; }
+        .event-name { font-size: 22px; font-weight: 800; color: #1c1917; line-height: 1.15; letter-spacing: -0.025em; word-break: break-word; overflow-wrap: break-word; }
+        .type-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+        .group-crumb { font-size: 10px; font-weight: 600; color: #a8a29e; text-transform: uppercase; letter-spacing: 0.06em; }
+        .crumb-sep { font-size: 10px; color: #d4d0cc; }
+        .type-label { font-size: 10px; font-weight: 800; color: #f97316; text-transform: uppercase; letter-spacing: 0.08em; }
+
+        /* ── Body ── */
+        .body { display: flex; gap: 20px; flex: 1; min-height: 0; }
+
+        /* ── Thumbnail ── */
+        .thumb-wrap { flex: 1; min-height: 0; min-width: 0; display: flex; align-items: flex-start; background: #fafaf9; border-radius: 8px; border: 1px solid #e7e5e4; overflow: hidden; }
+        .thumb-wrap img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .no-thumb { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px 16px; }
+        .no-thumb-icon { font-size: 22px; font-weight: 800; color: #d4d4d0; }
+        .no-thumb-sub { font-size: 11px; color: #a8a29e; }
+
+        /* ── Info panel ── */
+        .info { width: 185px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1.5px solid #f0ede8; padding-left: 18px; overflow: hidden; }
+        .section-title { font-size: 7px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.14em; color: #c4bfbb; padding-bottom: 6px; border-bottom: 1px solid #f0ede8; margin-bottom: 4px; }
+        .field { padding: 7px 0; border-bottom: 1px solid #f9f8f7; }
         .field:last-child { border-bottom: none; }
-        .lbl { font-size: 7.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #a8a29e; display: block; margin-bottom: 4px; }
-        .val { font-size: 12px; font-weight: 600; color: #1c1917; line-height: 1.4; word-break: break-word; overflow-wrap: break-word; }
-        .val-sub { display: block; font-size: 10px; color: #78716c; font-weight: 500; margin-top: 2px; }
-        /* Footer */
-        .page-footer { flex-shrink: 0; margin-top: 10px; padding-top: 8px; border-top: 1px solid #f0ede8; display: flex; align-items: center; justify-content: space-between; }
-        .footer-brand { font-size: 7.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #c4c0ba; }
-        .footer-meta { font-family: monospace; font-size: 8px; color: #d4d4d0; }
+        .lbl { font-size: 7px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #a8a29e; display: block; margin-bottom: 3px; }
+        .val { font-size: 11.5px; font-weight: 600; color: #1c1917; line-height: 1.35; word-break: break-word; overflow-wrap: break-word; display: block; }
+        .big-val { font-size: 15px; font-weight: 800; color: #f97316; }
+        .val-sub { display: block; font-size: 9.5px; color: #78716c; font-weight: 500; margin-top: 2px; }
+        .obs-val { font-size: 10px; font-weight: 400; color: #57534e; font-style: italic; }
+
+        /* ── Sponsor chips ── */
+        .sponsors-wrap { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; }
+        .sponsor-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #1c1917; padding: 3px 7px; border-radius: 20px; border: 1px solid transparent; }
+        .sponsor-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+        /* ── Footer ── */
+        .page-footer { flex-shrink: 0; margin-top: 10px; padding-top: 8px; border-top: 1.5px solid #f0ede8; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .footer-left { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
+        .footer-brand { font-size: 7.5px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.12em; color: #f97316; white-space: nowrap; }
+        .footer-dot { font-size: 7.5px; color: #d4d0cc; }
+        .footer-copy { font-size: 7px; color: #c4bfbb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .footer-meta { font-family: monospace; font-size: 8px; color: #c4bfbb; white-space: nowrap; flex-shrink: 0; }
       </style>
     </head><body>${rows}</body></html>`);
     win.document.close();

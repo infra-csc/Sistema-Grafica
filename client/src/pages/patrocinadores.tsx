@@ -246,7 +246,6 @@ export default function Patrocinadores() {
               <thead>
                 <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
                   <th style={thStyle}>Nome do Patrocinador</th>
-                  <th style={thStyle}>Cota</th>
                   <th style={thStyle}>Empresa</th>
                   <th style={thStyle}>Contato Responsável</th>
                   <th style={thStyle}>E-mail</th>
@@ -275,18 +274,6 @@ export default function Patrocinadores() {
                             {sponsor.name}
                           </span>
                         </div>
-                      </td>
-
-                      {/* Cota */}
-                      <td style={{ padding: "16px 20px" }}>
-                        {(sponsor as any).quota ? (() => {
-                          const q = QUOTA_OPTIONS.find(o => o.value === (sponsor as any).quota);
-                          return q ? (
-                            <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", backgroundColor: q.color + "1a", color: q.color, border: `1px solid ${q.color}40`, textTransform: "uppercase" }}>
-                              {q.label}
-                            </span>
-                          ) : null;
-                        })() : <span style={{ color: T.muted, fontStyle: "italic", fontSize: 12 }}>—</span>}
                       </td>
 
                       {/* Empresa */}
@@ -495,37 +482,6 @@ export default function Patrocinadores() {
                         )} />
                       </div>
 
-                      {/* Cota Comercial */}
-                      <div style={{ marginTop: 16 }}>
-                        <FormField control={form.control} name="quota" render={({ field }) => (
-                          <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Cota Comercial</label>
-                            <FormControl>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => field.onChange("")}
-                                  style={{ padding: "8px 16px", borderRadius: 6, border: `2px solid ${!field.value ? T.dark : T.border}`, backgroundColor: !field.value ? T.dark : "transparent", color: !field.value ? "#fff" : T.second, fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.1em", transition: "all 0.15s" }}
-                                >
-                                  Sem Cota
-                                </button>
-                                {QUOTA_OPTIONS.map(q => (
-                                  <button
-                                    key={q.value}
-                                    type="button"
-                                    data-testid={`quota-btn-${q.value}`}
-                                    onClick={() => field.onChange(field.value === q.value ? "" : q.value)}
-                                    style={{ padding: "8px 16px", borderRadius: 6, border: `2px solid ${field.value === q.value ? q.color : T.border}`, backgroundColor: field.value === q.value ? q.color : "transparent", color: field.value === q.value ? "#fff" : T.second, fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.1em", transition: "all 0.15s" }}
-                                  >
-                                    {q.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                      </div>
                     </section>
 
                     {/* ─ 02 Identidade Visual ─ */}

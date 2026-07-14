@@ -489,6 +489,7 @@ export default function VincularPatrocinadores() {
   const loadedItemIdsRef = useRef(new Set<string>());
 
   // Carregar sponsors apenas dos items ainda NÃO carregados
+  // Também pré-carrega sponsors do evento para rascunho automático
   useEffect(() => {
     if (itemsLoading || !visibleItems || visibleItems.length === 0) return;
 
@@ -497,28 +498,72 @@ export default function VincularPatrocinadores() {
 
     let cancelled = false;
 
-    Promise.all(
-      unloaded.map(async (item) => {
-        try {
-          const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
-          const itemSponsors = await response.json();
-          const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
-          return { itemId: item.id, sponsorIds };
-        } catch (error) {
-          console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
-          return { itemId: item.id, sponsorIds: [] };
-        }
-      })
-    ).then(results => {
+    // Eventos únicos dos items não carregados (para buscar sponsors do evento)
+    const uniqueEventIds = [...new Set(unloaded.map(item => item.eventId))];
+
+    Promise.all([
+      // 1. Sponsors de cada item
+      Promise.all(
+        unloaded.map(async (item) => {
+          try {
+            const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
+            const itemSponsors = await response.json();
+            const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
+            return { itemId: item.id, sponsorIds, eventId: item.eventId, status: item.status };
+          } catch (error) {
+            console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
+            return { itemId: item.id, sponsorIds: [], eventId: item.eventId, status: item.status };
+          }
+        })
+      ),
+      // 2. Sponsors de cada evento (para rascunho automático)
+      Promise.all(
+        uniqueEventIds.map(async (eventId) => {
+          try {
+            const res = await apiRequest("GET", `/api/events/${eventId}/sponsors`);
+            const eventSponsors = await res.json();
+            return { eventId, sponsorIds: eventSponsors.map((es: any) => es.sponsorId).filter(Boolean) };
+          } catch {
+            return { eventId, sponsorIds: [] };
+          }
+        })
+      ),
+    ]).then(([itemResults, eventResults]) => {
       if (cancelled) return;
-      const newEntries = results.reduce((acc, { itemId, sponsorIds }) => ({
-        ...acc,
-        [itemId]: sponsorIds
-      }), {} as Record<string, string[]>);
+
+      // Mapa: eventId → [sponsorId, ...]
+      const eventSponsorsByEvent: Record<string, string[]> = {};
+      eventResults.forEach(({ eventId, sponsorIds }) => {
+        eventSponsorsByEvent[eventId] = sponsorIds;
+      });
+
+      const newEntries: Record<string, string[]> = {};
+      const newOriginals: Record<string, string[]> = {};
+      const newPendingDrafts: Record<string, ItemChanges> = {};
+
+      itemResults.forEach(({ itemId, sponsorIds, eventId, status }) => {
+        newOriginals[itemId] = sponsorIds; // verdade do banco
+
+        const canAutoDraft = sponsorIds.length === 0 &&
+          ['requested', 'awaiting_linking'].includes(status);
+        const eventSpIds = eventSponsorsByEvent[eventId] ?? [];
+
+        if (canAutoDraft && eventSpIds.length > 0) {
+          // Pré-preenche com sponsors do evento como rascunho
+          newEntries[itemId] = eventSpIds;
+          newPendingDrafts[itemId] = { sponsorIds: eventSpIds, skipApproval: false, isDirty: true };
+        } else {
+          newEntries[itemId] = sponsorIds;
+        }
+      });
+
       // MERGE — nunca substitui entradas já existentes (evita overwrite de updates otimistas)
       setItemSponsorsMap(prev => ({ ...newEntries, ...prev }));
-      setOriginalSponsorsMap(prev => ({ ...newEntries, ...prev }));
-      results.forEach(({ itemId }) => loadedItemIdsRef.current.add(itemId));
+      setOriginalSponsorsMap(prev => ({ ...newOriginals, ...prev }));
+      // Pending drafts: só aplica se item ainda não tem mudança pendente manual
+      setPendingChanges(prev => ({ ...newPendingDrafts, ...prev }));
+
+      itemResults.forEach(({ itemId }) => loadedItemIdsRef.current.add(itemId));
     }).catch(error => {
       console.error('Erro ao carregar sponsors:', error);
     });

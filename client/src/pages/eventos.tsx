@@ -709,12 +709,13 @@ export default function Eventos() {
                                   }}
                                   onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = '#f5f4f2'; }}
                                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? '#fff8f2' : 'transparent'; }}
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    if (!e.isTrusted) return;
                                     if (isSelected) {
-                                      setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                                      setSelectedSponsorIds(prev => prev.filter(id => id !== sponsor.id));
                                       setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });
                                     } else {
-                                      setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                                      setSelectedSponsorIds(prev => [...prev, sponsor.id]);
                                     }
                                   }}
                                 >
@@ -776,9 +777,9 @@ export default function Eventos() {
                                     checked={isSelected}
                                     onCheckedChange={(checked) => {
                                       if (checked) {
-                                        setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                                        setSelectedSponsorIds(prev => [...prev, sponsor.id]);
                                       } else {
-                                        setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                                        setSelectedSponsorIds(prev => prev.filter(id => id !== sponsor.id));
                                         setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });
                                       }
                                     }}

@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -72,6 +72,11 @@ export default function EventDetail() {
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<{ total: number; groups: string[] } | null>(null);
+  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
+  const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -138,6 +143,13 @@ export default function EventDetail() {
   const sponsors = allSponsors.filter(sponsor => 
     eventSponsors.some(es => es.sponsorId === sponsor.id)
   );
+
+  // Buscar todos os eventos (para seletor de clone)
+  const { data: allEvents = [] } = useQuery<any[]>({
+    queryKey: ["/api/events"],
+    placeholderData: (previousData: any) => previousData,
+    refetchOnWindowFocus: false,
+  });
 
   // Buscar audit logs para histórico
   const { data: auditLogs = [] } = useQuery<any[]>({
@@ -257,6 +269,63 @@ export default function EventDetail() {
         description: error.message,
         variant: "destructive",
       });
+    },
+  });
+
+  // ── Import Excel mutation ──────────────────────────────────────────────
+  const importXlsxMutation = useMutation({
+    mutationFn: async ({ file }: { file: File }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(`/api/events/${eventId}/import-xlsx`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Erro ao importar");
+      }
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setImportDialogOpen(false);
+      setImportFile(null);
+      setImportPreview(null);
+      toast({
+        title: `${data.imported} peças importadas com sucesso`,
+        description: "Os itens foram adicionados ao evento.",
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // ── Clone items mutation ───────────────────────────────────────────────
+  const cloneItemsMutation = useMutation({
+    mutationFn: async ({ sourceEventId }: { sourceEventId: string }) => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/clone-items`, { sourceEventId });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Erro ao clonar");
+      }
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setCloneDialogOpen(false);
+      setCloneSourceId("");
+      toast({
+        title: `${data.cloned} peças clonadas com sucesso`,
+        description: "Os itens foram copiados para este evento.",
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao clonar", description: error.message, variant: "destructive" });
     },
   });
 
@@ -716,7 +785,31 @@ export default function EventDetail() {
               {event.name}
             </h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {/* Importar Excel */}
+            <button
+              onClick={() => setImportDialogOpen(true)}
+              data-testid="button-import-xlsx"
+              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+            >
+              <Upload className="h-4 w-4" style={{ color: '#22c55e' }} />
+              Importar Excel
+            </button>
+
+            {/* Clonar Evento */}
+            <button
+              onClick={() => setCloneDialogOpen(true)}
+              data-testid="button-clone-event"
+              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+            >
+              <Copy className="h-4 w-4" style={{ color: '#6366f1' }} />
+              Clonar Evento
+            </button>
+
             <button
               onClick={() => {
                 setEditingItem(null);
@@ -2399,6 +2492,191 @@ export default function EventDetail() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Dialog: Importar Excel ─────────────────────────────────────────── */}
+      <Dialog open={importDialogOpen} onOpenChange={(v) => { if (!v) { setImportDialogOpen(false); setImportFile(null); setImportPreview(null); } }}>
+        <DialogContent style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f0efed' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <Upload style={{ width: 18, height: 18, color: '#22c55e' }} />
+              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
+                Importar Lista de Peças (Excel)
+              </DialogTitle>
+            </div>
+            <DialogDescription style={{ fontSize: 12, color: '#78716c', margin: 0, paddingLeft: 28 }}>
+              Selecione o arquivo .xlsx da lista de peças do evento
+            </DialogDescription>
+          </div>
+
+          <div style={{ padding: '24px 28px' }}>
+            {/* Drop zone */}
+            <label
+              htmlFor="xlsx-upload"
+              data-testid="dropzone-xlsx"
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 10, border: '2px dashed', borderColor: importFile ? '#22c55e' : '#d4d0cc',
+                borderRadius: 10, padding: '32px 24px', cursor: 'pointer',
+                backgroundColor: importFile ? '#f0fdf4' : '#fafaf9', transition: 'all 0.2s',
+              }}
+              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#22c55e'; e.currentTarget.style.backgroundColor = '#f0fdf4'; }}
+              onDragLeave={e => { e.currentTarget.style.borderColor = importFile ? '#22c55e' : '#d4d0cc'; e.currentTarget.style.backgroundColor = importFile ? '#f0fdf4' : '#fafaf9'; }}
+              onDrop={e => {
+                e.preventDefault();
+                const f = e.dataTransfer.files[0];
+                if (f && (f.name.endsWith('.xlsx') || f.name.endsWith('.xls'))) {
+                  setImportFile(f);
+                  setImportPreview(null);
+                } else {
+                  toast({ title: "Arquivo inválido", description: "Selecione um arquivo .xlsx", variant: "destructive" });
+                }
+              }}
+            >
+              {importFile ? (
+                <>
+                  <CheckCircle2 style={{ width: 32, height: 32, color: '#22c55e' }} />
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#166534', margin: 0 }}>{importFile.name}</p>
+                    <p style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <button
+                    onClick={e => { e.preventDefault(); setImportFile(null); setImportPreview(null); }}
+                    style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Remover arquivo
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Upload style={{ width: 28, height: 28, color: '#a8a29e' }} />
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#44403c', margin: 0 }}>Arraste o arquivo aqui</p>
+                    <p style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>ou clique para selecionar</p>
+                  </div>
+                  <p style={{ fontSize: 11, color: '#a8a29e', margin: 0 }}>Suporte: .xlsx (formato padrão NORTE)</p>
+                </>
+              )}
+            </label>
+            <input
+              id="xlsx-upload"
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: 'none' }}
+              onChange={e => {
+                const f = e.target.files?.[0];
+                if (f) { setImportFile(f); setImportPreview(null); }
+                e.target.value = "";
+              }}
+            />
+
+            {/* Dica de formato */}
+            <div style={{ marginTop: 16, backgroundColor: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', display: 'flex', gap: 8 }}>
+              <AlertTriangle style={{ width: 14, height: 14, color: '#d97706', flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#92400e', margin: '0 0 2px' }}>Formato esperado</p>
+                <p style={{ fontSize: 11, color: '#78350f', margin: 0, lineHeight: 1.5 }}>
+                  Colunas: <strong>item · qtde · material · acabamento</strong> (obrigatórias)<br />
+                  Opcionais: área · visual · medida do arquivo · obs
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: '16px 28px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <Button variant="outline" onClick={() => { setImportDialogOpen(false); setImportFile(null); setImportPreview(null); }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => { if (importFile) importXlsxMutation.mutate({ file: importFile }); }}
+              disabled={!importFile || importXlsxMutation.isPending}
+              data-testid="button-confirm-import"
+              style={{ backgroundColor: '#22c55e', color: '#ffffff' }}
+            >
+              {importXlsxMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...</>
+              ) : (
+                <><Upload className="h-4 w-4 mr-2" /> Importar Peças</>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Clonar Evento ──────────────────────────────────────────── */}
+      <Dialog open={cloneDialogOpen} onOpenChange={(v) => { if (!v) { setCloneDialogOpen(false); setCloneSourceId(""); } }}>
+        <DialogContent style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f0efed' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <Copy style={{ width: 18, height: 18, color: '#6366f1' }} />
+              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
+                Clonar Peças de Outro Evento
+              </DialogTitle>
+            </div>
+            <DialogDescription style={{ fontSize: 12, color: '#78716c', margin: 0, paddingLeft: 28 }}>
+              Copia todos os itens de um evento anterior para este evento
+            </DialogDescription>
+          </div>
+
+          <div style={{ padding: '24px 28px' }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
+              Selecionar evento de origem
+            </label>
+            <select
+              value={cloneSourceId}
+              onChange={e => setCloneSourceId(e.target.value)}
+              data-testid="select-clone-source"
+              style={{
+                width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid #e7e5e4',
+                fontSize: 14, fontFamily: "'Space Grotesk', sans-serif", color: '#1a1c1c',
+                backgroundColor: '#ffffff', appearance: 'none', cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              <option value="">— Escolha um evento —</option>
+              {allEvents
+                .filter((e: any) => e.id !== eventId)
+                .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .map((e: any) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} {e.startDate ? `(${new Date(e.startDate).toLocaleDateString('pt-BR')})` : ''}
+                  </option>
+                ))}
+            </select>
+
+            {cloneSourceId && (
+              <div style={{ marginTop: 16, backgroundColor: '#f0f0ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <Copy style={{ width: 14, height: 14, color: '#6366f1', flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#3730a3', margin: '0 0 2px' }}>O que será copiado</p>
+                  <p style={{ fontSize: 11, color: '#4338ca', margin: 0, lineHeight: 1.5 }}>
+                    Todos os itens do evento selecionado serão adicionados a <strong>{event?.name}</strong>.<br />
+                    Status: <strong>Solicitado</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: '16px 28px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+            <Button variant="outline" onClick={() => { setCloneDialogOpen(false); setCloneSourceId(""); }}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => { if (cloneSourceId) cloneItemsMutation.mutate({ sourceEventId: cloneSourceId }); }}
+              disabled={!cloneSourceId || cloneItemsMutation.isPending}
+              data-testid="button-confirm-clone"
+              style={{ backgroundColor: '#6366f1', color: '#ffffff' }}
+            >
+              {cloneItemsMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Clonando...</>
+              ) : (
+                <><Copy className="h-4 w-4 mr-2" /> Clonar Peças</>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

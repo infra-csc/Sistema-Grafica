@@ -1,0 +1,113 @@
+Melhore o layout do PDF de exportação de peça enviado ao cliente.
+Este documento deve ter aparência profissional — está muito abaixo do padrão hoje.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REMOVER DO LAYOUT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Badge de status "AWAITING_CREATOR_REVIEW" (informação interna,
+  não faz sentido para o cliente)
+- "Data do Evento"
+- "Saída Caminhão"
+- Timestamp "Gerado em XX/XX/XXXX, HH:MM" no canto (mover para rodapé, discreto)
+- Numeração de página "1/2" solta no canto (mover para rodapé)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MANTER E DAR DESTAQUE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Seção IDENTIFICAÇÃO:
+  - Tipo de peça (Arena)
+  - Descrição
+  - Quantidade
+
+Seção TÉCNICO (a mais importante — dar mais espaço visual):
+  - Medidas visuais
+  - Sangria
+  - Área (m²)
+  - Material
+  - Acabamento
+  - Observações
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NOVO LAYOUT — ESTRUTURA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HEADER (fundo #1c1917, padding 20px 32px):
+  Esquerda: Logo "N" laranja (#f97316) + "NORTE" branco bold +
+  "Marketing Esportivo" cinza claro (rgba(255,255,255,0.6))
+
+  Direita: ID da peça em destaque
+    Chip: background #f97316, color white, font-family monospace,
+    font-size 16px, font-weight 700, padding 6px 14px, border-radius 8px
+    → "#0075"
+
+TÍTULO DA PEÇA (padding 20px 32px, background #ffffff,
+border-bottom 1px solid #e2e8f0):
+  - Nome "Teste": font-size 24px, font-weight 800, color #0f172a
+  - Badge tipo "Arena": background #fff7ed, border 1px solid #fed7aa,
+    color #c2410c, border-radius 100px, font-size 12px,
+    font-weight 600, padding 3px 12px, margin-top 6px
+
+CORPO — LAYOUT LADO A LADO (padding 32px, display flex, gap 32px):
+
+  COLUNA ESQUERDA (60% largura) — IMAGEM:
+    - border-radius 12px, border 1px solid #e2e8f0, overflow hidden
+    - Imagem com object-fit cover, max-height 500px
+    - Legenda abaixo: "Foto de referência" font-size 11px,
+      color #94a3b8, margin-top 8px, text-align center
+
+  COLUNA DIREITA (40% largura) — FICHA TÉCNICA:
+    Card: background #f8fafc, border 1px solid #e2e8f0,
+    border-radius 12px, padding 20px
+
+    Label seção "IDENTIFICAÇÃO":
+      font-size 10px, uppercase, letter-spacing 0.8px,
+      color #94a3b8, font-weight 700, margin-bottom 12px
+
+    Grid de campos (cada um):
+      Label: font-size 10px, uppercase, color #94a3b8,
+      letter-spacing 0.5px
+      Valor: font-size 15px, font-weight 700, color #0f172a,
+      margin-top 2px, margin-bottom 14px
+
+    Campos nesta seção:
+      - Descrição
+      - Quantidade (valor em laranja #f97316, font-weight 800)
+
+    Separador: 1px solid #e2e8f0, margin 16px 0
+
+    Label seção "ESPECIFICAÇÃO TÉCNICA":
+      mesmo estilo do label anterior
+
+    Campos nesta seção (destaque maior — é o mais importante):
+      - Medidas Visuais → valor grande font-size 17px font-weight 800
+      - Sangria → valor normal, cor #64748b
+      - Área (m²) → valor em destaque com badge:
+        background #eff6ff, border 1px solid #bfdbfe,
+        color #2563eb, border-radius 6px, padding 4px 10px,
+        font-weight 700, display inline-block
+      - Material → badge cinza: background #f1f5f9,
+        border 1px solid #e2e8f0, border-radius 6px, padding 3px 10px
+      - Acabamento → badge cinza (mesmo estilo de Material)
+
+    Se houver Observações:
+      Separador + label "OBSERVAÇÕES" + texto em itálico,
+      color #64748b, font-size 13px, background #ffffff,
+      border 1px solid #e2e8f0, border-radius 8px, padding 10px 12px
+
+RODAPÉ DO DOCUMENTO (padding 16px 32px,
+border-top 1px solid #e2e8f0, background #f8fafc):
+  display flex, justify-content space-between
+  - Esquerda: "Gerado em 14/07/2026, 10:49" font-size 10px, color #94a3b8
+  - Direita: "Página 1 de 2" font-size 10px, color #94a3b8
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TIPOGRAFIA E CORES GERAIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Fonte títulos: Space Grotesk (ou similar)
+- Fonte corpo: Plus Jakarta Sans / DM Sans
+- Fonte técnica/IDs: DM Mono
+- Fundo geral do documento: #ffffff
+- Acento: #f97316 (laranja)
+- Escuro: #0f172a
+- Bordas: #e2e8f0
+- Sem sombras pesadas — usar apenas bordas finas e blocos de cor sutil

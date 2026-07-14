@@ -1386,6 +1386,307 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Import items from Excel (.xlsx) ──────────────────────────────────────
+  // Uses multer to handle multipart/form-data upload (avoids JSON body size limits)
+  app.post("/api/events/:id/import-xlsx", async (req, res) => {
+    try {
+      const event = await storage.getEvent(req.params.id);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+
+      // Parse multipart using multer (memory storage)
+      const multer = (await import("multer")).default;
+      const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+      await new Promise<void>((resolve, reject) =>
+        upload.single("file")(req as any, res as any, (err: any) => err ? reject(err) : resolve())
+      );
+
+      const file = (req as any).file as { buffer: Buffer; originalname: string } | undefined;
+      if (!file) return res.status(400).json({ error: "Arquivo .xlsx não encontrado na requisição" });
+
+      // Decode buffer → parse xlsx in-process via AdmZip + XML
+      const { default: AdmZip } = await import("adm-zip");
+      const buf = file.buffer;
+      const zip = new AdmZip(buf);
+
+      // Read shared strings
+      const ssEntry = zip.getEntry("xl/sharedStrings.xml");
+      const sharedStrings: string[] = [];
+      if (ssEntry) {
+        const ssXml = ssEntry.getData().toString("utf8");
+        for (const m of ssXml.matchAll(/<t[^>]*>([^<]*)<\/t>/g)) sharedStrings.push(m[1]);
+      }
+
+      // Helper: parse all rows from a sheet XML into {rowNum → {col → value}}
+      type CellMap = Record<string, string>;
+      function parseSheet(sheetXml: string): Record<number, CellMap> {
+        const result: Record<number, CellMap> = {};
+        for (const rowM of sheetXml.matchAll(/<row r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
+          const rowNum = parseInt(rowM[1]);
+          const cellMap: CellMap = {};
+          // String cells: t="s"
+          for (const cm of rowM[2].matchAll(/<c r="([A-Z]+)\d+"[^>]*t="s"[^>]*><v>(\d+)<\/v><\/c>/g)) {
+            cellMap[cm[1]] = (sharedStrings[parseInt(cm[2])] ?? "").trim();
+          }
+          // Numeric/other cells (no t= attribute or t != "s")
+          for (const cm of rowM[2].matchAll(/<c r="([A-Z]+)\d+"(?![^>]*t="s")[^>]*><v>([^<]+)<\/v><\/c>/g)) {
+            if (!cellMap[cm[1]]) cellMap[cm[1]] = cm[2].trim();
+          }
+          if (Object.keys(cellMap).length > 0) result[rowNum] = cellMap;
+        }
+        return result;
+      }
+
+      // Try sheets in order: sheet2 first (Norte standard format), then sheet1
+      const sheetNames = ["xl/worksheets/sheet2.xml", "xl/worksheets/sheet1.xml",
+                          "xl/worksheets/sheet3.xml", "xl/worksheets/sheet4.xml"];
+
+      let rows: Record<number, CellMap> = {};
+      let headerRow = -1;
+      let colMap: Record<string, string> = {};
+
+      for (const sheetName of sheetNames) {
+        const entry = zip.getEntry(sheetName);
+        if (!entry) continue;
+        const candidate = parseSheet(entry.getData().toString("utf8"));
+
+        // Find header row in this sheet
+        for (const [rn, cells] of Object.entries(candidate)) {
+          const vals = Object.values(cells).map(v => v.toLowerCase().trim());
+          if (vals.includes("item") && (vals.includes("qtde") || vals.includes("qtd") || vals.includes("quantidade"))) {
+            headerRow = parseInt(rn);
+            rows = candidate;
+            // Map column letters to field names
+            for (const [col, val] of Object.entries(cells)) {
+              const v = val.toLowerCase().replace(/\s+/g, " ").trim();
+              if (v === "item") colMap["item"] = col;
+              else if (v === "qtde" || v === "qtd" || v === "quantidade") colMap["qty"] = col;
+              else if (v.startsWith("área") || v === "area" || v === "compr") colMap["width"] = col;
+              else if (v === "visual" || v === "altura") colMap["height"] = col;
+              else if (v === "material") colMap["material"] = col;
+              else if (v === "acabamento") colMap["finish"] = col;
+              else if (v.startsWith("medida do arquivo") || v === "medida arquivo") colMap["fileSize"] = col;
+              else if (v === "m²" || v === "m2") colMap["m2"] = col;
+              else if (v === "obs" || v.startsWith("observa")) colMap["obs"] = col;
+            }
+            break;
+          }
+        }
+        if (headerRow !== -1) break;
+      }
+
+      if (headerRow === -1) {
+        return res.status(400).json({ error: "Cabeçalho não encontrado. A planilha deve ter colunas 'item' e 'qtde'." });
+      }
+
+      // In Norte's format column B = group/tipo (e.g. "2x1", "ROLO")
+      // Detect the group column: it's the column just before "item"
+      const itemCol = colMap["item"]!;
+      const itemColIdx = itemCol.charCodeAt(0) - 65; // A=0, B=1 ...
+      const groupCol = itemColIdx > 0 ? String.fromCharCode(65 + itemColIdx - 1) : null;
+
+      // Also detect width/height from area columns after header if not found by name
+      // Norte sheets use G=área(width) H=visual(height) K=fileW L=fileH
+      // But colMap["width"] might not be set if column header was "área " (trailing space)
+      // Fix: search again more loosely
+      const hdrRow = rows[headerRow] ?? {};
+      for (const [col, val] of Object.entries(hdrRow)) {
+        const v = val.toLowerCase().trim();
+        if (!colMap["width"] && (v.startsWith("área") || v === "area")) colMap["width"] = col;
+        if (!colMap["height"] && v === "visual") colMap["height"] = col;
+        // K/L are "medida do arquivo" width and height separately in some sheets
+        if (!colMap["fileW"] && v.startsWith("medida do arquivo")) colMap["fileW"] = col;
+        if (!colMap["fileH"] && v === "compr") colMap["fileH"] = col;
+      }
+
+      // Determine next column letters for file dimensions (Norte: K=fileW, L=fileH after J=acabamento)
+      const finCol = colMap["finish"];
+      if (finCol && !colMap["fileW"]) {
+        const finIdx = finCol.charCodeAt(0) - 65;
+        colMap["fileW"] = String.fromCharCode(65 + finIdx + 1); // K
+        colMap["fileH"] = String.fromCharCode(65 + finIdx + 2); // L
+      }
+
+      const parseNum = (s: string): number => {
+        if (!s) return 0;
+        const clean = s.replace(",", ".").replace(/[^\d.eE+\-]/g, "");
+        return parseFloat(clean) || 0;
+      };
+
+      let currentGroup = "";
+      const itemsToCreate: any[] = [];
+      const numRows = Math.max(...Object.keys(rows).map(Number));
+
+      for (let r = headerRow + 1; r <= numRows; r++) {
+        const row = rows[r];
+        if (!row) continue;
+
+        // Group column (B in Norte format) — update currentGroup when present
+        if (groupCol && row[groupCol]) currentGroup = row[groupCol];
+
+        const itemVal = colMap["item"] ? (row[colMap["item"]] || "").trim() : "";
+        const qtyStr  = colMap["qty"]  ? (row[colMap["qty"]]  || "").trim() : "";
+        const matVal  = colMap["material"] ? (row[colMap["material"]] || "").trim() : "";
+        const finVal  = colMap["finish"]   ? (row[colMap["finish"]]   || "").trim() : "";
+        const wVal    = colMap["width"]    ? (row[colMap["width"]]    || "").trim() : "";
+        const hVal    = colMap["height"]   ? (row[colMap["height"]]   || "").trim() : "";
+        const fwVal   = colMap["fileW"]    ? (row[colMap["fileW"]]    || "").trim() : "";
+        const fhVal   = colMap["fileH"]    ? (row[colMap["fileH"]]    || "").trim() : "";
+        const fileSizeVal = colMap["fileSize"] ? (row[colMap["fileSize"]] || "").trim() : "";
+        const obsVal  = colMap["obs"]      ? (row[colMap["obs"]]      || "").trim() : "";
+
+        if (!itemVal) continue;
+
+        const qty = parseInt(qtyStr) || 0;
+        if (qty === 0) continue;
+
+        // Parse visual dimensions
+        const visualW = parseNum(wVal);
+        const visualH = parseNum(hVal);
+
+        // Parse file dimensions: prefer explicit columns K/L, then "medida do arquivo" string, then fallback to visual
+        let fileW = parseNum(fwVal) || visualW;
+        let fileH = parseNum(fhVal) || visualH;
+        if (fileSizeVal && (!fileW || !fileH)) {
+          const parts = fileSizeVal.replace(/,/g, ".").replace(/\s/g, "").split(/[xX×]/);
+          if (parts.length >= 2) {
+            fileW = parseFloat(parts[0]) || fileW;
+            fileH = parseFloat(parts[1]) || fileH;
+          }
+        }
+
+        const calcM2 = qty * fileW * fileH;
+        const cap = (s: string) => s ? (s.charAt(0).toUpperCase() + s.slice(1)) : s;
+        const measurement = fileW && fileH
+          ? `${fileW.toFixed(2)} × ${fileH.toFixed(2)}`
+          : (visualW && visualH ? `${visualW.toFixed(2)} × ${visualH.toFixed(2)}` : "");
+
+        itemsToCreate.push({
+          eventId: event.id,
+          type: currentGroup || itemVal,
+          description: itemVal,
+          quantity: qty,
+          area: visualW || fileW || 0,
+          visual: visualH || fileH || 0,
+          calculatedM2: calcM2 || 0,
+          material: cap(matVal) || "Lona",
+          finish: cap(finVal) || "Ilhós",
+          measurement,
+          observations: obsVal,
+          status: "requested",
+        });
+      }
+
+      if (itemsToCreate.length === 0) {
+        return res.status(400).json({ error: "Nenhum item válido encontrado na planilha. Verifique se há linhas com item e qtde preenchidos." });
+      }
+
+      // Validate and create
+      const validated = itemsToCreate.map((item, i) => {
+        try {
+          return insertItemSchema.parse(item);
+        } catch (e: any) {
+          throw new Error(`Item ${i + 1} (${item.description}): ${e.message}`);
+        }
+      });
+
+      const created = await storage.createBulkItems(validated);
+
+      // Audit log
+      await createAuditLog(
+        (req as any).userName,
+        'created',
+        'item',
+        event.id,
+        `${created.length} itens importados via Excel ("${file.originalname}")`
+      );
+
+      const notification = await storage.createNotification({
+        type: "itemAdded",
+        message: `${created.length} itens importados via Excel — Evento: ${event.name}`,
+        eventId: event.id,
+        targetRoles: ["arte", "grafica"],
+      });
+      broadcast({ type: "notification_created", notification });
+      broadcast({ type: "items_bulk_created", items: created, eventId: event.id });
+      await updateEventStatus(event.id);
+
+      res.status(201).json({ imported: created.length, items: created });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ── Clone items from another event ───────────────────────────────────────
+  app.post("/api/events/:id/clone-items", async (req, res) => {
+    try {
+      const targetEvent = await storage.getEvent(req.params.id);
+      if (!targetEvent) return res.status(404).json({ error: "Evento destino não encontrado" });
+
+      const { sourceEventId } = req.body as { sourceEventId: string };
+      if (!sourceEventId) return res.status(400).json({ error: "sourceEventId é obrigatório" });
+
+      const sourceEvent = await storage.getEvent(sourceEventId);
+      if (!sourceEvent) return res.status(404).json({ error: "Evento origem não encontrado" });
+
+      const sourceItems = await storage.getItemsByEvent(sourceEventId);
+      if (sourceItems.length === 0) {
+        return res.status(400).json({ error: "O evento de origem não tem itens para clonar" });
+      }
+
+      const cloned = sourceItems.map(item => ({
+        eventId: targetEvent.id,
+        type: item.type,
+        description: item.description || "",
+        quantity: item.quantity,
+        area: item.area,
+        visual: item.visual,
+        visualWidth: item.visualWidth,
+        visualHeight: item.visualHeight,
+        fileWidth: item.fileWidth,
+        fileHeight: item.fileHeight,
+        material: item.material,
+        finish: item.finish,
+        measurement: item.measurement,
+        observations: item.observations || "",
+        calculatedM2: item.calculatedM2,
+        status: "requested" as const,
+        isReuse: item.isReuse || false,
+      }));
+
+      const validated = cloned.map((item, i) => {
+        try {
+          return insertItemSchema.parse(item);
+        } catch (e: any) {
+          throw new Error(`Item ${i + 1} (${item.type}): ${e.message}`);
+        }
+      });
+
+      const created = await storage.createBulkItems(validated);
+
+      await createAuditLog(
+        (req as any).userName,
+        'created',
+        'item',
+        targetEvent.id,
+        `${created.length} itens clonados do evento "${sourceEvent.name}"`
+      );
+
+      const notification = await storage.createNotification({
+        type: "itemAdded",
+        message: `${created.length} itens clonados de "${sourceEvent.name}" → "${targetEvent.name}"`,
+        eventId: targetEvent.id,
+        targetRoles: ["arte", "grafica"],
+      });
+      broadcast({ type: "notification_created", notification });
+      broadcast({ type: "items_bulk_created", items: created, eventId: targetEvent.id });
+      await updateEventStatus(targetEvent.id);
+
+      res.status(201).json({ cloned: created.length, items: created });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Update item
   app.patch("/api/items/:id", async (req, res) => {
     try {

@@ -152,8 +152,7 @@ function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {
   const m2 = parseFloat(row.calculatedM2) || 0;
   const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#ea580c' : m2 > 0 ? '#16a34a' : '#d0cdc9';
 
-  const suggestedSponsor = eventSponsorsList.find(s => s.sponsorId === row.suggestedSponsorId);
-  const qStyle = suggestedSponsor ? (IMPORT_QUOTA_COLORS[suggestedSponsor.quota] ?? { bg: '#f0f9ff', color: '#0369a1', border: '#bae6fd' }) : null;
+  const hasSponsors = (row.suggestedSponsorIds ?? []).length > 0;
   const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
 
   return (
@@ -176,41 +175,76 @@ function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {
 
       {cell('material', row.material)}
       {cell('finish', row.finish)}
-      {cell('observations', row.observations, { dim: true })}
+      {/* Obs cell with reuse toggle */}
+      <td
+        onClick={() => setEditField('observations')}
+        title="Clique para editar"
+        style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', cursor: 'text', backgroundColor: editField === 'observations' ? '#fffbeb' : rowBg, maxWidth: 160 }}
+      >
+        {editField === 'observations' ? (
+          <input autoFocus defaultValue={row.observations ?? ''}
+            onBlur={e => { update('observations', e.target.value); setEditField(null); }}
+            onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
+            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 12, outline: 'none', backgroundColor: 'transparent' }} />
+        ) : (
+          <span style={{ color: row.observations ? '#9c9490' : '#d0cdc9', fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {row.observations || '—'}
+          </span>
+        )}
+        {/* Reuse toggle */}
+        <button
+          onClick={e => { e.stopPropagation(); onChange({ ...row, reuse: !row.reuse }); }}
+          style={{
+            marginTop: 3, display: 'block',
+            fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 9999, cursor: 'pointer',
+            border: `1px solid ${row.reuse ? '#22c55e' : '#e2deda'}`,
+            backgroundColor: row.reuse ? '#f0fdf4' : 'transparent',
+            color: row.reuse ? '#16a34a' : '#c4bfbb',
+            letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
+          }}
+        >
+          Reaproveitar
+        </button>
+      </td>
 
-      {/* Sponsor cell */}
-      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, minWidth: 140 }}>
-        <div style={{ position: 'relative' }}>
-          <select
-            value={row.suggestedSponsorId ?? ''}
-            onChange={e => onChange({ ...row, suggestedSponsorId: e.target.value || null })}
-            style={{
-              width: '100%',
-              fontSize: 11,
-              fontWeight: row.suggestedSponsorId ? 700 : 400,
-              borderRadius: 6,
-              padding: '4px 8px',
-              border: `1.5px solid ${qStyle?.border ?? '#e2deda'}`,
-              backgroundColor: qStyle?.bg ?? (hovered ? '#f7f6f4' : '#fafaf9'),
-              color: qStyle?.color ?? '#a8a29e',
-              cursor: 'pointer',
-              outline: 'none',
-              appearance: 'none',
-              transition: 'all 0.15s',
-            }}
-          >
-            <option value="">— sem patrocinador —</option>
-            {eventSponsorsList.map(s => {
-              const qc = IMPORT_QUOTA_COLORS[s.quota];
-              return <option key={s.sponsorId} value={s.sponsorId}>{s.name} ({s.quota})</option>;
-            })}
-          </select>
-          {/* Auto-suggest indicator */}
-          {row.suggestedSponsorId && (
-            <span
-              title="Patrocinador sugerido automaticamente"
-              style={{ position: 'absolute', top: -4, right: -4, width: 8, height: 8, borderRadius: '50%', backgroundColor: qStyle?.color ?? '#16a34a', border: '2px solid #fff', display: 'block' }}
-            />
+      {/* Sponsor multi-select cell */}
+      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, minWidth: 190, verticalAlign: 'top' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
+          {/* Chips for each selected sponsor */}
+          {(row.suggestedSponsorIds ?? []).map((sid: string) => {
+            const sp = eventSponsorsList.find(s => s.sponsorId === sid);
+            if (!sp) return null;
+            const qc = IMPORT_QUOTA_COLORS[sp.quota] ?? { bg: '#f0f9ff', color: '#0369a1', border: '#bae6fd' };
+            return (
+              <span key={sid} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px 2px 7px', borderRadius: 6, border: `1.5px solid ${qc.border}`, backgroundColor: qc.bg, color: qc.color, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {sp.name}
+                <button
+                  onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: (row.suggestedSponsorIds ?? []).filter((id: string) => id !== sid) }); }}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', padding: '0 0 0 1px', opacity: 0.65, fontSize: 13, lineHeight: 1 }}
+                >×</button>
+              </span>
+            );
+          })}
+          {/* Add sponsor dropdown */}
+          {(row.suggestedSponsorIds ?? []).length < eventSponsorsList.length && (
+            <select
+              value=""
+              onChange={e => {
+                const v = e.target.value;
+                if (v && !(row.suggestedSponsorIds ?? []).includes(v))
+                  onChange({ ...row, suggestedSponsorIds: [...(row.suggestedSponsorIds ?? []), v] });
+              }}
+              onClick={e => e.stopPropagation()}
+              style={{ fontSize: 10, borderRadius: 5, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#a8a29e', cursor: 'pointer', padding: '2px 5px', outline: 'none', maxWidth: 100 }}
+            >
+              <option value="">+ Adicionar</option>
+              {eventSponsorsList.filter(s => !(row.suggestedSponsorIds ?? []).includes(s.sponsorId)).map(s => (
+                <option key={s.sponsorId} value={s.sponsorId}>{s.name}</option>
+              ))}
+            </select>
+          )}
+          {(row.suggestedSponsorIds ?? []).length === 0 && (
+            <span style={{ fontSize: 11, color: '#d0cdc9', fontStyle: 'italic' }}>sem patrocinador</span>
           )}
         </div>
       </td>
@@ -541,11 +575,16 @@ export default function EventDetail() {
         return null;
       };
 
-      const withIds = (data.items as any[]).map((item: any, i: number) => ({
-        ...item,
-        _id: `row-${i}`,
-        suggestedSponsorId: suggestSponsor(item),
-      }));
+      const withIds = (data.items as any[]).map((item: any, i: number) => {
+        const suggested = suggestSponsor(item);
+        const autoReuse = /reaproveitar/i.test(item.observations ?? '');
+        return {
+          ...item,
+          _id: `row-${i}`,
+          suggestedSponsorIds: suggested ? [suggested] : [],
+          reuse: autoReuse,
+        };
+      });
       setImportPreviewItems(withIds);
       setImportFileName(data.fileName || "");
       setImportDialogOpen(false);
@@ -2885,7 +2924,7 @@ export default function EventDetail() {
           {(() => {
             const allItems = importPreviewItems ?? [];
             const totalM2 = allItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
-            const linkedCount = allItems.filter(i => i.suggestedSponsorId).length;
+            const linkedCount = allItems.filter(i => (i.suggestedSponsorIds ?? []).length > 0).length;
             const typeCount = new Set(allItems.map(i => i.type)).size;
             const pct = allItems.length > 0 ? Math.round((linkedCount / allItems.length) * 100) : 0;
             return (
@@ -2966,7 +3005,7 @@ export default function EventDetail() {
                   const groups = Array.from(groupMap.entries());
                   return groups.map(([type, groupItems], gIdx) => {
                     const groupM2 = groupItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
-                    const groupLinked = groupItems.filter(i => i.suggestedSponsorId).length;
+                    const groupLinked = groupItems.filter(i => (i.suggestedSponsorIds ?? []).length > 0).length;
                     return (
                       <>
                         {gIdx > 0 && (
@@ -3025,7 +3064,7 @@ export default function EventDetail() {
           {(() => {
             const allItems = importPreviewItems ?? [];
             const totalM2 = allItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
-            const linkedCount = allItems.filter(i => i.suggestedSponsorId).length;
+            const linkedCount = allItems.filter(i => (i.suggestedSponsorIds ?? []).length > 0).length;
             return (
               <div style={{ padding: '14px 28px 18px', borderTop: '2px solid #ebe9e7', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, backgroundColor: '#fafaf9', gap: 16 }}>
                 <Button variant="outline" onClick={() => { setImportPreviewOpen(false); setImportDialogOpen(true); }}>

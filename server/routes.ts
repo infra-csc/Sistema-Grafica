@@ -1917,14 +1917,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const created = await storage.createBulkItems(validated);
 
-      // Link suggested sponsors when provided
+      // Link suggested sponsors when provided (supports multiple sponsors per item)
       const sponsorLinks: Promise<any>[] = [];
       for (let i = 0; i < created.length; i++) {
-        const sponsorId = items[i]?.suggestedSponsorId;
-        if (sponsorId && typeof sponsorId === 'string') {
-          sponsorLinks.push(
-            storage.addSponsorToItem({ itemId: created[i].id, sponsorId }).catch(() => {})
-          );
+        const raw = items[i];
+        // Support both old suggestedSponsorId (string) and new suggestedSponsorIds (array)
+        const ids: string[] = raw?.suggestedSponsorIds?.length
+          ? raw.suggestedSponsorIds
+          : (raw?.suggestedSponsorId ? [raw.suggestedSponsorId] : []);
+        for (const sponsorId of ids) {
+          if (sponsorId && typeof sponsorId === 'string') {
+            sponsorLinks.push(
+              storage.addSponsorToItem({ itemId: created[i].id, sponsorId }).catch(() => {})
+            );
+          }
         }
       }
       if (sponsorLinks.length > 0) await Promise.all(sponsorLinks);

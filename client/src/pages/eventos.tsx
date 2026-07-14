@@ -61,6 +61,7 @@ export default function Eventos() {
   });
   const [prazosExpanded, setPrazosExpanded] = useState(false);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
+  const [sponsorSearch, setSponsorSearch] = useState("");
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
@@ -571,6 +572,11 @@ export default function Eventos() {
                       <Building2 style={{ width: '12px', height: '12px', color: '#f97316' }} />
                       Patrocinadores
                       <span style={{ color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+                      {selectedSponsorIds.length > 0 && (
+                        <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: '700', color: '#f97316', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '20px', padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
+                          {selectedSponsorIds.length} selecionado{selectedSponsorIds.length > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </label>
                     {sponsors.length === 0 ? (
                       <p style={{ fontSize: '13px', color: '#a8a29e', backgroundColor: '#f0efee', borderRadius: '8px', padding: '12px 16px' }}>
@@ -578,27 +584,82 @@ export default function Eventos() {
                         <Link href="/patrocinadores" style={{ color: '#f97316', fontWeight: '600' }}>Cadastre agora</Link>
                       </p>
                     ) : (
-                      <div style={{ backgroundColor: '#f0efee', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '160px', overflowY: 'auto' }}>
-                        {sponsors.map((sponsor) => (
-                          <label key={sponsor.id} htmlFor={`sponsor-${sponsor.id}`} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-                            <Checkbox
-                              id={`sponsor-${sponsor.id}`}
-                              checked={selectedSponsorIds.includes(sponsor.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
-                                else setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
-                              }}
-                              data-testid={`checkbox-sponsor-${sponsor.id}`}
-                              className="border-[#c4bfbb] bg-white data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-sm flex-shrink-0"
-                            />
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                              <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a1c1c', lineHeight: 1.2 }}>{sponsor.name}</span>
-                              {sponsor.company && (
-                                <span style={{ fontSize: '10px', color: '#78716c', lineHeight: 1, fontWeight: '400' }}>{sponsor.company}</span>
-                              )}
-                            </div>
-                          </label>
-                        ))}
+                      <div style={{ backgroundColor: '#f0efee', borderRadius: '12px', overflow: 'hidden' }}>
+                        {/* Search input */}
+                        <div style={{ padding: '10px 12px', borderBottom: '1px solid #e7e5e4', position: 'relative' }}>
+                          <Search style={{ position: 'absolute', left: 22, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#a8a29e', pointerEvents: 'none' }} />
+                          <input
+                            type="text"
+                            placeholder="Buscar patrocinador..."
+                            value={sponsorSearch}
+                            onChange={e => setSponsorSearch(e.target.value)}
+                            data-testid="input-sponsor-search"
+                            style={{
+                              width: '100%', paddingLeft: 28, paddingRight: 10, paddingTop: 7, paddingBottom: 7,
+                              backgroundColor: '#ffffff', border: 'none', borderRadius: '6px',
+                              fontSize: '12px', color: '#1a1c1c', outline: 'none', boxSizing: 'border-box',
+                            }}
+                          />
+                        </div>
+                        {/* Sponsor list */}
+                        <div style={{ maxHeight: '200px', overflowY: 'auto', padding: '8px 0' }}>
+                          {(() => {
+                            const q = sponsorSearch.toLowerCase();
+                            const filtered = [...sponsors]
+                              .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+                              .filter(s => !q || s.name.toLowerCase().includes(q) || (s.company || '').toLowerCase().includes(q));
+                            if (filtered.length === 0) return (
+                              <p style={{ fontSize: '12px', color: '#a8a29e', textAlign: 'center', padding: '16px 12px' }}>
+                                Nenhum resultado para "{sponsorSearch}"
+                              </p>
+                            );
+                            return filtered.map((sponsor) => {
+                              const isSelected = selectedSponsorIds.includes(sponsor.id);
+                              const color = (sponsor as any).color || '#3b82f6';
+                              return (
+                                <label
+                                  key={sponsor.id}
+                                  htmlFor={`sponsor-${sponsor.id}`}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: '10px',
+                                    padding: '8px 14px', cursor: 'pointer',
+                                    backgroundColor: isSelected ? '#fff7ed' : 'transparent',
+                                    transition: 'background-color 0.1s',
+                                  }}
+                                  onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = '#ebe9e7'; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? '#fff7ed' : 'transparent'; }}
+                                >
+                                  {/* Color dot */}
+                                  <span style={{
+                                    width: 10, height: 10, borderRadius: '50%',
+                                    backgroundColor: color, flexShrink: 0,
+                                    boxShadow: `0 0 0 2px ${color}33`,
+                                  }} />
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <span style={{ fontSize: '13px', fontWeight: isSelected ? '700' : '500', color: '#1a1c1c', lineHeight: 1.2, display: 'block' }}>
+                                      {sponsor.name}
+                                    </span>
+                                    {sponsor.company && (
+                                      <span style={{ fontSize: '10px', color: '#78716c', lineHeight: 1, fontWeight: '400', display: 'block', marginTop: 1 }}>
+                                        {sponsor.company}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <Checkbox
+                                    id={`sponsor-${sponsor.id}`}
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                                      else setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                                    }}
+                                    data-testid={`checkbox-sponsor-${sponsor.id}`}
+                                    className="border-[#c4bfbb] bg-white data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-sm flex-shrink-0"
+                                  />
+                                </label>
+                              );
+                            });
+                          })()}
+                        </div>
                       </div>
                     )}
                   </div>

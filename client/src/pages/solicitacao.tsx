@@ -343,9 +343,12 @@ export default function Solicitacao() {
             style={{ backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, padding: "9px 14px", color: TI.text, minWidth: 180, cursor: "pointer", outline: "none" }}
           >
             <option value="all">Todos os Eventos</option>
-            {eventsWithItems.sort((a, b) => a.name.localeCompare(b.name)).map(ev => (
-              <option key={ev.id} value={ev.id}>{ev.name}</option>
-            ))}
+            {(() => {
+              const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+              return [...eventsWithItems].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((ev:any) => (
+                <option key={ev.id} value={ev.id}>{ev.priority === 'urgente' ? `(!) ${ev.name}` : ev.priority === 'alta' ? `▲ ${ev.name}` : ev.name}</option>
+              ));
+            })()}
           </select>
 
           {/* Type select */}

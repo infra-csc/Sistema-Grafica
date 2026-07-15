@@ -324,9 +324,12 @@ export default function Grafica() {
           style={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, padding: "8px 12px", color: TI.text, outline: "none", cursor: "pointer" }}
         >
           <option value="all">Todos os eventos</option>
-          {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((ev: any) => (
-            <option key={ev.id} value={ev.id}>{ev.name}</option>
-          ))}
+          {(() => {
+            const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+            return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((ev:any) => (
+              <option key={ev.id} value={ev.id}>{ev.priority === 'urgente' ? `(!) ${ev.name}` : ev.priority === 'alta' ? `▲ ${ev.name}` : ev.name}</option>
+            ));
+          })()}
         </select>
 
         {/* Status */}

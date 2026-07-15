@@ -824,7 +824,12 @@ export default function Atendimento() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {/* Filtro Evento — combobox pesquisável */}
           {(() => {
-            const sortedEvents = [...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'));
+            const _PRIO: Record<string, number> = { urgente: 0, alta: 1, media: 2, baixa: 3 };
+            const _PRIO_DOT: Record<string, string> = { urgente: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+            const sortedEvents = [...events].sort((a: any, b: any) => {
+              const pa = _PRIO[a.priority] ?? 4, pb = _PRIO[b.priority] ?? 4;
+              return pa !== pb ? pa - pb : a.name.localeCompare(b.name, 'pt-BR');
+            });
             const selectedEvent = sortedEvents.find((e: any) => e.id === eventFilter);
             return (
               <Popover open={eventComboOpen} onOpenChange={setEventComboOpen}>
@@ -863,6 +868,7 @@ export default function Atendimento() {
                             onSelect={() => { setEventFilter(ev.id); setEventComboOpen(false); }}
                           >
                             <Check style={{ width: 14, height: 14, opacity: eventFilter === ev.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                            {ev.priority && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: _PRIO_DOT[ev.priority], display: 'inline-block', marginRight: 6, flexShrink: 0 }} />}
                             {ev.name}
                           </CommandItem>
                         ))}
@@ -2223,12 +2229,17 @@ export default function Atendimento() {
                               <Check className={`mr-2 h-4 w-4 ${expEventFilter === "all" ? "opacity-100" : "opacity-0"}`} />
                               Todos os eventos
                             </CommandItem>
-                            {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((ev: any) => (
-                              <CommandItem key={ev.id} value={ev.name} onSelect={() => { setExpEventFilter(ev.id); setExpEventComboOpen(false); }}>
-                                <Check className={`mr-2 h-4 w-4 ${expEventFilter === ev.id ? "opacity-100" : "opacity-0"}`} />
-                                {ev.name}
-                              </CommandItem>
-                            ))}
+                            {(() => {
+                              const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+                              const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
+                              return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((ev:any) => (
+                                <CommandItem key={ev.id} value={ev.name} onSelect={() => { setExpEventFilter(ev.id); setExpEventComboOpen(false); }}>
+                                  <Check className={`mr-2 h-4 w-4 ${expEventFilter === ev.id ? "opacity-100" : "opacity-0"}`} />
+                                  {ev.priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[ev.priority], display:'inline-block', marginRight:6, flexShrink:0 }} />}
+                                  {ev.name}
+                                </CommandItem>
+                              ));
+                            })()}
                           </CommandGroup>
                         </CommandList>
                       </Command>

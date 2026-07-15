@@ -312,9 +312,18 @@ export default function PainelGeral() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os eventos</SelectItem>
-                {[...events].sort((a, b) => a.name.localeCompare(b.name)).map((e: any) => (
-                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                ))}
+                {(() => {
+                  const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+                  const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
+                  return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e:any) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+                        {e.priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[e.priority], display:'inline-block', flexShrink:0 }} />}
+                        {e.name}
+                      </span>
+                    </SelectItem>
+                  ));
+                })()}
               </SelectContent>
             </Select>
           </div>

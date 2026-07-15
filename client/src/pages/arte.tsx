@@ -1659,12 +1659,17 @@ export default function Arte() {
                     <Check className={cn("mr-2 h-4 w-4", eventFilter === "all" ? "opacity-100" : "opacity-0")} />
                     Todos os eventos
                   </CommandItem>
-                  {[...events].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((event: any) => (
-                    <CommandItem key={event.id} value={event.name} onSelect={() => { setEventFilter(event.id); setOpenEventCombobox(false); }}>
-                      <Check className={cn("mr-2 h-4 w-4", eventFilter === event.id ? "opacity-100" : "opacity-0")} />
-                      {event.name}
-                    </CommandItem>
-                  ))}
+                  {(() => {
+                    const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+                    const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
+                    return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((event:any) => (
+                      <CommandItem key={event.id} value={event.name} onSelect={() => { setEventFilter(event.id); setOpenEventCombobox(false); }}>
+                        <Check className={cn("mr-2 h-4 w-4", eventFilter === event.id ? "opacity-100" : "opacity-0")} />
+                        {event.priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[event.priority], display:'inline-block', marginRight:6, flexShrink:0 }} />}
+                        {event.name}
+                      </CommandItem>
+                    ));
+                  })()}
                 </CommandGroup>
               </CommandList>
             </Command>

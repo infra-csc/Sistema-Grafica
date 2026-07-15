@@ -1064,7 +1064,7 @@ export default function Eventos() {
             const truckTextColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#d1fae5' : '#1c1917');
 
             const canEdit = hasPermission("admin") || hasPermission("solicitacao");
-            const canDelete = hasPermission("admin");
+            const canDelete = hasPermission("admin") || hasPermission("solicitacao");
 
             // ── Card Concluído: branco com borda verde e ícone decorativo ──
             if (isCompleted) {

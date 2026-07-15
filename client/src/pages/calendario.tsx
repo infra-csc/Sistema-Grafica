@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseDateLocal } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
@@ -46,6 +46,23 @@ function prioKey(ev: any): string {
   return ev.priority || "none";
 }
 
+/* ── Deadline types (same colors as event-detail) ── */
+const DEADLINE_TYPES = [
+  { key: "deadlineListaImagens",    label: "Lista de Imagens",    short: "Lista Img",       color: "#8b5cf6" },
+  { key: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  short: "Entrega Layout",  color: "#3b82f6" },
+  { key: "deadlineAprovacaoLayout", label: "Aprovação de Layout", short: "Aprov. Layout",   color: "#f59e0b" },
+  { key: "deadlineRevisaoLista",    label: "Revisão de Lista",    short: "Revisão Lista",   color: "#10b981" },
+  { key: "deadlineProducaoGrafica", label: "Produção Gráfica",    short: "Prod. Gráfica",   color: "#f97316" },
+] as const;
+
+const DEADLINE_DEFAULTS: Record<string, number> = {
+  deadlineListaImagens:    -25,
+  deadlineEntregaLayouts:  -20,
+  deadlineAprovacaoLayout: -12,
+  deadlineRevisaoLista:    -8,
+  deadlineProducaoGrafica: -1,
+};
+
 /* Sunday-first week (matches mockup) */
 const WEEK_DAYS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 
@@ -85,6 +102,23 @@ export default function Calendario() {
     const deps = events.filter(e => new Date(e.truckDepartureDate).toDateString() === ds)
       .map(e => ({ ...e, _type: "departure" as const }));
     return [...starts, ...deps];
+  };
+
+  const getDeadlinesForDate = (date: Date) => {
+    const ds = date.toDateString();
+    const result: Array<{ event: any; dtype: typeof DEADLINE_TYPES[number] }> = [];
+    for (const ev of events) {
+      const start = parseDateLocal(ev.startDate);
+      for (const dt of DEADLINE_TYPES) {
+        const offset: number = (ev as any)[dt.key] ?? DEADLINE_DEFAULTS[dt.key];
+        const d = new Date(start);
+        d.setDate(d.getDate() + offset);
+        if (d.toDateString() === ds) {
+          result.push({ event: ev, dtype: dt });
+        }
+      }
+    }
+    return result;
   };
 
   /* Urgent: departure < 48h away */
@@ -271,31 +305,41 @@ export default function Calendario() {
                 );
               }
 
-              const date       = new Date(year, month, day);
-              const dayEvs     = getEventsForDate(date).filter(ev =>
+              const date         = new Date(year, month, day);
+              const dayEvs       = getEventsForDate(date).filter(ev =>
                 !searchTerm || ev.name.toLowerCase().includes(searchTerm.toLowerCase())
               );
-              const isToday    = date.toDateString() === new Date().toDateString();
-              const hasEvents  = dayEvs.length > 0;
+              const dayDeadlines = getDeadlinesForDate(date).filter(d =>
+                !searchTerm || d.event.name.toLowerCase().includes(searchTerm.toLowerCase())
+              );
+              const allCellItems: Array<
+                | { kind: "event"; ev: (typeof dayEvs)[number] }
+                | { kind: "deadline"; event: any; dtype: typeof DEADLINE_TYPES[number] }
+              > = [
+                ...dayEvs.map(ev => ({ kind: "event" as const, ev })),
+                ...dayDeadlines.map(d => ({ kind: "deadline" as const, event: d.event, dtype: d.dtype })),
+              ];
+              const isToday = date.toDateString() === new Date().toDateString();
+              const hasAny  = allCellItems.length > 0;
 
               return (
                 <div
                   key={day}
                   data-testid={`calendar-day-${day}`}
-                  onClick={() => { if (hasEvents) { setSelectedDate(date); setDialogOpen(true); } }}
+                  onClick={() => { if (hasAny) { setSelectedDate(date); setDialogOpen(true); } }}
                   style={{
                     height: 90, padding: "7px 7px",
                     borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
                     borderBottom: "1px solid #eeeeed",
-                    backgroundColor: isToday ? P.surface : P.surface,
-                    cursor: hasEvents ? "pointer" : "default",
+                    backgroundColor: P.surface,
+                    cursor: hasAny ? "pointer" : "default",
                     display: "flex", flexDirection: "column", gap: 3,
                     outline: isToday ? "2px solid rgba(249,115,22,0.2)" : undefined,
                     outlineOffset: "-2px",
                     transition: "background 0.1s",
                     position: "relative",
                   }}
-                  onMouseEnter={e => { if (hasEvents) (e.currentTarget.style.backgroundColor = "#f9f9f8"); }}
+                  onMouseEnter={e => { if (hasAny) (e.currentTarget.style.backgroundColor = "#f9f9f8"); }}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = P.surface)}
                 >
                   {/* Day number */}
@@ -312,50 +356,72 @@ export default function Calendario() {
                     )}
                   </div>
 
-                  {/* Event pills */}
-                  {dayEvs.slice(0, 2).map(ev => {
-                    const isStart    = ev._type === "start";
-                    const color      = PRIO_COLOR[prioKey(ev)];
-                    const depTime    = new Date(ev.truckDepartureDate);
-                    const remaining  = depTime.getTime() - Date.now();
-                    const isUrgent   = !isStart && remaining > 0 && remaining < 48 * 3_600_000;
-                    const isCritical = !isStart && remaining > 0 && remaining < 24 * 3_600_000;
-
-                    return (
-                      <div
-                        key={`${ev.id}-${ev._type}`}
-                        data-testid={`event-${ev.id}-${ev._type}`}
-                        onClick={e => { e.stopPropagation(); setLocation(`/eventos/${ev.id}`); }}
-                        title={ev.name}
-                        style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                          gap: 4, padding: "2px 6px",
-                          backgroundColor: isCritical ? "#fef2f2" : "#ffffff",
-                          borderLeft: `3px solid ${color}`,
-                          borderRadius: 4,
-                          boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
-                          overflow: "hidden",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden", flex: 1 }}>
-                          {isStart
-                            ? <Calendar style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />
-                            : <Truck    style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />}
-                          <span style={{ fontSize: 10, fontWeight: 700, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {ev.name}
+                  {/* Event + deadline pills (max 2 visible) */}
+                  {allCellItems.slice(0, 2).map((item, i) => {
+                    if (item.kind === "event") {
+                      const ev        = item.ev;
+                      const isStart   = ev._type === "start";
+                      const color     = PRIO_COLOR[prioKey(ev)];
+                      const depTime   = new Date(ev.truckDepartureDate);
+                      const remaining = depTime.getTime() - Date.now();
+                      const isUrgent  = !isStart && remaining > 0 && remaining < 48 * 3_600_000;
+                      const isCrit    = !isStart && remaining > 0 && remaining < 24 * 3_600_000;
+                      return (
+                        <div
+                          key={`ev-${ev.id}-${ev._type}`}
+                          data-testid={`event-${ev.id}-${ev._type}`}
+                          onClick={e => { e.stopPropagation(); setLocation(`/eventos/${ev.id}`); }}
+                          title={ev.name}
+                          style={{
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            gap: 4, padding: "2px 6px",
+                            backgroundColor: isCrit ? "#fef2f2" : "#ffffff",
+                            borderLeft: `3px solid ${color}`,
+                            borderRadius: 4,
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+                            overflow: "hidden", cursor: "pointer",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden", flex: 1 }}>
+                            {isStart
+                              ? <Calendar style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />
+                              : <Truck    style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />}
+                            <span style={{ fontSize: 10, fontWeight: 700, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {ev.name}
+                            </span>
+                          </div>
+                          {isUrgent && (
+                            <span style={{ fontSize: 8, fontWeight: 900, color: "#ffffff", backgroundColor: isCrit ? "#dc2626" : "#f97316", borderRadius: 3, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                              {msToHM(remaining)}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      const { event, dtype } = item;
+                      return (
+                        <div
+                          key={`dl-${event.id}-${dtype.key}-${i}`}
+                          onClick={e => { e.stopPropagation(); setLocation(`/eventos/${event.id}`); }}
+                          title={`${event.name} — ${dtype.label}`}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 4, padding: "2px 6px",
+                            backgroundColor: `${dtype.color}12`,
+                            borderLeft: `3px dashed ${dtype.color}`,
+                            borderRadius: 4,
+                            overflow: "hidden", cursor: "pointer",
+                          }}
+                        >
+                          <Flag style={{ width: 9, height: 9, color: dtype.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, fontWeight: 700, color: dtype.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {dtype.short}
                           </span>
                         </div>
-                        {isUrgent && (
-                          <span style={{ fontSize: 8, fontWeight: 900, color: "#ffffff", backgroundColor: isCritical ? "#dc2626" : "#f97316", borderRadius: 3, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            {msToHM(remaining)}
-                          </span>
-                        )}
-                      </div>
-                    );
+                      );
+                    }
                   })}
-                  {dayEvs.length > 2 && (
-                    <span style={{ fontSize: 9, color: P.muted, paddingLeft: 2 }}>+{dayEvs.length - 2} mais</span>
+                  {allCellItems.length > 2 && (
+                    <span style={{ fontSize: 9, color: P.muted, paddingLeft: 2 }}>+{allCellItems.length - 2} mais</span>
                   )}
                 </div>
               );
@@ -364,27 +430,44 @@ export default function Calendario() {
         )}
 
         {/* ── Legend footer ── */}
-        <div style={{ padding: "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}>
+        <div style={{ padding: "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
+          {/* Priority legend */}
           {[
-            { key: "urgente", label: "Urgente" },
-            { key: "alta",    label: "Alta Prioridade" },
-            { key: "media",   label: "Média" },
-            { key: "baixa",   label: "Normal" },
+            { key: "urgente",   label: "Urgente" },
+            { key: "alta",      label: "Alta" },
+            { key: "media",     label: "Média" },
+            { key: "baixa",     label: "Normal" },
             { key: "completed", label: "Concluído" },
           ].map(({ key, label }) => (
-            <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: PRIO_COLOR[key] }} />
-              <span style={{ fontSize: 10, fontWeight: 900, color: P.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+            <div key={key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: PRIO_COLOR[key] }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: P.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
             </div>
           ))}
+
+          {/* Divider */}
+          <div style={{ width: 1, height: 16, backgroundColor: "#e7e5e4", margin: "0 4px" }} />
+
+          {/* Deadline legend */}
+          {DEADLINE_TYPES.map(dt => (
+            <div key={dt.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 14, height: 9, borderRadius: 2, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: P.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{dt.short}</span>
+            </div>
+          ))}
+
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Calendar style={{ width: 13, height: 13, color: P.muted }} />
-              <span style={{ fontSize: 11, color: P.secondary }}>Início do Evento</span>
+              <Calendar style={{ width: 12, height: 12, color: P.muted }} />
+              <span style={{ fontSize: 11, color: P.secondary }}>Início</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Truck style={{ width: 13, height: 13, color: P.muted }} />
+              <Truck style={{ width: 12, height: 12, color: P.muted }} />
               <span style={{ fontSize: 11, color: P.secondary }}>Saída Logística</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <Flag style={{ width: 12, height: 12, color: P.muted }} />
+              <span style={{ fontSize: 11, color: P.secondary }}>Prazo de Layout</span>
             </div>
           </div>
         </div>
@@ -510,6 +593,45 @@ export default function Calendario() {
                 </div>
               );
             })}
+
+            {/* ── Deadline entries in dialog ── */}
+            {selectedDate && (() => {
+              const deadlines = getDeadlinesForDate(selectedDate);
+              if (!deadlines.length) return null;
+              return (
+                <>
+                  <div style={{ borderTop: "1px solid #eeeeed", paddingTop: 6, paddingBottom: 2 }}>
+                    <span style={{ fontSize: 10, fontWeight: 900, color: P.muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                      Prazos de Layout
+                    </span>
+                  </div>
+                  {deadlines.map(({ event, dtype }) => (
+                    <div key={`${event.id}-${dtype.key}`}
+                      data-testid={`dialog-deadline-${event.id}-${dtype.key}`}
+                      onClick={() => { setDialogOpen(false); setLocation(`/eventos/${event.id}`); }}
+                      style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: `${dtype.color}08`, border: `1px solid ${P.border}`, borderLeft: `4px solid ${dtype.color}`, borderRadius: 8, cursor: "pointer" }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${dtype.color}14`)}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = `${dtype.color}08`)}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, backgroundColor: `${dtype.color}15`, border: `1px solid ${dtype.color}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Flag style={{ width: 14, height: 14, color: dtype.color }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: P.text, margin: 0 }}>{event.name}</p>
+                          <span style={{ fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", color: "#ffffff", backgroundColor: dtype.color, borderRadius: 4, padding: "2px 8px" }}>
+                            {dtype.short}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 12, color: P.muted, margin: "4px 0 0" }}>
+                          Prazo: <strong style={{ color: P.secondary }}>{dtype.label}</strong>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>

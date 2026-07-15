@@ -1,0 +1,26 @@
+[
+  {
+    "quota": "MASTER",
+    "itemTypes": []
+  },
+  {
+    "quota": "GOLD",
+    "itemTypes": []
+  },
+  {
+    "quota": "SILVER",
+    "itemTypes": []
+  },
+  {
+    "quota": "APOIO",
+    "itemTypes": []
+  },
+  {
+    "quota": "MIDIA",
+    "itemTypes": []
+  },
+  {
+    "quota": "MINISTERIO",
+    "itemTypes": []
+  }
+]

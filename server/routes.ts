@@ -1,4 +1,6 @@
 // Referenced from javascript_websocket blueprint for WebSocket setup
+import fs from "fs";
+import path from "path";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -526,6 +528,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await storage.deleteEventQuotaRule(req.params.id, req.params.quota);
       res.json({ ok: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ── Global quota rules (JSON-file backed, no schema change needed) ──
+  const GLOBAL_QUOTA_FILE = path.join(process.cwd(), "global-quota-rules.json");
+
+  function readGlobalQuotaRules(): { quota: string; itemTypes: string[] }[] {
+    try {
+      if (fs.existsSync(GLOBAL_QUOTA_FILE)) {
+        return JSON.parse(fs.readFileSync(GLOBAL_QUOTA_FILE, "utf8"));
+      }
+    } catch { /* ignore */ }
+    return [];
+  }
+
+  function writeGlobalQuotaRules(rules: { quota: string; itemTypes: string[] }[]): void {
+    fs.writeFileSync(GLOBAL_QUOTA_FILE, JSON.stringify(rules, null, 2), "utf8");
+  }
+
+  app.get("/api/quota-rules/global", requireAuth, (_req, res) => {
+    res.json(readGlobalQuotaRules());
+  });
+
+  app.put("/api/quota-rules/global", requireAuth, (req, res) => {
+    try {
+      const { quota, itemTypes } = req.body as { quota: string; itemTypes: string[] };
+      if (!quota) return res.status(400).json({ error: "quota é obrigatório" });
+      const rules = readGlobalQuotaRules().filter(r => r.quota !== quota);
+      rules.push({ quota, itemTypes: itemTypes ?? [] });
+      writeGlobalQuotaRules(rules);
+      res.json({ quota, itemTypes: itemTypes ?? [] });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Returns distinct item.type values across ALL events, sorted
+  app.get("/api/quota-rules/groups", requireAuth, async (_req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT DISTINCT type FROM items WHERE type IS NOT NULL AND type <> '' ORDER BY type`
+      );
+      const groups = result.rows.map((r: any) => r.type as string);
+      res.json(groups);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

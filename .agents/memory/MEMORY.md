@@ -1,1 +1,2 @@
 - [Norte Excel parser quirks](norte-xlsx-parser.md) — Norte xlsx has 3 known structural variations that require special handling
+- [XLSX shared-string numeric index](xlsx-shared-string-lookup.md) — Excel formula cells in group col (B) may emit SS index as a number; must resolve via sharedStrings[N] to get the item description.

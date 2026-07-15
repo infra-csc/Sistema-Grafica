@@ -1646,10 +1646,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const row = rows[r];
         if (!row) continue;
 
-        // Group column (B in Norte format) — update currentGroup when present
-        if (groupCol && row[groupCol]) currentGroup = row[groupCol];
+        // Group column (B in Norte format) — only update currentGroup for non-numeric text
+        if (groupCol && row[groupCol] && !/^\d+$/.test(row[groupCol].trim())) currentGroup = row[groupCol].trim();
 
-        const itemVal = colMap["item"] ? (row[colMap["item"]] || "").trim() : "";
+        let itemVal = colMap["item"] ? (row[colMap["item"]] || "").trim() : "";
+        // When item col (C) is empty but group col (B) stores a numeric shared-string index,
+        // resolve it to the actual description (Excel sometimes emits formula results as numeric indices)
+        if (!itemVal && groupCol && row[groupCol] && /^\d+$/.test(row[groupCol].trim())) {
+          const ssIdx = parseInt(row[groupCol].trim());
+          if (ssIdx > 0 && sharedStrings[ssIdx]) itemVal = sharedStrings[ssIdx].trim();
+        }
+
         const qtyStr  = colMap["qty"]  ? (row[colMap["qty"]]  || "").trim() : "";
         const matVal  = colMap["material"] ? (row[colMap["material"]] || "").trim() : "";
         const finVal  = colMap["finish"]   ? (row[colMap["finish"]]   || "").trim() : "";
@@ -1945,7 +1952,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!row) continue;
         // Only update currentGroup when B value is not a bare integer (bare integers are shared-string indices, not group names)
         if (groupCol && row[groupCol] && !/^\d+$/.test(row[groupCol].trim())) currentGroup = row[groupCol].trim();
-        const itemVal = colMap["item"] ? (row[colMap["item"]] || "").trim() : "";
+        let itemVal = colMap["item"] ? (row[colMap["item"]] || "").trim() : "";
+        // When item col (C) is empty but group col (B) stores a numeric shared-string index,
+        // resolve it to the actual description (Excel sometimes emits formula results as numeric indices)
+        if (!itemVal && groupCol && row[groupCol] && /^\d+$/.test(row[groupCol].trim())) {
+          const ssIdx = parseInt(row[groupCol].trim());
+          if (ssIdx > 0 && sharedStrings[ssIdx]) itemVal = sharedStrings[ssIdx].trim();
+        }
         const qtyStr  = colMap["qty"]  ? (row[colMap["qty"]]  || "").trim() : "";
         if (!itemVal) continue;
         let qty = parseInt(qtyStr) || 0;

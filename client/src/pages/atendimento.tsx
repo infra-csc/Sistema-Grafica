@@ -1717,7 +1717,13 @@ export default function Atendimento() {
                           { label: 'Tipo / Formato', value: selectedItem.type || '—' },
                           { label: 'Descrição', value: selectedItem.description || '—' },
                           { label: 'Quantidade', value: selectedItem.quantity ? `${selectedItem.quantity}x` : '—' },
-                          { label: 'Dimensões / Tamanho', value: selectedItem.sizes || '—' },
+                          { label: 'Dimensões / Tamanho', value: (() => {
+                            const vw = selectedItem.visualWidth; const vh = selectedItem.visualHeight;
+                            const fw = selectedItem.fileWidth;  const fh = selectedItem.fileHeight;
+                            const visual = vw && vh ? `${parseFloat(vw)}×${parseFloat(vh)} m (visual)` : null;
+                            const file   = fw && fh ? `${parseFloat(fw)}×${parseFloat(fh)} m (arquivo)` : null;
+                            return [visual, file].filter(Boolean).join(' · ') || '—';
+                          })() },
                         ].map(({ label, value }) => (
                           <div key={label} style={{ backgroundColor: '#ffffff', padding: '10px 12px', borderRadius: 8, border: '1px solid #f1f0ef' }}>
                             <p style={{ fontSize: 10, color: '#a8a29e', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 3px' }}>{label}</p>

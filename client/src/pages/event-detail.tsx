@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
 import { Fragment, useState, useEffect } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
@@ -292,6 +292,7 @@ export default function EventDetail() {
   const [importPreviewItems, setImportPreviewItems] = useState<any[] | null>(null);
   const [importPreviewOpen, setImportPreviewOpen] = useState(false);
   const [importFileName, setImportFileName] = useState<string>("");
+  const [importSearch, setImportSearch] = useState("");
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const { toast } = useToast();
@@ -587,8 +588,7 @@ export default function EventDetail() {
       });
       setImportPreviewItems(withIds);
       setImportFileName(data.fileName || "");
-      setImportDialogOpen(false);
-      setImportPreviewOpen(true);
+      setImportSearch("");
     },
     onError: (error: any) => {
       toast({ title: "Erro ao processar planilha", description: error.message, variant: "destructive" });
@@ -608,10 +608,11 @@ export default function EventDetail() {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setImportPreviewOpen(false);
+      setImportDialogOpen(false);
       setImportPreviewItems(null);
       setImportFile(null);
       setImportFileName("");
+      setImportSearch("");
       toast({ title: `${data.imported} peças importadas com sucesso`, description: "Os itens foram adicionados ao evento." });
     },
     onError: (error: any) => {
@@ -2808,40 +2809,54 @@ export default function EventDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog: Importar Excel ─────────────────────────────────────────── */}
-      <Dialog open={importDialogOpen} onOpenChange={(v) => { if (!v) { setImportDialogOpen(false); setImportFile(null); setImportPreview(null); } }}>
-        <DialogContent style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f0efed' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <Upload style={{ width: 18, height: 18, color: '#22c55e' }} />
-              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
-                Importar Lista de Peças (Excel)
-              </DialogTitle>
+      {/* ── Dialog: Importar Excel (split-panel) ───────────────────────────── */}
+      <Dialog open={importDialogOpen} onOpenChange={(v) => {
+        if (!v) {
+          setImportDialogOpen(false);
+          setImportFile(null);
+          setImportPreview(null);
+          setImportPreviewItems(null);
+          setImportSearch("");
+        }
+      }}>
+        <DialogContent
+          className="[&>button:last-child]:right-4 [&>button:last-child]:top-4"
+          style={{ maxWidth: '98vw', width: importPreviewItems ? 1200 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'row', transition: 'width 0.3s' }}
+        >
+          {/* ── Left sidebar ── */}
+          <div style={{ width: 260, minWidth: 260, backgroundColor: '#ffffff', borderRight: '1px solid #e7e5e4', display: 'flex', flexDirection: 'column', padding: '22px 18px', gap: 16, overflowY: 'auto', flexShrink: 0 }}>
+            {/* Title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 7, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FileSpreadsheet style={{ width: 15, height: 15, color: '#16a34a' }} />
+              </div>
+              <div>
+                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, lineHeight: 1.2 }}>
+                  Importar Peças
+                </DialogTitle>
+                <DialogDescription style={{ fontSize: 10, color: '#a8a29e', margin: 0, marginTop: 1 }}>
+                  {importFileName || 'Formato padrão NORTE'}
+                </DialogDescription>
+              </div>
             </div>
-            <DialogDescription style={{ fontSize: 12, color: '#78716c', margin: 0, paddingLeft: 28 }}>
-              Selecione o arquivo .xlsx da lista de peças do evento
-            </DialogDescription>
-          </div>
 
-          <div style={{ padding: '24px 28px' }}>
             {/* Drop zone */}
             <label
               htmlFor="xlsx-upload"
               data-testid="dropzone-xlsx"
               style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 10, border: '2px dashed', borderColor: importFile ? '#22c55e' : '#d4d0cc',
-                borderRadius: 10, padding: '32px 24px', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                border: '2px dashed', borderColor: importFile ? '#16a34a' : '#d4d0cc',
+                borderRadius: 10, padding: '18px 12px', cursor: 'pointer',
                 backgroundColor: importFile ? '#f0fdf4' : '#fafaf9', transition: 'all 0.2s',
               }}
-              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#22c55e'; e.currentTarget.style.backgroundColor = '#f0fdf4'; }}
-              onDragLeave={e => { e.currentTarget.style.borderColor = importFile ? '#22c55e' : '#d4d0cc'; e.currentTarget.style.backgroundColor = importFile ? '#f0fdf4' : '#fafaf9'; }}
+              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#16a34a'; e.currentTarget.style.backgroundColor = '#f0fdf4'; }}
+              onDragLeave={e => { e.currentTarget.style.borderColor = importFile ? '#16a34a' : '#d4d0cc'; e.currentTarget.style.backgroundColor = importFile ? '#f0fdf4' : '#fafaf9'; }}
               onDrop={e => {
                 e.preventDefault();
                 const f = e.dataTransfer.files[0];
                 if (f && (f.name.endsWith('.xlsx') || f.name.endsWith('.xls'))) {
-                  setImportFile(f);
-                  setImportPreview(null);
+                  setImportFile(f); setImportPreview(null); setImportPreviewItems(null);
                 } else {
                   toast({ title: "Arquivo inválido", description: "Selecione um arquivo .xlsx", variant: "destructive" });
                 }
@@ -2849,254 +2864,222 @@ export default function EventDetail() {
             >
               {importFile ? (
                 <>
-                  <CheckCircle2 style={{ width: 32, height: 32, color: '#22c55e' }} />
+                  <CheckCircle2 style={{ width: 24, height: 24, color: '#16a34a' }} />
                   <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: '#166534', margin: 0 }}>{importFile.name}</p>
-                    <p style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</p>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#166534', fontFamily: "'Space Grotesk', sans-serif" }}>{importFile.name}</div>
+                    <div style={{ fontSize: 11, color: '#78716c', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
                   </div>
                   <button
-                    onClick={e => { e.preventDefault(); setImportFile(null); setImportPreview(null); }}
-                    style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={e => { e.preventDefault(); setImportFile(null); setImportPreview(null); setImportPreviewItems(null); }}
+                    style={{ fontSize: 10, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
                   >
-                    Remover arquivo
+                    <X style={{ width: 10, height: 10 }} /> Remover
                   </button>
                 </>
               ) : (
                 <>
-                  <Upload style={{ width: 28, height: 28, color: '#a8a29e' }} />
+                  <Upload style={{ width: 20, height: 20, color: '#a8a29e' }} />
                   <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: '#44403c', margin: 0 }}>Arraste o arquivo aqui</p>
-                    <p style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>ou clique para selecionar</p>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#44403c' }}>Arraste o .xlsx aqui</div>
+                    <div style={{ fontSize: 11, color: '#78716c', marginTop: 2 }}>ou clique para selecionar</div>
                   </div>
-                  <p style={{ fontSize: 11, color: '#a8a29e', margin: 0 }}>Suporte: .xlsx (formato padrão NORTE)</p>
                 </>
               )}
             </label>
-            <input
-              id="xlsx-upload"
-              type="file"
-              accept=".xlsx,.xls"
-              style={{ display: 'none' }}
-              onChange={e => {
-                const f = e.target.files?.[0];
-                if (f) { setImportFile(f); setImportPreview(null); }
-                e.target.value = "";
-              }}
-            />
+            <input id="xlsx-upload" type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => {
+              const f = e.target.files?.[0];
+              if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
+              e.target.value = "";
+            }} />
 
-            {/* Dica de formato */}
-            <div style={{ marginTop: 16, backgroundColor: '#fefce8', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', display: 'flex', gap: 8 }}>
-              <AlertTriangle style={{ width: 14, height: 14, color: '#d97706', flexShrink: 0, marginTop: 1 }} />
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#92400e', margin: '0 0 2px' }}>Formato esperado</p>
-                <p style={{ fontSize: 11, color: '#78350f', margin: 0, lineHeight: 1.5 }}>
-                  Colunas: <strong>item · qtde · material · acabamento</strong> (obrigatórias)<br />
-                  Opcionais: área · visual · medida do arquivo · obs
-                </p>
+            {/* Stats (when preview is loaded) */}
+            {importPreviewItems && (() => {
+              const allItems = importPreviewItems;
+              const totalM2 = allItems.reduce((s: number, i: any) => s + (parseFloat(i.calculatedM2) || 0), 0);
+              const linked = allItems.filter((i: any) => (i.suggestedSponsorIds ?? []).length > 0).length;
+              const groups = new Set(allItems.map((i: any) => i.type)).size;
+              const linkPct = allItems.length > 0 ? Math.round((linked / allItems.length) * 100) : 0;
+              return (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {[
+                      { l: 'Peças',      v: allItems.length,         color: '#1a1c1c', mono: false },
+                      { l: 'Grupos',     v: groups,                  color: '#1a1c1c', mono: false },
+                      { l: 'M² total',   v: `${totalM2.toFixed(0)}`, color: '#D97A1E', mono: true  },
+                      { l: 'Vinculados', v: `${linkPct}%`,           color: linkPct === 100 ? '#16a34a' : '#d97706', mono: false },
+                    ].map(s => (
+                      <div key={s.l} style={{ backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ fontSize: 20, fontWeight: 900, color: s.color, fontFamily: s.mono ? 'DM Mono, monospace' : "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.v}</div>
+                        <div style={{ fontSize: 9, color: '#a8a29e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600 }}>Vinculação</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? '#16a34a' : '#d97706' }}>{linked}/{allItems.length}</span>
+                    </div>
+                    <div style={{ height: 5, backgroundColor: '#e7e5e4', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? '#16a34a' : '#d97706', borderRadius: 99, transition: 'width 0.4s' }} />
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* Format tip */}
+            <div style={{ padding: '10px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, display: 'flex', gap: 8 }}>
+              <AlertTriangle style={{ width: 13, height: 13, color: '#d97706', flexShrink: 0, marginTop: 1 }} />
+              <div style={{ fontSize: 10, color: '#78350f', lineHeight: 1.6 }}>
+                <strong style={{ color: '#92400e' }}>Formato NORTE:</strong><br />
+                item · qtde · material · acabamento
               </div>
             </div>
-          </div>
 
-          <div style={{ padding: '16px 28px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-            <Button variant="outline" onClick={() => { setImportDialogOpen(false); setImportFile(null); setImportPreview(null); }}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => { if (importFile) previewXlsxMutation.mutate({ file: importFile }); }}
-              disabled={!importFile || previewXlsxMutation.isPending}
-              data-testid="button-preview-import"
-              style={{ backgroundColor: '#22c55e', color: '#ffffff' }}
-            >
-              {previewXlsxMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processando...</>
-              ) : (
-                <><List className="h-4 w-4 mr-2" /> Pré-visualizar Peças</>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            <div style={{ flex: 1 }} />
 
-      {/* ── Dialog: Revisão de importação Excel ────────────────────────────── */}
-      <Dialog open={importPreviewOpen} onOpenChange={(v) => { if (!v) { setImportPreviewOpen(false); } }}>
-        <DialogContent className="[&>button:last-child]:right-5 [&>button:last-child]:top-5" style={{ maxWidth: '95vw', width: '1100px', maxHeight: '90vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {/* Header */}
-          {(() => {
-            const allItems = importPreviewItems ?? [];
-            const totalM2 = allItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
-            const linkedCount = allItems.filter(i => (i.suggestedSponsorIds ?? []).length > 0).length;
-            const typeCount = new Set(allItems.map(i => i.type)).size;
-            const pct = allItems.length > 0 ? Math.round((linkedCount / allItems.length) * 100) : 0;
-            return (
-              <div style={{ padding: '20px 28px 18px', borderBottom: '2px solid #ebe9e7', background: 'linear-gradient(135deg, #fafaf9 0%, #f5f4f2 100%)', flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <List style={{ width: 16, height: 16, color: '#16a34a' }} />
-                      </div>
-                      <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
-                        Revisão de Importação
-                      </DialogTitle>
-                      {importFileName && (
-                        <span style={{ fontSize: 11, color: '#78716c', backgroundColor: '#f0efed', border: '1px solid #e2deda', borderRadius: 6, padding: '2px 8px', fontFamily: 'DM Mono, monospace' }}>
-                          {importFileName}
-                        </span>
-                      )}
-                    </div>
-                    <p style={{ fontSize: 12, color: '#9c9490', margin: 0, paddingLeft: 42 }}>
-                      Clique em qualquer célula para editar. Ajuste o patrocinador sugerido se necessário e confirme.
-                    </p>
-                  </div>
-                  {/* Stats */}
-                  <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                    <div style={{ textAlign: 'center', padding: '8px 14px', backgroundColor: '#fff', border: '1px solid #ebe9e7', borderRadius: 10 }}>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{allItems.length}</div>
-                      <div style={{ fontSize: 10, color: '#9c9490', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>peças</div>
-                    </div>
-                    <div style={{ textAlign: 'center', padding: '8px 14px', backgroundColor: '#fff', border: '1px solid #ebe9e7', borderRadius: 10 }}>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{typeCount}</div>
-                      <div style={{ fontSize: 10, color: '#9c9490', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>tipos</div>
-                    </div>
-                    <div style={{ textAlign: 'center', padding: '8px 14px', backgroundColor: '#fff8f1', border: '1px solid #fed7aa', borderRadius: 10 }}>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: '#ea580c', fontFamily: 'DM Mono, monospace', lineHeight: 1 }}>{totalM2.toFixed(0)}</div>
-                      <div style={{ fontSize: 10, color: '#9c9490', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>m² total</div>
-                    </div>
-                    <div style={{ textAlign: 'center', padding: '8px 14px', backgroundColor: pct === 100 ? '#f0fdf4' : '#fffbeb', border: `1px solid ${pct === 100 ? '#bbf7d0' : '#fde68a'}`, borderRadius: 10 }}>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: pct === 100 ? '#16a34a' : '#d97706', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{pct}%</div>
-                      <div style={{ fontSize: 10, color: '#9c9490', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>vinculados</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Table */}
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f5f4f2', position: 'sticky', top: 0, zIndex: 2, boxShadow: '0 1px 0 #e8e6e3' }}>
-                  {[
-                    { label: 'Descrição', tip: 'Nome da peça' },
-                    { label: 'Qtd', tip: 'Quantidade' },
-                    { label: 'Visual', tip: 'Largura × Altura visual (m)' },
-                    { label: 'Arquivo', tip: 'Largura × Altura do arquivo (m)' },
-                    { label: 'M²', tip: 'Metros quadrados calculados' },
-                    { label: 'Material', tip: '' },
-                    { label: 'Acabamento', tip: '' },
-                    { label: 'Obs', tip: 'Observações' },
-                    { label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar' },
-                    { label: '', tip: '' },
-                  ].map((h, i) => (
-                    <th key={i} title={h.tip} style={{ padding: '10px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const items = importPreviewItems ?? [];
-                  const groupMap = new Map<string, any[]>();
-                  for (const item of items) {
-                    const t = item.type || '—';
-                    if (!groupMap.has(t)) groupMap.set(t, []);
-                    groupMap.get(t)!.push(item);
-                  }
-                  const groups = Array.from(groupMap.entries());
-                  return groups.map(([type, groupItems], gIdx) => {
-                    const groupM2 = groupItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
-                    const groupLinked = groupItems.filter(i => (i.suggestedSponsorIds ?? []).length > 0).length;
-                    return (
-                      <>
-                        {gIdx > 0 && (
-                          <tr key={`spacer-${type}-${gIdx}`}>
-                            <td colSpan={10} style={{ height: 6, backgroundColor: '#f0efed' }} />
-                          </tr>
-                        )}
-                        <tr key={`header-${type}-${gIdx}`}>
-                          <td colSpan={10} style={{ padding: '10px 14px 9px', background: 'linear-gradient(90deg, #f0eeec 0%, #f5f4f2 100%)', borderTop: gIdx > 0 ? '2px solid #e2deda' : undefined, borderBottom: '1px solid #e2deda' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{ width: 4, height: 18, backgroundColor: '#f97316', borderRadius: 2, flexShrink: 0 }} />
-                                <span style={{ fontWeight: 800, fontSize: 14, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em' }}>{type}</span>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '2px 10px' }}>
-                                  {groupItems.length} {groupItems.length === 1 ? 'peça' : 'peças'}
-                                </span>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                                {groupM2 > 0 && (
-                                  <span style={{ fontSize: 11, color: '#78716c' }}>
-                                    <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700, color: '#ea580c' }}>{groupM2.toFixed(2)}</span> m²
-                                  </span>
-                                )}
-                                <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? '#16a34a' : '#d97706', fontWeight: 600 }}>
-                                  {groupLinked}/{groupItems.length} vinculados
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                        {groupItems.map((row, rowIdx) => (
-                          <ImportPreviewRow
-                            key={row._id}
-                            row={row}
-                            idx={rowIdx}
-                            onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
-                            onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
-                            eventSponsorsList={eventSponsorsList}
-                          />
-                        ))}
-                      </>
-                    );
-                  });
-                })()}
-              </tbody>
-            </table>
-            {(!importPreviewItems || importPreviewItems.length === 0) && (
-              <div style={{ padding: 60, textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
-                <List style={{ width: 32, height: 32, color: '#d0cdc9', margin: '0 auto 12px' }} />
-                <div>Nenhuma peça para importar.</div>
+            {/* Action buttons */}
+            {!importPreviewItems ? (
+              <button
+                disabled={!importFile || previewXlsxMutation.isPending}
+                onClick={() => { if (importFile) previewXlsxMutation.mutate({ file: importFile }); }}
+                data-testid="button-preview-import"
+                style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#16a34a' : '#e7e5e4', color: importFile ? '#fff' : '#a8a29e', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                {previewXlsxMutation.isPending ? (
+                  <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Processando...</>
+                ) : (
+                  <><List style={{ width: 15, height: 15 }} /> Pré-visualizar Peças</>
+                )}
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  onClick={() => { setImportPreviewItems(null); setImportSearch(""); }}
+                  style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 9, fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
+                >
+                  Trocar arquivo
+                </button>
+                <button
+                  disabled={!importPreviewItems.length || confirmImportMutation.isPending}
+                  onClick={() => { if (importPreviewItems.length > 0) confirmImportMutation.mutate({ items: importPreviewItems, fileName: importFileName }); }}
+                  data-testid="button-confirm-import"
+                  style={{ width: '100%', padding: '11px 0', backgroundColor: '#1c1917', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {confirmImportMutation.isPending ? (
+                    <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
+                  ) : (
+                    <><Check style={{ width: 15, height: 15 }} /> Importar {importPreviewItems.length} peças</>
+                  )}
+                </button>
               </div>
             )}
           </div>
 
-          {/* Footer */}
-          {(() => {
-            const allItems = importPreviewItems ?? [];
-            const totalM2 = allItems.reduce((s, i) => s + (parseFloat(i.calculatedM2) || 0), 0);
-            const linkedCount = allItems.filter(i => (i.suggestedSponsorIds ?? []).length > 0).length;
-            return (
-              <div style={{ padding: '14px 28px 18px', borderTop: '2px solid #ebe9e7', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, backgroundColor: '#fafaf9', gap: 16 }}>
-                <Button variant="outline" onClick={() => { setImportPreviewOpen(false); setImportDialogOpen(true); }}>
-                  Voltar
-                </Button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#9c9490' }}>
-                    <span><strong style={{ color: '#1a1c1c' }}>{allItems.length}</strong> peças</span>
-                    <span>·</span>
-                    <span><strong style={{ color: '#ea580c', fontFamily: 'DM Mono, monospace' }}>{totalM2.toFixed(2)}</strong> m²</span>
-                    <span>·</span>
-                    <span><strong style={{ color: linkedCount === allItems.length && allItems.length > 0 ? '#16a34a' : '#d97706' }}>{linkedCount}</strong>/{allItems.length} vinculados</span>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      if (allItems.length > 0)
-                        confirmImportMutation.mutate({ items: allItems, fileName: importFileName });
-                    }}
-                    disabled={allItems.length === 0 || confirmImportMutation.isPending}
-                    data-testid="button-confirm-import"
-                    style={{ backgroundColor: '#1c1917', color: '#ffffff', minWidth: 180 }}
-                  >
-                    {confirmImportMutation.isPending ? (
-                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...</>
-                    ) : (
-                      <><Upload className="h-4 w-4 mr-2" /> Confirmar Importação</>
-                    )}
-                  </Button>
+          {/* ── Right panel: table ── */}
+          {importPreviewItems && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+              {/* Search bar */}
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#a8a29e', pointerEvents: 'none' }} />
+                  <input
+                    value={importSearch}
+                    onChange={e => setImportSearch(e.target.value)}
+                    placeholder="Filtrar peças ou grupos..."
+                    style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 7, color: '#1a1c1c', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
+                  />
                 </div>
+                <span style={{ fontSize: 11, color: '#a8a29e', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                  {importSearch
+                    ? `${importPreviewItems.filter(i => i.description?.toLowerCase().includes(importSearch.toLowerCase()) || i.type?.toLowerCase().includes(importSearch.toLowerCase())).length} de ${importPreviewItems.length}`
+                    : `${importPreviewItems.length} peças`
+                  }
+                </span>
               </div>
-            );
-          })()}
+
+              {/* Table */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f5f4f2', position: 'sticky', top: 0, zIndex: 2, boxShadow: '0 1px 0 #e8e6e3' }}>
+                      {[
+                        { label: 'Descrição', tip: 'Nome da peça' },
+                        { label: 'Qtd', tip: 'Quantidade' },
+                        { label: 'Visual', tip: 'Largura × Altura visual (m)' },
+                        { label: 'Arquivo', tip: 'Largura × Altura do arquivo (m)' },
+                        { label: 'M²', tip: 'Metros quadrados calculados' },
+                        { label: 'Material', tip: '' },
+                        { label: 'Acabamento', tip: '' },
+                        { label: 'Obs', tip: 'Observações' },
+                        { label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar' },
+                        { label: '', tip: '' },
+                      ].map((h, i) => (
+                        <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const items = importSearch
+                        ? importPreviewItems.filter((i: any) => i.description?.toLowerCase().includes(importSearch.toLowerCase()) || i.type?.toLowerCase().includes(importSearch.toLowerCase()))
+                        : importPreviewItems;
+                      const groupMap = new Map<string, any[]>();
+                      for (const item of items) {
+                        const t = item.type || '—';
+                        if (!groupMap.has(t)) groupMap.set(t, []);
+                        groupMap.get(t)!.push(item);
+                      }
+                      const groups = Array.from(groupMap.entries());
+                      return groups.map(([type, groupItems], gIdx) => {
+                        const groupM2 = groupItems.reduce((s: number, i: any) => s + (parseFloat(i.calculatedM2) || 0), 0);
+                        const groupLinked = groupItems.filter((i: any) => (i.suggestedSponsorIds ?? []).length > 0).length;
+                        return (
+                          <Fragment key={type}>
+                            <tr>
+                              <td colSpan={10} style={{ padding: '9px 14px 8px', background: 'linear-gradient(90deg, #F0EEEC 0%, #F5F4F2 100%)', borderTop: gIdx > 0 ? '2px solid #E2DEDA' : undefined, borderBottom: '1px solid #e2deda' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ width: 3, height: 14, backgroundColor: '#D97A1E', borderRadius: 2 }} />
+                                    <span style={{ fontWeight: 800, fontSize: 12, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
+                                    <span style={{ fontSize: 10, fontWeight: 600, color: '#78716c', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '1px 8px' }}>{groupItems.length}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                    {groupM2 > 0 && (
+                                      <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', fontWeight: 700, color: '#D97A1E' }}>{groupM2.toFixed(2)} m²</span>
+                                    )}
+                                    <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? '#16a34a' : '#d97706', fontWeight: 600 }}>
+                                      {groupLinked}/{groupItems.length} vinculados
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                            {groupItems.map((row: any, rowIdx: number) => (
+                              <ImportPreviewRow
+                                key={row._id}
+                                row={row}
+                                idx={rowIdx}
+                                onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
+                                onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
+                                eventSponsorsList={eventSponsorsList}
+                              />
+                            ))}
+                          </Fragment>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+                {importPreviewItems.length === 0 && (
+                  <div style={{ padding: 60, textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
+                    <List style={{ width: 32, height: 32, color: '#d0cdc9', margin: '0 auto 12px' }} />
+                    <div>Nenhuma peça para importar.</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -2820,9 +2820,10 @@ export default function EventDetail() {
         }
       }}>
         <DialogContent
-          className="[&>button:last-child]:right-4 [&>button:last-child]:top-4"
-          style={{ maxWidth: '98vw', width: importPreviewItems ? 1200 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'row', transition: 'width 0.3s' }}
+          className="[&>button:last-child]:right-4 [&>button:last-child]:top-4 [&>button:last-child]:z-50"
+          style={{ maxWidth: '98vw', width: importPreviewItems ? 1200 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'visible', transition: 'width 0.3s' }}
         >
+          <div style={{ display: 'flex', flexDirection: 'row', height: '100%', maxHeight: '92vh', overflow: 'hidden', borderRadius: 14 }}>
           {/* ── Left sidebar ── */}
           <div style={{ width: 260, minWidth: 260, backgroundColor: '#ffffff', borderRight: '1px solid #e7e5e4', display: 'flex', flexDirection: 'column', padding: '22px 18px', gap: 16, overflowY: 'auto', flexShrink: 0 }}>
             {/* Title */}

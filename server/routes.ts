@@ -1979,22 +1979,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (parts.length >= 2) { fileW = parseFloat(parts[0]) || fileW; fileH = parseFloat(parts[1]) || fileH; }
           }
 
-          // Normalize dimension-based group names:
-          // Case A: B col has "2X1 MBRF", C col has "2×1 Mbrf" → group "2X1"
-          // Case B: B col empty, C col has "2×1 Mbrf" → group "2X1" (rawType falls back to itemVal)
-          // Only normalizes when rawType starts with same NxN as itemVal AND has extra text after.
+          // Normalize group names in two passes:
+          // Pass 1 — dimension groups: "2X1 MBRF" or empty-group "2×1 Mbrf" → "2X1"
+          // Pass 2 — sequential counters: "TESTEIRA PÓRTICO DISPERSÃO 1" → "TESTEIRA PÓRTICO DISPERSÃO"
           const rawType = currentGroup || itemVal;
           const dimRe = /^(\d+)\s*[xX×]\s*(\d+)/i;
           const gDim = rawType.match(dimRe);
           const iDim = itemVal.match(dimRe);
-          const normalizedGroup = (
+          let groupType = (
             gDim && iDim &&
             gDim[1] === iDim[1] && gDim[2] === iDim[2] &&
             rawType.replace(/\s/g, "").length > `${gDim[1]}x${gDim[2]}`.length
           ) ? `${gDim[1]}X${gDim[2]}` : rawType;
+          // Pass 2: strip trailing sequential integer (" 1", " 2", " 3"…)
+          // Keeps "7M", "BOCA DE 6)", "3X1" etc. intact; only strips bare numbers at the very end.
+          const trailingNum = groupType.match(/^(.+?)\s+\d+$/);
+          if (trailingNum) groupType = trailingNum[1];
 
           localItems.push({
-            type: normalizedGroup,
+            type: groupType,
             description: itemVal,
             quantity: qty,
             visualWidth: visualW || null,

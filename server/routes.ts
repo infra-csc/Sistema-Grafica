@@ -1909,10 +1909,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (hIdx > 0) colMap["width"] = String.fromCharCode(65 + hIdx - 1);
       }
 
-      const parseNum = (s: string) => { if (!s) return 0; return parseFloat(s.replace(",", ".").replace(/[^\d.eE+\-]/g, "")) || 0; };
+      // Round to 4 decimal places to eliminate IEEE-754 floating point noise (e.g. 3.0100000000000002 → 3.01)
+      const parseNum = (s: string) => {
+        if (!s) return 0;
+        const n = parseFloat(s.replace(",", ".").replace(/[^\d.eE+\-]/g, "")) || 0;
+        return Math.round(n * 10000) / 10000;
+      };
       const itemCol = colMap["item"]!;
       const itemColIdx = itemCol.charCodeAt(0) - 65;
       const groupCol = itemColIdx > 0 ? String.fromCharCode(65 + itemColIdx - 1) : null;
+      // Code column is immediately after item col (e.g. C→D). Used as qty fallback when qty col is empty.
+      const codeCol = String.fromCharCode(65 + itemColIdx + 1);
 
       let currentGroup = "";
       const items: any[] = [];
@@ -1921,11 +1928,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (let r = headerRow + 1; r <= numRows; r++) {
         const row = rows[r];
         if (!row) continue;
-        if (groupCol && row[groupCol]) currentGroup = row[groupCol];
+        // Only update currentGroup when B value is not a bare integer (bare integers are shared-string indices, not group names)
+        if (groupCol && row[groupCol] && !/^\d+$/.test(row[groupCol].trim())) currentGroup = row[groupCol].trim();
         const itemVal = colMap["item"] ? (row[colMap["item"]] || "").trim() : "";
         const qtyStr  = colMap["qty"]  ? (row[colMap["qty"]]  || "").trim() : "";
         if (!itemVal) continue;
-        const qty = parseInt(qtyStr) || 0;
+        let qty = parseInt(qtyStr) || 0;
+        // Fallback: some Norte Excel rows store qty in the code column (D) when the qty column (E) is absent.
+        // This happens for groups like "PÓRTICO (BOCA DE 6)" where qty is in D and E is empty.
+        if (qty === 0) {
+          const codeVal = (row[codeCol] || "").trim();
+          if (/^\d+$/.test(codeVal)) qty = parseInt(codeVal);
+        }
         if (qty === 0) continue;
 
         const matVal = colMap["material"] ? (row[colMap["material"]] || "").trim() : "";
@@ -1955,7 +1969,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           visualHeight: visualH || null,
           fileWidth: fileW || null,
           fileHeight: fileH || null,
-          calculatedM2: fileW && fileH ? qty * fileW * fileH : 0,
+          calculatedM2: fileW && fileH ? Math.round(qty * fileW * fileH * 10000) / 10000 : 0,
           material: cap(matVal) || "Lona",
           finish: cap(finVal) || "Ilhós",
           measurement: fileW && fileH ? `${fileW.toFixed(2)} × ${fileH.toFixed(2)}` : (visualW && visualH ? `${visualW.toFixed(2)} × ${visualH.toFixed(2)}` : ""),

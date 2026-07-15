@@ -275,12 +275,46 @@ export default function Arte() {
     body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   `;
 
+  // ── Pré-busca imagens como data URIs (resolve GCS 403 + timing) ─────────────
+  const prefetchThumbsAsDataUris = async (items: any[]): Promise<Record<string, string>> => {
+    const rawUrls = [...new Set(items.map((i: any) => i.approvalThumbUrl).filter(Boolean) as string[])];
+    const out: Record<string, string> = {};
+    await Promise.allSettled(rawUrls.map(async (rawUrl) => {
+      if (/\.pdf$/i.test(rawUrl)) return;
+      const localPath = convertGCSUrlToLocalPath(rawUrl);
+      const fetchUrl = localPath.startsWith("/") ? `${window.location.origin}${localPath}` : localPath;
+      try {
+        const resp = await fetch(fetchUrl, { credentials: "include" });
+        if (!resp.ok) return;
+        const ct = resp.headers.get("content-type") || "";
+        if (!ct.startsWith("image/")) return;
+        const blob = await resp.blob();
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        if (dataUri) out[rawUrl] = dataUri;
+      } catch {}
+    }));
+    return out;
+  };
+
   // ── Modo único: uma prova por página ────────────────────────────────────────
-  const exportItemsToPDF = (items: any[], title = "Arte — Peças") => {
+  const exportItemsToPDF = async (items: any[], title = "Arte — Peças") => {
     if (items.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
       return;
     }
+
+    // Pre-fetch imagens como data URIs antes de abrir a janela
+    const thumbCount = items.filter(i => i.approvalThumbUrl && !/\.pdf$/i.test(i.approvalThumbUrl)).length;
+    if (thumbCount > 0) {
+      toast({ title: `Preparando ${thumbCount} imagem${thumbCount !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
+    }
+    const thumbDataUris = await prefetchThumbsAsDataUris(items);
+
     const win = window.open("", "_blank");
     if (!win) return;
 
@@ -290,8 +324,10 @@ export default function Arte() {
 
     const pages = items.map((item, idx) => {
       const thumbUrl = item.approvalThumbUrl || "";
-      const isImg = thumbUrl && !/\.pdf$/i.test(thumbUrl) && (/\.(png|jpg|jpeg|gif|webp|svg)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/") || thumbUrl.includes("/.private/"));
-      const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
+      // Use pre-fetched data URI when available; fall back only for truly external/PDF URLs
+      const thumbDataUri = thumbDataUris[thumbUrl] || null;
+      const isImg = !!thumbDataUri;
+      const resolvedThumb = thumbDataUri || "";
 
       const visualW = parseFloat(item.visualWidth) || 0;
       const visualH = parseFloat(item.visualHeight) || 0;
@@ -494,7 +530,8 @@ export default function Arte() {
       </style>
     </head><body>${pages}</body></html>`);
     win.document.close();
-    setTimeout(() => win.print(), 800);
+    // Imagens já embutidas como data URIs — pode imprimir imediatamente
+    setTimeout(() => win.print(), 300);
   };
 
   // ── Modo 2: tabela resumo agrupada por Evento › Grupo ───────────────────────
@@ -626,7 +663,7 @@ export default function Arte() {
     if (selectedItemIds.size > 0) {
       const allPoolItems = [...allItems, ...correcaoItems];
       const selected = allPoolItems.filter(i => selectedItemIds.has(i.id));
-      exportItemsToPDF(selected, `Arte — ${selected.length} peça(s)`);
+      void exportItemsToPDF(selected, `Arte — ${selected.length} peça(s)`);
       return;
     }
     // Otherwise open group picker modal
@@ -652,11 +689,11 @@ export default function Arte() {
       toast({ title: "Nenhum item selecionado", variant: "destructive" });
       return;
     }
-    exportItemsToPDF(selectedItems, `Arte — ${selectedItems.length} peça(s)`);
+    void exportItemsToPDF(selectedItems, `Arte — ${selectedItems.length} peça(s)`);
   };
 
   const handleExportItemPDF = (item: any) => {
-    exportItemsToPDF([item], `Prova — ${item.displayId || item.type}`);
+    void exportItemsToPDF([item], `Prova — ${item.displayId || item.type}`);
   };
 
   // Upload sem alterar isPasteUploading (usado no bulk)

@@ -527,11 +527,46 @@ export default function Atendimento() {
     );
   }
 
-  const handleExportPDF = (itemsToExport: any[], groupByEvent: boolean) => {
+  // Normaliza URL GCS raw → /objects/ proxy path
+  const normalizeThumbUrl = (raw: string): string => {
+    if (raw.startsWith('/')) return raw;
+    const match = raw.match(/\/\.private\/(.+?)(?:\?|$)/);
+    if (match) return `/objects/${match[1]}`;
+    return raw;
+  };
+
+  const handleExportPDF = async (itemsToExport: any[], groupByEvent: boolean) => {
     if (itemsToExport.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
       return;
     }
+
+    // Pré-busca todas as imagens como data URIs antes de abrir a janela
+    const rawUrls = [...new Set(itemsToExport.map(i => i.approvalThumbUrl).filter(Boolean) as string[])];
+    const thumbDataUris: Record<string, string> = {};
+    const imgUrls = rawUrls.filter(u => !/\.pdf$/i.test(u));
+    if (imgUrls.length > 0) {
+      toast({ title: `Preparando ${imgUrls.length} imagem${imgUrls.length !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
+      await Promise.allSettled(imgUrls.map(async (rawUrl) => {
+        const local = normalizeThumbUrl(rawUrl);
+        const fetchUrl = local.startsWith("/") ? `${window.location.origin}${local}` : local;
+        try {
+          const resp = await fetch(fetchUrl, { credentials: "include" });
+          if (!resp.ok) return;
+          const ct = resp.headers.get("content-type") || "";
+          if (!ct.startsWith("image/")) return;
+          const blob = await resp.blob();
+          const dataUri = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          if (dataUri) thumbDataUris[rawUrl] = dataUri;
+        } catch {}
+      }));
+    }
+
     const win = window.open("", "_blank");
     if (!win) return;
 
@@ -545,8 +580,9 @@ export default function Atendimento() {
 
     const pages = sorted.map((item: any, idx: number) => {
       const thumbUrl = item.approvalThumbUrl || "";
-      const isImg = thumbUrl && !/\.pdf$/i.test(thumbUrl) && (/\.(png|jpg|jpeg|gif|webp|svg)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/") || thumbUrl.includes("/.private/"));
-      const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
+      const thumbDataUri = thumbDataUris[thumbUrl] || null;
+      const isImg = !!thumbDataUri;
+      const resolvedThumb = thumbDataUri || "";
 
       const itemSponsors = itemSponsorsMap[item.id] || [];
       const approvals = itemApprovalsMap[item.id] || [];
@@ -692,7 +728,8 @@ export default function Atendimento() {
       </style>
     </head><body>${pages}</body></html>`);
     win.document.close();
-    setTimeout(() => win.print(), 800);
+    // Imagens já embutidas como data URIs — pode imprimir imediatamente
+    setTimeout(() => win.print(), 300);
   };
 
   return (
@@ -2307,7 +2344,7 @@ export default function Atendimento() {
                   style={{ width: '100%', height: 36, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
                 >Cancelar</button>
                 <button
-                  onClick={() => { handleExportPDF(exportItems, expGroupByEvent); setShowExportPDFModal(false); }}
+                  onClick={() => { void handleExportPDF(exportItems, expGroupByEvent); setShowExportPDFModal(false); }}
                   disabled={exportItems.length === 0}
                   data-testid="button-confirm-export-pdf"
                   style={{

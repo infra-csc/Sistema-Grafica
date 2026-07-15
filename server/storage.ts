@@ -1101,11 +1101,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async previewAutoLink(eventId: string): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>> {
-    // Get quota rules for this event
-    const rules = await db.select().from(eventQuotaRules).where(eq(eventQuotaRules.eventId, eventId));
+    // Get quota rules for this event; fall back to global rules (JSON file) if none exist
+    let rules = await db.select().from(eventQuotaRules).where(eq(eventQuotaRules.eventId, eventId));
+    if (rules.length === 0) {
+      // Read global rules from JSON file as fallback
+      try {
+        const fs = await import("fs");
+        const path = await import("path");
+        const GLOBAL_QUOTA_FILE = path.join(process.cwd(), "global-quota-rules.json");
+        if (fs.existsSync(GLOBAL_QUOTA_FILE)) {
+          const raw = JSON.parse(fs.readFileSync(GLOBAL_QUOTA_FILE, "utf8")) as { quota: string; itemTypes: string[] }[];
+          rules = raw.map(r => ({ eventId, quota: r.quota, itemTypes: r.itemTypes })) as any;
+        }
+      } catch (_) { /* ignore */ }
+    }
     if (rules.length === 0) return [];
 
-    // Build quota → itemTypes map
+    // Build quota → itemTypes map (group names, e.g. "Palco", "2x1")
     const ruleMap: Record<string, string[]> = {};
     for (const r of rules) ruleMap[r.quota] = r.itemTypes;
 
@@ -1119,8 +1131,7 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(sponsors, eq(sponsors.id, eventSponsors.sponsorId))
       .where(eq(eventSponsors.eventId, eventId));
 
-    // Get all linkable items for this event
-    const linkableStatuses = ['requested', 'awaiting_linking'];
+    // Get all items for this event
     const eventItems = await db.select({
       id: items.id,
       displayId: items.displayId,
@@ -1137,13 +1148,20 @@ export class DatabaseStorage implements IStorage {
       .where(eq(items.eventId, eventId));
     const linkedSet = new Set(existingLinks.map(l => `${l.itemId}:${l.sponsorId}`));
 
+    // Prefix-based matching: group "Palco" matches "Palco", "Palco Master", "Palco Lateral", etc.
+    const matchesGroup = (itemType: string, group: string): boolean => {
+      const t = itemType.toLowerCase().trim();
+      const g = group.toLowerCase().trim();
+      return t === g || t.startsWith(g + " ") || t.startsWith(g + "(") || t.startsWith(g + " (");
+    };
+
     const preview: Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }> = [];
 
     for (const sp of evtSponsors) {
       if (!sp.quota || !ruleMap[sp.quota]) continue;
-      const allowedTypes = ruleMap[sp.quota].map(t => t.toLowerCase().trim());
+      const allowedGroups = ruleMap[sp.quota];
       const matchingItems = eventItems.filter(it =>
-        allowedTypes.includes(it.type.toLowerCase().trim()) &&
+        allowedGroups.some(g => matchesGroup(it.type, g)) &&
         !linkedSet.has(`${it.id}:${sp.sponsorId}`)
       );
       if (matchingItems.length > 0) {

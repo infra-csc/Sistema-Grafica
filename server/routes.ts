@@ -566,13 +566,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Returns distinct item.type values across ALL events, sorted
+  // Returns distinct parent group types from standard_items (canonical group names)
   app.get("/api/quota-rules/groups", requireAuth, async (_req, res) => {
     try {
       const result = await pool.query(
-        `SELECT DISTINCT type FROM items WHERE type IS NOT NULL AND type <> '' ORDER BY type`
+        `SELECT DISTINCT type FROM standard_items WHERE type IS NOT NULL AND type <> '' ORDER BY type`
       );
-      const groups = result.rows.map((r: any) => r.type as string);
+      let groups = result.rows.map((r: any) => r.type as string);
+      // Fallback: if standard_items is empty, derive parent groups from items.type
+      // by taking the first word/token of each type and deduplicating
+      if (groups.length === 0) {
+        const fallback = await pool.query(
+          `SELECT DISTINCT type FROM items WHERE type IS NOT NULL AND type <> '' ORDER BY type`
+        );
+        const raw: string[] = fallback.rows.map((r: any) => r.type as string);
+        const parentSet = new Set<string>();
+        for (const t of raw) {
+          // Extract parent group: first space-delimited word, stripping anything after '('
+          const firstToken = t.split(/[\s(]/)[0].trim();
+          if (firstToken) parentSet.add(firstToken);
+        }
+        groups = Array.from(parentSet).sort();
+      }
       res.json(groups);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

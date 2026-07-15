@@ -591,8 +591,10 @@ export default function Atendimento() {
         ? approvals.map((a: any) => {
             const statusColor = a.status === 'approved' ? '#16a34a' : a.status === 'rejected' ? '#dc2626' : '#ea580c';
             const statusLabel = a.status === 'approved' ? 'Aprovado' : a.status === 'rejected' ? 'Reprovado' : 'Pendente';
-            const sponsorName = a.sponsor?.name || itemSponsors.find((s: any) => s.id === a.sponsorId)?.name || '—';
-            return `<div class="appr-row"><span class="appr-name">${sponsorName}</span><span class="appr-status" style="color:${statusColor}">${statusLabel}</span></div>`;
+            const sp = itemSponsors.find((s: any) => s.id === a.sponsorId);
+            const sponsorName = a.sponsor?.name || sp?.name || '—';
+            const dotColor = sp?.color || a.sponsor?.color || '#94a3b8';
+            return `<div class="appr-row"><span class="appr-left"><span class="sp-dot" style="background:${dotColor}"></span><span class="appr-name">${sponsorName}</span></span><span class="appr-status" style="color:${statusColor}">${statusLabel}</span></div>`;
           }).join("")
         : itemSponsors.length
           ? itemSponsors.map((s: any) => {
@@ -716,6 +718,7 @@ export default function Atendimento() {
 
         .approvals { display: flex; flex-direction: column; gap: 8px; }
         .appr-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .appr-left { display: flex; align-items: center; gap: 7px; }
         .appr-name { font-size: 12px; font-weight: 600; color: #0f172a; }
         .appr-status { font-size: 11px; font-weight: 700; }
         .sp-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #1c1917; padding: 2px 8px; border-radius: 20px; border: 1px solid transparent; }

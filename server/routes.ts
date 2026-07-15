@@ -1840,55 +1840,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return na - nb;
       });
 
+      // Helper predicates — defined once, reused across all sheets
+      const isItemCol = (v: string) =>
+        v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" ||
+        v === "nome" || v === "produto" || v === "tipo" ||
+        v.startsWith("descri") || v.startsWith("tipo de");
+      const isCodeCol = (v: string) =>
+        (v.startsWith("cod") || v.startsWith("codigo")) && v.includes("peca");
+      const isQtyCol = (v: string) =>
+        v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" ||
+        v === "und" || v === "unid" || v === "unidade" || v === "qnt" || v === "un" || v === "un." ||
+        v.startsWith("qtd") || v.startsWith("quan") || v.includes("quantidade");
+
+      // Round to 4 decimal places to eliminate IEEE-754 floating point noise
+      const parseNum = (s: string) => {
+        if (!s) return 0;
+        const n = parseFloat(s.replace(",", ".").replace(/[^\d.eE+\-]/g, "")) || 0;
+        return Math.round(n * 10000) / 10000;
+      };
+      const cap = (s: string) => s ? (s.charAt(0).toUpperCase() + s.slice(1)) : s;
+
+      // Try every sheet; keep the candidate that yields the most valid items.
+      // This handles workbooks where a secondary sheet has a header-like row but no data,
+      // which previously caused the parser to stop at the wrong sheet.
+      let bestItems: any[] = [];
+      let anyHeaderFound = false;
+
       for (const sn of sheetEntries) {
         const entry = zip.getEntry(sn);
         if (!entry) continue;
         const candidate = parseSheet(entry.getData().toString("utf8"));
+
+        let localHeaderRow = -1;
+        const localColMap: Record<string, string> = {};
+
+        // --- Header detection ---
         for (const [rn, cells] of Object.entries(candidate)) {
           const vals = Object.values(cells).map(v => normHdr(v));
-          // Exact-match item column (direct labels only — "cód peça" is a code col, not item)
-          const isItemCol = (v: string) =>
-            v === "item" || v === "peca" || v === "pecas" || v === "descricao" || v === "descr" ||
-            v === "nome" || v === "produto" || v === "tipo" ||
-            v.startsWith("descri") || v.startsWith("tipo de");
-          // Code column ("cód peça", "codigo peca", etc.) — item col is inferred from the preceding column
-          const isCodeCol = (v: string) =>
-            (v.startsWith("cod") || v.startsWith("codigo")) && v.includes("peca");
-          const isQtyCol = (v: string) =>
-            v === "qtde" || v === "qtd" || v === "qtd." || v === "quantidade" || v === "quant" ||
-            v === "und" || v === "unid" || v === "unidade" || v === "qnt" || v === "un" || v === "un." ||
-            v.startsWith("qtd") || v.startsWith("quan") || v.includes("quantidade");
-
           const hasItem = vals.some(v => isItemCol(v) || isCodeCol(v));
           const hasQty  = vals.some(isQtyCol);
           if (hasItem && hasQty) {
-            headerRow = parseInt(rn); rows = candidate;
+            localHeaderRow = parseInt(rn);
             let codeColLetter: string | null = null;
             for (const [col, val] of Object.entries(cells)) {
               const v = normHdr(val);
-              if (!colMap["item"] && isItemCol(v))          colMap["item"] = col;
-              else if (isCodeCol(v))                        codeColLetter = col;
-              else if (!colMap["qty"] && isQtyCol(v))       colMap["qty"] = col;
-              else if (!colMap["width"]  && (v.startsWith("area") || v === "compr" || v === "largura" || v === "larg")) colMap["width"] = col;
-              else if (!colMap["height"] && (v === "visual" || v === "visu" || v === "altura" || v === "alt")) colMap["height"] = col;
-              else if (!colMap["material"] && v === "material") colMap["material"] = col;
-              else if (!colMap["finish"]   && (v === "acabamento" || v === "acab")) colMap["finish"] = col;
-              else if (!colMap["fileSize"] && (v.startsWith("medida") || v === "medida arquivo" || v === "dimensao" || v === "dimensoes")) colMap["fileSize"] = col;
-              else if (!colMap["m2"]  && (v === "m2" || v === "m\u00b2" || v === "metragem")) colMap["m2"] = col;
-              else if (!colMap["obs"] && (v === "obs" || v.startsWith("observa"))) colMap["obs"] = col;
+              if (!localColMap["item"] && isItemCol(v))          localColMap["item"] = col;
+              else if (isCodeCol(v))                             codeColLetter = col;
+              else if (!localColMap["qty"] && isQtyCol(v))       localColMap["qty"] = col;
+              else if (!localColMap["width"]  && (v.startsWith("area") || v === "compr" || v === "largura" || v === "larg")) localColMap["width"] = col;
+              else if (!localColMap["height"] && (v === "visual" || v === "visu" || v === "altura" || v === "alt")) localColMap["height"] = col;
+              else if (!localColMap["material"] && v === "material") localColMap["material"] = col;
+              else if (!localColMap["finish"]   && (v === "acabamento" || v === "acab")) localColMap["finish"] = col;
+              else if (!localColMap["fileSize"] && (v.startsWith("medida") || v === "medida arquivo" || v === "dimensao" || v === "dimensoes")) localColMap["fileSize"] = col;
+              else if (!localColMap["m2"]  && (v === "m2" || v === "m\u00b2" || v === "metragem")) localColMap["m2"] = col;
+              else if (!localColMap["obs"] && (v === "obs" || v.startsWith("observa"))) localColMap["obs"] = col;
             }
-            // Infer item col = column immediately before code col (Norte standard format)
-            if (!colMap["item"] && codeColLetter) {
+            if (!localColMap["item"] && codeColLetter) {
               const codeIdx = codeColLetter.charCodeAt(0) - 65;
-              if (codeIdx > 0) colMap["item"] = String.fromCharCode(65 + codeIdx - 1);
+              if (codeIdx > 0) localColMap["item"] = String.fromCharCode(65 + codeIdx - 1);
             }
             break;
           }
         }
-        if (headerRow !== -1) break;
+
+        if (localHeaderRow === -1) continue;
+        anyHeaderFound = true;
+
+        // --- Secondary column inference (pass 2 over the header row) ---
+        const hdrRowCells = candidate[localHeaderRow] ?? {};
+        for (const [col, val] of Object.entries(hdrRowCells)) {
+          const v = val.toLowerCase().trim();
+          if (!localColMap["width"] && (v.startsWith("área") || v.startsWith("area"))) localColMap["width"] = col;
+          if (!localColMap["height"] && (v === "visual" || v === "visu")) localColMap["height"] = col;
+          if (!localColMap["fileW"] && v.startsWith("medida do arquivo")) localColMap["fileW"] = col;
+          if (!localColMap["fileH"] && v === "compr") localColMap["fileH"] = col;
+          if (!localColMap["obs"] && (v === "obs" || v.startsWith("observa"))) localColMap["obs"] = col;
+        }
+        const finColL = localColMap["finish"];
+        if (finColL && !localColMap["fileW"]) {
+          const fi = finColL.charCodeAt(0) - 65;
+          localColMap["fileW"] = String.fromCharCode(65 + fi + 1);
+          localColMap["fileH"] = String.fromCharCode(65 + fi + 2);
+        }
+        if (localColMap["fileW"] && !localColMap["fileH"]) {
+          const fwIdx = localColMap["fileW"].charCodeAt(0) - 65;
+          localColMap["fileH"] = String.fromCharCode(65 + fwIdx + 1);
+        }
+        if (localColMap["height"] && !localColMap["width"]) {
+          const hIdx = localColMap["height"].charCodeAt(0) - 65;
+          if (hIdx > 0) localColMap["width"] = String.fromCharCode(65 + hIdx - 1);
+        }
+
+        // --- Item extraction ---
+        if (!localColMap["item"]) continue;
+        const itemColL = localColMap["item"];
+        const itemColIdx = itemColL.charCodeAt(0) - 65;
+        const groupColL = itemColIdx > 0 ? String.fromCharCode(65 + itemColIdx - 1) : null;
+        const codeColL  = String.fromCharCode(65 + itemColIdx + 1);
+
+        let currentGroup = "";
+        const localItems: any[] = [];
+        const numRows = Math.max(...Object.keys(candidate).map(Number));
+
+        for (let r = localHeaderRow + 1; r <= numRows; r++) {
+          const row = candidate[r];
+          if (!row) continue;
+          if (groupColL && row[groupColL] && !/^\d+$/.test(row[groupColL].trim())) currentGroup = row[groupColL].trim();
+          let itemVal = (row[itemColL] || "").trim();
+          if (!itemVal && groupColL && row[groupColL] && /^\d+$/.test(row[groupColL].trim())) {
+            const ssIdx = parseInt(row[groupColL].trim());
+            if (ssIdx > 0 && sharedStrings[ssIdx]) itemVal = sharedStrings[ssIdx].trim();
+          }
+          if (!itemVal) continue;
+
+          const qtyStr = localColMap["qty"] ? (row[localColMap["qty"]] || "").trim() : "";
+          let qty = Math.floor(parseFloat(qtyStr.replace(",", ".")) || 0);
+          if (qty === 0) {
+            const codeVal = (row[codeColL] || "").trim();
+            if (/^\d+$/.test(codeVal)) qty = parseInt(codeVal);
+          }
+          if (qty === 0) continue;
+
+          const matVal = localColMap["material"] ? (row[localColMap["material"]] || "").trim() : "";
+          const finVal = localColMap["finish"]   ? (row[localColMap["finish"]]   || "").trim() : "";
+          const wVal   = localColMap["width"]    ? (row[localColMap["width"]]    || "").trim() : "";
+          const hVal   = localColMap["height"]   ? (row[localColMap["height"]]   || "").trim() : "";
+          const fwVal  = localColMap["fileW"]    ? (row[localColMap["fileW"]]    || "").trim() : "";
+          const fhVal  = localColMap["fileH"]    ? (row[localColMap["fileH"]]    || "").trim() : "";
+          const fileSizeVal = localColMap["fileSize"] ? (row[localColMap["fileSize"]] || "").trim() : "";
+          const obsVal = localColMap["obs"]      ? (row[localColMap["obs"]]      || "").trim() : "";
+
+          const visualW = parseNum(wVal);
+          const visualH = parseNum(hVal);
+          let fileW = parseNum(fwVal) || visualW;
+          let fileH = parseNum(fhVal) || visualH;
+          if (fileSizeVal && (!fileW || !fileH)) {
+            const parts = fileSizeVal.replace(/,/g, ".").replace(/\s/g, "").split(/[xX×]/);
+            if (parts.length >= 2) { fileW = parseFloat(parts[0]) || fileW; fileH = parseFloat(parts[1]) || fileH; }
+          }
+
+          localItems.push({
+            type: currentGroup || itemVal,
+            description: itemVal,
+            quantity: qty,
+            visualWidth: visualW || null,
+            visualHeight: visualH || null,
+            fileWidth: fileW || null,
+            fileHeight: fileH || null,
+            calculatedM2: fileW && fileH ? Math.round(qty * fileW * fileH * 10000) / 10000 : 0,
+            material: cap(matVal) || "Lona",
+            finish: cap(finVal) || "Ilhós",
+            measurement: fileW && fileH ? `${fileW.toFixed(2)} × ${fileH.toFixed(2)}` : (visualW && visualH ? `${visualW.toFixed(2)} × ${visualH.toFixed(2)}` : ""),
+            observations: obsVal,
+          });
+        }
+
+        if (localItems.length > bestItems.length) {
+          bestItems = localItems;
+        }
       }
 
-      if (headerRow === -1) {
+      if (!anyHeaderFound) {
         // Log all row values found to aid debugging
         const allRowSamples: string[] = [];
         for (const sn of sheetEntries.slice(0, 2)) {
@@ -1904,106 +2016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Cabeçalho não encontrado. A planilha deve ter colunas 'item' (ou 'peça'/'descrição') e 'qtde' (ou 'quantidade')." });
       }
 
-      const hdrRow = rows[headerRow] ?? {};
-      for (const [col, val] of Object.entries(hdrRow)) {
-        const v = val.toLowerCase().trim();
-        if (!colMap["width"] && (v.startsWith("área") || v.startsWith("area"))) colMap["width"] = col;
-        if (!colMap["height"] && (v === "visual" || v === "visu")) colMap["height"] = col;
-        if (!colMap["fileW"] && v.startsWith("medida do arquivo")) colMap["fileW"] = col;
-        if (!colMap["fileH"] && v === "compr") colMap["fileH"] = col;
-        if (!colMap["obs"] && (v === "obs" || v.startsWith("observa"))) colMap["obs"] = col;
-      }
-      const finCol = colMap["finish"];
-      if (finCol && !colMap["fileW"]) {
-        const fi = finCol.charCodeAt(0) - 65;
-        colMap["fileW"] = String.fromCharCode(65 + fi + 1);
-        colMap["fileH"] = String.fromCharCode(65 + fi + 2);
-      }
-      // If fileW found but fileH not set, infer fileH = next column after fileW
-      if (colMap["fileW"] && !colMap["fileH"]) {
-        const fwIdx = colMap["fileW"].charCodeAt(0) - 65;
-        colMap["fileH"] = String.fromCharCode(65 + fwIdx + 1);
-      }
-      // If height found but width not set, infer width = column immediately before height
-      if (colMap["height"] && !colMap["width"]) {
-        const hIdx = colMap["height"].charCodeAt(0) - 65;
-        if (hIdx > 0) colMap["width"] = String.fromCharCode(65 + hIdx - 1);
-      }
-
-      // Round to 4 decimal places to eliminate IEEE-754 floating point noise (e.g. 3.0100000000000002 → 3.01)
-      const parseNum = (s: string) => {
-        if (!s) return 0;
-        const n = parseFloat(s.replace(",", ".").replace(/[^\d.eE+\-]/g, "")) || 0;
-        return Math.round(n * 10000) / 10000;
-      };
-      const itemCol = colMap["item"]!;
-      const itemColIdx = itemCol.charCodeAt(0) - 65;
-      const groupCol = itemColIdx > 0 ? String.fromCharCode(65 + itemColIdx - 1) : null;
-      // Code column is immediately after item col (e.g. C→D). Used as qty fallback when qty col is empty.
-      const codeCol = String.fromCharCode(65 + itemColIdx + 1);
-
-      let currentGroup = "";
-      const items: any[] = [];
-      const numRows = Math.max(...Object.keys(rows).map(Number));
-
-      for (let r = headerRow + 1; r <= numRows; r++) {
-        const row = rows[r];
-        if (!row) continue;
-        // Only update currentGroup when B value is not a bare integer (bare integers are shared-string indices, not group names)
-        if (groupCol && row[groupCol] && !/^\d+$/.test(row[groupCol].trim())) currentGroup = row[groupCol].trim();
-        let itemVal = colMap["item"] ? (row[colMap["item"]] || "").trim() : "";
-        // When item col (C) is empty but group col (B) stores a numeric shared-string index,
-        // resolve it to the actual description (Excel sometimes emits formula results as numeric indices)
-        if (!itemVal && groupCol && row[groupCol] && /^\d+$/.test(row[groupCol].trim())) {
-          const ssIdx = parseInt(row[groupCol].trim());
-          if (ssIdx > 0 && sharedStrings[ssIdx]) itemVal = sharedStrings[ssIdx].trim();
-        }
-        const qtyStr  = colMap["qty"]  ? (row[colMap["qty"]]  || "").trim() : "";
-        if (!itemVal) continue;
-        let qty = parseInt(qtyStr) || 0;
-        // Fallback: some Norte Excel rows store qty in the code column (D) when the qty column (E) is absent.
-        // This happens for groups like "PÓRTICO (BOCA DE 6)" where qty is in D and E is empty.
-        if (qty === 0) {
-          const codeVal = (row[codeCol] || "").trim();
-          if (/^\d+$/.test(codeVal)) qty = parseInt(codeVal);
-        }
-        if (qty === 0) continue;
-
-        const matVal = colMap["material"] ? (row[colMap["material"]] || "").trim() : "";
-        const finVal = colMap["finish"]   ? (row[colMap["finish"]]   || "").trim() : "";
-        const wVal   = colMap["width"]    ? (row[colMap["width"]]    || "").trim() : "";
-        const hVal   = colMap["height"]   ? (row[colMap["height"]]   || "").trim() : "";
-        const fwVal  = colMap["fileW"]    ? (row[colMap["fileW"]]    || "").trim() : "";
-        const fhVal  = colMap["fileH"]    ? (row[colMap["fileH"]]    || "").trim() : "";
-        const fileSizeVal = colMap["fileSize"] ? (row[colMap["fileSize"]] || "").trim() : "";
-        const obsVal = colMap["obs"]      ? (row[colMap["obs"]]      || "").trim() : "";
-
-        const visualW = parseNum(wVal);
-        const visualH = parseNum(hVal);
-        let fileW = parseNum(fwVal) || visualW;
-        let fileH = parseNum(fhVal) || visualH;
-        if (fileSizeVal && (!fileW || !fileH)) {
-          const parts = fileSizeVal.replace(/,/g, ".").replace(/\s/g, "").split(/[xX×]/);
-          if (parts.length >= 2) { fileW = parseFloat(parts[0]) || fileW; fileH = parseFloat(parts[1]) || fileH; }
-        }
-
-        const cap = (s: string) => s ? (s.charAt(0).toUpperCase() + s.slice(1)) : s;
-        items.push({
-          type: currentGroup || itemVal,
-          description: itemVal,
-          quantity: qty,
-          visualWidth: visualW || null,
-          visualHeight: visualH || null,
-          fileWidth: fileW || null,
-          fileHeight: fileH || null,
-          calculatedM2: fileW && fileH ? Math.round(qty * fileW * fileH * 10000) / 10000 : 0,
-          material: cap(matVal) || "Lona",
-          finish: cap(finVal) || "Ilhós",
-          measurement: fileW && fileH ? `${fileW.toFixed(2)} × ${fileH.toFixed(2)}` : (visualW && visualH ? `${visualW.toFixed(2)} × ${visualH.toFixed(2)}` : ""),
-          observations: obsVal,
-        });
-      }
-
+      const items = bestItems;
       if (items.length === 0) return res.status(400).json({ error: "Nenhum item válido encontrado. Verifique se há linhas com quantidade > 0." });
       res.json({ items, fileName: file.originalname });
     } catch (error: any) {

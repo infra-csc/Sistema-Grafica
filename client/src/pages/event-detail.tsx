@@ -2979,7 +2979,7 @@ export default function EventDetail() {
 
           {/* ── Right panel: table ── */}
           {importPreviewItems && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               {/* Search bar */}
               <div style={{ padding: '10px 16px', borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                 <div style={{ position: 'relative', flex: 1 }}>

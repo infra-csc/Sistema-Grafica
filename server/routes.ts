@@ -1979,8 +1979,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (parts.length >= 2) { fileW = parseFloat(parts[0]) || fileW; fileH = parseFloat(parts[1]) || fileH; }
           }
 
+          // Normalize sponsor-qualified dimension groups:
+          // "2X1 MBRF" + item "2×1 Mbrf" → group becomes "2X1"
+          // Only triggers when both group AND item start with the same dimension.
+          const dimRe = /^(\d+)\s*[xX×]\s*(\d+)/i;
+          const gDim = currentGroup.match(dimRe);
+          const iDim = itemVal.match(dimRe);
+          const normalizedGroup = (
+            gDim && iDim &&
+            gDim[1] === iDim[1] && gDim[2] === iDim[2] &&
+            currentGroup.replace(/\s/g, "").length > `${gDim[1]}x${gDim[2]}`.length
+          ) ? `${gDim[1]}X${gDim[2]}` : currentGroup;
+
           localItems.push({
-            type: currentGroup || itemVal,
+            type: normalizedGroup || itemVal,
             description: itemVal,
             quantity: qty,
             visualWidth: visualW || null,

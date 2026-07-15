@@ -569,25 +569,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Returns distinct parent group types from standard_items (canonical group names)
   app.get("/api/quota-rules/groups", requireAuth, async (_req, res) => {
     try {
+      // Always merge distinct types from standard_items AND items tables
       const result = await pool.query(
-        `SELECT DISTINCT type FROM standard_items WHERE type IS NOT NULL AND type <> '' ORDER BY type`
+        `SELECT DISTINCT type FROM (
+           SELECT type FROM standard_items WHERE type IS NOT NULL AND type <> ''
+           UNION
+           SELECT type FROM items WHERE type IS NOT NULL AND type <> ''
+         ) combined
+         ORDER BY type`
       );
-      let groups = result.rows.map((r: any) => r.type as string);
-      // Fallback: if standard_items is empty, derive parent groups from items.type
-      // by taking the first word/token of each type and deduplicating
-      if (groups.length === 0) {
-        const fallback = await pool.query(
-          `SELECT DISTINCT type FROM items WHERE type IS NOT NULL AND type <> '' ORDER BY type`
-        );
-        const raw: string[] = fallback.rows.map((r: any) => r.type as string);
-        const parentSet = new Set<string>();
-        for (const t of raw) {
-          // Extract parent group: first space-delimited word, stripping anything after '('
-          const firstToken = t.split(/[\s(]/)[0].trim();
-          if (firstToken) parentSet.add(firstToken);
-        }
-        groups = Array.from(parentSet).sort();
-      }
+      const groups = result.rows.map((r: any) => r.type as string);
       res.json(groups);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1609,6 +1600,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const itemCol = colMap["item"]!;
       const itemColIdx = itemCol.charCodeAt(0) - 65; // A=0, B=1 ...
       const groupCol = itemColIdx > 0 ? String.fromCharCode(65 + itemColIdx - 1) : null;
+      // Code column is immediately after item col (e.g. C→D). Used as qty fallback when E is absent.
+      const codeCol = String.fromCharCode(65 + itemColIdx + 1);
 
       // Also detect width/height from area columns after header if not found by name
       // Norte sheets use G=área(width) H=visual(height) K=fileW L=fileH
@@ -1669,7 +1662,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (!itemVal) continue;
 
-        const qty = parseInt(qtyStr) || 0;
+        let qty = parseInt(qtyStr) || 0;
+        // Fallback: if qty col (E) is empty, check code col (D) for a bare integer qty
+        // This happens in Norte sheets where PALCO/PÓRTICO rows store qty in D
+        if (qty === 0) {
+          const codeVal = (row[codeCol] || "").trim();
+          if (/^\d+$/.test(codeVal)) qty = parseInt(codeVal);
+        }
         if (qty === 0) continue;
 
         // Parse visual dimensions

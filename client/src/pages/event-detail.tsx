@@ -3000,8 +3000,8 @@ export default function EventDetail() {
               </div>
 
               {/* Table */}
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <div style={{ flex: 1, overflow: 'auto' }}>
+                <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ backgroundColor: '#f5f4f2', position: 'sticky', top: 0, zIndex: 2, boxShadow: '0 1px 0 #e8e6e3' }}>
                       {[
@@ -3081,6 +3081,7 @@ export default function EventDetail() {
               </div>
             </div>
           )}
+          </div>{/* wrapper flex row */}
         </DialogContent>
       </Dialog>
 

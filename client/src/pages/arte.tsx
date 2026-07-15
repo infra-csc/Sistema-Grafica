@@ -265,6 +265,7 @@ export default function Arte() {
   const [bulkThumbLinkOpenMap, setBulkThumbLinkOpenMap] = useState<Record<string, boolean>>({});
   const [showExportModal, setShowExportModal] = useState(false);
   const [expSponsorFilter, setExpSponsorFilter] = useState<string>("all");
+  const [expGroupFilter, setExpGroupFilter] = useState<string>("all");
   const [expTypeFilter, setExpTypeFilter] = useState<string>("all");
   const [expStatusFilter, setExpStatusFilter] = useState<string>("all");
   const [expIncludeNoThumb, setExpIncludeNoThumb] = useState(true);
@@ -648,6 +649,10 @@ export default function Arte() {
     arteItemsPool.forEach(item => (item.sponsors ?? []).forEach((s: any) => { if (!map.has(s.id)) map.set(s.id, s); }));
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [arteItemsPool]);
+  const expUniqueGroups = useMemo(() =>
+    [...new Set(arteItemsPool.map((i: any) => (i.type ?? "").split(/[\s(]/)[0]).filter(Boolean))].sort(),
+    [arteItemsPool]
+  );
   const expUniqueTypes = useMemo(() =>
     [...new Set(arteItemsPool.map((i: any) => i.type).filter(Boolean))].sort(),
     [arteItemsPool]
@@ -655,13 +660,17 @@ export default function Arte() {
   const expFilteredItems = useMemo(() => {
     return arteItemsPool.filter((item: any) => {
       if (expSponsorFilter !== "all" && !(item.sponsors ?? []).some((s: any) => s.id === expSponsorFilter)) return false;
+      if (expGroupFilter !== "all") {
+        const g = (item.type ?? "").split(/[\s(]/)[0];
+        if (g !== expGroupFilter) return false;
+      }
       if (expTypeFilter !== "all" && item.type !== expTypeFilter) return false;
       if (expStatusFilter === "pendente" && item.status !== "awaiting_sponsor_approval") return false;
       if (expStatusFilter === "aprovado" && !["sponsor_approved","awaiting_creator_review"].includes(item.status)) return false;
       if (!expIncludeNoThumb && !item.approvalThumbUrl) return false;
       return true;
     });
-  }, [arteItemsPool, expSponsorFilter, expTypeFilter, expStatusFilter, expIncludeNoThumb]);
+  }, [arteItemsPool, expSponsorFilter, expGroupFilter, expTypeFilter, expStatusFilter, expIncludeNoThumb]);
 
   const handleClickExportButton = () => {
     if (selectedItemIds.size > 0) {
@@ -2603,13 +2612,23 @@ export default function Arte() {
                   </Popover>
                 </div>
 
+                {/* Grupo Pai */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Grupo pai</label>
+                  <select value={expGroupFilter} onChange={e => { setExpGroupFilter(e.target.value); setExpTypeFilter("all"); }}
+                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}>
+                    <option value="all">Todos os grupos</option>
+                    {expUniqueGroups.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+
                 {/* Tipo */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Tipo de peça</label>
                   <select value={expTypeFilter} onChange={e => setExpTypeFilter(e.target.value)}
                     style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}>
                     <option value="all">Todos os tipos</option>
-                    {expUniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    {(expGroupFilter === "all" ? expUniqueTypes : expUniqueTypes.filter(t => t.split(/[\s(]/)[0] === expGroupFilter)).map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
 

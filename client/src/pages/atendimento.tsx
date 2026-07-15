@@ -54,6 +54,7 @@ export default function Atendimento() {
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
   const [expEventFilter, setExpEventFilter] = useState("all");
   const [expSponsorFilter, setExpSponsorFilter] = useState("all");
+  const [expGroupFilter, setExpGroupFilter] = useState("all");
   const [expTypeFilter, setExpTypeFilter] = useState("all");
   const [expIncludeNoThumb, setExpIncludeNoThumb] = useState(true);
   const [expGroupByEvent, setExpGroupByEvent] = useState(false);
@@ -376,6 +377,10 @@ export default function Atendimento() {
     });
   }, [pendingItems, searchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
 
+  const uniqueItemGroups = useMemo(() => {
+    const groups = new Set(pendingItems.map(item => (item.type ?? "").split(/[\s(]/)[0]).filter(Boolean));
+    return Array.from(groups).sort();
+  }, [pendingItems]);
   const uniqueItemTypes = useMemo(() => {
     const types = new Set(pendingItems.map(item => item.type).filter(Boolean));
     return Array.from(types).sort();
@@ -387,6 +392,10 @@ export default function Atendimento() {
       const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
       if (!hasSponsors && !loadingSponsors) return false;
       if (expEventFilter !== "all" && item.eventId !== expEventFilter) return false;
+      if (expGroupFilter !== "all") {
+        const g = (item.type ?? "").split(/[\s(]/)[0];
+        if (g !== expGroupFilter) return false;
+      }
       if (expTypeFilter !== "all" && item.type !== expTypeFilter) return false;
       if (expSponsorFilter !== "all" && !itemSponsorsMap[item.id]?.some((s: any) => s.id === expSponsorFilter)) return false;
       if (!expIncludeNoThumb && !item.approvalThumbUrl) return false;
@@ -394,7 +403,7 @@ export default function Atendimento() {
       if (expStatusFilter === "approved" && !isItemFullyApproved(item)) return false;
       return true;
     });
-  }, [pendingItems, itemSponsorsMap, loadingSponsors, expEventFilter, expTypeFilter, expSponsorFilter, expIncludeNoThumb, expStatusFilter]);
+  }, [pendingItems, itemSponsorsMap, loadingSponsors, expEventFilter, expGroupFilter, expTypeFilter, expSponsorFilter, expIncludeNoThumb, expStatusFilter]);
 
   const isItemEligibleForBatch = (item: any): boolean => {
     const itemSps = itemSponsorsMap[item.id] || [];
@@ -2264,6 +2273,19 @@ export default function Atendimento() {
                   </Popover>
                 </div>
 
+                {/* Grupo Pai */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Grupo pai</label>
+                  <select
+                    value={expGroupFilter}
+                    onChange={e => { setExpGroupFilter(e.target.value); setExpTypeFilter("all"); }}
+                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
+                  >
+                    <option value="all">Todos os grupos</option>
+                    {uniqueItemGroups.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+
                 {/* Tipo */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Tipo de peça</label>
@@ -2273,7 +2295,7 @@ export default function Atendimento() {
                     style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
                   >
                     <option value="all">Todos os tipos</option>
-                    {uniqueItemTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    {(expGroupFilter === "all" ? uniqueItemTypes : uniqueItemTypes.filter(t => t.split(/[\s(]/)[0] === expGroupFilter)).map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
 

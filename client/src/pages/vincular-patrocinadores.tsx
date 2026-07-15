@@ -2010,6 +2010,7 @@ export default function VincularPatrocinadores() {
             .sort((a, b) => {
               const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
               if (ga !== gb) return ga.localeCompare(gb, 'pt-BR');
+              if (a.type !== b.type) return a.type.localeCompare(b.type, 'pt-BR');
               const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
               const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
               return idA - idB;
@@ -2097,10 +2098,9 @@ export default function VincularPatrocinadores() {
                         const prevGroupName = prevItem ? (typeToGroup[prevItem.type] || '') : '';
                         const showGroupGrouper = showTypeGrouper && groupName !== '' && groupName !== prevGroupName;
 
-                        return (
-                          <>
-                          {/* ── Agrupador de Grupo Pai ── */}
-                          {showGroupGrouper && (
+                        return [
+                          /* ── Agrupador de Grupo Pai ── */
+                          showGroupGrouper ? (
                             <tr key={`group-${groupName}-${itemIndex}`}>
                               <td colSpan={6} style={{ padding: 0 }}>
                                 <div style={{ backgroundColor: '#dbeafe', padding: '5px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2108,9 +2108,9 @@ export default function VincularPatrocinadores() {
                                 </div>
                               </td>
                             </tr>
-                          )}
-                          {/* ── Agrupador de Tipo ── */}
-                          {showTypeGrouper && (() => {
+                          ) : null,
+                          /* ── Agrupador de Tipo ── */
+                          showTypeGrouper ? (() => {
                             const typeItems = displayedItems.filter(i => i.type === item.type);
                             const selectableTypeItems = typeItems.filter(i => { const s = itemUIStates[i.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; });
                             const allTypeSelected = selectableTypeItems.length > 0 && selectableTypeItems.every(i => selectedItemIds.has(i.id));
@@ -2165,7 +2165,7 @@ export default function VincularPatrocinadores() {
                                 </td>
                               </tr>
                             );
-                          })()}
+                          })() : null,
                           <tr
                             key={item.id}
                             className="cursor-pointer"
@@ -2520,8 +2520,7 @@ export default function VincularPatrocinadores() {
                               </div>
                             </td>
                           </tr>
-                          </>
-                        );
+                        ];
                       })}
                     </tbody>
                   </table>

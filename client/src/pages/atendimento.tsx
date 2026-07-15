@@ -646,7 +646,6 @@ export default function Atendimento() {
               <div class="info-card">
                 <div class="sec-label">Identificação</div>
                 ${item.description ? `<div class="field"><div class="fld-lbl">Descrição</div><div class="fld-val">${item.description}</div></div>` : ""}
-                <div class="field"><div class="fld-lbl">Quantidade</div><div class="fld-val qty-val">${item.quantity ? item.quantity + " un." : "—"}</div></div>
                 <div class="field"><div class="fld-lbl">Tipo</div><div class="fld-val">${item.type || "—"}</div></div>
 
                 <div class="sep"></div>

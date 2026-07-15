@@ -535,84 +535,164 @@ export default function Atendimento() {
     const win = window.open("", "_blank");
     if (!win) return;
 
-    // Se agrupar por evento, insere cabeçalho de evento entre grupos
-    const grouped: { eventName: string; items: any[] }[] = [];
-    if (groupByEvent) {
-      const map = new Map<string, any[]>();
-      itemsToExport.forEach(item => {
-        const evName = item.event?.name || "Sem Evento";
-        if (!map.has(evName)) map.set(evName, []);
-        map.get(evName)!.push(item);
-      });
-      map.forEach((items, eventName) => grouped.push({ eventName, items }));
-    } else {
-      grouped.push({ eventName: "", items: itemsToExport });
-    }
+    const now = new Date();
+    const nowStr = now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const logoUrl = `${window.location.origin}/norte-logo.jpg`;
 
-    const rows = grouped.map(({ eventName, items: groupItems }) => {
-      const header = groupByEvent && eventName
-        ? `<div class="event-separator"><span>${eventName}</span></div>`
-        : "";
-      const pages = groupItems.map((item: any) => {
-        const thumbUrl = item.approvalThumbUrl || "";
-        const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
-        const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
-        const itemSponsors = itemSponsorsMap[item.id] || [];
-        const sponsorNames = itemSponsors.map((s: any) => s.name).join(", ") || "—";
-        return `
-          <div class="page">
-            <div class="header">
-              <span class="id">${item.displayId || "#—"}</span>
-              <span class="event">${item.event?.name || "Sem Evento"}</span>
+    const sorted = groupByEvent
+      ? [...itemsToExport].sort((a, b) => (a.event?.name || "").localeCompare(b.event?.name || ""))
+      : itemsToExport;
+
+    const pages = sorted.map((item: any, idx: number) => {
+      const thumbUrl = item.approvalThumbUrl || "";
+      const isImg = thumbUrl && !/\.pdf$/i.test(thumbUrl) && (/\.(png|jpg|jpeg|gif|webp|svg)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/") || thumbUrl.includes("/.private/"));
+      const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
+
+      const itemSponsors = itemSponsorsMap[item.id] || [];
+      const approvals = itemApprovalsMap[item.id] || [];
+
+      const approvalsHtml = approvals.length
+        ? approvals.map((a: any) => {
+            const statusColor = a.status === 'approved' ? '#16a34a' : a.status === 'rejected' ? '#dc2626' : '#ea580c';
+            const statusLabel = a.status === 'approved' ? 'Aprovado' : a.status === 'rejected' ? 'Reprovado' : 'Pendente';
+            const sponsorName = a.sponsor?.name || itemSponsors.find((s: any) => s.id === a.sponsorId)?.name || '—';
+            return `<div class="appr-row"><span class="appr-name">${sponsorName}</span><span class="appr-status" style="color:${statusColor}">${statusLabel}</span></div>`;
+          }).join("")
+        : itemSponsors.length
+          ? itemSponsors.map((s: any) => {
+              const c = s.color || "#3b82f6";
+              return `<div class="appr-row"><span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${s.name}</span><span class="appr-status" style="color:#ea580c">Pendente</span></div>`;
+            }).join("")
+          : `<span style="color:#94a3b8;font-size:12px">Sem patrocinadores</span>`;
+
+      const pageNum = `${idx + 1} / ${sorted.length}`;
+      const itemName = item.description || item.type || "Sem nome";
+      const typeLabel = item.type || "—";
+      const eventName = item.event?.name || "—";
+
+      return `
+        <div class="page">
+          <div class="doc-header">
+            <div class="hdr-left">
+              <img src="${logoUrl}" class="hdr-logo" alt="NORTE" />
+              <div class="hdr-brand">
+                <span class="hdr-norte">NORTE</span>
+                <span class="hdr-sub">Marketing Esportivo</span>
+              </div>
             </div>
-            <div class="body">
-              <div class="thumb">
+            <div class="hdr-right">
+              <span class="id-chip">${item.displayId || "#—"}</span>
+            </div>
+          </div>
+
+          <div class="piece-title-bar">
+            <span class="piece-name">${itemName}</span>
+            <div class="title-meta">
+              <span class="type-badge">${typeLabel}</span>
+              <span class="event-badge">${eventName}</span>
+            </div>
+          </div>
+
+          <div class="body">
+            <div class="col-img">
+              <div class="img-frame">
                 ${isImg
-                  ? `<img src="${resolvedThumb}" alt="Thumb" />`
+                  ? `<img src="${resolvedThumb}" alt="Aprovação" class="ref-img" />`
                   : thumbUrl
-                    ? `<div class="no-thumb">Arquivo vinculado</div>`
-                    : `<div class="no-thumb">Sem thumb</div>`
+                    ? `<div class="no-img"><div class="no-img-icon">PDF</div><div class="no-img-sub">Arquivo PDF vinculado</div></div>`
+                    : `<div class="no-img"><div class="no-img-icon">—</div><div class="no-img-sub">Sem arte de aprovação</div></div>`
                 }
               </div>
-              <div class="info">
-                <div class="field"><span class="lbl">Tipo</span><span class="val">${item.type || "—"}</span></div>
-                <div class="field"><span class="lbl">Descrição</span><span class="val">${item.description || "—"}</span></div>
-                <div class="field"><span class="lbl">Quantidade</span><span class="val">${item.quantity ? item.quantity + " un." : "—"}</span></div>
-                <div class="field"><span class="lbl">Patrocinador</span><span class="val">${sponsorNames}</span></div>
+              <div class="img-caption">Arte de aprovação</div>
+            </div>
+
+            <div class="col-info">
+              <div class="info-card">
+                <div class="sec-label">Identificação</div>
+                ${item.description ? `<div class="field"><div class="fld-lbl">Descrição</div><div class="fld-val">${item.description}</div></div>` : ""}
+                <div class="field"><div class="fld-lbl">Quantidade</div><div class="fld-val qty-val">${item.quantity ? item.quantity + " un." : "—"}</div></div>
+                <div class="field"><div class="fld-lbl">Tipo</div><div class="fld-val">${item.type || "—"}</div></div>
+
+                <div class="sep"></div>
+
+                <div class="sec-label">Aprovação do Patrocinador</div>
+                <div class="approvals">${approvalsHtml}</div>
               </div>
             </div>
           </div>
-        `;
-      }).join("");
-      return header + pages;
+
+          <div class="doc-footer">
+            <span class="ft-gen">Gerado em ${nowStr}</span>
+            <span class="ft-pg">Página ${pageNum}</span>
+          </div>
+        </div>
+      `;
     }).join("");
 
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
+      <meta charset="UTF-8"/>
       <title>Aprovação — Peças</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com"/>
+      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
       <style>
-        @page { size: A4 portrait; margin: 14mm; }
+        @page { size: A4 portrait; margin: 0; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; }
-        .event-separator { width: 100%; padding: 10px 0 8px; border-bottom: 3px solid #9d4300; margin-bottom: 0; break-before: page; page-break-before: always; }
-        .event-separator:first-child { break-before: avoid; page-break-before: avoid; }
-        .event-separator span { font-size: 18px; font-weight: 900; color: #9d4300; font-family: 'Helvetica Neue', Arial, sans-serif; letter-spacing: -0.02em; }
-        .page { width: 100%; height: 269mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; page-break-after: always; }
+        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
-        .header { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid #9d4300; padding-bottom: 10px; margin-bottom: 14px; flex-shrink: 0; }
-        .id { font-family: monospace; font-size: 16px; font-weight: 800; color: #9d4300; flex-shrink: 0; }
-        .event { font-size: 14px; font-weight: 700; color: #1c1917; }
-        .body { display: flex; gap: 20px; flex: 1; min-height: 0; }
-        .thumb { flex: 1; min-height: 0; display: flex; align-items: flex-start; }
-        .thumb img { width: 100%; height: 100%; max-height: 240mm; object-fit: contain; border-radius: 6px; border: 1px solid #e7e5e4; }
-        .no-thumb { width: 100%; height: 100%; min-height: 160px; background: #f5f5f4; border-radius: 6px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #a8a29e; }
-        .info { width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; padding-top: 4px; }
-        .field { display: flex; flex-direction: column; gap: 4px; }
-        .lbl { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #a8a29e; }
-        .val { font-size: 13px; font-weight: 600; color: #1c1917; line-height: 1.35; }
+        @media print { .page { width: 210mm; min-height: 297mm; } }
+
+        .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
+        .hdr-left { display: flex; align-items: center; gap: 12px; }
+        .hdr-logo { height: 34px; width: auto; object-fit: contain; display: block; flex-shrink: 0; }
+        .hdr-brand { display: flex; flex-direction: column; gap: 1px; }
+        .hdr-norte { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.04em; line-height: 1; }
+        .hdr-sub { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.55); line-height: 1; }
+        .hdr-right { flex-shrink: 0; }
+        .id-chip { font-family: 'DM Mono', 'Courier New', monospace; font-size: 16px; font-weight: 700; color: #ffffff; background: #f97316; padding: 6px 14px; border-radius: 8px; letter-spacing: 0.02em; }
+
+        .piece-title-bar { padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+        .piece-name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; letter-spacing: -0.02em; }
+        .title-meta { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
+        .type-badge { display: inline-block; background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
+        .event-badge { display: inline-block; background: #f0f9ff; border: 1px solid #bae6fd; color: #0369a1; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
+
+        .body { display: flex; gap: 24px; flex: 1; padding: 24px 32px; min-height: 0; }
+
+        .col-img { flex: 0 0 58%; display: flex; flex-direction: column; }
+        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 320px; }
+        .ref-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
+        .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
+        .no-img-sub { font-size: 11px; color: #94a3b8; }
+        .img-caption { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 7px; }
+
+        .col-info { flex: 0 0 42%; display: flex; flex-direction: column; }
+        .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; flex: 1; }
+
+        .sec-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; }
+        .sep { height: 1px; background: #e2e8f0; margin: 14px 0; }
+        .field { margin-bottom: 12px; }
+        .field:last-child { margin-bottom: 0; }
+        .fld-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 2px; }
+        .fld-val { font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.3; }
+        .qty-val { font-size: 16px; font-weight: 800; color: #f97316; }
+
+        .approvals { display: flex; flex-direction: column; gap: 8px; }
+        .appr-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .appr-name { font-size: 12px; font-weight: 600; color: #0f172a; }
+        .appr-status { font-size: 11px; font-weight: 700; }
+        .sp-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #1c1917; padding: 2px 8px; border-radius: 20px; border: 1px solid transparent; }
+        .sp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
+        .ft-gen { font-size: 9px; color: #94a3b8; }
+        .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }
       </style>
-    </head><body>${rows}</body></html>`);
+    </head><body>${pages}</body></html>`);
     win.document.close();
-    setTimeout(() => win.print(), 600);
+    setTimeout(() => win.print(), 800);
   };
 
   return (

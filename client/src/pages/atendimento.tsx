@@ -649,11 +649,6 @@ export default function Atendimento() {
                 <div class="sec-label">Identificação</div>
                 ${item.description ? `<div class="field"><div class="fld-lbl">Descrição</div><div class="fld-val">${item.description}</div></div>` : ""}
                 <div class="field"><div class="fld-lbl">Tipo</div><div class="fld-val">${item.type || "—"}</div></div>
-
-                <div class="sep"></div>
-
-                <div class="sec-label">Aprovação do Patrocinador</div>
-                <div class="approvals">${approvalsHtml}</div>
               </div>
             </div>
           </div>

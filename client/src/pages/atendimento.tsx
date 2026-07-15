@@ -988,306 +988,354 @@ export default function Atendimento() {
         </div>
       </section>
 
-      {/* ─── PAINEL DE LOTE (DARK) ───────────────────────────────── */}
+      {/* ─── PAINEL DE LOTE ───────────────────────────────── */}
       {!loadingSponsors && batchEligibleSponsors.length > 0 && (
         <section
           data-testid="section-batch-sponsor"
           style={{
-            marginBottom: 32, backgroundColor: '#0c0a09', color: '#ffffff',
-            padding: 32, borderRadius: 12, position: 'relative', overflow: 'hidden',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            marginBottom: 32,
+            backgroundColor: '#ffffff',
+            border: '1px solid #e7e5e4',
+            borderRadius: 12,
+            overflow: 'hidden',
           }}
         >
-          {/* Decoração de fundo */}
-          <div style={{ position: 'absolute', top: 0, right: 0, padding: 32, opacity: 0.06, pointerEvents: 'none' }}>
-            <Zap style={{ width: 120, height: 120 }} />
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            {/* Título do painel */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-              <div style={{ backgroundColor: '#9d4300', padding: 8, borderRadius: 8 }}>
-                <Zap style={{ width: 20, height: 20, color: '#ffffff' }} />
+          {/* Cabeçalho */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '18px 24px',
+            backgroundColor: '#f9f9f8',
+            borderBottom: '1px solid #e7e5e4',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ backgroundColor: '#ea580c', padding: '6px', borderRadius: 8, display: 'flex' }}>
+                <Zap style={{ width: 16, height: 16, color: '#ffffff' }} />
               </div>
               <div>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', margin: 0, color: '#1c1917' }}>
                   Aprovação em Lote
                 </h3>
-                <p style={{ color: '#78716c', fontSize: 14, margin: '2px 0 0' }}>
-                  Selecione um patrocinador para processar múltiplos arquivos simultaneamente.
+                <p style={{ color: '#78716c', fontSize: 12, margin: 0 }}>
+                  Processe múltiplos arquivos de um patrocinador simultaneamente
                 </p>
               </div>
             </div>
+            {batchSelectedItemIds.size > 0 && (
+              <span style={{
+                fontSize: 12, fontWeight: 700, color: '#ea580c',
+                backgroundColor: '#fff7ed', border: '1px solid #fed7aa',
+                borderRadius: 20, padding: '4px 14px',
+              }}>
+                {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
+              </span>
+            )}
+          </div>
 
-            {/* Grid: sponsor select | scrollable cards | buttons */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: 24, alignItems: 'end' }}>
-
-              {/* Coluna 1: Selects */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#57534e' }}>
-                    Filtrar por Patrocinador
-                  </label>
-                  {(() => {
-                    const sortedAllSponsors = [...(sponsors as any[])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-                    const selSponsor = sortedAllSponsors.find(s => s.id === batchSponsorId);
-                    return (
-                      <Popover open={batchSponsorComboOpen} onOpenChange={setBatchSponsorComboOpen}>
-                        <PopoverTrigger asChild>
-                          <button
-                            data-testid="select-batch-sponsor"
-                            style={{
-                              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                              backgroundColor: '#1c1917', border: '1px solid #292524',
-                              color: selSponsor ? '#ffffff' : '#78716c',
-                              borderRadius: 8, padding: '12px 16px',
-                              fontSize: 14, cursor: 'pointer', outline: 'none',
-                            }}
-                          >
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                              {selSponsor && (
-                                <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: selSponsor.color || '#a8a29e', flexShrink: 0, display: 'inline-block' }} />
-                              )}
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {selSponsor ? selSponsor.name : 'Selecionar patrocinador...'}
-                              </span>
+          <div style={{ padding: 24 }}>
+            {/* ── Linha de Filtros ── */}
+            <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+              {/* Patrocinador */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c' }}>
+                  Patrocinador
+                </label>
+                {(() => {
+                  const sortedAllSponsors = [...(sponsors as any[])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+                  const selSponsor = sortedAllSponsors.find(s => s.id === batchSponsorId);
+                  return (
+                    <Popover open={batchSponsorComboOpen} onOpenChange={setBatchSponsorComboOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          data-testid="select-batch-sponsor"
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                            color: selSponsor ? '#1c1917' : '#a8a29e',
+                            borderRadius: 8, padding: '10px 14px',
+                            fontSize: 13, cursor: 'pointer', outline: 'none',
+                          }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                            {selSponsor && (
+                              <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: selSponsor.color || '#a8a29e', flexShrink: 0, display: 'inline-block' }} />
+                            )}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {selSponsor ? selSponsor.name : 'Selecionar patrocinador...'}
                             </span>
-                            <ChevronsUpDown style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0 }} />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="p-0" style={{ width: 260 }} align="start">
-                          <Command>
-                            <CommandInput placeholder="Buscar patrocinador..." />
-                            <CommandList>
-                              <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
-                              <CommandGroup>
-                                {sortedAllSponsors.map((s: any) => (
-                                  <CommandItem
-                                    key={s.id}
-                                    value={s.name}
-                                    onSelect={() => {
-                                      setBatchSponsorId(s.id);
-                                      setBatchEventId("");
-                                      setBatchShowRejectForm(false);
-                                      setBatchRejectReason("");
-                                      setBatchSponsorComboOpen(false);
-                                    }}
-                                  >
-                                    <Check style={{ width: 14, height: 14, opacity: batchSponsorId === s.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
-                                    <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0, display: 'inline-block', marginRight: 6 }} />
-                                    {s.name}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    );
-                  })()}
-                </div>
-
-                {batchSponsorId && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#57534e' }}>
-                      Filtrar por Evento
-                    </label>
-                    <select
-                      value={batchEventId}
-                      onChange={e => { setBatchEventId(e.target.value); setBatchShowRejectForm(false); setBatchRejectReason(""); }}
-                      data-testid="select-batch-event"
-                      style={{
-                        width: '100%', backgroundColor: '#1c1917', border: '1px solid #292524',
-                        color: '#ffffff', borderRadius: 8, padding: '12px 16px',
-                        fontSize: 14, cursor: 'pointer', outline: 'none',
-                      }}
-                    >
-                      <option value="">Selecionar evento...</option>
-                      {batchEligibleEvents.map((ev: any) => (
-                        <option key={ev.id} value={ev.id}>{ev.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* Coluna 2: Cards horizontais */}
-              <div style={{ overflow: 'hidden' }}>
-                {batchSponsorId && batchEventId ? (
-                  batchItemCount === 0 ? (
-                    <div style={{ padding: '16px 0', color: '#57534e', fontSize: 13 }}>
-                      Nenhuma peça pendente para esta combinação.
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#57534e', marginBottom: 8 }}>
-                        {batchSelectedItemIds.size} de {batchItemCount} {batchItemCount === 1 ? 'peça' : 'peças'} selecionadas
-                      </div>
-                      <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                          {batchEligibleItems.map((item: any) => {
-                            const isChecked = batchSelectedItemIds.has(item.id);
-                            const hasThumb = !!item.approvalThumbUrl;
-                            return (
-                              <div
-                                key={item.id}
-                                data-testid={`batch-item-row-${item.id}`}
-                                onClick={() => {
-                                  setBatchSelectedItemIds(prev => {
-                                    const next = new Set(prev);
-                                    if (next.has(item.id)) next.delete(item.id);
-                                    else next.add(item.id);
-                                    return next;
-                                  });
-                                }}
-                                style={{
-                                  flexShrink: 0, minWidth: 200,
-                                  display: 'flex', alignItems: 'center', gap: 12,
-                                  backgroundColor: isChecked ? 'rgba(253,118,26,0.15)' : 'rgba(28,25,23,0.5)',
-                                  padding: 8, borderRadius: 8,
-                                  border: `1px solid ${isChecked ? '#9d4300' : '#292524'}`,
-                                  cursor: 'pointer', transition: 'all 0.15s',
-                                }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  data-testid={`checkbox-batch-item-${item.id}`}
-                                  onChange={e => {
-                                    e.stopPropagation();
-                                    setBatchSelectedItemIds(prev => {
-                                      const next = new Set(prev);
-                                      if (next.has(item.id)) next.delete(item.id);
-                                      else next.add(item.id);
-                                      return next;
-                                    });
+                          </span>
+                          <ChevronsUpDown style={{ width: 13, height: 13, color: '#a8a29e', flexShrink: 0 }} />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" style={{ width: 260 }} align="start">
+                        <Command>
+                          <CommandInput placeholder="Buscar patrocinador..." />
+                          <CommandList>
+                            <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              {sortedAllSponsors.map((s: any) => (
+                                <CommandItem
+                                  key={s.id}
+                                  value={s.name}
+                                  onSelect={() => {
+                                    setBatchSponsorId(s.id);
+                                    setBatchEventId("");
+                                    setBatchShowRejectForm(false);
+                                    setBatchRejectReason("");
+                                    setBatchSponsorComboOpen(false);
                                   }}
-                                  style={{ accentColor: '#fd761a', width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
-                                />
-                                {/* Thumbnail */}
-                                <div style={{
-                                  width: 40, height: 40, borderRadius: 6,
-                                  backgroundColor: '#292524', flexShrink: 0, overflow: 'hidden',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                  {hasThumb ? (
-                                    <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                  ) : (
-                                    <Package style={{ width: 16, height: 16, color: '#57534e' }} />
-                                  )}
-                                </div>
-                                <div style={{ overflow: 'hidden', flex: 1 }}>
-                                  <p style={{ fontSize: 12, fontWeight: 700, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {item.type}
-                                  </p>
-                                  <p style={{ fontSize: 10, color: '#57534e', margin: '2px 0 0', fontFamily: 'monospace' }}>
-                                    {item.displayId}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  )
-                ) : (
-                  <div style={{ padding: '16px 0', color: '#57534e', fontSize: 13 }}>
-                    {batchSponsorId ? 'Selecione um evento para ver as peças.' : 'Selecione um patrocinador para começar.'}
-                  </div>
-                )}
+                                >
+                                  <Check style={{ width: 14, height: 14, opacity: batchSponsorId === s.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                                  <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0, display: 'inline-block', marginRight: 6 }} />
+                                  {s.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })()}
               </div>
 
-              {/* Coluna 3: Botões de ação */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {!batchShowRejectForm ? (
-                  <>
-                    <button
-                      onClick={() => setBatchShowRejectForm(true)}
-                      disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
-                      data-testid="button-batch-reject"
-                      style={{
-                        flex: 1, backgroundColor: '#292524', color: '#ffffff',
-                        border: 'none', borderRadius: 8, padding: '12px',
-                        fontSize: 12, fontWeight: 700, cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                        opacity: batchSelectedItemIds.size === 0 ? 0.5 : 1,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      <XCircle style={{ width: 16, height: 16 }} />
-                      Recusar
-                    </button>
-                    <button
-                      onClick={() => setConfirmApproveBatch(true)}
-                      disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
-                      data-testid="button-batch-approve"
-                      style={{
-                        flex: 1, backgroundColor: '#9d4300', color: '#ffffff',
-                        border: 'none', borderRadius: 8, padding: '12px',
-                        fontSize: 12, fontWeight: 700, cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                        opacity: batchSelectedItemIds.size === 0 ? 0.5 : 1,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {batchSponsorMutation.isPending
-                        ? <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" />
-                        : <CheckCircle style={{ width: 16, height: 16 }} />}
-                      Aprovar Seleção
-                    </button>
-                  </>
-                ) : (
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#fd761a', margin: '0 0 8px' }}>
-                      Motivo da reprovação
-                    </p>
-                    <textarea
-                      value={batchRejectReason}
-                      onChange={e => setBatchRejectReason(e.target.value)}
-                      placeholder="Informe o motivo..."
-                      data-testid="textarea-batch-reject-reason"
-                      style={{
-                        width: '100%', backgroundColor: '#1c1917',
-                        border: `1px solid ${batchRejectReason.trim() === "" ? '#7f1d1d' : '#292524'}`,
-                        color: '#ffffff', borderRadius: 8, padding: '8px 12px',
-                        fontSize: 13, resize: 'none', height: 72, outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              {/* Evento */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c' }}>
+                  Evento
+                </label>
+                <select
+                  value={batchEventId}
+                  onChange={e => { setBatchEventId(e.target.value); setBatchShowRejectForm(false); setBatchRejectReason(""); }}
+                  disabled={!batchSponsorId}
+                  data-testid="select-batch-event"
+                  style={{
+                    width: '100%', backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                    color: batchEventId ? '#1c1917' : '#a8a29e', borderRadius: 8, padding: '10px 14px',
+                    fontSize: 13, cursor: batchSponsorId ? 'pointer' : 'not-allowed',
+                    outline: 'none', opacity: batchSponsorId ? 1 : 0.5,
+                  }}
+                >
+                  <option value="">{batchSponsorId ? 'Selecionar evento...' : 'Selecione um patrocinador primeiro'}</option>
+                  {batchEligibleEvents.map((ev: any) => (
+                    <option key={ev.id} value={ev.id}>{ev.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* ── Área de Items ── */}
+            {batchSponsorId && batchEventId ? (
+              batchItemCount === 0 ? (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '32px 0', gap: 10, color: '#a8a29e',
+                  backgroundColor: '#f9f9f8', borderRadius: 8, border: '1px dashed #e7e5e4',
+                }}>
+                  <CheckCircle style={{ width: 18, height: 18 }} />
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>Nenhuma peça pendente para esta combinação</span>
+                </div>
+              ) : (
+                <>
+                  {/* Barra de seleção */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginBottom: 12,
+                  }}>
+                    <label style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      fontSize: 12, fontWeight: 600, color: '#57534e', cursor: 'pointer',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={batchSelectedItemIds.size === batchItemCount}
+                        onChange={e => {
+                          if (e.target.checked) setBatchSelectedItemIds(new Set(batchEligibleItems.map((i: any) => i.id)));
+                          else setBatchSelectedItemIds(new Set());
+                        }}
+                        style={{ accentColor: '#ea580c', width: 14, height: 14, cursor: 'pointer' }}
+                      />
+                      Selecionar todos
+                    </label>
+                    <span style={{ fontSize: 11, color: '#a8a29e' }}>
+                      {batchSelectedItemIds.size} / {batchItemCount} {batchItemCount === 1 ? 'peça' : 'peças'}
+                    </span>
+                  </div>
+
+                  {/* Grid de itens */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: 10,
+                    marginBottom: 20,
+                  }}>
+                    {batchEligibleItems.map((item: any) => {
+                      const isChecked = batchSelectedItemIds.has(item.id);
+                      const hasThumb = !!item.approvalThumbUrl;
+                      return (
+                        <div
+                          key={item.id}
+                          data-testid={`batch-item-row-${item.id}`}
+                          onClick={() => {
+                            setBatchSelectedItemIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(item.id)) next.delete(item.id);
+                              else next.add(item.id);
+                              return next;
+                            });
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '10px 12px',
+                            backgroundColor: isChecked ? '#fff7ed' : '#f9f9f8',
+                            border: `1px solid ${isChecked ? '#fb923c' : '#e7e5e4'}`,
+                            borderRadius: 8, cursor: 'pointer',
+                            transition: 'border-color 0.12s, background-color 0.12s',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            data-testid={`checkbox-batch-item-${item.id}`}
+                            onChange={e => {
+                              e.stopPropagation();
+                              setBatchSelectedItemIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(item.id)) next.delete(item.id);
+                                else next.add(item.id);
+                                return next;
+                              });
+                            }}
+                            style={{ accentColor: '#ea580c', width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
+                          />
+                          {/* Thumbnail */}
+                          <div style={{
+                            width: 44, height: 44, borderRadius: 6,
+                            backgroundColor: '#e7e5e4', flexShrink: 0, overflow: 'hidden',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {hasThumb ? (
+                              <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <Package style={{ width: 16, height: 16, color: '#a8a29e' }} />
+                            )}
+                          </div>
+                          <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1c1917' }}>
+                              {item.type}
+                            </p>
+                            <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0', fontFamily: 'monospace' }}>
+                              {item.displayId}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* ── Ações ── */}
+                  {!batchShowRejectForm ? (
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
                       <button
-                        onClick={() => { setBatchShowRejectForm(false); setBatchRejectReason(""); }}
+                        onClick={() => setBatchShowRejectForm(true)}
+                        disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
+                        data-testid="button-batch-reject"
                         style={{
-                          flex: 1, backgroundColor: '#292524', color: '#a8a29e',
-                          border: 'none', borderRadius: 6, padding: '8px',
-                          fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          backgroundColor: '#ffffff', color: '#dc2626',
+                          border: '1px solid #fca5a5', borderRadius: 8,
+                          padding: '10px 20px', fontSize: 13, fontWeight: 700,
+                          cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                          opacity: batchSelectedItemIds.size === 0 ? 0.45 : 1,
                         }}
                       >
-                        Cancelar
+                        <XCircle style={{ width: 15, height: 15 }} />
+                        Recusar
                       </button>
                       <button
-                        onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "reject", reason: batchRejectReason })}
-                        disabled={batchSponsorMutation.isPending || batchRejectReason.trim() === ""}
-                        data-testid="button-batch-confirm-reject"
+                        onClick={() => setConfirmApproveBatch(true)}
+                        disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
+                        data-testid="button-batch-approve"
                         style={{
-                          flex: 1, backgroundColor: batchRejectReason.trim() === "" ? '#44403c' : '#b91c1c',
-                          color: '#ffffff', border: 'none', borderRadius: 6, padding: '8px',
-                          fontSize: 12, fontWeight: 700,
-                          cursor: batchRejectReason.trim() === "" ? 'not-allowed' : 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          backgroundColor: '#ea580c', color: '#ffffff',
+                          border: 'none', borderRadius: 8,
+                          padding: '10px 24px', fontSize: 13, fontWeight: 700,
+                          cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                          opacity: batchSelectedItemIds.size === 0 ? 0.45 : 1,
                         }}
                       >
                         {batchSponsorMutation.isPending
-                          ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
-                          : <XCircle style={{ width: 13, height: 13 }} />}
-                        Confirmar
+                          ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin" />
+                          : <CheckCircle style={{ width: 15, height: 15 }} />}
+                        Aprovar {batchSelectedItemIds.size > 0 ? `${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'Peça' : 'Peças'}` : 'Seleção'}
                       </button>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div style={{
+                      backgroundColor: '#fef2f2', border: '1px solid #fca5a5',
+                      borderRadius: 8, padding: 16,
+                    }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <XCircle style={{ width: 14, height: 14 }} />
+                        Motivo da reprovação
+                      </p>
+                      <textarea
+                        value={batchRejectReason}
+                        onChange={e => setBatchRejectReason(e.target.value)}
+                        placeholder="Descreva o motivo para o patrocinador..."
+                        data-testid="textarea-batch-reject-reason"
+                        style={{
+                          width: '100%', backgroundColor: '#ffffff',
+                          border: `1px solid ${batchRejectReason.trim() === "" ? '#fca5a5' : '#e7e5e4'}`,
+                          color: '#1c1917', borderRadius: 8, padding: '10px 12px',
+                          fontSize: 13, resize: 'none', height: 76, outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => { setBatchShowRejectForm(false); setBatchRejectReason(""); }}
+                          style={{
+                            backgroundColor: '#ffffff', color: '#78716c',
+                            border: '1px solid #e7e5e4', borderRadius: 8,
+                            padding: '9px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "reject", reason: batchRejectReason })}
+                          disabled={batchSponsorMutation.isPending || batchRejectReason.trim() === ""}
+                          data-testid="button-batch-confirm-reject"
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            backgroundColor: batchRejectReason.trim() === "" ? '#e7e5e4' : '#dc2626',
+                            color: '#ffffff', border: 'none', borderRadius: 8,
+                            padding: '9px 18px', fontSize: 12, fontWeight: 700,
+                            cursor: batchRejectReason.trim() === "" ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {batchSponsorMutation.isPending
+                            ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
+                            : <XCircle style={{ width: 13, height: 13 }} />}
+                          Confirmar Recusa
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            ) : (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '32px 0', color: '#a8a29e',
+                backgroundColor: '#f9f9f8', borderRadius: 8, border: '1px dashed #e7e5e4',
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>
+                  {batchSponsorId ? 'Selecione um evento para ver as peças.' : 'Selecione um patrocinador e um evento para começar.'}
+                </span>
               </div>
-            </div>
+            )}
           </div>
         </section>
       )}

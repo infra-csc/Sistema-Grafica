@@ -2,5 +2,6 @@
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/import-xlsx/SplitPanel.tsx": () => import("../components/mockups/import-xlsx/SplitPanel.tsx"),
-  "./components/mockups/import-xlsx/StepWizard.tsx": () => import("../components/mockups/import-xlsx/StepWizard.tsx")
+  "./components/mockups/import-xlsx/StepWizard.tsx": () => import("../components/mockups/import-xlsx/StepWizard.tsx"),
+  "./components/mockups/vincular-redesign/VincularPatPage.tsx": () => import("../components/mockups/vincular-redesign/VincularPatPage.tsx")
 };

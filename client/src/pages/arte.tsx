@@ -299,7 +299,9 @@ export default function Arte() {
           reader.readAsDataURL(blob);
         });
         if (dataUri) out[rawUrl] = dataUri;
-      } catch {}
+      } catch (error) {
+        console.warn("Failed to fetch/convert thumbnail image for print", rawUrl, error);
+      }
     }));
     return out;
   };

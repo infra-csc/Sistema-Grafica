@@ -499,6 +499,33 @@ export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Item = typeof items.$inferSelect;
 export type InsertItem = z.infer<typeof insertItemSchema>;
 
+// Item lifecycle statuses. The `status` column is stored as free-form text
+// (see items table above), but the application only ever writes one of these
+// values — kept here as a typed union so callers can avoid `as any` casts.
+export const ITEM_STATUSES = [
+  "draft",
+  "requested",
+  "awaiting_linking",
+  "awaiting_submission",
+  "awaiting_approval",
+  "awaiting_finalization",
+  "awaiting_final_review",
+  "awaiting_review",
+  "in_review",
+  "ready_for_production",
+  "approved",
+  "inProduction",
+  "produced",
+  "delivered",
+  "canceled",
+  "archived",
+  // Legacy status compatibility
+  "awaiting_sponsor_approval",
+  "sponsor_approved",
+  "awaiting_creator_review",
+] as const;
+export type ItemStatus = typeof ITEM_STATUSES[number];
+
 export type StandardItem = typeof standardItems.$inferSelect;
 export type InsertStandardItem = z.infer<typeof insertStandardItemSchema>;
 

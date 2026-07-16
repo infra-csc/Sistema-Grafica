@@ -8,7 +8,7 @@ async function throwIfResNotOk(res: Response) {
 }
 
 // Helper to get current user name from localStorage
-function getCurrentUserName(): string {
+export function getCurrentUserName(): string {
   try {
     const userStr = localStorage.getItem("currentUser");
     if (userStr) {
@@ -29,15 +29,19 @@ export async function apiRequest(
   const headers: Record<string, string> = {
     "x-user-name": getCurrentUserName(),
   };
-  
-  if (data) {
+
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
+
+  // For FormData we must NOT set Content-Type ourselves — the browser needs
+  // to add the multipart boundary automatically.
+  if (data && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
   const res = await fetch(url, {
     method,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
+    body: isFormData ? (data as FormData) : data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
 

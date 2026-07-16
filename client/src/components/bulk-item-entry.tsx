@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
+import { useToast } from "@/hooks/use-toast";
 
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
@@ -463,6 +464,7 @@ export function BulkItemEntry({
     duplicates: Array<{ newItem: any; existingItem: ExistingItem }>;
   } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const getReplicateCount = (id: string) => replicateCounts[id] ?? 1;
   const setReplicateCount = (id: string, n: number) =>
@@ -570,7 +572,11 @@ export function BulkItemEntry({
         isReuse: r.isReuse || false,
       }));
     if (valid.length === 0) {
-      alert("Preencha pelo menos uma peça completa antes de salvar.");
+      toast({
+        title: "Nenhuma peça válida",
+        description: "Preencha pelo menos uma peça completa antes de salvar.",
+        variant: "destructive",
+      });
       return;
     }
 

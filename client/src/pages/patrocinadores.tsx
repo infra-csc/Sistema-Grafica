@@ -8,13 +8,7 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
-
-/* ── Palette ── */
-const T = {
-  bg: "#f9f9f8", surface: "#ffffff", border: "#e8e8e7",
-  text: "#1a1c1c", second: "#78716c", muted: "#a8a29e",
-  accent: "#f97316", dark: "#1c1917", low: "#f3f4f3",
-};
+import { T } from "@/lib/theme";
 
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "14px 16px",

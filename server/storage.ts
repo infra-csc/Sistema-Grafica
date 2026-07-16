@@ -45,6 +45,7 @@ import {
   type InsertInventoryAsset,
   type EventInventoryAllocation,
   type EventQuotaRule,
+  type ItemStatus,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, or, lt } from "drizzle-orm";
@@ -66,7 +67,7 @@ export interface IStorage {
   createItem(item: InsertItem): Promise<Item>;
   createBulkItems(items: InsertItem[]): Promise<Item[]>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
-  updateItemWithStatusCheck(id: string, fromStatus: string, toStatus: string): Promise<Item | null>;
+  updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null>;
   approveItem(id: string): Promise<Item | undefined>;
   startProduction(id: string, quantityProduced: number): Promise<Item | undefined>;
   markItemAsDelivered(id: string, receivedBy: string, photoUrl?: string): Promise<Item | undefined>;
@@ -324,13 +325,18 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
     
-    // Gerar displayIds sequencialmente usando a mesma função de createItem
-    // Isso garante consistência e robustez (sequence é atômica)
-    const displayIds: string[] = [];
-    for (let i = 0; i < insertItems.length; i++) {
-      displayIds.push(await this.generateNextDisplayId());
-    }
-    
+    // Gerar todos os displayIds em uma única query (generate_series + nextval),
+    // em vez de um await sequencial por item — a sequence garante atomicidade
+    // e ordem, então isso é seguro e evita N round-trips ao banco.
+    await this.ensureDisplayIdSequence();
+    const seqResult = await db.execute(sql`
+      SELECT nextval('item_display_id_seq') as next_id
+      FROM generate_series(1, ${insertItems.length})
+    `);
+    const displayIds: string[] = seqResult.rows.map((row: any) =>
+      `#${String(Number(row.next_id)).padStart(4, '0')}`
+    );
+
     const normalizedItems = insertItems.map((item, index) => ({
       ...item,
       displayId: displayIds[index],
@@ -367,16 +373,16 @@ export class DatabaseStorage implements IStorage {
     return item || undefined;
   }
 
-  async updateItemWithStatusCheck(id: string, fromStatus: string, toStatus: string): Promise<Item | null> {
+  async updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null> {
     const [item] = await db
       .update(items)
-      .set({ 
-        status: toStatus as any,
+      .set({
+        status: toStatus,
         updatedAt: new Date()
       })
       .where(and(
         eq(items.id, id),
-        eq(items.status, fromStatus as any)
+        eq(items.status, fromStatus)
       ))
       .returning();
     return item || null;

@@ -61,6 +61,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     enabled: ssoReady, // don't fetch until SSO exchange is done
   });
 
+  // Keep localStorage("currentUser") in sync with the authenticated user so
+  // that apiRequest()/getCurrentUserName() (client/src/lib/queryClient.ts)
+  // can attach the correct x-user-name header on every request. Cleared
+  // automatically when the session ends (logout, expired cookie, etc).
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem("currentUser", JSON.stringify({ name: user.name }));
+    } else {
+      localStorage.removeItem("currentUser");
+    }
+  }, [user]);
+
   const hasPermission = (requiredRole: UserRole | UserRole[]) => {
     if (!user) return false;
     if (user.role === "admin") return true;

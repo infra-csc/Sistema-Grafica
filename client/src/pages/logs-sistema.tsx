@@ -3,13 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Search, ChevronLeft, ChevronRight, X, Download } from "lucide-react";
-
-/* ── Palette ── */
-const T = {
-  bg: "#f9f9f8", surface: "#ffffff", border: "#e8e8e7",
-  text: "#1a1c1c", second: "#78716c", muted: "#a8a29e",
-  accent: "#f97316", dark: "#1c1917", low: "#f3f4f3",
-};
+import { T } from "@/lib/theme";
 
 interface AuditLog {
   id: string;
@@ -116,6 +110,34 @@ export default function LogsSistema() {
 
   const clearFilters = () => { setSearch(""); setActionFilter("all"); setEntityFilter("all"); setPage(1); };
 
+  /* ── CSV export (client-side, from the already-loaded/filtered logs) ── */
+  const csvEscape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+  const handleExport = () => {
+    const header = ["Data/Hora", "Usuário", "Ação", "Descrição", "Entidade", "ID da Entidade"];
+    const rows = filtered.map(l => [
+      format(new Date(l.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }),
+      l.userName,
+      getActionCfg(l.action).label,
+      l.details ?? `${l.action} em ${l.entityType}`,
+      ENTITY_LABELS[l.entityType] ?? l.entityType,
+      l.entityId,
+    ]);
+    const csv = [header, ...rows]
+      .map(row => row.map(cell => csvEscape(String(cell))).join(";"))
+      .join("\r\n");
+    // UTF-8 BOM so Excel opens accented characters correctly
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `logs-sistema-${format(new Date(), "yyyy-MM-dd-HHmm")}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   /* ── Stats ── */
   const todayCount  = logs.filter(l => new Date(l.createdAt).toDateString() === new Date().toDateString()).length;
   const errorCount  = logs.filter(l => ["deleted", "rejected"].includes(l.action)).length;
@@ -134,8 +156,11 @@ export default function LogsSistema() {
           </p>
         </div>
         <button
-          style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", backgroundColor: T.surface, color: T.second, border: `1px solid ${T.border}`, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; }}
+          onClick={handleExport}
+          disabled={filtered.length === 0}
+          data-testid="button-export-logs"
+          style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", backgroundColor: T.surface, color: filtered.length === 0 ? T.muted : T.second, border: `1px solid ${T.border}`, borderRadius: 6, cursor: filtered.length === 0 ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", opacity: filtered.length === 0 ? 0.6 : 1 }}
+          onMouseEnter={e => { if (filtered.length > 0) e.currentTarget.style.backgroundColor = T.low; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
         >
           <Download style={{ width: 13, height: 13 }} />

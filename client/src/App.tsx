@@ -195,14 +195,6 @@ function Router() {
   );
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  admin:       "Administrador",
-  solicitacao: "Solicitação",
-  arte:        "Arte",
-  grafica:     "Gráfica",
-  atendimento: "Atendimento",
-};
-
 function AuthenticatedLayout() {
   useWebSocket();
 

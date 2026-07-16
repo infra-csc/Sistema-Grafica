@@ -110,6 +110,20 @@ async function createAuditLog(
   }
 }
 
+// Helper for sensitive routes (auth, user management): Zod validation errors
+// are safe and useful to return as-is (400 + field message), but any other
+// error (DB failures, unexpected exceptions, etc.) is logged in full on the
+// server and reported to the client with a generic message only — never
+// error.message, which could leak internal details.
+function sendSensitiveError(res: any, error: any, context: string, status = 400) {
+  console.error(`${context}:`, error);
+  if (error instanceof z.ZodError) {
+    const message = error.errors?.[0]?.message || "Dados inválidos";
+    return res.status(400).json({ error: message });
+  }
+  return res.status(status).json({ error: "Não foi possível completar a operação" });
+}
+
 // Helper to calculate event status based on items
 async function calculateEventStatus(eventId: string): Promise<"created" | "completed"> {
   const event = await storage.getEvent(eventId);
@@ -181,6 +195,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
+  // Simple in-memory rate limiter (no new dependency needed) — protects
+  // credential-related endpoints from brute-force attempts. Keyed by IP.
+  // Not distributed-safe (per-process only), which is an acceptable
+  // trade-off for this single-instance deployment.
+  function createRateLimiter(opts: { windowMs: number; max: number; message: string }) {
+    const hits = new Map<string, { count: number; resetAt: number }>();
+    setInterval(() => {
+      const now = Date.now();
+      hits.forEach((v, k) => { if (v.resetAt < now) hits.delete(k); });
+    }, 60_000);
+
+    return (req: any, res: any, next: any) => {
+      const key = req.ip || req.socket?.remoteAddress || "unknown";
+      const now = Date.now();
+      const entry = hits.get(key);
+
+      if (!entry || entry.resetAt < now) {
+        hits.set(key, { count: 1, resetAt: now + opts.windowMs });
+        return next();
+      }
+
+      entry.count += 1;
+      if (entry.count > opts.max) {
+        return res.status(429).json({ error: opts.message });
+      }
+      next();
+    };
+  }
+
+  const loginRateLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: "Muitas tentativas de login. Tente novamente em alguns minutos.",
+  });
+
+  const changePasswordRateLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: "Muitas tentativas. Tente novamente em alguns minutos.",
+  });
+
   // ============ AUTHENTICATION ============
 
   // Register new user (admin only)
@@ -218,13 +273,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error: any) {
-      console.error("Register error:", error);
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Register error");
     }
   });
 
   // Login
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", loginRateLimiter, async (req, res) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
 
@@ -249,8 +303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error: any) {
-      console.error("Login error:", error);
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Login error");
     }
   });
 
@@ -280,12 +333,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Get current user error", 500);
     }
   });
 
   // Change password
-  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+  app.post("/api/auth/change-password", requireAuth, changePasswordRateLimiter, async (req, res) => {
     try {
       const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
 
@@ -323,8 +376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: "Senha alterada com sucesso" });
     } catch (error: any) {
-      console.error("Change password error:", error);
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Change password error");
     }
   });
 
@@ -338,19 +390,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const usersWithoutPasswords = users.map(({ passwordHash: _, ...user }) => user);
       res.json(usersWithoutPasswords);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Get all users error", 500);
     }
   });
 
   // Update user (admin only)
   app.patch("/api/users/:id", requireAdmin, async (req, res) => {
     try {
-      const { password, ...updateData } = req.body;
+      // Validate against the schema so arbitrary fields (e.g. a client-supplied
+      // passwordHash, which the schema omits entirely) can never be mass-assigned.
+      const { password, ...validatedData } = insertUserSchema.partial().parse(req.body);
+      const updateData: any = { ...validatedData };
 
-      // If password is being updated, hash it
+      // If password is being updated, hash it (only path by which passwordHash is set)
       if (password) {
-        const passwordHash = await bcrypt.hash(password, 10);
-        updateData.passwordHash = passwordHash;
+        updateData.passwordHash = await bcrypt.hash(password, 10);
         updateData.mustChangePassword = true;
       }
 
@@ -372,7 +426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Update user error");
     }
   });
 
@@ -402,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: "Usuário excluído com sucesso" });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Delete user error", 500);
     }
   });
 
@@ -921,7 +975,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============ EVENTS ============
   
   // Get all events with items count
-  app.get("/api/events", async (req, res) => {
+  app.get("/api/events", requireAuth, async (req, res) => {
     try {
       const allEvents = await storage.getAllEvents();
       
@@ -963,7 +1017,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single event
-  app.get("/api/events/:id", async (req, res) => {
+  app.get("/api/events/:id", requireAuth, async (req, res) => {
     try {
       const event = await storage.getEvent(req.params.id);
       if (!event) {
@@ -978,7 +1032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create event
-  app.post("/api/events", async (req, res) => {
+  app.post("/api/events", requireAuth, async (req, res) => {
     try {
       const validatedData = insertEventSchema.parse(req.body);
       
@@ -1018,24 +1072,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update event
-  app.patch("/api/events/:id", async (req, res) => {
+  app.patch("/api/events/:id", requireAuth, async (req, res) => {
     try {
+      const validatedData = insertEventSchema.partial().parse(req.body);
+
       // Validação: Se ambas as datas estão sendo atualizadas, verificar regra
-      if (req.body.startDate && req.body.truckDepartureDate) {
-        const startDate = new Date(req.body.startDate);
-        const truckDate = new Date(req.body.truckDepartureDate);
+      if (validatedData.startDate && validatedData.truckDepartureDate) {
+        const startDate = new Date(validatedData.startDate);
+        const truckDate = new Date(validatedData.truckDepartureDate);
         startDate.setHours(0, 0, 0, 0);
         const truckDateOnly = new Date(truckDate);
         truckDateOnly.setHours(0, 0, 0, 0);
-        
+
         if (truckDateOnly >= startDate) {
-          return res.status(400).json({ 
-            error: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento" 
+          return res.status(400).json({
+            error: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento"
           });
         }
       }
-      
-      const event = await storage.updateEvent(req.params.id, req.body);
+
+      const event = await storage.updateEvent(req.params.id, validatedData);
       if (!event) {
         return res.status(404).json({ error: "Event not found" });
       }
@@ -1058,7 +1114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update event priority
-  app.patch("/api/events/:id/priority", async (req, res) => {
+  app.patch("/api/events/:id/priority", requireAuth, async (req, res) => {
     try {
       const { priority } = req.body;
       
@@ -1089,7 +1145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete event
-  app.delete("/api/events/:id", async (req, res) => {
+  app.delete("/api/events/:id", requireAuth, async (req, res) => {
     try {
       const event = await storage.getEvent(req.params.id);
       if (!event) {
@@ -1211,7 +1267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============ ITEMS ============
 
   // Get all items with event data and sponsors
-  app.get("/api/items", async (req, res) => {
+  app.get("/api/items", requireAuth, async (req, res) => {
     try {
       const allItems = await storage.getAllItems();
       
@@ -1246,7 +1302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get pending items with event and sponsors (for Arte module) - MUST come BEFORE /:eventId route
-  app.get("/api/items/pending", async (req, res) => {
+  app.get("/api/items/pending", requireAuth, async (req, res) => {
     try {
       const pendingItems = await storage.getPendingItems();
       
@@ -1322,7 +1378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get approved items with event and sponsors (for Gráfica module) - MUST come BEFORE /:eventId route
-  app.get("/api/items/approved", async (req, res) => {
+  app.get("/api/items/approved", requireAuth, async (req, res) => {
     try {
       const approvedItems = await storage.getApprovedItems();
       
@@ -1357,7 +1413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get items by event with sponsors - MUST come AFTER specific routes like /pending and /approved
-  app.get("/api/items/:eventId", async (req, res) => {
+  app.get("/api/items/:eventId", requireAuth, async (req, res) => {
     try {
       const items = await storage.getItemsByEvent(req.params.eventId);
       
@@ -1389,7 +1445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create item
-  app.post("/api/items", async (req, res) => {
+  app.post("/api/items", requireAuth, async (req, res) => {
     try {
       const validatedData = insertItemSchema.parse(req.body);
       
@@ -1448,7 +1504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create multiple items at once (bulk)
-  app.post("/api/items/bulk", async (req, res) => {
+  app.post("/api/items/bulk", requireAuth, async (req, res) => {
     try {
       const { items: itemsData } = req.body;
       
@@ -1505,7 +1561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Import items from Excel (.xlsx) ──────────────────────────────────────
   // Uses multer to handle multipart/form-data upload (avoids JSON body size limits)
-  app.post("/api/events/:id/import-xlsx", async (req, res) => {
+  app.post("/api/events/:id/import-xlsx", requireAuth, async (req, res) => {
     try {
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
@@ -1749,7 +1805,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Preview Excel items (parse without saving) ───────────────────────────
-  app.post("/api/events/:id/preview-xlsx", async (req, res) => {
+  app.post("/api/events/:id/preview-xlsx", requireAuth, async (req, res) => {
     try {
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
@@ -2117,7 +2173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Clone items from another event ───────────────────────────────────────
-  app.post("/api/events/:id/clone-items", async (req, res) => {
+  app.post("/api/events/:id/clone-items", requireAuth, async (req, res) => {
     try {
       const targetEvent = await storage.getEvent(req.params.id);
       if (!targetEvent) return res.status(404).json({ error: "Evento destino não encontrado" });
@@ -2188,7 +2244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update item
-  app.patch("/api/items/:id", async (req, res) => {
+  app.patch("/api/items/:id", requireAuth, async (req, res) => {
     try {
       const validatedData = insertItemSchema.partial().parse(req.body);
 
@@ -2276,7 +2332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete item
-  app.delete("/api/items/:id", async (req, res) => {
+  app.delete("/api/items/:id", requireAuth, async (req, res) => {
     try {
       const item = await storage.getItem(req.params.id);
       if (!item) {
@@ -3430,7 +3486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Approve item (Arte module) - DEPRECATED: Use new approval workflow
-  app.patch("/api/items/:id/approve", async (req, res) => {
+  app.patch("/api/items/:id/approve", requireAuth, async (req, res) => {
     try {
       const item = await storage.approveItem(req.params.id);
       if (!item) {
@@ -3467,7 +3523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Start production (Gráfica module)
-  app.patch("/api/items/:id/start-production", async (req, res) => {
+  app.patch("/api/items/:id/start-production", requireAuth, async (req, res) => {
     try {
       const { quantityProduced } = req.body;
       
@@ -3560,7 +3616,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Mark item as delivered (Gráfica module)
-  app.patch("/api/items/:id/deliver", async (req, res) => {
+  app.patch("/api/items/:id/deliver", requireAuth, async (req, res) => {
     try {
       const { receivedBy, photoUrl } = req.body;
       
@@ -3615,7 +3671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update production (Gráfica module)
-  app.post("/api/items/:id/production", async (req, res) => {
+  app.post("/api/items/:id/production", requireAuth, async (req, res) => {
     try {
       const validatedData = insertProductionUpdateSchema.parse(req.body);
       const productionUpdate = await storage.createProductionUpdate({
@@ -3652,7 +3708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ============ STANDARD ITEMS ============
 
-  app.get("/api/standard-items", async (req, res) => {
+  app.get("/api/standard-items", requireAuth, async (req, res) => {
     try {
       const items = await storage.getAllStandardItems();
       res.json(items);
@@ -3661,7 +3717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/standard-items", async (req, res) => {
+  app.post("/api/standard-items", requireAuth, async (req, res) => {
     try {
       const validatedData = insertStandardItemSchema.parse(req.body);
       const item = await storage.createStandardItem(validatedData);
@@ -3675,7 +3731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Rename all standard items in a group
-  app.patch("/api/standard-items/rename-group", async (req, res) => {
+  app.patch("/api/standard-items/rename-group", requireAuth, async (req, res) => {
     try {
       const { oldName, newName } = req.body;
       if (!oldName || !newName || !newName.trim()) {
@@ -3690,7 +3746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete (clear) a group from all standard items
-  app.delete("/api/standard-items/clear-group", async (req, res) => {
+  app.delete("/api/standard-items/clear-group", requireAuth, async (req, res) => {
     try {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
@@ -3703,7 +3759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Rename a finish across all standard items
-  app.patch("/api/standard-items/rename-finish", async (req, res) => {
+  app.patch("/api/standard-items/rename-finish", requireAuth, async (req, res) => {
     try {
       const { oldName, newName } = req.body;
       if (!oldName || !newName || !newName.trim()) {
@@ -3718,7 +3774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete (clear) a finish from all standard items
-  app.delete("/api/standard-items/clear-finish", async (req, res) => {
+  app.delete("/api/standard-items/clear-finish", requireAuth, async (req, res) => {
     try {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
@@ -3731,7 +3787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Rename a material across all standard items
-  app.patch("/api/standard-items/rename-material", async (req, res) => {
+  app.patch("/api/standard-items/rename-material", requireAuth, async (req, res) => {
     try {
       const { oldName, newName } = req.body;
       if (!oldName || !newName || !newName.trim()) {
@@ -3746,7 +3802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete (clear) a material from all standard items
-  app.delete("/api/standard-items/clear-material", async (req, res) => {
+  app.delete("/api/standard-items/clear-material", requireAuth, async (req, res) => {
     try {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
@@ -3759,7 +3815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update standard item
-  app.patch("/api/standard-items/:id", async (req, res) => {
+  app.patch("/api/standard-items/:id", requireAuth, async (req, res) => {
     try {
       const validatedData = insertStandardItemSchema.partial().parse(req.body);
       const item = await storage.updateStandardItem(req.params.id, validatedData);
@@ -3786,7 +3842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete standard item
-  app.delete("/api/standard-items/:id", async (req, res) => {
+  app.delete("/api/standard-items/:id", requireAuth, async (req, res) => {
     try {
       const item = await storage.getStandardItem(req.params.id);
       if (!item) {
@@ -3844,7 +3900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/notifications/:id/read", async (req, res) => {
+  app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
     try {
       const notification = await storage.markNotificationAsRead(req.params.id);
       if (!notification) {
@@ -3862,7 +3918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============ COMMENTS ============
   
   // Get comments for an item
-  app.get("/api/items/:itemId/comments", async (req, res) => {
+  app.get("/api/items/:itemId/comments", requireAuth, async (req, res) => {
     try {
       const comments = await storage.getComments(req.params.itemId);
       res.json(comments);
@@ -3872,7 +3928,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a comment
-  app.post("/api/items/:itemId/comments", async (req, res) => {
+  app.post("/api/items/:itemId/comments", requireAuth, async (req, res) => {
     try {
       // Buscar item para pegar o status atual
       const item = await storage.getItem(req.params.itemId);
@@ -3898,7 +3954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a comment
-  app.delete("/api/comments/:id", async (req, res) => {
+  app.delete("/api/comments/:id", requireAuth, async (req, res) => {
     try {
       const success = await storage.deleteComment(req.params.id);
       if (!success) {
@@ -3916,7 +3972,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============ DELIVERY PHOTOS ============
   
   // Get delivery photos for an item
-  app.get("/api/items/:itemId/photos", async (req, res) => {
+  app.get("/api/items/:itemId/photos", requireAuth, async (req, res) => {
     try {
       const photos = await storage.getDeliveryPhotos(req.params.itemId);
       res.json(photos);
@@ -3926,7 +3982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Add a delivery photo
-  app.post("/api/items/:itemId/photos", async (req, res) => {
+  app.post("/api/items/:itemId/photos", requireAuth, async (req, res) => {
     try {
       const validatedData = insertDeliveryPhotoSchema.parse({
         ...req.body,
@@ -3944,7 +4000,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a delivery photo
-  app.delete("/api/photos/:id", async (req, res) => {
+  app.delete("/api/photos/:id", requireAuth, async (req, res) => {
     try {
       const success = await storage.deleteDeliveryPhoto(req.params.id);
       if (!success) {
@@ -3962,7 +4018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============ AUDIT LOGS ============
   
   // Get audit logs (all or filtered by type/entity)
-  app.get("/api/audit-logs", async (req, res) => {
+  app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
       const { entityType, entityId } = req.query;
       const logs = await storage.getAuditLogs(
@@ -3981,7 +4037,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { ObjectStorageService, ObjectNotFoundError } = await import("./objectStorage");
   
   // Get upload URL for a new photo
-  app.post("/api/objects/upload", async (req, res) => {
+  app.post("/api/objects/upload", requireAuth, async (req, res) => {
     try {
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -3992,11 +4048,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve uploaded objects (photos)
-  app.get("/objects/:objectPath(*)", async (req, res) => {
+  // Serve uploaded objects (photos) — requires auth + an ACL check so users
+  // can't read arbitrary uploaded files just by guessing/enumerating paths.
+  //
+  // NOTE: nothing in this codebase currently calls setObjectAclPolicy /
+  // trySetObjectEntityAclPolicy on upload, so existing (and most future)
+  // objects have no ACL policy attached at all. canAccessObject() denies
+  // access outright when there's no policy, which would 403 every object
+  // in the app. Since this route is now gated behind requireAuth, we treat
+  // "no policy recorded" as accessible to any authenticated user (matches
+  // pre-existing behavior for those objects), and defer to owner-based ACL
+  // for any object that *does* have a policy set.
+  app.get("/objects/:objectPath(*)", requireAuth, async (req, res) => {
     try {
+      const { ObjectPermission, getObjectAclPolicy } = await import("./objectAcl");
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+
+      const aclPolicy = await getObjectAclPolicy(objectFile);
+      if (aclPolicy) {
+        const canAccess = await objectStorageService.canAccessObjectEntity({
+          userId: req.userId,
+          objectFile,
+          requestedPermission: ObjectPermission.READ,
+        });
+        if (!canAccess) {
+          return res.sendStatus(403);
+        }
+      }
+
       await objectStorageService.downloadObject(objectFile, res);
     } catch (error: any) {
       console.error("Error serving object:", error);
@@ -4008,7 +4088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Save delivery photo info to database
-  app.post("/api/delivery-photos", async (req, res) => {
+  app.post("/api/delivery-photos", requireAuth, async (req, res) => {
     try {
       const validatedData = insertDeliveryPhotoSchema.parse(req.body);
       
@@ -4024,16 +4104,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(photo);
     } catch (error: any) {
       console.error("Error saving delivery photo:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get photos for an item
-  app.get("/api/items/:itemId/photos", async (req, res) => {
-    try {
-      const photos = await storage.getDeliveryPhotos(req.params.itemId);
-      res.json(photos);
-    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

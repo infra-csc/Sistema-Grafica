@@ -488,8 +488,7 @@ export default function VincularPatrocinadores() {
   // IDs já carregados — evita re-fetch e overwrite durante mutations
   const loadedItemIdsRef = useRef(new Set<string>());
 
-  // Carregar sponsors apenas dos items ainda NÃO carregados
-  // Também pré-carrega sponsors do evento para rascunho automático
+  // Carregar sponsors salvos no banco para cada item ainda NÃO carregado
   useEffect(() => {
     if (itemsLoading || !visibleItems || visibleItems.length === 0) return;
 
@@ -498,70 +497,32 @@ export default function VincularPatrocinadores() {
 
     let cancelled = false;
 
-    // Eventos únicos dos items não carregados (para buscar sponsors do evento)
-    const uniqueEventIds = [...new Set(unloaded.map(item => item.eventId))];
-
-    Promise.all([
-      // 1. Sponsors de cada item
-      Promise.all(
-        unloaded.map(async (item) => {
-          try {
-            const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
-            const itemSponsors = await response.json();
-            const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
-            return { itemId: item.id, sponsorIds, eventId: item.eventId, status: item.status };
-          } catch (error) {
-            console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
-            return { itemId: item.id, sponsorIds: [], eventId: item.eventId, status: item.status };
-          }
-        })
-      ),
-      // 2. Sponsors de cada evento (para rascunho automático)
-      Promise.all(
-        uniqueEventIds.map(async (eventId) => {
-          try {
-            const res = await apiRequest("GET", `/api/events/${eventId}/sponsors`);
-            const eventSponsors = await res.json();
-            return { eventId, sponsorIds: eventSponsors.map((es: any) => es.sponsorId).filter(Boolean) };
-          } catch {
-            return { eventId, sponsorIds: [] };
-          }
-        })
-      ),
-    ]).then(([itemResults, eventResults]) => {
+    Promise.all(
+      unloaded.map(async (item) => {
+        try {
+          const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
+          const itemSponsors = await response.json();
+          const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
+          return { itemId: item.id, sponsorIds };
+        } catch (error) {
+          console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
+          return { itemId: item.id, sponsorIds: [] };
+        }
+      })
+    ).then((itemResults) => {
       if (cancelled) return;
-
-      // Mapa: eventId → [sponsorId, ...]
-      const eventSponsorsByEvent: Record<string, string[]> = {};
-      eventResults.forEach(({ eventId, sponsorIds }) => {
-        eventSponsorsByEvent[eventId] = sponsorIds;
-      });
 
       const newEntries: Record<string, string[]> = {};
       const newOriginals: Record<string, string[]> = {};
-      const newPendingDrafts: Record<string, ItemChanges> = {};
 
-      itemResults.forEach(({ itemId, sponsorIds, eventId, status }) => {
+      itemResults.forEach(({ itemId, sponsorIds }) => {
         newOriginals[itemId] = sponsorIds; // verdade do banco
-
-        const canAutoDraft = sponsorIds.length === 0 &&
-          ['requested', 'awaiting_linking'].includes(status);
-        const eventSpIds = eventSponsorsByEvent[eventId] ?? [];
-
-        if (canAutoDraft && eventSpIds.length > 0) {
-          // Pré-preenche com sponsors do evento como rascunho
-          newEntries[itemId] = eventSpIds;
-          newPendingDrafts[itemId] = { sponsorIds: eventSpIds, skipApproval: false, isDirty: true };
-        } else {
-          newEntries[itemId] = sponsorIds;
-        }
+        newEntries[itemId] = sponsorIds;   // exibe apenas o que está salvo
       });
 
       // MERGE — nunca substitui entradas já existentes (evita overwrite de updates otimistas)
       setItemSponsorsMap(prev => ({ ...newEntries, ...prev }));
       setOriginalSponsorsMap(prev => ({ ...newOriginals, ...prev }));
-      // Pending drafts: só aplica se item ainda não tem mudança pendente manual
-      setPendingChanges(prev => ({ ...newPendingDrafts, ...prev }));
 
       itemResults.forEach(({ itemId }) => loadedItemIdsRef.current.add(itemId));
     }).catch(error => {
@@ -2481,19 +2442,34 @@ export default function VincularPatrocinadores() {
                                   <Lock style={{ width: 13, height: 13, color: '#d6d3d1' }} />
                                 )}
                                 {uiStatus === 'RASCUNHO' && isEditable && (
-                                  <button
-                                    onClick={() => {
-                                      const ch = pendingChanges[item.id];
-                                      const payload = { itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
-                                      setSaveConfirmModal({ payloads: [payload], items: [item] });
-                                    }}
-                                    disabled={saveLinkingMutation.isPending}
-                                    data-testid={`button-save-item-${item.id}`}
-                                    title="Salvar vinculação"
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', display: 'flex', alignItems: 'center', padding: 2 }}
-                                  >
-                                    <Save style={{ width: 14, height: 14 }} />
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const original = originalSponsorsMap[item.id] || [];
+                                        setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                                        setItemSponsorsMap(prev => ({ ...prev, [item.id]: original }));
+                                      }}
+                                      data-testid={`button-discard-item-${item.id}`}
+                                      title="Descartar alterações"
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', display: 'flex', alignItems: 'center', padding: 2 }}
+                                    >
+                                      <X style={{ width: 13, height: 13 }} />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const ch = pendingChanges[item.id];
+                                        const payload = { itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
+                                        setSaveConfirmModal({ payloads: [payload], items: [item] });
+                                      }}
+                                      disabled={saveLinkingMutation.isPending}
+                                      data-testid={`button-save-item-${item.id}`}
+                                      title="Salvar vinculação"
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', display: 'flex', alignItems: 'center', padding: 2 }}
+                                    >
+                                      <Save style={{ width: 14, height: 14 }} />
+                                    </button>
+                                  </>
                                 )}
                                 {(uiStatus === 'PENDENTE' || uiStatus === 'RASCUNHO' || uiStatus === 'PRONTO') && (
                                   <button

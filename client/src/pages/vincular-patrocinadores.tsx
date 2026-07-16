@@ -24,6 +24,7 @@ import { ptBR } from "date-fns/locale";
 import { StatusBadge } from "@/components/status-badge";
 import { CommentsSection } from "@/components/comments-section";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { useAuth } from "@/contexts/auth-context";
 
 type ItemChanges = {
   sponsorIds: string[];
@@ -140,6 +141,8 @@ const getSponsorColorById = (sponsorId: string, allSponsors: any[]) => {
 };
 
 export default function VincularPatrocinadores() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { toast } = useToast();
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
@@ -2443,19 +2446,21 @@ export default function VincularPatrocinadores() {
                                 )}
                                 {uiStatus === 'RASCUNHO' && isEditable && (
                                   <>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const original = originalSponsorsMap[item.id] || [];
-                                        setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-                                        setItemSponsorsMap(prev => ({ ...prev, [item.id]: original }));
-                                      }}
-                                      data-testid={`button-discard-item-${item.id}`}
-                                      title="Descartar alterações"
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', display: 'flex', alignItems: 'center', padding: 2 }}
-                                    >
-                                      <X style={{ width: 13, height: 13 }} />
-                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const original = originalSponsorsMap[item.id] || [];
+                                          setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                                          setItemSponsorsMap(prev => ({ ...prev, [item.id]: original }));
+                                        }}
+                                        data-testid={`button-discard-item-${item.id}`}
+                                        title="Descartar alterações"
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', display: 'flex', alignItems: 'center', padding: 2 }}
+                                      >
+                                        <X style={{ width: 13, height: 13 }} />
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => {
                                         const ch = pendingChanges[item.id];

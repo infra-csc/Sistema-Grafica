@@ -16,6 +16,8 @@ interface DeliveryPhotoGalleryProps {
   itemId: string;
 }
 
+const MAX_PHOTO_SIZE = 10485760; // 10MB, consistente com ObjectUploader.tsx
+
 export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
   const uploadedBy = getCurrentUserName();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -76,6 +78,16 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > MAX_PHOTO_SIZE) {
+      toast({
+        title: "Arquivo muito grande",
+        description: `O arquivo selecionado excede o limite máximo de ${Math.round(MAX_PHOTO_SIZE / 1024 / 1024)}MB.`,
+        variant: "destructive",
+      });
+      e.target.value = "";
+      return;
+    }
 
     // Convert to base64
     const reader = new FileReader();

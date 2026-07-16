@@ -48,7 +48,7 @@ import {
   type ItemStatus,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, or, lt } from "drizzle-orm";
+import { eq, and, desc, sql, or, lt, ne } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -923,12 +923,15 @@ export class DatabaseStorage implements IStorage {
 
   async getAvailableAssetsByFranchise(franchise: string): Promise<InventoryAsset[]> {
     const tag = franchise.toLowerCase().replace(/\s+/g, '_');
-    const all = await db.select().from(inventoryAssets)
-      .where(eq(inventoryAssets.trackingStatus, 'NO_GALPAO'));
-    return all.filter(a =>
-      a.condition !== 'SUCATA' &&
-      a.franchiseTags.some(t => t.toLowerCase().includes(tag) || tag.includes(t.toLowerCase()))
-    );
+    return await db.select().from(inventoryAssets)
+      .where(and(
+        eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
+        ne(inventoryAssets.condition, 'SUCATA'),
+        sql`EXISTS (
+          SELECT 1 FROM unnest(${inventoryAssets.franchiseTags}) AS ft(tag)
+          WHERE lower(ft.tag) LIKE '%' || ${tag} || '%' OR ${tag} LIKE '%' || lower(ft.tag) || '%'
+        )`
+      ));
   }
 
   async createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'> & { displayId?: string }): Promise<InventoryAsset> {

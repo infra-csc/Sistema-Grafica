@@ -293,6 +293,7 @@ export default function EventDetail() {
   const [importPreviewOpen, setImportPreviewOpen] = useState(false);
   const [importFileName, setImportFileName] = useState<string>("");
   const [importSearch, setImportSearch] = useState("");
+  const [importDuplicateWarning, setImportDuplicateWarning] = useState<{ duplicateCount: number; totalCount: number } | null>(null);
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const { toast } = useToast();
@@ -597,10 +598,17 @@ export default function EventDetail() {
 
   // ── Confirm import mutation (save reviewed items) ──────────────────────
   const confirmImportMutation = useMutation({
-    mutationFn: async ({ items, fileName }: { items: any[]; fileName: string }) => {
-      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, { items, fileName });
+    mutationFn: async ({ items, fileName, force }: { items: any[]; fileName: string; force?: boolean }) => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, { items, fileName, force });
       if (!response.ok) {
         const err = await response.json();
+        if (response.status === 409 && err.error === "duplicate_detected") {
+          const dupErr: any = new Error(err.message);
+          dupErr.isDuplicate = true;
+          dupErr.duplicateCount = err.duplicateCount;
+          dupErr.totalCount = err.totalCount;
+          throw dupErr;
+        }
         throw new Error(err.error || "Erro ao importar");
       }
       return response.json();
@@ -613,10 +621,15 @@ export default function EventDetail() {
       setImportFile(null);
       setImportFileName("");
       setImportSearch("");
+      setImportDuplicateWarning(null);
       toast({ title: `${data.imported} peças importadas com sucesso`, description: "Os itens foram adicionados ao evento." });
     },
     onError: (error: any) => {
-      toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
+      if (error.isDuplicate) {
+        setImportDuplicateWarning({ duplicateCount: error.duplicateCount, totalCount: error.totalCount });
+      } else {
+        toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
+      }
     },
   });
 
@@ -2955,17 +2968,44 @@ export default function EventDetail() {
               </button>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Duplicate warning banner */}
+                {importDuplicateWarning && (
+                  <div style={{
+                    padding: '10px 12px', borderRadius: 8,
+                    background: '#fff7ed', border: '1px solid #fed7aa',
+                    fontSize: 11, color: '#c2410c', lineHeight: 1.5,
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: 2 }}>⚠ Possível reimportação detectada</div>
+                    <div>{importDuplicateWarning.duplicateCount} de {importDuplicateWarning.totalCount} peças já existem neste evento. Tem certeza que deseja importar mesmo assim?</div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                      <button
+                        onClick={() => setImportDuplicateWarning(null)}
+                        style={{ flex: 1, padding: '6px 0', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 11, fontWeight: 600, color: '#57534e', cursor: 'pointer' }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => { confirmImportMutation.mutate({ items: importPreviewItems!, fileName: importFileName, force: true }); setImportDuplicateWarning(null); }}
+                        disabled={confirmImportMutation.isPending}
+                        data-testid="button-force-import"
+                        style={{ flex: 1, padding: '6px 0', background: '#c2410c', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+                      >
+                        Importar mesmo assim
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <button
-                  onClick={() => { setImportPreviewItems(null); setImportSearch(""); }}
+                  onClick={() => { setImportPreviewItems(null); setImportSearch(""); setImportDuplicateWarning(null); }}
                   style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 9, fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
                 >
                   Trocar arquivo
                 </button>
                 <button
-                  disabled={!importPreviewItems.length || confirmImportMutation.isPending}
+                  disabled={!importPreviewItems.length || confirmImportMutation.isPending || !!importDuplicateWarning}
                   onClick={() => { if (importPreviewItems.length > 0) confirmImportMutation.mutate({ items: importPreviewItems, fileName: importFileName }); }}
                   data-testid="button-confirm-import"
-                  style={{ width: '100%', padding: '11px 0', backgroundColor: '#1c1917', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  style={{ width: '100%', padding: '11px 0', backgroundColor: importDuplicateWarning ? '#a8a29e' : '#1c1917', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: importDuplicateWarning ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 >
                   {confirmImportMutation.isPending ? (
                     <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>

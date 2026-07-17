@@ -2048,9 +2048,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
 
-      const { items, fileName } = req.body as { items: any[]; fileName?: string };
+      const { items, fileName, force } = req.body as { items: any[]; fileName?: string; force?: boolean };
       if (!items || !Array.isArray(items) || items.length === 0)
         return res.status(400).json({ error: "Nenhum item para importar" });
+
+      // Duplicate detection: check if any incoming item already exists in this event
+      if (!force) {
+        const existingItems = await storage.getItemsByEvent(req.params.id);
+        const existingSet = new Set(
+          existingItems.map((i: any) => `${(i.type||'').toLowerCase().trim()}|${(i.description||'').toLowerCase().trim()}|${i.quantity}`)
+        );
+        const duplicates = items.filter((item: any) => {
+          const key = `${(item.type||'').toLowerCase().trim()}|${(item.description||'').toLowerCase().trim()}|${Number(item.quantity)}`;
+          return existingSet.has(key);
+        });
+        if (duplicates.length > 0) {
+          return res.status(409).json({
+            error: "duplicate_detected",
+            message: `${duplicates.length} item(ns) idêntico(s) já existem neste evento. Confirme para forçar a importação mesmo assim.`,
+            duplicateCount: duplicates.length,
+            totalCount: items.length,
+          });
+        }
+      }
 
       const toCreate = items.map((item: any) => ({
         eventId: event.id,

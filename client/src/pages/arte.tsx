@@ -278,6 +278,13 @@ export default function Arte() {
     body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   `;
 
+  // Texto livre (descrição, observações, nomes) precisa ser escapado antes de
+  // ser interpolado no HTML do documento de impressão
+  const escapeHtml = (v: unknown): string =>
+    String(v ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string)
+    );
+
   // ── Pré-busca imagens como data URIs (resolve GCS 403 + timing) ─────────────
   const prefetchThumbsAsDataUris = async (items: any[]): Promise<Record<string, string>> => {
     const rawUrls = [...new Set(items.map((i: any) => i.approvalThumbUrl).filter(Boolean) as string[])];
@@ -313,15 +320,21 @@ export default function Arte() {
       return;
     }
 
-    // Pre-fetch imagens como data URIs antes de abrir a janela
+    // Abrir a janela ainda dentro do gesto do usuário (senão o bloqueador de
+    // pop-ups a bloqueia após o await do prefetch) e só depois buscar as imagens
+    const win = window.open("", "_blank");
+    if (!win) {
+      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para este site e tente novamente", variant: "destructive" });
+      return;
+    }
+    win.document.write(`<p style="font-family:sans-serif;color:#64748b;padding:24px">Preparando exportação…</p>`);
+
     const thumbCount = items.filter(i => i.approvalThumbUrl && !/\.pdf$/i.test(i.approvalThumbUrl)).length;
     if (thumbCount > 0) {
       toast({ title: `Preparando ${thumbCount} imagem${thumbCount !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
     }
     const thumbDataUris = await prefetchThumbsAsDataUris(items);
-
-    const win = window.open("", "_blank");
-    if (!win) return;
+    win.document.open();
 
     const now = new Date();
     const nowStr = now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -339,20 +352,20 @@ export default function Arte() {
       const fileW   = parseFloat(item.fileWidth)   || 0;
       const fileH   = parseFloat(item.fileHeight)  || 0;
 
-      const dimsVisual = visualW && visualH ? `${visualW} × ${visualH} m` : (item.measurement || "—");
+      const dimsVisual = visualW && visualH ? `${visualW} × ${visualH} m` : escapeHtml(item.measurement || "—");
       const dimsSang   = fileW && fileH ? `${fileW} × ${fileH} m` : "";
       const m2Val = item.calculatedM2 ? parseFloat(item.calculatedM2).toFixed(2) : "";
 
       const sponsorsHtml = item.sponsors?.length
         ? item.sponsors.map((s: any) => {
-            const c = s.color || "#3b82f6";
-            return `<span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${s.name}</span>`;
+            const c = /^#[0-9a-fA-F]{3,8}$/.test(s.color || "") ? s.color : "#3b82f6";
+            return `<span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${escapeHtml(s.name)}</span>`;
           }).join("")
         : "";
 
       const pageNum = `${idx + 1} / ${items.length}`;
-      const itemName = item.description || item.type || "Sem nome";
-      const typeLabel = item.type || "—";
+      const itemName = escapeHtml(item.description || item.type || "Sem nome");
+      const typeLabel = escapeHtml(item.type || "—");
 
       return `
         <div class="page">
@@ -367,7 +380,7 @@ export default function Arte() {
               </div>
             </div>
             <div class="hdr-right">
-              <span class="id-chip">${item.displayId || "#—"}</span>
+              <span class="id-chip">${escapeHtml(item.displayId || "#—")}</span>
             </div>
           </div>
 
@@ -402,7 +415,7 @@ export default function Arte() {
                 ${item.description ? `
                 <div class="field">
                   <div class="fld-lbl">Descrição</div>
-                  <div class="fld-val">${item.description}</div>
+                  <div class="fld-val">${escapeHtml(item.description)}</div>
                 </div>` : ""}
                 <div class="field">
                   <div class="fld-lbl">Quantidade</div>
@@ -426,18 +439,18 @@ export default function Arte() {
                 ${item.material ? `
                 <div class="field">
                   <div class="fld-lbl">Material</div>
-                  <div class="fld-val"><span class="mat-badge">${item.material}</span></div>
+                  <div class="fld-val"><span class="mat-badge">${escapeHtml(item.material)}</span></div>
                 </div>` : ""}
                 ${item.finish ? `
                 <div class="field">
                   <div class="fld-lbl">Acabamento</div>
-                  <div class="fld-val"><span class="mat-badge">${item.finish}</span></div>
+                  <div class="fld-val"><span class="mat-badge">${escapeHtml(item.finish)}</span></div>
                 </div>` : ""}
 
                 ${item.observations ? `
                 <div class="sep"></div>
                 <div class="sec-label">Observações</div>
-                <div class="obs-box">${item.observations}</div>
+                <div class="obs-box">${escapeHtml(item.observations)}</div>
                 ` : ""}
 
                 ${sponsorsHtml ? `
@@ -463,7 +476,7 @@ export default function Arte() {
 
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
       <meta charset="UTF-8"/>
-      <title>${title}</title>
+      <title>${escapeHtml(title)}</title>
       <link rel="preconnect" href="https://fonts.googleapis.com"/>
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
       <style>
@@ -497,7 +510,7 @@ export default function Arte() {
         /* ── Coluna imagem ── */
         .col-img { flex: 0 0 58%; display: flex; flex-direction: column; gap: 0; }
         .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 320px; max-height: 420px; }
-        .ref-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .ref-img { width: 100%; height: 100%; object-fit: contain; display: block; }
         .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
         .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
         .no-img-sub { font-size: 11px; color: #94a3b8; }
@@ -533,10 +546,13 @@ export default function Arte() {
         .ft-gen { font-size: 9px; color: #94a3b8; }
         .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }
       </style>
-    </head><body>${pages}</body></html>`);
+    </head><body>${pages}<script>
+      window.addEventListener("load", function () {
+        var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+        fontsReady.then(function () { setTimeout(function () { window.print(); }, 100); });
+      });
+    </scr` + `ipt></body></html>`);
     win.document.close();
-    // Imagens já embutidas como data URIs — pode imprimir imediatamente
-    setTimeout(() => win.print(), 300);
   };
 
   // ── Modo 2: tabela resumo agrupada por Evento › Grupo ───────────────────────

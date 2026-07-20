@@ -286,7 +286,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(sql`${items.status} IN ('ready_for_production', 'approved', 'inProduction', 'produced', 'delivered')`)
+      .where(sql`${items.status} IN ('ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'delivered')`)
       .orderBy(desc(items.createdAt));
   }
 

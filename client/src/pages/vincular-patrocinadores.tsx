@@ -39,37 +39,48 @@ interface SendConfirmModal {
 // Estados UI simplificados
 type UIStatus = 'RASCUNHO' | 'PRONTO' | 'ENVIADO' | 'PENDENTE';
 
+// Status iniciais em que o item ainda está na fase de vinculação de
+// patrocinadores (pode ser enviado para a Arte).
+const LINKING_STATUSES = ['requested', 'awaiting_linking'];
+
+// Status "a jusante": o item já saiu da vinculação (foi para a Arte, aprovação
+// ou produção). Precisa cobrir TODAS as convenções de status de ITEM realmente
+// gravadas pelo backend — inclui camelCase (inProduction), português
+// (pronto_para_producao) e nomes legados. Um nome faltando aqui fazia o item
+// cair errado em "Pendente" (badge) e até sumir da tela (filtro de visibilidade).
+const DOWNSTREAM_STATUSES = [
+  'awaiting_submission',       // enviado para Arte (thumb)
+  'awaiting_sponsor_approval', // em aprovação pelo patrocinador
+  'sponsor_approved',
+  'approved',
+  'awaiting_finalization',     // legado — Arte adicionando arquivo final
+  'awaiting_final_review',     // criador revisando arquivo final
+  'awaiting_creator_review',   // legado
+  'ready_for_production',
+  'pronto_para_producao',
+  'inProduction',
+  'produced',
+  'delivered',
+];
+
 // Função para determinar estado UI de um item (FONTE ÚNICA DE VERDADE)
 const getItemUIStatus = (
-  item: any, 
-  originalSponsors: string[], 
+  item: any,
+  originalSponsors: string[],
   pendingChange?: ItemChanges
 ): UIStatus => {
   // 1. Se tem mudanças pendentes não salvas → RASCUNHO
   if (pendingChange?.isDirty) {
     return 'RASCUNHO';
   }
-  
+
   // 2. Se status indica que já foi enviado para Arte ou produção → ENVIADO
-  const sentStatuses = [
-    'awaiting_submission',       // Enviado para Arte (thumb)
-    'awaiting_sponsor_approval', // Em aprovação pelo patrocinador
-    'sponsor_approved',
-    'awaiting_finalization',     // Arte adicionando arquivo final
-    'awaiting_final_review',     // Criador revisando arquivo final
-    'awaiting_creator_review',
-    'ready_for_production',
-    'released',
-    'in_production',
-    'produced',
-    'delivered'
-  ];
-  if (sentStatuses.includes(item.status)) {
+  if (DOWNSTREAM_STATUSES.includes(item.status)) {
     return 'ENVIADO';
   }
-  
+
   // 3. Items com status 'requested' e com patrocinadores salvos → PRONTO (para enviar)
-  const canSendStatuses = ['requested', 'awaiting_linking'];
+  const canSendStatuses = LINKING_STATUSES;
   if (canSendStatuses.includes(item.status)) {
     const hasSponsors = originalSponsors.length > 0;
     const hasSkipApproval = item.skipApproval === true;
@@ -260,21 +271,13 @@ export default function VincularPatrocinadores() {
   // Exclui: draft (ainda não confirmado pela Solicitação)
   const visibleItems = useMemo(() => {
     const today = startOfDay(new Date());
-    const allowedStatuses = [
-      'requested',
-      'awaiting_linking', 
-      'awaiting_submission',
-      'awaiting_sponsor_approval',
-      'sponsor_approved',
-      'awaiting_creator_review',
-      'ready_for_production',
-      'released',
-      'in_production',
-      'produced',
-      'delivered'
-    ];
-    
-    const pendingStatuses = ['requested', 'awaiting_linking'];
+    // Mesma fonte de verdade do badge: fase de vinculação + todos os status a
+    // jusante. Antes esta lista estava incompleta (faltavam approved,
+    // pronto_para_producao, awaiting_arte, new_version_pending) e continha nomes
+    // fantasmas (released, in_production), fazendo itens reais sumirem da tela.
+    const allowedStatuses = [...LINKING_STATUSES, ...DOWNSTREAM_STATUSES];
+
+    const pendingStatuses = LINKING_STATUSES;
 
     return items.filter(item => {
       // Filtro 1: Status permitido (exclui draft)

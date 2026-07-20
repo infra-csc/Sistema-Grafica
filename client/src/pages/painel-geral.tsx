@@ -29,10 +29,15 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; co
   awaiting_final_review: { label: "Aguard. Revisão",    dot: "#d946ef", bg: "#fdf4ff", color: "#d946ef", border: "#fae8ff" },
   awaiting_creator_review: { label: "Aguard. Revisão",  dot: "#d946ef", bg: "#fdf4ff", color: "#d946ef", border: "#fae8ff" },
   ready_for_production:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
+  // pronto_para_producao: mesmo conceito de ready_for_production (a dispensa da
+  // Arte grava esse valor em português). Sem esta entrada o item mostrava o
+  // texto cru "pronto_para_producao" na tabela e não entrava em nenhum card.
+  pronto_para_producao:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
   approved:              { label: "Liberado",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
   inProduction:          { label: "Em Produção",        dot: "#f59e0b", bg: "#fff7ed", color: "#f59e0b", border: "#fef3c7" },
   produced:              { label: "Produzido",          dot: "#ec4899", bg: "#fdf2f8", color: "#ec4899", border: "#fce7f3" },
   delivered:             { label: "Entregue",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
+  canceled:              { label: "Cancelado",          dot: "#ef4444", bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -137,6 +142,7 @@ export default function PainelGeral() {
       awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
       awaiting_finalization: ["awaiting_finalization", "sponsor_approved"],
       awaiting_final_review: ["awaiting_final_review", "awaiting_creator_review"],
+      ready_for_production:  ["ready_for_production", "pronto_para_producao"],
     };
     return map[f] ? map[f].includes(item.status) : item.status === f;
   };
@@ -167,7 +173,7 @@ export default function PainelGeral() {
     awaitingApproval:      statsItems.filter(i => i.status === "awaiting_approval" || i.status === "awaiting_sponsor_approval").length,
     awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved").length,
     awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review" || i.status === "awaiting_creator_review").length,
-    readyForProduction:    statsItems.filter(i => i.status === "ready_for_production").length,
+    readyForProduction:    statsItems.filter(i => i.status === "ready_for_production" || i.status === "pronto_para_producao").length,
     approved:              statsItems.filter(i => i.status === "approved").length,
     inProduction:          statsItems.filter(i => i.status === "inProduction").length,
     produced:              statsItems.filter(i => i.status === "produced").length,

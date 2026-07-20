@@ -506,6 +506,10 @@ export default function Atendimento() {
   const getEventInfo = (eventId: string) => events.find((e: any) => e.id === eventId);
 
   const handleViewDetails = (item: any) => {
+    // Limpa o motivo/patrocinador de reprovação para não vazar o texto
+    // digitado numa peça anterior e reprovar a peça errada com justificativa alheia.
+    setRejectionReason("");
+    setRejectingSponsorId(null);
     setSelectedItem(item);
     setDialogOpen(true);
   };

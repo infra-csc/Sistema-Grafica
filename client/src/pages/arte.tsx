@@ -29,7 +29,9 @@ export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<string>("criar-aprovacoes");
+  // Persiste a aba ativa para não perder o contexto ao abrir uma peça e voltar.
+  const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
+  useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");

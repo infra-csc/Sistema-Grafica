@@ -46,7 +46,9 @@ export default function Atendimento() {
   const [searchTerm, setSearchTerm] = useState("");
   // Adia o termo usado na filtragem para não travar a digitação com listas grandes.
   const deferredSearchTerm = useDeferredValue(searchTerm);
-  const [eventFilter, setEventFilter] = useState<string>("all");
+  // Persiste o filtro de evento para não refazer a filtragem ao abrir uma peça e voltar.
+  const [eventFilter, setEventFilter] = useState<string>(() => sessionStorage.getItem("atendimento:eventFilter") || "all");
+  useEffect(() => { sessionStorage.setItem("atendimento:eventFilter", eventFilter); }, [eventFilter]);
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   const [eventComboOpen, setEventComboOpen] = useState(false);

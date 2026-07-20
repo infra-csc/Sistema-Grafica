@@ -939,20 +939,39 @@ export default function Arte() {
     const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
     if (!toProcess.length) return;
     setBulkThumbRunning(true);
+    let ok = 0, fail = 0;
     for (const entry of toProcess) {
       setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
       try {
         const localPath = await uploadFileRaw(entry.file);
         await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e));
+        ok++;
       } catch (err: any) {
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', errorMsg: err.message } : e));
+        fail++;
       }
     }
     setBulkThumbRunning(false);
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-    toast({ title: "Upload em lote concluído", description: `${toProcess.length} thumb(s) enviados para aprovação` });
+    // Conta sucessos/erros reais em vez de reportar todos os itens tentados.
+    toast({
+      title: fail > 0 ? "Upload em lote parcial" : "Upload em lote concluído",
+      description: fail > 0 ? `${ok} enviado(s), ${fail} com erro` : `${ok} thumb(s) enviados para aprovação`,
+      variant: fail > 0 ? "destructive" : "default",
+    });
   }, [bulkThumbEntries, uploadFileRaw]);
+
+  // Fecha o modal de upload em lote pedindo confirmação se houver arquivos/
+  // pareamentos ainda não enviados (evita perder trabalho por clique acidental).
+  const closeBulkThumbModal = useCallback(() => {
+    if (bulkThumbRunning) return;
+    const hasUnsaved = bulkThumbEntries.some(e => e.status !== 'done');
+    if (hasUnsaved && !window.confirm("Descartar os arquivos e pareamentos que ainda não foram enviados?")) return;
+    setShowBulkThumbModal(false);
+    setBulkThumbEntries([]);
+    setBulkThumbEventFilter("all");
+  }, [bulkThumbRunning, bulkThumbEntries]);
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
     if (gcsUrl.startsWith('/')) return gcsUrl;
@@ -1133,6 +1152,18 @@ export default function Arte() {
 
   const renderGroupedTable = (items: any[], tabId: string) => {
     if (items.length === 0) {
+      // Distingue "fila realmente vazia" de "busca/filtro sem resultado" para
+      // não dizer "Tudo liberado!" quando na verdade o filtro é que zerou a lista.
+      const hasSearch = !!searchFilter.trim();
+      if (hasSearch) {
+        return (
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <Search style={{ width: 48, height: 48, color: '#a8a29e', margin: '0 auto 16px' }} />
+            <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Nenhum resultado encontrado</p>
+            <p style={{ fontSize: 13, color: '#a8a29e' }}>Tente ajustar a busca ou os filtros</p>
+          </div>
+        );
+      }
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           {tabId === "criar-aprovacoes" ? <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} /> :
@@ -3008,7 +3039,7 @@ export default function Arte() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL 5 — MULTI-UPLOAD THUMBS (redesenhado)                        */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open && !bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}>
+      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open) closeBulkThumbModal(); }}>
         <DialogContent className="p-0 gap-0" style={{ maxWidth: 980, width: '95vw', borderRadius: 14, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.18)' }}>
           <DialogTitle className="sr-only">Multi-Upload de Thumbs</DialogTitle>
           <DialogDescription className="sr-only">Upload em lote de miniaturas de aprovação</DialogDescription>
@@ -3029,7 +3060,8 @@ export default function Arte() {
               </p>
             </div>
             <button
-              onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
+              onClick={() => closeBulkThumbModal()}
+              title="Fechar" aria-label="Fechar"
               style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0, transition: 'background 0.15s' }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
@@ -3153,7 +3185,7 @@ export default function Arte() {
                   </button>
                 )}
                 <button
-                  onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
+                  onClick={() => closeBulkThumbModal()}
                   style={{ width: '100%', height: 34, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
                 >Cancelar</button>
                 <button

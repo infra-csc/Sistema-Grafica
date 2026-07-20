@@ -2130,7 +2130,7 @@ export default function Arte() {
                 <span style={{ display: 'inline-block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)', padding: '2px 8px', borderRadius: 4, marginBottom: 6 }}>Ação Irreversível</span>
                 <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0 }}>Dispensar Peça</h2>
               </div>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, borderRadius: 4 }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} title="Fechar" aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, borderRadius: 4 }}>
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
@@ -2810,6 +2810,7 @@ export default function Arte() {
             </div>
             <button
               onClick={() => setShowExportModal(false)}
+              title="Fechar" aria-label="Fechar"
               style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0 }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}

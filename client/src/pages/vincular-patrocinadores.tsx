@@ -151,7 +151,9 @@ export default function VincularPatrocinadores() {
   
   // Estados de filtro
   const [searchQuery, setSearchQuery] = useState("");
-  const [eventFilter, setEventFilter] = useState<string>("all");
+  // Persiste o filtro de evento para não refazer a filtragem ao navegar e voltar.
+  const [eventFilter, setEventFilter] = useState<string>(() => sessionStorage.getItem("vincular:eventFilter") || "all");
+  useEffect(() => { sessionStorage.setItem("vincular:eventFilter", eventFilter); }, [eventFilter]);
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   const [itemFilter, setItemFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -168,7 +170,8 @@ export default function VincularPatrocinadores() {
   const [bulkSkipApproval, setBulkSkipApproval] = useState(false);
   
   // Estado para controlar qual aba está ativa
-  const [activeTab, setActiveTab] = useState<"vincular" | "enviar">("vincular");
+  const [activeTab, setActiveTab] = useState<"vincular" | "enviar">(() => (sessionStorage.getItem("vincular:activeTab") as "vincular" | "enviar") || "vincular");
+  useEffect(() => { sessionStorage.setItem("vincular:activeTab", activeTab); }, [activeTab]);
   const [previewRefUrl, setPreviewRefUrl] = useState<string | null>(null);
 
   // Vista principal: por-item (existente) | por-patrocinador (nova)

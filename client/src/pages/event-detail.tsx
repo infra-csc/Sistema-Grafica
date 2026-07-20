@@ -1801,6 +1801,7 @@ export default function EventDetail() {
                                   onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                   onClick={e => { e.stopPropagation(); handleEditItem(item); }}
                                   data-testid={`button-edit-item-${item.id}`}
+                                  title="Editar peça" aria-label="Editar peça"
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </button>
@@ -1811,6 +1812,7 @@ export default function EventDetail() {
                                 onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
                                 data-testid={`button-delete-item-${item.id}`}
+                                title="Excluir peça" aria-label="Excluir peça"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>

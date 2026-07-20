@@ -109,9 +109,10 @@ export default function DashboardAnalises() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sponsorFilter, setSponsorFilter] = useState("all");
 
-  const { data: events   = [] } = useQuery<any[]>({ queryKey: ["/api/events"]   });
-  const { data: items    = [] } = useQuery<any[]>({ queryKey: ["/api/items"]    });
+  const { data: events   = [], isLoading: evLoading } = useQuery<any[]>({ queryKey: ["/api/events"]   });
+  const { data: items    = [], isLoading: itLoading } = useQuery<any[]>({ queryKey: ["/api/items"]    });
   const { data: sponsors = [] } = useQuery<any[]>({ queryKey: ["/api/sponsors"] });
+  const isLoading = evLoading || itLoading;
 
   const cut = cutoff(period);
 
@@ -219,6 +220,14 @@ export default function DashboardAnalises() {
     { label: "Em Produção",      value: inProdQty.toLocaleString("pt-BR"),         delta: "",         pct: totalQty > 0 ? (inProdQty / totalQty) * 100 : 0, accent: false },
     { label: "Eventos Ativos",   value: totalEvents.toLocaleString("pt-BR"),       delta: "",         pct: Math.min(100, totalEvents * 10), accent: true  },
   ];
+
+  if (isLoading) {
+    return (
+      <div style={{ backgroundColor: T.bg, height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "28px 32px 64px" }}>

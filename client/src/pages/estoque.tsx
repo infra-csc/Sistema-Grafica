@@ -964,7 +964,7 @@ export default function Estoque() {
 
   const patchMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: object }) => apiRequest("PATCH", `/api/inventory/${id}`, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); toast({ title: "Item atualizado" }); },
     onError: () => toast({ title: "Erro ao atualizar.", variant: "destructive" }),
   });
 

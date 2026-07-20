@@ -179,6 +179,7 @@ export default function VincularPatrocinadores() {
   const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
 
   const [sendConfirmModal, setSendConfirmModal] = useState<SendConfirmModal | null>(null);
+  const [bulkSendProgress, setBulkSendProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -1245,12 +1246,15 @@ export default function VincularPatrocinadores() {
 
   // Confirma e executa o envio com os patrocinadores finais do modal
   const handleModalConfirmSend = async () => {
-    if (!sendConfirmModal) return;
+    if (!sendConfirmModal || bulkSendProgress) return;
     const { items, pendingByItem } = sendConfirmModal;
-    setSendConfirmModal(null);
+    // Mantém o modal aberto e mostra progresso, em vez de fechar na hora e
+    // rodar os syncs em silêncio (o usuário achava que nada tinha acontecido).
+    setBulkSendProgress({ current: 0, total: items.length });
 
     try {
-      for (const item of items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         const existing = originalSponsorsMap[item.id] || [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
         const merged = Array.from(new Set([...existing, ...newOnes]));
@@ -1262,18 +1266,22 @@ export default function VincularPatrocinadores() {
           setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
           setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         }
+        setBulkSendProgress({ current: i + 1, total: items.length });
       }
       const itemIds = items.map(i => i.id);
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
       sendToArteMutation.mutate(itemIds);
+      setSendConfirmModal(null);
+      setSponsorBulkSelected(new Set());
     } catch (err: any) {
       toast({
         title: "Erro ao enviar",
         description: err?.message || "Tente novamente",
         variant: "destructive",
       });
+    } finally {
+      setBulkSendProgress(null);
     }
-    setSponsorBulkSelected(new Set());
   };
 
   // Vincular patrocinador a item individual (aba Por Patrocinador)
@@ -3154,7 +3162,7 @@ export default function VincularPatrocinadores() {
       />
 
       {/* ===== Modal de Confirmação de Envio ===== */}
-      <Dialog open={!!sendConfirmModal} onOpenChange={(open) => !open && setSendConfirmModal(null)}>
+      <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !bulkSendProgress) setSendConfirmModal(null); }}>
         <DialogContent className="p-0 gap-0" style={{ maxWidth: 500, borderRadius: 12, overflow: 'hidden' }}>
           <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
 
@@ -3248,17 +3256,20 @@ export default function VincularPatrocinadores() {
           <div style={{ padding: '16px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f9f8f7', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button
               onClick={() => setSendConfirmModal(null)}
-              style={{ padding: '9px 18px', background: 'none', border: '1px solid #d6d3d1', borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#625d5b', cursor: 'pointer' }}
+              disabled={!!bulkSendProgress}
+              style={{ padding: '9px 18px', background: 'none', border: '1px solid #d6d3d1', borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#625d5b', cursor: bulkSendProgress ? 'not-allowed' : 'pointer', opacity: bulkSendProgress ? 0.5 : 1 }}
             >
               Cancelar
             </button>
             <button
               onClick={handleModalConfirmSend}
-              disabled={sendToArteMutation.isPending}
-              style={{ padding: '9px 20px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
+              disabled={sendToArteMutation.isPending || !!bulkSendProgress}
+              style={{ padding: '9px 20px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: (sendToArteMutation.isPending || bulkSendProgress) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, opacity: (sendToArteMutation.isPending || bulkSendProgress) ? 0.7 : 1 }}
             >
               <Send style={{ width: 14, height: 14 }} />
-              {sendToArteMutation.isPending
+              {bulkSendProgress
+                ? `Enviando ${bulkSendProgress.current} de ${bulkSendProgress.total}…`
+                : sendToArteMutation.isPending
                 ? 'Enviando...'
                 : `Confirmar Envio${sendConfirmModal && sendConfirmModal.items.length > 1 ? ` (${sendConfirmModal.items.length})` : ''}`}
             </button>

@@ -97,7 +97,7 @@ export default function EventDetail() {
     referenceUrl: "",
   });
 
-  const { data: event, isLoading: loadingEvent } = useQuery<any>({
+  const { data: event, isLoading: loadingEvent, isError: eventError, refetch: refetchEvent } = useQuery<any>({
     queryKey: ["/api/events", eventId],
     enabled: !!eventId,
     placeholderData: (previousData: any) => previousData,
@@ -660,7 +660,17 @@ export default function EventDetail() {
           <CardContent className="pt-6">
             <div className="text-center py-12">
               <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Evento não encontrado</p>
+              {eventError ? (
+                <>
+                  <p className="text-red-700 font-semibold mb-1">Não foi possível carregar o evento</p>
+                  <p className="text-muted-foreground text-sm mb-4">Verifique sua conexão e tente novamente.</p>
+                  <button onClick={() => refetchEvent()} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+                    Tentar novamente
+                  </button>
+                </>
+              ) : (
+                <p className="text-muted-foreground">Evento não encontrado</p>
+              )}
             </div>
           </CardContent>
         </Card>

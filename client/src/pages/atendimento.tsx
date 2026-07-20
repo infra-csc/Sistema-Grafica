@@ -17,7 +17,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useMemo, Fragment, useEffect, useRef } from "react";
+import { useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -44,6 +44,8 @@ export default function Atendimento() {
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
+  // Adia o termo usado na filtragem para não travar a digitação com listas grandes.
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
@@ -363,10 +365,10 @@ export default function Atendimento() {
       const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
       if (!hasSponsors && !loadingSponsors) return false;
 
-      const matchesSearch = searchTerm === "" ||
-        item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = deferredSearchTerm === "" ||
+        item.type?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
+        item.description?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
+        item.name?.toLowerCase().includes(deferredSearchTerm.toLowerCase());
 
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
       const matchesType = itemTypeFilter === "all" || item.type === itemTypeFilter;
@@ -375,7 +377,7 @@ export default function Atendimento() {
 
       return matchesSearch && matchesEvent && matchesType && matchesSponsor;
     });
-  }, [pendingItems, searchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
+  }, [pendingItems, deferredSearchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
 
   const uniqueItemGroups = useMemo(() => {
     const groups = new Set(pendingItems.map(item => (item.type ?? "").split(/[\s(]/)[0]).filter(Boolean));

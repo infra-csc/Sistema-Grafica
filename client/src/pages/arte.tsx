@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Fragment, useState, useMemo, useEffect, useCallback } from "react";
+import { Fragment, useState, useMemo, useEffect, useCallback, useDeferredValue } from "react";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -41,6 +41,9 @@ export default function Arte() {
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
+  // Adia o valor usado na filtragem para não re-renderizar a tabela inteira a
+  // cada tecla (o input continua controlado por searchFilter, sem travar).
+  const deferredSearch = useDeferredValue(searchFilter);
 
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [showBulkDialog, setShowBulkDialog] = useState(false);
@@ -1029,8 +1032,8 @@ export default function Arte() {
         if (monthFilter !== "all" && item.event?.truckDepartureDate) {
           matchesMonth = (new Date(item.event.truckDepartureDate).getMonth() + 1).toString() === monthFilter;
         }
-        const matchesSearch = !searchFilter || [item.displayId, item.type, item.description, item.event?.name].some(
-          f => f && f.toLowerCase().includes(searchFilter.toLowerCase())
+        const matchesSearch = !deferredSearch || [item.displayId, item.type, item.description, item.event?.name].some(
+          f => f && f.toLowerCase().includes(deferredSearch.toLowerCase())
         );
         return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth && matchesSearch;
       })

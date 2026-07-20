@@ -422,20 +422,44 @@ export default function TriagemRetorno() {
   const selectedIds = Object.entries(entries).filter(([, e]) => e.selected).map(([id]) => id);
 
   const handleBulk = async () => {
-    if (selectedIds.length === 0) return;
-    setSavingIds(new Set(selectedIds));
+    if (selectedIds.length === 0 || savingIds.size > 0) return;
+
+    // Validação (mesma regra do salvamento individual): separa selecionados
+    // válidos dos que ainda estão sem condição/quantidade definida.
+    const valid: string[] = [];
+    let invalid = 0;
+    selectedIds.forEach(id => {
+      const asset = awaitingAssets.find(a => a.id === id);
+      const totalQty = asset?.quantity ?? 1;
+      const entry = getEntry(id, totalQty);
+      if (entry.splits.some(l => l.condition === null) || !isSplitValid(entry, totalQty)) invalid++;
+      else valid.push(id);
+    });
+    if (valid.length === 0) {
+      toast({ title: "Defina a condição (e as quantidades) das peças selecionadas antes de registrar.", variant: "destructive" });
+      return;
+    }
+
+    setSavingIds(new Set(valid));
     const results = await Promise.allSettled(
-      selectedIds.map(id => {
+      valid.map(id => {
         const asset = awaitingAssets.find(a => a.id === id);
         return doTriage(id, asset?.quantity ?? 1);
       })
     );
-    const succeeded = results.filter(r => r.status === "fulfilled").length;
-    const failed = results.filter(r => r.status === "rejected").length;
-    setSavedIds(prev => new Set(Array.from(prev).concat(selectedIds)));
+    // Só marca como salvo (some da fila) o que realmente foi registrado.
+    // Os que falharam continuam visíveis e selecionados para nova tentativa.
+    const okIds = valid.filter((_, i) => results[i].status === "fulfilled");
+    const failed = valid.length - okIds.length;
+    setSavedIds(prev => new Set(Array.from(prev).concat(okIds)));
     setSavingIds(new Set());
-    setEntries(prev => { const next = { ...prev }; selectedIds.forEach(id => { if (next[id]) next[id].selected = false; }); return next; });
-    toast({ title: failed > 0 ? `${succeeded} salvas, ${failed} com erro.` : `${succeeded} triagem(ns) registradas.`, variant: failed > 0 ? "destructive" : "default" });
+    setEntries(prev => { const next = { ...prev }; okIds.forEach(id => { if (next[id]) next[id].selected = false; }); return next; });
+
+    const parts: string[] = [];
+    if (okIds.length) parts.push(`${okIds.length} registrada(s)`);
+    if (failed) parts.push(`${failed} com erro`);
+    if (invalid) parts.push(`${invalid} sem condição (ignorada${invalid > 1 ? "s" : ""})`);
+    toast({ title: parts.join(" · "), variant: (failed || invalid) ? "destructive" : "default" });
     refetch();
   };
 
@@ -485,19 +509,19 @@ export default function TriagemRetorno() {
           </div>
         </div>
         <button data-testid="button-bulk-triage-header" onClick={handleBulk}
-          disabled={selectedIds.length === 0}
+          disabled={selectedIds.length === 0 || savingIds.size > 0}
           style={{
             display: "flex", alignItems: "center", gap: 6,
             padding: "12px 24px", borderRadius: 12, border: "none", flexShrink: 0,
-            background: selectedIds.length === 0 ? "#e2e8f0" : "#c2610c",
-            color: selectedIds.length === 0 ? "#94a3b8" : "#fff", fontSize: 13,
-            cursor: selectedIds.length === 0 ? "not-allowed" : "pointer",
+            background: (selectedIds.length === 0 || savingIds.size > 0) ? "#e2e8f0" : "#c2610c",
+            color: (selectedIds.length === 0 || savingIds.size > 0) ? "#94a3b8" : "#fff", fontSize: 13,
+            cursor: (selectedIds.length === 0 || savingIds.size > 0) ? "not-allowed" : "pointer",
             fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, letterSpacing: "0.06em",
-            boxShadow: selectedIds.length === 0 ? "none" : "0 8px 24px rgba(194,97,12,0.35)",
+            boxShadow: (selectedIds.length === 0 || savingIds.size > 0) ? "none" : "0 8px 24px rgba(194,97,12,0.35)",
             transition: "all 0.2s",
           }}>
           <CheckCircle2 size={15} />
-          Confirmar Lote ({selectedIds.length})
+          {savingIds.size > 0 ? "Registrando…" : `Confirmar Lote (${selectedIds.length})`}
         </button>
       </div>
 
@@ -983,8 +1007,9 @@ export default function TriagemRetorno() {
             {/* Actions */}
             <div style={{ display: "flex", gap: 8 }}>
               <button data-testid="button-bulk-confirm" onClick={handleBulk}
-                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 16px", borderRadius: 9999, border: "none", background: "#22c55e", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(34,197,94,0.3)" }}>
-                <CheckCircle2 size={13} /> Confirmar Triagem
+                disabled={savingIds.size > 0}
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 16px", borderRadius: 9999, border: "none", background: savingIds.size > 0 ? "#64748b" : "#22c55e", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(34,197,94,0.3)" }}>
+                <CheckCircle2 size={13} /> {savingIds.size > 0 ? "Registrando…" : "Confirmar Triagem"}
               </button>
               <button data-testid="button-bulk-cancel" onClick={() => Object.keys(entries).forEach(id => updateEntry(id, { selected: false }))}
                 style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "#94a3b8", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>

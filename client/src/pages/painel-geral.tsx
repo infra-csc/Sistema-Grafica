@@ -75,7 +75,9 @@ export default function PainelGeral() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
-  const { data: items = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/items"], placeholderData: [] });
+  // Sem placeholderData: no TanStack v5 ele zera o isLoading e o spinner nunca
+  // aparece, fazendo o usuário ver "Nenhum item" e KPIs zerados durante o load.
+  const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [] }           = useQuery<any[]>({ queryKey: ["/api/events"], placeholderData: [] });
   const { data: sponsors = [] }         = useQuery<any[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
   const { data: auditLogs = [] }        = useQuery<any[]>({ queryKey: ["/api/audit-logs"], placeholderData: [] });
@@ -411,6 +413,12 @@ export default function PainelGeral() {
         {isLoading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        ) : isError ? (
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #fecaca", padding: 48, textAlign: "center" }}>
+            <p style={{ color: "#b91c1c", fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>Não foi possível carregar os itens</p>
+            <p style={{ color: "#a8a29e", fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+            <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", padding: 48, textAlign: "center" }}>

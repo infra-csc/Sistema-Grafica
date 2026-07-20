@@ -149,7 +149,7 @@ export default function Historico() {
 
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: items = [] }  = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+  const { data: auditLogs = [], isLoading: logsLoading } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
 
   /* ── Build timeline ── */
   const auditLogMap = new Map<string, any>();
@@ -402,7 +402,11 @@ export default function Historico() {
         </div>
 
         {/* Rows */}
-        {filtered.length === 0 ? (
+        {logsLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: "80px 24px" }}>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
               <Search style={{ width: 32, height: 32, color: P.muted }} />
@@ -422,14 +426,14 @@ export default function Historico() {
                 <div
                   key={entry.id}
                   data-testid={`timeline-event-${idx}`}
-                  onClick={() => setLocation(`/eventos/${entry.eventId}`)}
+                  onClick={entry.eventId ? () => setLocation(`/eventos/${entry.eventId}`) : undefined}
                   style={{
                     display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
                     padding: "18px 32px", alignItems: "center",
                     borderBottom: isLast ? "none" : `1px solid #f0efee`,
-                    cursor: "pointer", transition: "background 0.1s",
+                    cursor: entry.eventId ? "pointer" : "default", transition: "background 0.1s",
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#f9f9f8")}
+                  onMouseEnter={e => { if (entry.eventId) e.currentTarget.style.backgroundColor = "#f9f9f8"; }}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
                   {/* Tipo pill */}

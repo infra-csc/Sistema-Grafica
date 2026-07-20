@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,7 +18,30 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Eye, EyeOff } from "lucide-react";
+
+function PasswordField({ field, show, onToggle, testid }: { field: any; show: boolean; onToggle: () => void; testid: string }) {
+  return (
+    <div className="relative">
+      <Input
+        type={show ? "text" : "password"}
+        placeholder="••••••••"
+        data-testid={testid}
+        className="pr-10"
+        {...field}
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={show ? "Ocultar senha" : "Mostrar senha"}
+        title={show ? "Ocultar senha" : "Mostrar senha"}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      >
+        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().optional(),
@@ -40,6 +64,10 @@ export default function ChangePassword() {
   });
 
   const isFirstLogin = user?.mustChangePassword;
+
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const form = useForm<ChangePasswordForm>({
     resolver: zodResolver(changePasswordSchema),
@@ -80,6 +108,12 @@ export default function ChangePassword() {
   });
 
   const onSubmit = (data: ChangePasswordForm) => {
+    // Fora do primeiro acesso, a senha atual é obrigatória — valida no client
+    // para o usuário não descobrir só depois do round-trip ao servidor.
+    if (!isFirstLogin && !data.currentPassword?.trim()) {
+      form.setError("currentPassword", { message: "Informe sua senha atual" });
+      return;
+    }
     changePasswordMutation.mutate(data);
   };
 
@@ -112,12 +146,7 @@ export default function ChangePassword() {
                     <FormItem>
                       <FormLabel>Senha Atual</FormLabel>
                       <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="••••••••"
-                          data-testid="input-current-password"
-                          {...field}
-                        />
+                        <PasswordField field={field} show={showCurrent} onToggle={() => setShowCurrent(v => !v)} testid="input-current-password" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -131,12 +160,7 @@ export default function ChangePassword() {
                   <FormItem>
                     <FormLabel>Nova Senha</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        data-testid="input-new-password"
-                        {...field}
-                      />
+                      <PasswordField field={field} show={showNew} onToggle={() => setShowNew(v => !v)} testid="input-new-password" />
                     </FormControl>
                     <FormDescription>
                       Mínimo de 6 caracteres
@@ -152,12 +176,7 @@ export default function ChangePassword() {
                   <FormItem>
                     <FormLabel>Confirmar Nova Senha</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        data-testid="input-confirm-password"
-                        {...field}
-                      />
+                      <PasswordField field={field} show={showConfirm} onToggle={() => setShowConfirm(v => !v)} testid="input-confirm-password" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

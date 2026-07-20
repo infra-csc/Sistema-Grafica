@@ -153,8 +153,8 @@ export default function Modelos() {
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
       if (filterGroup === vars.oldName) setFilterGroup(vars.newName);
-      setEditingGroup(null);
-      setEditGroupValue("");
+      setMgEditingGroup(null);
+      setMgEditGroupValue("");
       toast({ title: "Grupo renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
     },
     onError: (error: Error) => {
@@ -472,8 +472,21 @@ export default function Modelos() {
           {filteredItems.length === 0 ? (
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
               <Search style={{ width: 32, height: 32, color: "#d4d0cc", margin: "0 auto 12px" }} />
-              <p style={{ fontSize: 14, fontWeight: 600, color: "#1c1917", margin: "0 0 4px" }}>Nenhum resultado</p>
-              <p style={{ fontSize: 13, color: "#78716c" }}>Tente buscar com outro termo</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#1c1917", margin: "0 0 4px" }}>Nenhum modelo encontrado</p>
+              <p style={{ fontSize: 13, color: "#78716c", margin: "0 0 16px" }}>
+                {searchTerm && activeFilters > 0
+                  ? "Nenhum modelo corresponde à busca e aos filtros atuais"
+                  : searchTerm
+                  ? "Tente buscar com outro termo"
+                  : "Nenhum modelo encontrado com os filtros atuais"}
+              </p>
+              {activeFilters > 0 && (
+                <button
+                  onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
+                  style={{ fontSize: 12, fontWeight: 600, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <X style={{ width: 11, height: 11 }} /> Limpar filtros
+                </button>
+              )}
             </div>
           ) : (
             <div className="scrollbar-visible" style={{ overflowX: "auto" }}>
@@ -623,7 +636,7 @@ export default function Modelos() {
 
           {/* Body */}
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-            <div style={{ padding: "28px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, overflowY: "scroll", flex: 1 }}>
+            <div style={{ padding: "28px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, overflowY: "auto", flex: 1 }}>
 
               {/* Nome */}
               <div>
@@ -634,6 +647,21 @@ export default function Modelos() {
                   placeholder="Ex: Backdrop Premium v2"
                   required
                   data-testid="input-model-name"
+                  style={fieldStyle}
+                />
+              </div>
+
+              {/* Tipo */}
+              <div>
+                <label style={labelStyle}>
+                  Tipo{" "}
+                  <span style={{ fontWeight: 400, color: "#a8a29e", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                </label>
+                <input
+                  value={formData.type}
+                  onChange={e => setFormData({ ...formData, type: e.target.value })}
+                  placeholder="Ex: Palco, Stand, WindBanner..."
+                  data-testid="input-model-type"
                   style={fieldStyle}
                 />
               </div>
@@ -746,9 +774,11 @@ export default function Modelos() {
 
               {/* Toggle Medida Variável — col-span-2 */}
               <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", paddingBottom: 4 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                <label
+                  onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement, area: !formData.hasVariableMeasurement ? "" : formData.area, visual: !formData.hasVariableMeasurement ? "" : formData.visual, fileWidth: "", fileHeight: "" })}
+                  style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
+                >
                   <div
-                    onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement, area: !formData.hasVariableMeasurement ? "" : formData.area, visual: !formData.hasVariableMeasurement ? "" : formData.visual, fileWidth: "", fileHeight: "" })}
                     style={{ position: "relative", width: 40, height: 22, borderRadius: 100, backgroundColor: formData.hasVariableMeasurement ? "#f97316" : "#d6d3d1", transition: "background-color 0.2s", cursor: "pointer", flexShrink: 0 }}
                   >
                     <div style={{ position: "absolute", top: 3, left: formData.hasVariableMeasurement ? 21 : 3, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#ffffff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />

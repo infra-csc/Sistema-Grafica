@@ -51,7 +51,7 @@ export default function Solicitacao() {
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
-  const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: sponsors = [] } = useQuery<any[]>({ queryKey: ["/api/sponsors"] });
   const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
@@ -240,6 +240,16 @@ export default function Solicitacao() {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
         <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: TI.accent }} />
+      </div>
+    );
+  }
+
+  if (itemsError) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, textAlign: "center", padding: "0 24px" }}>
+        <p style={{ fontSize: 16, fontWeight: 700, color: "#b91c1c", margin: 0 }}>Não foi possível carregar os itens</p>
+        <p style={{ fontSize: 13, color: TI.muted, margin: 0 }}>Verifique sua conexão e tente novamente.</p>
+        <button onClick={() => refetchItems()} style={{ marginTop: 4, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
       </div>
     );
   }

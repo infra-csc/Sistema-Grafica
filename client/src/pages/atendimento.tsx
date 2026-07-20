@@ -94,7 +94,7 @@ export default function Atendimento() {
   const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
 
-  const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
+  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
@@ -535,7 +535,19 @@ export default function Atendimento() {
   if (itemsLoading || eventsLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Carregando itens...</div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (itemsError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
+        <p className="text-base font-semibold text-red-700">Não foi possível carregar os itens</p>
+        <p className="text-sm text-muted-foreground">Verifique sua conexão e tente novamente.</p>
+        <button onClick={() => refetchItems()} className="mt-1 rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+          Tentar novamente
+        </button>
       </div>
     );
   }

@@ -246,7 +246,7 @@ export default function TriagemRetorno() {
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EnrichedAsset | null>(null);
 
-  const { data: awaitingAssets = [], isLoading, refetch } = useQuery<EnrichedAsset[]>({
+  const { data: awaitingAssets = [], isLoading, isError, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
   });
   const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
@@ -637,6 +637,12 @@ export default function TriagemRetorno() {
       {isLoading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      ) : isError ? (
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: 60, textAlign: "center" }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar os materiais</p>
+          <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+          <button onClick={() => refetch()} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
         </div>
       ) : pendingAssets.length === 0 && savedIds.size === 0 ? (
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: 60, textAlign: "center" }}>

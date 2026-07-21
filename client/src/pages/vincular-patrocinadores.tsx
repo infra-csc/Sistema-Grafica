@@ -61,6 +61,8 @@ const getItemUIStatus = (
     'awaiting_creator_review',
     'ready_for_production',
     'pronto_para_producao',
+    'released',                  // legado
+    'in_production',             // legado snake_case
     'inProduction',
     'produced',
     'delivered'
@@ -264,10 +266,14 @@ export default function VincularPatrocinadores() {
       'awaiting_submission',
       'awaiting_sponsor_approval',
       'sponsor_approved',
+      'awaiting_finalization',
+      'awaiting_final_review',
       'awaiting_creator_review',
       'ready_for_production',
+      'pronto_para_producao',
       'released',
       'in_production',
+      'inProduction',
       'produced',
       'delivered'
     ];
@@ -2052,7 +2058,7 @@ export default function VincularPatrocinadores() {
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
                         const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
                         const isEditable = getItemEditability(item);
-                        const uiStatus = itemUIStates[item.id] || 'PENDENTE';
+                        const uiStatus = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
                         const rowConfig = UI_STATUS_CONFIG[uiStatus];
                         const isRascunho = uiStatus === 'RASCUNHO';
                         const prevItem = itemIndex > 0 ? displayedItems[itemIndex - 1] : null;
@@ -2224,8 +2230,8 @@ export default function VincularPatrocinadores() {
                                 </div>
                               ) : eventSponsors.length === 0 ? (
                                 <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
-                              ) : (uiStatus === 'PRONTO' || uiStatus === 'ENVIADO') ? (
-                                /* ── PRONTO/ENVIADO: pills coloridos com × ── */
+                              ) : uiStatus === 'ENVIADO' ? (
+                                /* ── ENVIADO: pills coloridos (somente leitura) ── */
                                 (() => {
                                   const isExpanded = expandedSponsorCells.has(item.id);
                                   const validLinked = linkedSponsors.map(sId => eventSponsors.find(s => s.id === sId)).filter(Boolean) as any[];

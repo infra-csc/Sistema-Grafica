@@ -2302,7 +2302,7 @@ export default function VincularPatrocinadores() {
                                   );
                                 })()
                               ) : (
-                                /* ── PENDENTE/RASCUNHO: seleção interativa de patrocinadores ── */
+                                /* ── PENDENTE/RASCUNHO/PRONTO: seleção interativa de patrocinadores ── */
                                 (() => {
                                   const allSelected = eventSponsors.length > 0 && eventSponsors.every(s => linkedSponsors.includes(s.id));
                                   const noneSelected = linkedSponsors.length === 0;
@@ -2322,6 +2322,13 @@ export default function VincularPatrocinadores() {
                                   };
                                   return (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                      {/* Indicador "Salvo" para itens PRONTO */}
+                                      {uiStatus === 'PRONTO' && (
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, width: 'fit-content' }}>
+                                          <Check style={{ width: 9, height: 9, color: '#166534' }} />
+                                          <span style={{ fontSize: 9, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Salvo — clique para editar</span>
+                                        </div>
+                                      )}
                                       {/* Row 1: sponsor toggle chips */}
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
                                         {/* "Todos" quick-select chip */}
@@ -2470,7 +2477,7 @@ export default function VincularPatrocinadores() {
                                       onClick={() => {
                                         const ch = pendingChanges[item.id];
                                         const payload = { itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
-                                        setSaveConfirmModal({ payloads: [payload], items: [item] });
+                                        saveLinkingMutation.mutate([payload]);
                                       }}
                                       disabled={saveLinkingMutation.isPending}
                                       data-testid={`button-save-item-${item.id}`}

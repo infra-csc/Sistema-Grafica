@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare, Filter, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Fragment, useState, useMemo, useEffect, useCallback } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -50,6 +51,7 @@ export default function Arte() {
   const [correcaoThumbUrl, setCorrecaoThumbUrl] = useState<string>("");
   const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
   const [correcaoSponsorFilter, setCorrecaoSponsorFilter] = useState<string>("all");
+  const [sponsorFilter, setSponsorFilter] = useState<string>("all");
 
   const [dispenseItem, setDispenseItem] = useState<any>(null);
   const [dispenseReason, setDispenseReason] = useState<string>("");
@@ -965,6 +967,35 @@ export default function Arte() {
   const uniqueMaterials = Array.from(new Set(allItems.map(item => item.material).filter(Boolean))).sort();
   const uniqueFinishes = Array.from(new Set(allItems.map(item => item.finish).filter(Boolean))).sort();
 
+  const uniqueSponsors = useMemo(() => {
+    const map = new Map<string, any>();
+    allItems.forEach((item: any) => (item.sponsors ?? []).forEach((s: any) => { if (!map.has(s.id)) map.set(s.id, s); }));
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [allItems]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (searchFilter) count++;
+    if (eventFilter !== "all") count++;
+    if (sponsorFilter !== "all") count++;
+    if (monthFilter !== "all") count++;
+    if (next10DaysFilter) count++;
+    if (typeFilter !== "all") count++;
+    if (materialFilter !== "all") count++;
+    return count;
+  }, [searchFilter, eventFilter, sponsorFilter, monthFilter, next10DaysFilter, typeFilter, materialFilter]);
+
+  const clearAllFilters = () => {
+    setSearchFilter("");
+    setEventFilter("all");
+    setSponsorFilter("all");
+    setMonthFilter("all");
+    setNext10DaysFilter(false);
+    setTypeFilter("all");
+    setMaterialFilter("all");
+    setFinishFilter("all");
+  };
+
   const months = [
     { value: "all", label: "Todos os meses" },
     { value: "1", label: "Janeiro" }, { value: "2", label: "Fevereiro" },
@@ -1012,7 +1043,8 @@ export default function Arte() {
         const matchesSearch = !searchFilter || [item.displayId, item.type, item.description, item.event?.name].some(
           f => f && f.toLowerCase().includes(searchFilter.toLowerCase())
         );
-        return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth && matchesSearch;
+        const matchesSponsor = sponsorFilter === "all" || (item.sponsors ?? []).some((s: any) => s.id === sponsorFilter);
+        return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth && matchesSearch && matchesSponsor;
       })
       .sort((a, b) => {
         const eA = a.event?.name || '', eB = b.event?.name || '';
@@ -1771,305 +1803,414 @@ export default function Arte() {
     );
   };
 
+  const statCardTabMap: Record<string, string> = {
+    "stat-pending": "criar-aprovacoes",
+    "stat-awaiting-sponsor": "criar-aprovacoes",
+    "stat-sponsor-approved": "finalizar-layouts",
+    "stat-ready-production": "finalizados",
+  };
+
   return (
-    <div style={{ padding: '32px', maxWidth: 1600, margin: '0 auto', height: '100%', overflowY: 'auto' }} className="space-y-8">
-
-      {/* ── 1. STAT CARDS ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat) => {
-          const Icon = stat.Icon;
-          return (
-            <div
-              key={stat.testId}
-              style={{
-                backgroundColor: '#ffffff',
-                padding: '20px 24px',
-                borderRadius: 12,
-                border: '1px solid #e7e5e4',
-                borderLeft: stat.borderLeft ? '4px solid #22c55e' : '1px solid #e7e5e4',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 14,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 13, fontWeight: 500, color: '#78716c' }}>{stat.label}</span>
-                <span style={{
-                  width: 32, height: 32, borderRadius: 8,
-                  backgroundColor: stat.iconBg, color: stat.iconColor,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  <Icon style={{ width: 16, height: 16 }} />
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 36, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', lineHeight: 1 }} data-testid={stat.testId}>
-                  {String(stat.value).padStart(2, '0')}
-                </span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: stat.subColor }}>{stat.sub}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* ── 2. FILTERS BAR ────────────────────────────────────────────────── */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* ── STICKY HEADER ─────────────────────────────────────────────────── */}
       <div style={{
-        backgroundColor: '#f3f4f3',
-        padding: '12px 16px',
-        borderRadius: 12,
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: 10,
+        position: 'sticky', top: 0, zIndex: 40,
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid #e7e5e4',
+        flexShrink: 0,
       }}>
-        {/* Search */}
-        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 200 }}>
-          <Search style={{ width: 14, height: 14, color: '#a8a29e', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
-          <input
-            type="text"
-            value={searchFilter}
-            onChange={e => setSearchFilter(e.target.value)}
-            placeholder="Buscar arte, ID ou projeto..."
-            data-testid="input-search-filter"
-            style={{
-              width: '100%', paddingLeft: 32, paddingRight: 12, height: 36,
-              backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
-              fontSize: 13, color: '#1c1917', outline: 'none',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
+        <div style={{ padding: '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
 
-        {/* Event combobox */}
-        <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
-          <PopoverTrigger asChild>
-            <button
-              style={{
-                height: 36, padding: '0 12px', borderRadius: 8,
-                backgroundColor: '#ffffff', border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
-                fontSize: 13, fontWeight: 500, color: '#1c1917',
-                minWidth: 160,
-              }}
-              data-testid="button-event-filter"
-            >
-              <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {eventFilter === "all" ? "Evento: Todos" : events.find((e: any) => e.id === eventFilter)?.name || "Selecionar"}
-              </span>
-              <ChevronsUpDown style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent style={{ width: 280, padding: 0 }}>
-            <Command>
-              <CommandInput placeholder="Buscar evento..." />
-              <CommandList>
-                <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem value="all" onSelect={() => { setEventFilter("all"); setOpenEventCombobox(false); }}>
-                    <Check className={cn("mr-2 h-4 w-4", eventFilter === "all" ? "opacity-100" : "opacity-0")} />
-                    Todos os eventos
-                  </CommandItem>
-                  {(() => {
-                    const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-                    const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-                    return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((event:any) => (
-                      <CommandItem key={event.id} value={event.name} onSelect={() => { setEventFilter(event.id); setOpenEventCombobox(false); }}>
-                        <Check className={cn("mr-2 h-4 w-4", eventFilter === event.id ? "opacity-100" : "opacity-0")} />
-                        {event.priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[event.priority], display:'inline-block', marginRight:6, flexShrink:0 }} />}
-                        {event.name}
-                      </CommandItem>
-                    ));
-                  })()}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+          {/* ── 1. STAT CARDS ─────────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            {statCards.map((stat) => {
+              const Icon = stat.Icon;
+              const targetTab = statCardTabMap[stat.testId];
+              return (
+                <div
+                  key={stat.testId}
+                  onClick={() => targetTab && setActiveTab(targetTab)}
+                  data-testid={stat.testId}
+                  className="hover-elevate"
+                  style={{
+                    backgroundColor: '#ffffff',
+                    padding: '16px 20px',
+                    borderRadius: 12,
+                    border: '1px solid #e7e5e4',
+                    borderLeft: stat.borderLeft ? '4px solid #22c55e' : '1px solid #e7e5e4',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    cursor: targetTab ? 'pointer' : 'default',
+                    outline: activeTab === targetTab && targetTab ? '2px solid #f97316' : 'none',
+                    outlineOffset: -2,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#78716c' }}>{stat.label}</span>
+                    <span style={{
+                      width: 28, height: 28, borderRadius: 8,
+                      backgroundColor: stat.iconBg, color: stat.iconColor,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <Icon style={{ width: 14, height: 14 }} />
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 32, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                      {String(stat.value).padStart(2, '0')}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: stat.subColor }}>{stat.sub}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-        {/* Month select */}
-        <select
-          value={monthFilter}
-          onChange={e => setMonthFilter(e.target.value)}
-          data-testid="select-month-filter"
-          style={{
-            height: 36, padding: '0 12px', borderRadius: 8,
-            backgroundColor: '#ffffff', border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: 500, color: '#1c1917',
-            minWidth: 140,
-          }}
-        >
-          {months.map(m => <option key={m.value} value={m.value}>{m.value === "all" ? "Mês: Todos" : m.label}</option>)}
-        </select>
-
-        {/* Next 10 days toggle */}
-        <button
-          onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-          data-testid="button-next-10-days-filter"
-          style={{
-            height: 36, padding: '0 12px', borderRadius: 8,
-            backgroundColor: next10DaysFilter ? '#1c1917' : '#ffffff',
-            color: next10DaysFilter ? '#ffffff' : '#78716c',
-            border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 6,
-            fontSize: 13, fontWeight: 500, transition: 'all 0.15s',
-          }}
-        >
-          <Truck style={{ width: 13, height: 13 }} />
-          Próximos 10 dias
-        </button>
-
-        {/* Export PDF button: with selection → export directly; without → open group modal */}
-        <button
-          onClick={handleClickExportButton}
-          data-testid="button-export-pdf"
-          style={{
-            height: 36, padding: '0 14px', borderRadius: 8, marginLeft: 'auto',
-            backgroundColor: selectedItemIds.size > 0 ? '#7c3aed' : '#f5f5f4',
-            border: selectedItemIds.size > 0 ? '1px solid #7c3aed' : '1px solid #e7e5e4',
-            color: selectedItemIds.size > 0 ? '#ffffff' : '#78716c',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-            fontSize: 12, fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.92)'; }}
-          onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-        >
-          <Printer style={{ width: 14, height: 14 }} />
-          {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
-        </button>
-
-        {/* Multi-thumb upload button (only in criar-aprovacoes) */}
-        {activeTab === "criar-aprovacoes" && (
-          <>
-            <label
-              data-testid="button-open-bulk-thumb"
-              style={{
-                height: 36, padding: '0 14px', borderRadius: 8,
-                backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
-                color: '#15803d', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
-                fontSize: 12, fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.94)'; }}
-              onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-            >
-              <FileImage style={{ width: 13, height: 13 }} />
-              Multi-Upload Thumbs
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                style={{ display: 'none' }}
-                onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }}
-              />
-            </label>
-          </>
-        )}
-
-        {/* PDF Upload button (ml-auto, only in criar-aprovacoes) */}
-        {activeTab === "criar-aprovacoes" && (
-          <button
-            onClick={() => setShowBulkDialog(true)}
-            disabled={selectedItemIds.size === 0}
-            data-testid="button-open-bulk-upload"
-            style={{
-              marginLeft: 'auto',
-              height: 36, padding: '0 16px', borderRadius: 8,
-              backgroundColor: selectedItemIds.size > 0 ? '#1c1917' : '#e7e5e4',
-              color: selectedItemIds.size > 0 ? '#ffffff' : '#a8a29e',
-              border: 'none', cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed',
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <Upload style={{ width: 13, height: 13 }} />
-            {selectedItemIds.size > 0 ? `Upload PDF Compartilhado (${selectedItemIds.size})` : "Selecione itens para PDF"}
-          </button>
-        )}
-      </div>
-
-      {/* ── 3. TABS ───────────────────────────────────────────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 4,
-        padding: 4, backgroundColor: 'rgba(214,211,209,0.5)',
-        borderRadius: 12, width: 'fit-content',
-      }}>
-        {tabs.map(tab => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              data-testid={tab.testId}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                padding: '8px 20px', borderRadius: 9, border: 'none', cursor: 'pointer',
-                backgroundColor: isActive ? '#ffffff' : 'transparent',
-                color: isActive ? '#1c1917' : '#78716c',
-                fontWeight: isActive ? 700 : 500,
-                fontSize: 13,
-                boxShadow: isActive ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#78716c'; }}
-            >
-              {tab.label}
-              {tab.count > 0 && (
-                <span style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  minWidth: 18, height: 18, borderRadius: 100,
-                  fontSize: 10, fontWeight: 700,
-                  backgroundColor: isActive ? '#1c1917' : '#e7e5e4',
-                  color: isActive ? '#ffffff' : '#78716c',
-                  padding: '0 5px',
-                }}>
-                  {tab.count}
-                </span>
+          {/* ── 2. FILTERS BAR ────────────────────────────────────────────── */}
+          <div style={{
+            backgroundColor: '#f3f4f3',
+            padding: '10px 14px',
+            borderRadius: 10,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 10,
+          }}>
+            {/* Filter icon + active count */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <SlidersHorizontal style={{ width: 15, height: 15, color: activeFilterCount > 0 ? '#f97316' : '#a8a29e' }} />
+              {activeFilterCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  data-testid="badge-active-filters"
+                  style={{ backgroundColor: '#f97316', color: '#ffffff', fontSize: 10, padding: '1px 6px', minWidth: 18, height: 18 }}
+                >
+                  {activeFilterCount}
+                </Badge>
               )}
-            </button>
-          );
-        })}
+            </div>
+
+            {/* Search */}
+            <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
+              <Search style={{ width: 14, height: 14, color: '#a8a29e', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <Input
+                type="text"
+                value={searchFilter}
+                onChange={e => setSearchFilter(e.target.value)}
+                placeholder="Buscar arte, ID ou projeto..."
+                data-testid="input-search-filter"
+                className="h-9 pl-8 bg-white border-0 text-sm"
+                style={{ outline: searchFilter ? '2px solid #f97316' : undefined, outlineOffset: -2 }}
+              />
+            </div>
+
+            {/* Event combobox */}
+            <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-event-filter"
+                  className="h-9 bg-white border-0 font-normal text-sm justify-between gap-2 min-w-[150px]"
+                  style={{
+                    outline: eventFilter !== "all" ? '2px solid #f97316' : undefined,
+                    outlineOffset: -2,
+                    color: eventFilter !== "all" ? '#f97316' : undefined,
+                  }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
+                    {eventFilter === "all" ? "Evento: Todos" : events.find((e: any) => e.id === eventFilter)?.name || "Selecionar"}
+                  </span>
+                  <ChevronsUpDown style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent style={{ width: 280, padding: 0 }}>
+                <Command>
+                  <CommandInput placeholder="Buscar evento..." />
+                  <CommandList>
+                    <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="all" onSelect={() => { setEventFilter("all"); setOpenEventCombobox(false); }}>
+                        <Check className={cn("mr-2 h-4 w-4", eventFilter === "all" ? "opacity-100" : "opacity-0")} />
+                        Todos os eventos
+                      </CommandItem>
+                      {(() => {
+                        const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+                        const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
+                        return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((event:any) => (
+                          <CommandItem key={event.id} value={event.name} onSelect={() => { setEventFilter(event.id); setOpenEventCombobox(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", eventFilter === event.id ? "opacity-100" : "opacity-0")} />
+                            {event.priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[event.priority], display:'inline-block', marginRight:6, flexShrink:0 }} />}
+                            {event.name}
+                          </CommandItem>
+                        ));
+                      })()}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {/* Sponsor Select */}
+            {uniqueSponsors.length > 0 && (
+              <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
+                <SelectTrigger
+                  data-testid="select-sponsor-filter"
+                  className="h-9 bg-white border-0 text-sm min-w-[140px] w-auto"
+                  style={{
+                    outline: sponsorFilter !== "all" ? '2px solid #f97316' : undefined,
+                    outlineOffset: -2,
+                    color: sponsorFilter !== "all" ? '#f97316' : undefined,
+                  }}
+                >
+                  <SelectValue placeholder="Patrocinador: Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Patrocinador: Todos</SelectItem>
+                  {uniqueSponsors.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Type (Tipo de Peça) Select */}
+            {uniqueTypes.length > 0 && (
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger
+                  data-testid="select-type-filter"
+                  className="h-9 bg-white border-0 text-sm min-w-[150px] w-auto"
+                  style={{
+                    outline: typeFilter !== "all" ? '2px solid #f97316' : undefined,
+                    outlineOffset: -2,
+                    color: typeFilter !== "all" ? '#f97316' : undefined,
+                  }}
+                >
+                  <SelectValue placeholder="Tipo de Peça: Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tipo de Peça: Todos</SelectItem>
+                  {uniqueTypes.map((t: string) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Material Select */}
+            {uniqueMaterials.length > 0 && (
+              <Select value={materialFilter} onValueChange={setMaterialFilter}>
+                <SelectTrigger
+                  data-testid="select-material-filter"
+                  className="h-9 bg-white border-0 text-sm min-w-[140px] w-auto"
+                  style={{
+                    outline: materialFilter !== "all" ? '2px solid #f97316' : undefined,
+                    outlineOffset: -2,
+                    color: materialFilter !== "all" ? '#f97316' : undefined,
+                  }}
+                >
+                  <SelectValue placeholder="Material: Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Material: Todos</SelectItem>
+                  {uniqueMaterials.map((m: string) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Month Select */}
+            <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <SelectTrigger
+                data-testid="select-month-filter"
+                className="h-9 bg-white border-0 text-sm min-w-[130px] w-auto"
+                style={{
+                  outline: monthFilter !== "all" ? '2px solid #f97316' : undefined,
+                  outlineOffset: -2,
+                  color: monthFilter !== "all" ? '#f97316' : undefined,
+                }}
+              >
+                <SelectValue placeholder="Mês: Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                {months.map(m => (
+                  <SelectItem key={m.value} value={m.value}>{m.value === "all" ? "Mês: Todos" : m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Next 10 days toggle */}
+            <Button
+              variant={next10DaysFilter ? "default" : "outline"}
+              size="sm"
+              onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+              data-testid="button-next-10-days-filter"
+              className="h-9 bg-white border-0 text-sm gap-2 whitespace-nowrap"
+              style={next10DaysFilter ? { backgroundColor: '#1c1917', color: '#ffffff', border: 'none' } : {}}
+            >
+              <Truck style={{ width: 13, height: 13 }} />
+              Próximos 10 dias
+            </Button>
+
+            {/* Clear filters button */}
+            {activeFilterCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                data-testid="button-clear-filters"
+                className="h-9 text-sm gap-2 text-muted-foreground whitespace-nowrap"
+              >
+                <X style={{ width: 13, height: 13 }} />
+                Limpar filtros
+              </Button>
+            )}
+          </div>
+
+          {/* ── 3. TABS + ACTION BUTTONS ──────────────────────────────────── */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingBottom: 0 }}>
+            {/* Tabs */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: 4, backgroundColor: 'rgba(214,211,209,0.5)',
+              borderRadius: 12, flexShrink: 0,
+            }}>
+              {tabs.map(tab => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    data-testid={tab.testId}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 7,
+                      padding: '8px 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                      backgroundColor: isActive ? '#ffffff' : 'transparent',
+                      color: isActive ? '#1c1917' : '#78716c',
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: 13,
+                      boxShadow: isActive ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.15s',
+                      whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#78716c'; }}
+                  >
+                    {tab.label}
+                    {tab.count > 0 && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        minWidth: 18, height: 18, borderRadius: 100,
+                        fontSize: 10, fontWeight: 700,
+                        backgroundColor: isActive ? '#1c1917' : '#e7e5e4',
+                        color: isActive ? '#ffffff' : '#78716c',
+                        padding: '0 5px',
+                      }}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right-side action buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {/* Select all — only on tabs with checkboxes */}
+              {(activeTab === "criar-aprovacoes" || activeTab === "finalizados") && filteredItems.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedItemIds.size === filteredItems.length) {
+                      setSelectedItemIds(new Set());
+                    } else {
+                      setSelectedItemIds(new Set(filteredItems.map((i: any) => i.id)));
+                    }
+                  }}
+                  data-testid="button-select-all"
+                  className="h-9 text-sm gap-2 whitespace-nowrap"
+                >
+                  {selectedItemIds.size === filteredItems.length && filteredItems.length > 0
+                    ? <><X style={{ width: 12, height: 12 }} />Limpar seleção</>
+                    : <><CheckSquare style={{ width: 12, height: 12 }} />Selecionar tudo</>
+                  }
+                  {selectedItemIds.size > 0 && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      minWidth: 16, height: 16, borderRadius: 100,
+                      fontSize: 9, fontWeight: 700,
+                      backgroundColor: '#1c1917', color: '#ffffff', padding: '0 4px',
+                    }}>
+                      {selectedItemIds.size}
+                    </span>
+                  )}
+                </Button>
+              )}
+
+              {/* Export PDF */}
+              <Button
+                variant={selectedItemIds.size > 0 ? "default" : "outline"}
+                size="sm"
+                onClick={handleClickExportButton}
+                data-testid="button-export-pdf"
+                className="h-9 text-sm gap-2 whitespace-nowrap"
+                style={selectedItemIds.size > 0 ? { backgroundColor: '#7c3aed', borderColor: '#7c3aed' } : {}}
+              >
+                <Printer style={{ width: 14, height: 14 }} />
+                {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
+              </Button>
+
+              {/* Multi-thumb upload — only in criar-aprovacoes */}
+              {activeTab === "criar-aprovacoes" && (
+                <label
+                  data-testid="button-open-bulk-thumb"
+                  style={{
+                    height: 36, padding: '0 14px', borderRadius: 6,
+                    backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
+                    color: '#15803d', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap',
+                  }}
+                >
+                  <FileImage style={{ width: 13, height: 13 }} />
+                  Multi-Upload Thumbs
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }}
+                  />
+                </label>
+              )}
+
+              {/* Upload PDF Compartilhado — only in criar-aprovacoes */}
+              {activeTab === "criar-aprovacoes" && (
+                <Button
+                  variant={selectedItemIds.size > 0 ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowBulkDialog(true)}
+                  disabled={selectedItemIds.size === 0}
+                  data-testid="button-open-bulk-upload"
+                  className="h-9 text-sm gap-2 whitespace-nowrap"
+                  style={selectedItemIds.size > 0 ? { backgroundColor: '#1c1917', borderColor: '#1c1917' } : {}}
+                >
+                  <Upload style={{ width: 13, height: 13 }} />
+                  {selectedItemIds.size > 0 ? `Upload PDF Compartilhado (${selectedItemIds.size})` : "Upload PDF Compartilhado"}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── 3b. SELECT ALL / CLEAR — only on tabs with checkboxes ─────────── */}
-      {(activeTab === "criar-aprovacoes" || activeTab === "finalizados") && filteredItems.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0 2px' }}>
-          <button
-            onClick={() => {
-              if (selectedItemIds.size === filteredItems.length) {
-                setSelectedItemIds(new Set());
-              } else {
-                setSelectedItemIds(new Set(filteredItems.map((i: any) => i.id)));
-              }
-            }}
-            data-testid="button-select-all"
-            style={{
-              height: 28, padding: '0 12px', borderRadius: 6, border: '1px solid #e7e5e4',
-              backgroundColor: '#fafaf9', color: '#78716c', cursor: 'pointer',
-              fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-              transition: 'all 0.12s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1c1917'; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fafaf9'; e.currentTarget.style.color = '#78716c'; }}
-          >
-            {selectedItemIds.size === filteredItems.length && filteredItems.length > 0
-              ? <><X style={{ width: 10, height: 10 }} />Limpar seleção</>
-              : <><CheckSquare style={{ width: 10, height: 10 }} />Selecionar tudo</>
-            }
-          </button>
-          {selectedItemIds.size > 0 && (
-            <span style={{ fontSize: 11, color: '#78716c' }}>
-              {selectedItemIds.size} de {filteredItems.length} selecionada{selectedItemIds.size !== 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* ── 4. CONTENT AREA ───────────────────────────────────────────────── */}
+      {/* ── 4. SCROLLABLE CONTENT AREA ────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}>
       {isLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
@@ -3456,6 +3597,7 @@ export default function Arte() {
         </DialogContent>
       </Dialog>
 
+      </div>
     </div>
   );
 }

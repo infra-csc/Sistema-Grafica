@@ -342,14 +342,8 @@ export function registerSponsorRoutes(app: Express): void {
       
       const itemUpdates: any = { skipApproval: skipApproval || false };
 
-      // Track linking progress: requested → awaiting_linking when Arte saves
-      // sponsors (or marks skipApproval); revert if everything is removed.
-      const hasLinkingWork = validSponsorIds.length > 0 || skipApproval === true;
-      if (currentItem.status === "requested" && hasLinkingWork) {
-        itemUpdates.status = "awaiting_linking";
-      } else if (currentItem.status === "awaiting_linking" && !hasLinkingWork) {
-        itemUpdates.status = "requested";
-      }
+      // No automatic status transition here — only the creator (Solicitação)
+      // can move items from Rascunho → Aguardando Vinculação via the submit endpoint.
       
       const item = await storage.updateItem(itemId, itemUpdates);
       
@@ -382,7 +376,7 @@ export function registerSponsorRoutes(app: Express): void {
       const item = await storage.getItem(id);
       if (!item) return res.status(404).json({ error: "Item não encontrado" });
 
-      const allowedStatuses = ['requested', 'awaiting_linking', 'awaiting_submission'];
+      const allowedStatuses = ['draft', 'requested', 'awaiting_linking', 'awaiting_submission'];
       if (!allowedStatuses.includes(item.status)) {
         return res.status(409).json({ error: `Item não pode ser devolvido. Status atual: ${item.status}` });
       }
@@ -406,7 +400,7 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
-  // Send items to Arte (bulk) - changes status from 'requested' to 'awaiting_submission'
+  // Send items to Arte (bulk) - changes status from 'awaiting_linking' to 'awaiting_submission'
   app.post("/api/items/send-to-arte", requireAuth, async (req, res) => {
     try {
       const { itemIds } = req.body;
@@ -426,8 +420,8 @@ export function registerSponsorRoutes(app: Express): void {
             continue;
           }
           
-          // Items with status 'requested' or 'awaiting_linking' can be sent to Arte
-          if (item.status !== 'requested' && item.status !== 'awaiting_linking') {
+          // Items with status 'awaiting_linking' can be sent to Arte (submitted by creator)
+          if (item.status !== 'awaiting_linking') {
             errors.push(`Item ${item.displayId} não está no status correto para envio`);
             continue;
           }

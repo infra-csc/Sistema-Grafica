@@ -355,7 +355,7 @@ export function registerItemRoutes(app: Express): void {
         measurement: item.measurement,
         observations: item.observations || "",
         calculatedM2: item.calculatedM2,
-        status: "requested" as const,
+        status: "draft" as const,
         isReuse: item.isReuse || false,
       }));
 

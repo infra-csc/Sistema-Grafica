@@ -43,7 +43,7 @@ export function broadcast(data: any) {
 export function translateStatus(status: string): string {
   const statusMap: Record<string, string> = {
     draft: "Rascunho",
-    requested: "Solicitado",
+    requested: "Rascunho",
     awaiting_linking: "Aguardando Vinculação",
     awaiting_submission: "Aguardando Envio",
     awaiting_approval: "Aguardando Aprovação",

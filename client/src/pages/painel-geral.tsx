@@ -132,6 +132,7 @@ export default function PainelGeral() {
   const matchesStatus = (item: any, f: string) => {
     if (f === "all") return true;
     const map: Record<string, string[]> = {
+      requested:             ["draft", "requested"],
       awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
       awaiting_finalization: ["awaiting_finalization", "sponsor_approved", "awaiting_creator_review"],
       awaiting_final_review: ["awaiting_final_review"],
@@ -160,7 +161,7 @@ export default function PainelGeral() {
 
   const stats = {
     total:                 statsItems.length,
-    requested:             statsItems.filter(i => i.status === "requested").length,
+    requested:             statsItems.filter(i => i.status === "requested" || i.status === "draft").length,
     awaitingLinking:       statsItems.filter(i => i.status === "awaiting_linking").length,
     awaitingSubmission:    statsItems.filter(i => i.status === "awaiting_submission").length,
     awaitingApproval:      statsItems.filter(i => i.status === "awaiting_approval" || i.status === "awaiting_sponsor_approval").length,
@@ -265,7 +266,7 @@ export default function PainelGeral() {
           </div>
         </div>
 
-        <StatusCard label="Solicitado"         value={stats.requested}            dot="#f97316" color="#f97316" filterKey="requested" />
+        <StatusCard label="Rascunho"            value={stats.requested}            dot="#f97316" color="#f97316" filterKey="requested" />
         <StatusCard label="Aguard. Vinculação" value={stats.awaitingLinking}      dot="#78716c" color="#78716c" filterKey="awaiting_linking" />
         <StatusCard label="Aguard. Envio"      value={stats.awaitingSubmission}   dot="#0ea5e9" color="#0ea5e9" filterKey="awaiting_submission" />
         <StatusCard label="Aguard. Aprovação"  value={stats.awaitingApproval}     dot="#f97316" color="#f97316" filterKey="awaiting_approval" />
@@ -368,7 +369,7 @@ export default function PainelGeral() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Qualquer status</SelectItem>
-                <SelectItem value="requested">Solicitado</SelectItem>
+                <SelectItem value="requested">Rascunho</SelectItem>
                 <SelectItem value="awaiting_linking">Aguard. Vinculação</SelectItem>
                 <SelectItem value="awaiting_submission">Aguard. Envio</SelectItem>
                 <SelectItem value="awaiting_approval">Aguard. Aprovação</SelectItem>

@@ -69,8 +69,8 @@ const getItemUIStatus = (
     return 'ENVIADO';
   }
   
-  // 3. Items com status 'requested' e com patrocinadores salvos → PRONTO (para enviar)
-  const canSendStatuses = ['requested', 'awaiting_linking'];
+  // 3. Items com status 'awaiting_linking' e com patrocinadores salvos → PRONTO (para enviar)
+  const canSendStatuses = ['awaiting_linking'];
   if (canSendStatuses.includes(item.status)) {
     const hasSponsors = originalSponsors.length > 0;
     const hasSkipApproval = item.skipApproval === true;
@@ -256,11 +256,10 @@ export default function VincularPatrocinadores() {
   }, [rawEvents]);
 
   // Mostrar apenas items de eventos futuros com status que permitem vinculação de patrocinadores
-  // Exclui: draft (ainda não confirmado pela Solicitação)
+  // Exclui: draft e requested (Rascunho — ainda não enviado pela Solicitação)
   const visibleItems = useMemo(() => {
     const today = startOfDay(new Date());
     const allowedStatuses = [
-      'requested',
       'awaiting_linking', 
       'awaiting_submission',
       'awaiting_sponsor_approval',
@@ -273,7 +272,7 @@ export default function VincularPatrocinadores() {
       'delivered'
     ];
     
-    const pendingStatuses = ['requested', 'awaiting_linking'];
+    const pendingStatuses = ['awaiting_linking'];
 
     return items.filter(item => {
       // Filtro 1: Status permitido (exclui draft)

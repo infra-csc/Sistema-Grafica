@@ -240,18 +240,17 @@ export function registerEventRoutes(app: Express): void {
         return res.status(403).json({ error: "Acesso negado. Apenas perfis de Solicitação ou Admin podem enviar itens para vinculação" });
       }
       
-      // Buscar todos os itens em rascunho deste evento
+      // Buscar todos os itens em rascunho deste evento (draft = novo, requested = legado)
       const allItems = await storage.getItemsByEvent(eventId);
-      const draftItems = allItems.filter(item => item.status === 'draft');
+      const draftItems = allItems.filter(item => item.status === 'draft' || item.status === 'requested');
       
       if (draftItems.length === 0) {
         return res.status(400).json({ error: "Nenhum item em rascunho para enviar" });
       }
       
-      // Atomic status transition: only update if status is still 'draft'
-      // This prevents race conditions where status might have changed between read and update
+      // Atomic status transition: draft/requested → awaiting_linking
       const updatePromises = draftItems.map(item => 
-        storage.updateItemWithStatusCheck(item.id, 'draft', 'requested')
+        storage.updateItemWithStatusCheck(item.id, item.status, 'awaiting_linking')
       );
       const updatedItems = await Promise.all(updatePromises);
       
@@ -274,7 +273,7 @@ export function registerEventRoutes(app: Express): void {
         'created',
         'item',
         eventId,
-        `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → ${translateStatus('requested')} (${successfulUpdates.length === 1 ? 'enviado' : 'enviados'} para vinculação)`
+        `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → Aguardando Vinculação (${successfulUpdates.length === 1 ? 'enviado' : 'enviados'} para vinculação)`
       );
       
       // Notify Arte and Admin profiles with actual count

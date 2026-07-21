@@ -307,7 +307,7 @@ export default function EventDetail() {
         const itemsWithIds = newItems.map(item => ({
           ...item,
           id: `temp-${Math.random()}`, // ID temporário
-          status: 'requested',
+          status: 'draft',
         }));
         return [...old, ...itemsWithIds];
       });
@@ -1351,7 +1351,7 @@ export default function EventDetail() {
       </div>
 
       {/* Card de Peças em Rascunho */}
-      {items.filter(item => item.status === 'draft').length > 0 && (
+      {items.filter(item => item.status === 'draft' || item.status === 'requested').length > 0 && (
         <>
         <Card className="border-2 border-dashed border-muted-foreground/30 bg-muted/20">
           <CardHeader>
@@ -1360,7 +1360,7 @@ export default function EventDetail() {
                 <Package className="h-5 w-5 text-muted-foreground" />
                 <CardTitle className="text-lg">Peças em Rascunho</CardTitle>
                 <Badge variant="secondary" className="ml-2">
-                  {items.filter(item => item.status === 'draft').length} {items.filter(item => item.status === 'draft').length === 1 ? 'item' : 'itens'}
+                  {items.filter(item => item.status === 'draft' || item.status === 'requested').length} {items.filter(item => item.status === 'draft' || item.status === 'requested').length === 1 ? 'item' : 'itens'}
                 </Badge>
               </div>
             </div>
@@ -1371,7 +1371,7 @@ export default function EventDetail() {
           <CardContent>
             <div className="space-y-4 mb-4">
               {(() => {
-                const draftItems = items.filter(item => item.status === 'draft');
+                const draftItems = items.filter(item => item.status === 'draft' || item.status === 'requested');
                 // Grupo Pai → Tipo → itens
                 const draftGroupMap: Record<string, Record<string, typeof draftItems>> = {};
                 draftItems.forEach(item => {

@@ -47,7 +47,7 @@ const WF_GROUPS = [
 
 /* ── Status labels ── */
 const STATUS_LABELS: Record<string, string> = {
-  requested:             "Solicitado",
+  requested:             "Rascunho",
   awaiting_linking:      "Aguard. Vinculação",
   awaiting_submission:   "Aguard. Envio",
   awaiting_approval:     "Aguard. Aprovação",

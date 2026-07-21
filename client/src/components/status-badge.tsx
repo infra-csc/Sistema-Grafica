@@ -33,8 +33,8 @@ const statusConfig = {
     icon: CheckCircle,
   },
   requested: {
-    label: "Solicitado",
-    shortLabel: "Solicitado",
+    label: "Rascunho",
+    shortLabel: "Rascunho",
     bg: "#fef3c7",
     text: "#d97706",
     border: "#fde68a",

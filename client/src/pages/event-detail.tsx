@@ -743,6 +743,18 @@ export default function EventDetail() {
               Clonar Evento
             </button>
 
+            {/* Exportar Excel */}
+            <button
+              onClick={() => window.open(`/api/events/${eventId}/export-items`, '_blank')}
+              data-testid="button-export-xlsx"
+              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+            >
+              <FileSpreadsheet className="h-4 w-4" style={{ color: '#16a34a' }} />
+              Exportar Excel
+            </button>
+
             <button
               onClick={() => {
                 setEditingItem(null);

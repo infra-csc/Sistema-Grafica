@@ -1871,37 +1871,4 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // ONE-TIME FIX: Move requested items that already have sponsors → awaiting_linking
-  app.post("/api/admin/fix-requested-linking", requireAuth, async (req, res) => {
-    if ((req as any).userRole !== "admin") return res.status(403).json({ error: "Admin only" });
-    try {
-      const { db } = await import("../db");
-      const { items, itemSponsors } = await import("@shared/schema");
-      const { eq, and, inArray } = await import("drizzle-orm");
-
-      // Find requested items that have sponsors linked
-      const withSponsors = await db
-        .select({ id: itemSponsors.itemId })
-        .from(itemSponsors)
-        .innerJoin(items, eq(items.id, itemSponsors.itemId))
-        .where(eq(items.status, "requested"))
-        .groupBy(itemSponsors.itemId);
-
-      // Also find requested items with skipApproval=true
-      const skipApprovalItems = await db
-        .select({ id: items.id })
-        .from(items)
-        .where(and(eq(items.status, "requested"), eq(items.skipApproval, true)));
-
-      const allIds = [...new Set([...withSponsors.map(r => r.id), ...skipApprovalItems.map(r => r.id)])];
-
-      if (allIds.length === 0) return res.json({ updated: 0, message: "Nothing to fix" });
-
-      await db.update(items).set({ status: "awaiting_linking" }).where(inArray(items.id, allIds));
-
-      res.json({ updated: allIds.length, message: `Moved ${allIds.length} items to awaiting_linking` });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
 }

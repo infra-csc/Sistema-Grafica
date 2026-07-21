@@ -45,9 +45,10 @@ import {
   type InsertInventoryAsset,
   type EventInventoryAllocation,
   type EventQuotaRule,
+  type ItemStatus,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, or, lt } from "drizzle-orm";
+import { eq, and, desc, sql, or, lt, ne, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -66,7 +67,7 @@ export interface IStorage {
   createItem(item: InsertItem): Promise<Item>;
   createBulkItems(items: InsertItem[]): Promise<Item[]>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
-  updateItemWithStatusCheck(id: string, fromStatus: string, toStatus: string): Promise<Item | null>;
+  updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null>;
   approveItem(id: string): Promise<Item | undefined>;
   startProduction(id: string, quantityProduced: number): Promise<Item | undefined>;
   markItemAsDelivered(id: string, receivedBy: string, photoUrl?: string): Promise<Item | undefined>;
@@ -277,7 +278,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(sql`${items.status} IN ('requested', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_creator_review')`)
+      .where(sql`${items.status} IN ('requested', 'awaiting_linking', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_creator_review')`)
       .orderBy(desc(items.createdAt));
   }
 
@@ -285,7 +286,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(sql`${items.status} IN ('ready_for_production', 'approved', 'inProduction', 'produced', 'delivered')`)
+      .where(sql`${items.status} IN ('ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'delivered')`)
       .orderBy(desc(items.createdAt));
   }
 
@@ -324,13 +325,18 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
     
-    // Gerar displayIds sequencialmente usando a mesma função de createItem
-    // Isso garante consistência e robustez (sequence é atômica)
-    const displayIds: string[] = [];
-    for (let i = 0; i < insertItems.length; i++) {
-      displayIds.push(await this.generateNextDisplayId());
-    }
-    
+    // Gerar todos os displayIds em uma única query (generate_series + nextval),
+    // em vez de um await sequencial por item — a sequence garante atomicidade
+    // e ordem, então isso é seguro e evita N round-trips ao banco.
+    await this.ensureDisplayIdSequence();
+    const seqResult = await db.execute(sql`
+      SELECT nextval('item_display_id_seq') as next_id
+      FROM generate_series(1, ${insertItems.length})
+    `);
+    const displayIds: string[] = seqResult.rows.map((row: any) =>
+      `#${String(Number(row.next_id)).padStart(4, '0')}`
+    );
+
     const normalizedItems = insertItems.map((item, index) => ({
       ...item,
       displayId: displayIds[index],
@@ -367,16 +373,16 @@ export class DatabaseStorage implements IStorage {
     return item || undefined;
   }
 
-  async updateItemWithStatusCheck(id: string, fromStatus: string, toStatus: string): Promise<Item | null> {
+  async updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null> {
     const [item] = await db
       .update(items)
-      .set({ 
-        status: toStatus as any,
+      .set({
+        status: toStatus,
         updatedAt: new Date()
       })
       .where(and(
         eq(items.id, id),
-        eq(items.status, fromStatus as any)
+        eq(items.status, fromStatus)
       ))
       .returning();
     return item || null;
@@ -917,12 +923,15 @@ export class DatabaseStorage implements IStorage {
 
   async getAvailableAssetsByFranchise(franchise: string): Promise<InventoryAsset[]> {
     const tag = franchise.toLowerCase().replace(/\s+/g, '_');
-    const all = await db.select().from(inventoryAssets)
-      .where(eq(inventoryAssets.trackingStatus, 'NO_GALPAO'));
-    return all.filter(a =>
-      a.condition !== 'SUCATA' &&
-      a.franchiseTags.some(t => t.toLowerCase().includes(tag) || tag.includes(t.toLowerCase()))
-    );
+    return await db.select().from(inventoryAssets)
+      .where(and(
+        eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
+        ne(inventoryAssets.condition, 'SUCATA'),
+        sql`EXISTS (
+          SELECT 1 FROM unnest(${inventoryAssets.franchiseTags}) AS ft(tag)
+          WHERE lower(ft.tag) LIKE '%' || ${tag} || '%' OR ${tag} LIKE '%' || lower(ft.tag) || '%'
+        )`
+      ));
   }
 
   async createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'> & { displayId?: string }): Promise<InventoryAsset> {
@@ -1186,15 +1195,23 @@ export class DatabaseStorage implements IStorage {
   async autoLinkByQuota(eventId: string): Promise<number> {
     const preview = await this.previewAutoLink(eventId);
     let linked = 0;
+    const touchedItemIds = new Set<string>();
     for (const entry of preview) {
       for (const it of entry.items) {
         try {
           await db.insert(itemSponsors).values({ itemId: it.itemId, sponsorId: entry.sponsorId });
           linked++;
+          touchedItemIds.add(it.itemId);
         } catch (_) {
           // ignore duplicate key errors
         }
       }
+    }
+    if (touchedItemIds.size > 0) {
+      const ids = Array.from(touchedItemIds);
+      await db.update(items)
+        .set({ status: "awaiting_linking" })
+        .where(and(inArray(items.id, ids), eq(items.status, "requested")));
     }
     return linked;
   }

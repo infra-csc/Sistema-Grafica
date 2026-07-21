@@ -16,14 +16,7 @@ import {
   UserPlus, Pencil, Trash2, Search,
   ChevronLeft, ChevronRight, X, AlertTriangle, ShieldCheck,
 } from "lucide-react";
-
-/* ── Palette ── */
-const T = {
-  bg: "#f9f9f8", surface: "#ffffff", border: "#e8e8e7",
-  bdark: "#d6d3d1", text: "#1a1c1c", second: "#78716c",
-  muted: "#a8a29e", accent: "#f97316", dark: "#1c1917",
-  low: "#f3f4f3",
-};
+import { T } from "@/lib/theme";
 
 /* ── Role config ── */
 const ROLE_CFG: Record<string, { label: string; bg: string; color: string; avatarBg: string; avatarColor: string }> = {

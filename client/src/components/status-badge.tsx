@@ -137,8 +137,8 @@ const statusConfig = {
     icon: Clock,
   },
   awaiting_creator_review: {
-    label: "Aguardando Revisão Final",
-    shortLabel: "Ag. Revisão",
+    label: "Aguardando Finalização",
+    shortLabel: "Ag. Finalização",
     bg: "#f5f3ff",
     text: "#6d28d9",
     border: "#ddd6fe",

@@ -60,8 +60,8 @@ const getItemUIStatus = (
     'awaiting_final_review',     // Criador revisando arquivo final
     'awaiting_creator_review',
     'ready_for_production',
-    'released',
-    'in_production',
+    'pronto_para_producao',
+    'inProduction',
     'produced',
     'delivered'
   ];

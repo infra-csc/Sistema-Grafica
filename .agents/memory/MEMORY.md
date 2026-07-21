@@ -1,2 +1,3 @@
 - [Import dialog graduation](import-dialog-graduation.md) — two separate import dialogs merged into one split-panel dialog; single `importDialogOpen` state controls both phases.
 - [Vincular-Patrocinadores auto-draft bug](vincular-pat-autodraft.md) — root cause of all sponsors pre-selected on new items
+- [Item status naming](status-naming.md) — canonical English statuses; legacy Portuguese ones may linger in prod DB; check every gate/STATUS_CONFIG before adding a status.

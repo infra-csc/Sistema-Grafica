@@ -43,7 +43,9 @@ const statusConfig: Record<string, { label: string; bg: string; color: string; b
   awaiting_approval:      { label: "Ag. Aprovação",      bg: "#fef9c3", color: "#a16207", border: "#fde047" },
   awaiting_finalization:  { label: "Ag. Finalização",    bg: "#fef9c3", color: "#a16207", border: "#fde047" },
   awaiting_final_review:  { label: "Ag. Revisão",        bg: "#fef9c3", color: "#a16207", border: "#fde047" },
+  awaiting_creator_review:{ label: "Ag. Finalização",    bg: "#fef9c3", color: "#a16207", border: "#fde047" },
   ready_for_production:   { label: "Pronto p/ Prod.",    bg: "#ede9fe", color: "#6d28d9", border: "#c4b5fd" },
+  pronto_para_producao:   { label: "Pronto p/ Prod.",    bg: "#ede9fe", color: "#6d28d9", border: "#c4b5fd" },
   approved:               { label: "Liberado",           bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
   inProduction:           { label: "Em Produção",        bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
   produced:               { label: "Produzido",          bg: "#dcfce7", color: "#15803d", border: "#86efac" },
@@ -149,7 +151,12 @@ export default function Grafica() {
             !item.displayId?.toLowerCase().includes(q) &&
             !item.event?.name?.toLowerCase().includes(q)) return false;
       }
-      if (statusFilter !== "all" && item.status !== statusFilter) return false;
+      if (statusFilter !== "all") {
+        const matchesFilter = statusFilter === "ready_for_production"
+          ? (item.status === "ready_for_production" || item.status === "pronto_para_producao" || item.status === "approved")
+          : item.status === statusFilter;
+        if (!matchesFilter) return false;
+      }
       if (eventFilter !== "all" && item.eventId !== eventFilter) return false;
       if (typeFilter !== "all" && item.type !== typeFilter) return false;
       if (materialFilter !== "all" && item.material !== materialFilter) return false;
@@ -174,7 +181,7 @@ export default function Grafica() {
 
   const itemsForEvent = eventFilter === "all" ? items : items.filter((i: any) => i.eventId === eventFilter);
   const stats = {
-    liberados:    (itemsForEvent as any[]).filter(i => i.status === 'approved' || i.status === 'ready_for_production').length,
+    liberados:    (itemsForEvent as any[]).filter(i => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao:   (itemsForEvent as any[]).filter(i => i.status === 'inProduction').length,
     produzidos:   (itemsForEvent as any[]).filter(i => i.status === 'produced').length,
     entregues:    (itemsForEvent as any[]).filter(i => i.status === 'delivered').length,
@@ -250,7 +257,7 @@ export default function Grafica() {
       {/* ── KPI Strip ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
         {[
-          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", borderColor: "#0369a1", numColor: "#0369a1", testId: "stat-approved",    filterVal: "approved" },
+          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", borderColor: "#0369a1", numColor: "#0369a1", testId: "stat-approved",    filterVal: "ready_for_production" },
           { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",             borderColor: "#f97316", numColor: "#ea580c", testId: "stat-production",  filterVal: "inProduction" },
           { label: "Produzidos",   value: stats.produzidos, sub: "Não entregue",      borderColor: "#16a34a", numColor: "#15803d", testId: "stat-produced",    filterVal: "produced" },
           { label: "Entregues",    value: stats.entregues,  sub: "Concluído",         borderColor: "#0284c7", numColor: "#166534", testId: "stat-delivered",   filterVal: "delivered" },

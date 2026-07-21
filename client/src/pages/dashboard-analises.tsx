@@ -40,7 +40,7 @@ function cutoff(p: string): Date | null {
 /* ── Workflow groups for donut ── */
 const WF_GROUPS = [
   { label: "Produção",     keys: ["inProduction", "produced"],                      color: T.accent },
-  { label: "Aprovação",    keys: ["awaiting_approval", "awaiting_final_review", "ready_for_production", "approved"], color: "#ffffff" },
+  { label: "Aprovação",    keys: ["awaiting_approval", "awaiting_sponsor_approval", "sponsor_approved", "awaiting_finalization", "awaiting_creator_review", "awaiting_final_review", "ready_for_production", "pronto_para_producao", "approved"], color: "#ffffff" },
   { label: "Planejamento", keys: ["requested", "awaiting_linking", "awaiting_submission"], color: "#3b82f6" },
   { label: "Entregue",     keys: ["delivered"],                                     color: "#6b7280" },
 ];
@@ -51,8 +51,13 @@ const STATUS_LABELS: Record<string, string> = {
   awaiting_linking:      "Aguard. Vinculação",
   awaiting_submission:   "Aguard. Envio",
   awaiting_approval:     "Aguard. Aprovação",
-  awaiting_final_review: "Aguard. Finalização",
+  awaiting_sponsor_approval: "Aguard. Aprovação",
+  sponsor_approved:      "Aguard. Finalização",
+  awaiting_finalization: "Aguard. Finalização",
+  awaiting_creator_review: "Aguard. Finalização",
+  awaiting_final_review: "Aguard. Revisão",
   ready_for_production:  "Pronto p/ Prod.",
+  pronto_para_producao:  "Pronto p/ Prod.",
   approved:              "Liberado",
   inProduction:          "Em Produção",
   produced:              "Produzido",

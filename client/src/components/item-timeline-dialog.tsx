@@ -305,7 +305,9 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                               if (details.recipientName) {
                                 recipientName = details.recipientName;
                               }
-                            } catch {}
+                            } catch (error) {
+                              console.warn("Failed to parse delivery log details JSON", error);
+                            }
                           }
                           return recipientName ? (
                             <div className="flex items-center gap-1">

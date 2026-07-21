@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+﻿import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,224 +44,15 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CommentsSection } from "@/components/comments-section";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { ImportXlsxDialog, ImportPreviewRow } from "@/components/import-xlsx-dialog";
+import { CloneItemsDialog } from "@/components/clone-items-dialog";
+import { useEventImport, useEventClone } from "@/hooks/use-event-import";
+import { useEventReference } from "@/hooks/use-event-reference";
+import { useEventItemFlags } from "@/hooks/use-event-item-flags";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
-
-// ── Editable row for import preview table ────────────────────────────────
-const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  MASTER:     { bg: '#fff1f1', color: '#dc2626', border: '#fecaca' },
-  GOLD:       { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-  SILVER:     { bg: '#f5f3ff', color: '#7c3aed', border: '#ddd6fe' },
-  APOIO:      { bg: '#f9fafb', color: '#6b7280', border: '#e5e7eb' },
-  MIDIA:      { bg: '#ecfeff', color: '#0891b2', border: '#a5f3fc' },
-  MINISTERIO: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
-};
-
-function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {
-  row: any; idx: number;
-  onChange: (updated: any) => void;
-  onDelete: () => void;
-  eventSponsorsList: { sponsorId: string; quota: string; name: string }[];
-}) {
-  const [editField, setEditField] = useState<string | null>(null);
-  const [hovered, setHovered] = useState(false);
-
-  const update = (field: string, value: string) => {
-    const updated = { ...row, [field]: value };
-    if (['quantity', 'fileWidth', 'fileHeight', 'visualWidth', 'visualHeight'].includes(field)) {
-      const qty = parseFloat(field === 'quantity' ? value : row.quantity) || 0;
-      const fw  = parseFloat(field === 'fileWidth'  ? value : (row.fileWidth  ?? row.visualWidth  ?? 0)) || 0;
-      const fh  = parseFloat(field === 'fileHeight' ? value : (row.fileHeight ?? row.visualHeight ?? 0)) || 0;
-      updated.calculatedM2 = fw && fh ? (qty * fw * fh).toFixed(2) : '0';
-      if (fw && fh) updated.measurement = `${fw.toFixed(2)} × ${fh.toFixed(2)}`;
-    }
-    onChange(updated);
-  };
-
-  const cell = (field: string, val: any, opts?: { dim?: boolean; mono?: boolean; wide?: boolean }) => {
-    const isEditing = editField === field;
-    const display = val !== null && val !== undefined && val !== '' ? String(val) : '—';
-    const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
-    return (
-      <td
-        onClick={() => setEditField(field)}
-        title="Clique para editar"
-        style={{
-          padding: '8px 10px',
-          borderBottom: '1px solid #f0efed',
-          cursor: 'text',
-          backgroundColor: isEditing ? '#fffbeb' : rowBg,
-          maxWidth: opts?.wide ? 220 : 160,
-        }}
-      >
-        {isEditing ? (
-          <input
-            autoFocus
-            defaultValue={val ?? ''}
-            onBlur={e => { update(field, e.target.value); setEditField(null); }}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { update(field, (e.target as HTMLInputElement).value); setEditField(null); }
-              if (e.key === 'Escape') setEditField(null);
-            }}
-            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 12, outline: 'none', backgroundColor: 'transparent', fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit' }}
-          />
-        ) : (
-          <span style={{
-            color: display === '—' ? '#d0cdc9' : (opts?.dim ? '#9c9490' : '#1a1c1c'),
-            fontSize: 12,
-            fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit',
-            display: 'block',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>{display}</span>
-        )}
-      </td>
-    );
-  };
-
-  const dimCell = (fieldW: string, fieldH: string, valW: any, valH: any, dimStyle?: boolean) => {
-    const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
-    const editingW = editField === fieldW;
-    const editingH = editField === fieldH;
-    const dispW = valW !== null && valW !== undefined && valW !== '' ? String(valW) : '—';
-    const dispH = valH !== null && valH !== undefined && valH !== '' ? String(valH) : '—';
-    return (
-      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          {editingW ? (
-            <input autoFocus defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
-              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', outline: 'none', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
-          ) : (
-            <span onClick={() => setEditField(fieldW)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#9c9490' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispW}</span>
-          )}
-          <span style={{ color: '#d0cdc9', fontSize: 10, userSelect: 'none' }}>×</span>
-          {editingH ? (
-            <input autoFocus defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
-              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', outline: 'none', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
-          ) : (
-            <span onClick={() => setEditField(fieldH)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#9c9490' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispH}</span>
-          )}
-        </div>
-      </td>
-    );
-  };
-
-  const m2 = parseFloat(row.calculatedM2) || 0;
-  const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#ea580c' : m2 > 0 ? '#16a34a' : '#d0cdc9';
-
-  const hasSponsors = (row.suggestedSponsorIds ?? []).length > 0;
-  const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
-
-  return (
-    <tr
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ transition: 'background 0.12s' }}
-    >
-      {cell('description', row.description, { wide: true })}
-      {cell('quantity', row.quantity, { mono: true })}
-      {dimCell('visualWidth', 'visualHeight', row.visualWidth, row.visualHeight, true)}
-      {dimCell('fileWidth', 'fileHeight', row.fileWidth, row.fileHeight, false)}
-
-      {/* M² */}
-      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: m2Color, fontFamily: 'DM Mono, monospace', letterSpacing: '-0.02em' }}>
-          {m2 > 0 ? m2.toFixed(2) : '—'}
-        </span>
-      </td>
-
-      {cell('material', row.material)}
-      {cell('finish', row.finish)}
-      {/* Obs cell with reuse toggle */}
-      <td
-        onClick={() => setEditField('observations')}
-        title="Clique para editar"
-        style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', cursor: 'text', backgroundColor: editField === 'observations' ? '#fffbeb' : rowBg, maxWidth: 160 }}
-      >
-        {editField === 'observations' ? (
-          <input autoFocus defaultValue={row.observations ?? ''}
-            onBlur={e => { update('observations', e.target.value); setEditField(null); }}
-            onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
-            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 12, outline: 'none', backgroundColor: 'transparent' }} />
-        ) : (
-          <span style={{ color: row.observations ? '#9c9490' : '#d0cdc9', fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {row.observations || '—'}
-          </span>
-        )}
-        {/* Reuse toggle */}
-        <button
-          onClick={e => { e.stopPropagation(); onChange({ ...row, reuse: !row.reuse }); }}
-          style={{
-            marginTop: 3, display: 'block',
-            fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 9999, cursor: 'pointer',
-            border: `1px solid ${row.reuse ? '#22c55e' : '#e2deda'}`,
-            backgroundColor: row.reuse ? '#f0fdf4' : 'transparent',
-            color: row.reuse ? '#16a34a' : '#c4bfbb',
-            letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
-          }}
-        >
-          Reaproveitar
-        </button>
-      </td>
-
-      {/* Sponsor multi-select cell */}
-      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, minWidth: 190, verticalAlign: 'top' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
-          {/* Chips for each selected sponsor */}
-          {(row.suggestedSponsorIds ?? []).map((sid: string) => {
-            const sp = eventSponsorsList.find(s => s.sponsorId === sid);
-            if (!sp) return null;
-            const qc = IMPORT_QUOTA_COLORS[sp.quota] ?? { bg: '#f0f9ff', color: '#0369a1', border: '#bae6fd' };
-            return (
-              <span key={sid} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px 2px 7px', borderRadius: 6, border: `1.5px solid ${qc.border}`, backgroundColor: qc.bg, color: qc.color, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                {sp.name}
-                <button
-                  onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: (row.suggestedSponsorIds ?? []).filter((id: string) => id !== sid) }); }}
-                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', padding: '0 0 0 1px', opacity: 0.65, fontSize: 13, lineHeight: 1 }}
-                >×</button>
-              </span>
-            );
-          })}
-          {/* Add sponsor dropdown */}
-          {(row.suggestedSponsorIds ?? []).length < eventSponsorsList.length && (
-            <select
-              value=""
-              onChange={e => {
-                const v = e.target.value;
-                if (v && !(row.suggestedSponsorIds ?? []).includes(v))
-                  onChange({ ...row, suggestedSponsorIds: [...(row.suggestedSponsorIds ?? []), v] });
-              }}
-              onClick={e => e.stopPropagation()}
-              style={{ fontSize: 10, borderRadius: 5, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#a8a29e', cursor: 'pointer', padding: '2px 5px', outline: 'none', maxWidth: 100 }}
-            >
-              <option value="">+ Adicionar</option>
-              {eventSponsorsList.filter(s => !(row.suggestedSponsorIds ?? []).includes(s.sponsorId)).map(s => (
-                <option key={s.sponsorId} value={s.sponsorId}>{s.name}</option>
-              ))}
-            </select>
-          )}
-          {(row.suggestedSponsorIds ?? []).length === 0 && (
-            <span style={{ fontSize: 11, color: '#d0cdc9', fontStyle: 'italic' }}>sem patrocinador</span>
-          )}
-        </div>
-      </td>
-
-      {/* Delete */}
-      <td style={{ padding: '6px 6px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg }}>
-        <button
-          onClick={onDelete}
-          title="Remover peça"
-          style={{ width: 26, height: 26, borderRadius: 6, border: 'none', backgroundColor: hovered ? '#fef2f2' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: hovered ? '#dc2626' : '#d0cdc9', transition: 'all 0.15s' }}
-        >
-          <X style={{ width: 13, height: 13 }} />
-        </button>
-      </td>
-    </tr>
-  );
-}
 
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();
@@ -286,16 +77,6 @@ export default function EventDetail() {
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [importFile, setImportFile] = useState<File | null>(null);
-  const [importPreview, setImportPreview] = useState<{ total: number; groups: string[] } | null>(null);
-  const [importPreviewItems, setImportPreviewItems] = useState<any[] | null>(null);
-  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
-  const [importFileName, setImportFileName] = useState<string>("");
-  const [importSearch, setImportSearch] = useState("");
-  const [importDuplicateWarning, setImportDuplicateWarning] = useState<{ duplicateCount: number; totalCount: number } | null>(null);
-  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
-  const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -377,6 +158,34 @@ export default function EventDetail() {
     name: allSponsors.find((s: any) => s.id === es.sponsorId)?.name ?? '',
   })).filter(es => es.name);
 
+  // Estado e mutations de importação de Excel (extraído para @/hooks/use-event-import)
+  const {
+    importDialogOpen,
+    setImportDialogOpen,
+    importFile,
+    setImportFile,
+    importPreview,
+    setImportPreview,
+    importPreviewItems,
+    setImportPreviewItems,
+    importFileName,
+    importSearch,
+    setImportSearch,
+    previewXlsxMutation,
+    confirmImportMutation,
+    importDuplicateWarning,
+    setImportDuplicateWarning,
+  } = useEventImport({ eventId, eventSponsorsList, eventQuotaRules });
+
+  // Estado e mutation de clonagem de itens entre eventos (extraído para @/hooks/use-event-import)
+  const {
+    cloneDialogOpen,
+    setCloneDialogOpen,
+    cloneSourceId,
+    setCloneSourceId,
+    cloneItemsMutation,
+  } = useEventClone({ eventId });
+
   // Buscar todos os eventos (para seletor de clone)
   const { data: allEvents = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -415,31 +224,7 @@ export default function EventDetail() {
     return { method: "PUT" as const, url: data.uploadURL };
   };
 
-  const updateReferenceUrlMutation = useMutation({
-    mutationFn: async ({ itemId, referenceUrl }: { itemId: string; referenceUrl: string }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}`, { referenceUrl });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      toast({ title: "Referência salva com sucesso" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Erro ao salvar referência", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const removeReferenceUrlMutation = useMutation({
-    mutationFn: async (itemId: string) => {
-      await apiRequest("PATCH", `/api/items/${itemId}`, { referenceUrl: null });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      toast({ title: "Referência removida" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Erro ao remover referência", description: error.message, variant: "destructive" });
-    },
-  });
+  const { updateReferenceUrlMutation, removeReferenceUrlMutation } = useEventReference({ eventId });
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -502,159 +287,6 @@ export default function EventDetail() {
         description: error.message,
         variant: "destructive",
       });
-    },
-  });
-
-  // ── Import Excel mutation ──────────────────────────────────────────────
-  const importXlsxMutation = useMutation({
-    mutationFn: async ({ file }: { file: File }) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch(`/api/events/${eventId}/import-xlsx`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Erro ao importar");
-      }
-      return response.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setImportDialogOpen(false);
-      setImportFile(null);
-      setImportPreview(null);
-      toast({
-        title: `${data.imported} peças importadas com sucesso`,
-        description: "Os itens foram adicionados ao evento.",
-      });
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
-    },
-  });
-
-  // ── Preview Excel mutation (parse → show review modal) ─────────────────
-  const previewXlsxMutation = useMutation({
-    mutationFn: async ({ file }: { file: File }) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await fetch(`/api/events/${eventId}/preview-xlsx`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Erro ao processar arquivo");
-      }
-      return response.json();
-    },
-    onSuccess: (data: any) => {
-      // Normalize text for matching (strip accents, lowercase)
-      const norm = (s: string) =>
-        (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').trim();
-
-      const suggestSponsor = (item: any): string | null => {
-        const descNorm = norm(item.description ?? '');
-        // 1. Try to find sponsor name in description
-        for (const es of eventSponsorsList) {
-          const nameNorm = norm(es.name);
-          if (nameNorm.length > 2 && descNorm.includes(nameNorm)) return es.sponsorId;
-        }
-        // 2. Fallback: quota rules → find quotas that include this item type → first matching event sponsor
-        const itemTypeNorm = norm(item.type ?? '');
-        const matchingQuotas = eventQuotaRules
-          .filter((r: any) => (r.itemTypes ?? []).some((t: string) => norm(t) === itemTypeNorm))
-          .map((r: any) => r.quota);
-        for (const quota of matchingQuotas) {
-          const match = eventSponsorsList.find(es => es.quota === quota);
-          if (match) return match.sponsorId;
-        }
-        return null;
-      };
-
-      const withIds = (data.items as any[]).map((item: any, i: number) => {
-        const suggested = suggestSponsor(item);
-        const autoReuse = /reaproveitar/i.test(item.observations ?? '');
-        return {
-          ...item,
-          _id: `row-${i}`,
-          suggestedSponsorIds: suggested ? [suggested] : [],
-          reuse: autoReuse,
-        };
-      });
-      setImportPreviewItems(withIds);
-      setImportFileName(data.fileName || "");
-      setImportSearch("");
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro ao processar planilha", description: error.message, variant: "destructive" });
-    },
-  });
-
-  // ── Confirm import mutation (save reviewed items) ──────────────────────
-  const confirmImportMutation = useMutation({
-    mutationFn: async ({ items, fileName, force }: { items: any[]; fileName: string; force?: boolean }) => {
-      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, { items, fileName, force });
-      if (!response.ok) {
-        const err = await response.json();
-        if (response.status === 409 && err.error === "duplicate_detected") {
-          const dupErr: any = new Error(err.message);
-          dupErr.isDuplicate = true;
-          dupErr.duplicateCount = err.duplicateCount;
-          dupErr.totalCount = err.totalCount;
-          throw dupErr;
-        }
-        throw new Error(err.error || "Erro ao importar");
-      }
-      return response.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setImportDialogOpen(false);
-      setImportPreviewItems(null);
-      setImportFile(null);
-      setImportFileName("");
-      setImportSearch("");
-      setImportDuplicateWarning(null);
-      toast({ title: `${data.imported} peças importadas com sucesso`, description: "Os itens foram adicionados ao evento." });
-    },
-    onError: (error: any) => {
-      if (error.isDuplicate) {
-        setImportDuplicateWarning({ duplicateCount: error.duplicateCount, totalCount: error.totalCount });
-      } else {
-        toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
-      }
-    },
-  });
-
-  // ── Clone items mutation ───────────────────────────────────────────────
-  const cloneItemsMutation = useMutation({
-    mutationFn: async ({ sourceEventId }: { sourceEventId: string }) => {
-      const response = await apiRequest("POST", `/api/events/${eventId}/clone-items`, { sourceEventId });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Erro ao clonar");
-      }
-      return response.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setCloneDialogOpen(false);
-      setCloneSourceId("");
-      toast({
-        title: `${data.cloned} peças clonadas com sucesso`,
-        description: "Os itens foram copiados para este evento.",
-      });
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro ao clonar", description: error.message, variant: "destructive" });
     },
   });
 
@@ -881,35 +513,7 @@ export default function EventDetail() {
     },
   });
 
-  // Mutation para atualizar skipApproval de um item
-  const updateItemSkipApprovalMutation = useMutation({
-    mutationFn: async ({ itemId, skipApproval }: { itemId: string, skipApproval: boolean }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}`, { skipApproval });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao atualizar configuração",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Mutation para atualizar isReuse de um item
-  const updateItemIsReuseMutation = useMutation({
-    mutationFn: async ({ itemId, isReuse }: { itemId: string, isReuse: boolean }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
-    },
-  });
+  const { updateItemSkipApprovalMutation, updateItemIsReuseMutation } = useEventItemFlags({ eventId });
 
   // Carregar patrocinadores de todos os items em rascunho
   useEffect(() => {
@@ -951,7 +555,7 @@ export default function EventDetail() {
     }
   };
 
-  const BLOCKED_EDIT_STATUSES = ["pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
+  const BLOCKED_EDIT_STATUSES = ["ready_for_production", "inProduction", "produced", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
   const isEditBlocked = (status: string) => BLOCKED_EDIT_STATUSES.includes(status);
 
   const handleEditItem = (item: any) => {
@@ -2830,6 +2434,7 @@ export default function EventDetail() {
           setImportPreview(null);
           setImportPreviewItems(null);
           setImportSearch("");
+          setImportDuplicateWarning(null);
         }
       }}>
         <DialogContent
@@ -3126,79 +2731,17 @@ export default function EventDetail() {
       </Dialog>
 
       {/* ── Dialog: Clonar Evento ──────────────────────────────────────────── */}
-      <Dialog open={cloneDialogOpen} onOpenChange={(v) => { if (!v) { setCloneDialogOpen(false); setCloneSourceId(""); } }}>
-        <DialogContent style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f0efed' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <Copy style={{ width: 18, height: 18, color: '#6366f1' }} />
-              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
-                Clonar Peças de Outro Evento
-              </DialogTitle>
-            </div>
-            <DialogDescription style={{ fontSize: 12, color: '#78716c', margin: 0, paddingLeft: 28 }}>
-              Copia todos os itens de um evento anterior para este evento
-            </DialogDescription>
-          </div>
-
-          <div style={{ padding: '24px 28px' }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
-              Selecionar evento de origem
-            </label>
-            <select
-              value={cloneSourceId}
-              onChange={e => setCloneSourceId(e.target.value)}
-              data-testid="select-clone-source"
-              style={{
-                width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid #e7e5e4',
-                fontSize: 14, fontFamily: "'Space Grotesk', sans-serif", color: '#1a1c1c',
-                backgroundColor: '#ffffff', appearance: 'none', cursor: 'pointer',
-                outline: 'none',
-              }}
-            >
-              <option value="">— Escolha um evento —</option>
-              {allEvents
-                .filter((e: any) => e.id !== eventId)
-                .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map((e: any) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} {e.startDate ? `(${new Date(e.startDate).toLocaleDateString('pt-BR')})` : ''}
-                  </option>
-                ))}
-            </select>
-
-            {cloneSourceId && (
-              <div style={{ marginTop: 16, backgroundColor: '#f0f0ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <Copy style={{ width: 14, height: 14, color: '#6366f1', flexShrink: 0, marginTop: 1 }} />
-                <div>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: '#3730a3', margin: '0 0 2px' }}>O que será copiado</p>
-                  <p style={{ fontSize: 11, color: '#4338ca', margin: 0, lineHeight: 1.5 }}>
-                    Todos os itens do evento selecionado serão adicionados a <strong>{event?.name}</strong>.<br />
-                    Status: <strong>Solicitado</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={{ padding: '16px 28px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-            <Button variant="outline" onClick={() => { setCloneDialogOpen(false); setCloneSourceId(""); }}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => { if (cloneSourceId) cloneItemsMutation.mutate({ sourceEventId: cloneSourceId }); }}
-              disabled={!cloneSourceId || cloneItemsMutation.isPending}
-              data-testid="button-confirm-clone"
-              style={{ backgroundColor: '#6366f1', color: '#ffffff' }}
-            >
-              {cloneItemsMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Clonando...</>
-              ) : (
-                <><Copy className="h-4 w-4 mr-2" /> Clonar Peças</>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CloneItemsDialog
+        open={cloneDialogOpen}
+        onOpenChange={setCloneDialogOpen}
+        eventId={eventId}
+        eventName={event?.name}
+        allEvents={allEvents}
+        cloneSourceId={cloneSourceId}
+        setCloneSourceId={setCloneSourceId}
+        isCloning={cloneItemsMutation.isPending}
+        onConfirmClone={() => { if (cloneSourceId) cloneItemsMutation.mutate({ sourceEventId: cloneSourceId }); }}
+      />
 
     </div>
   );

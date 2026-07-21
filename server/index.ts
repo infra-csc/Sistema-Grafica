@@ -10,11 +10,25 @@ import { pool } from "./db";
 
 const PgSession = connectPgSimple(session);
 
+// Fail fast: never fall back to a hardcoded secret. Both the session and the
+// SSO JWT verification rely on these being real, operator-provided secrets.
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  console.error(
+    "FATAL: SESSION_SECRET não está definido. Defina a variável de ambiente SESSION_SECRET antes de iniciar o servidor."
+  );
+  process.exit(1);
+}
+const SSO_SECRET = process.env.SSO_SECRET || SESSION_SECRET;
+
 // Ensure no SSO user is stuck with mustChangePassword=true (all access via Microsoft)
 async function fixSsoMustChangePassword() {
   await pool.query("UPDATE users SET must_change_password = false WHERE must_change_password = true");
 }
 
+// Seed default users only if they don't already exist. Never overwrite an
+// existing user's password_hash on restart — that would silently reset
+// credentials for accounts that may have since changed their password.
 async function seedUsers() {
   const users = [
     { name: "Administrador NORTE",                email: "admin@norte.com",                   role: "admin",       mustChange: false },
@@ -30,11 +44,7 @@ async function seedUsers() {
     await pool.query(
       `INSERT INTO users (name, email, password_hash, role, must_change_password)
        VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (email) DO UPDATE
-         SET password_hash = EXCLUDED.password_hash,
-             name = EXCLUDED.name,
-             role = EXCLUDED.role,
-             must_change_password = EXCLUDED.must_change_password`,
+       ON CONFLICT (email) DO NOTHING`,
       [u.name, u.email, hash, u.role, u.mustChange]
     );
   }
@@ -43,8 +53,8 @@ async function seedUsers() {
 
 const app = express();
 app.set("trust proxy", 1); // Replit sits behind a reverse proxy — needed for secure cookies
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: false, limit: "50mb" }));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: false, limit: "2mb" }));
 
 // Session configuration
 app.use(
@@ -54,7 +64,7 @@ app.use(
       tableName: "session",
       createTableIfMissing: true,
     }),
-    secret: process.env.SESSION_SECRET || "norte-grafica-secret-key-change-in-production",
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -77,10 +87,8 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   const token = req.query.portal_sso as string | undefined;
   if (!token) return next();
 
-  const secret = process.env.SSO_SECRET || process.env.SESSION_SECRET || "norte-grafica-secret-key-change-in-production";
-
   try {
-    const payload = jwt.verify(token, secret, { issuer: "norte-portal" }) as { email?: string };
+    const payload = jwt.verify(token, SSO_SECRET, { issuer: "norte-portal" }) as { email?: string };
     if (!payload?.email) { log("[SSO] payload sem email"); return res.redirect("/login?error=sso_invalid_payload"); }
 
     const { rows } = await pool.query<{ id: string; name: string; role: string }>(
@@ -140,6 +148,19 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
 });
 // ────────────────────────────────────────────────────────────────────────────
 
+// Routes whose response bodies must never be logged (contain credentials,
+// password hashes, or otherwise sensitive account data).
+const SENSITIVE_LOG_PATHS = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/change-password",
+  "/api/auth/sso-exchange",
+  "/api/users",
+];
+function isSensitiveLogPath(path: string): boolean {
+  return SENSITIVE_LOG_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -155,7 +176,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      if (capturedJsonResponse && !isSensitiveLogPath(path)) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
@@ -180,7 +201,7 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    console.error(err);
   });
 
   // importantly only setup vite in development and after

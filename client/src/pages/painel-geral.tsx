@@ -27,9 +27,9 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; co
   awaiting_finalization: { label: "Aguard. Finalização",dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
   sponsor_approved:      { label: "Aguard. Finalização",dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
   awaiting_final_review: { label: "Aguard. Revisão",    dot: "#d946ef", bg: "#fdf4ff", color: "#d946ef", border: "#fae8ff" },
-  awaiting_creator_review: { label: "Aguard. Revisão",  dot: "#d946ef", bg: "#fdf4ff", color: "#d946ef", border: "#fae8ff" },
+  awaiting_creator_review: { label: "Aguard. Finalização", dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
   ready_for_production:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
-  approved:              { label: "Liberado",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
+  pronto_para_producao:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
   inProduction:          { label: "Em Produção",        dot: "#f59e0b", bg: "#fff7ed", color: "#f59e0b", border: "#fef3c7" },
   produced:              { label: "Produzido",          dot: "#ec4899", bg: "#fdf2f8", color: "#ec4899", border: "#fce7f3" },
   delivered:             { label: "Entregue",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
@@ -133,8 +133,9 @@ export default function PainelGeral() {
     if (f === "all") return true;
     const map: Record<string, string[]> = {
       awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
-      awaiting_finalization: ["awaiting_finalization", "sponsor_approved"],
-      awaiting_final_review: ["awaiting_final_review", "awaiting_creator_review"],
+      awaiting_finalization: ["awaiting_finalization", "sponsor_approved", "awaiting_creator_review"],
+      awaiting_final_review: ["awaiting_final_review"],
+      ready_for_production:  ["ready_for_production", "pronto_para_producao"],
     };
     return map[f] ? map[f].includes(item.status) : item.status === f;
   };
@@ -163,10 +164,9 @@ export default function PainelGeral() {
     awaitingLinking:       statsItems.filter(i => i.status === "awaiting_linking").length,
     awaitingSubmission:    statsItems.filter(i => i.status === "awaiting_submission").length,
     awaitingApproval:      statsItems.filter(i => i.status === "awaiting_approval" || i.status === "awaiting_sponsor_approval").length,
-    awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved").length,
-    awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review" || i.status === "awaiting_creator_review").length,
-    readyForProduction:    statsItems.filter(i => i.status === "ready_for_production").length,
-    approved:              statsItems.filter(i => i.status === "approved").length,
+    awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved" || i.status === "awaiting_creator_review").length,
+    awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review").length,
+    readyForProduction:    statsItems.filter(i => i.status === "ready_for_production" || i.status === "pronto_para_producao").length,
     inProduction:          statsItems.filter(i => i.status === "inProduction").length,
     produced:              statsItems.filter(i => i.status === "produced").length,
     delivered:             statsItems.filter(i => i.status === "delivered").length,
@@ -272,7 +272,6 @@ export default function PainelGeral() {
         <StatusCard label="Aguard. Finalização" value={stats.awaitingFinalization} dot="#a855f7" color="#a855f7" filterKey="awaiting_finalization" />
         <StatusCard label="Aguard. Revisão"    value={stats.awaitingFinalReview}  dot="#d946ef" color="#d946ef" filterKey="awaiting_final_review" />
         <StatusCard label="Pronto Produção"    value={stats.readyForProduction}   dot="#10b981" color="#10b981" filterKey="ready_for_production" />
-        <StatusCard label="Liberado"           value={stats.approved}             dot="#15803d" color="#15803d" filterKey="approved" />
         <StatusCard label="Em Produção"        value={stats.inProduction}         dot="#f59e0b" color="#f59e0b" filterKey="inProduction" />
         <StatusCard label="Produzido"          value={stats.produced}             dot="#ec4899" color="#ec4899" filterKey="produced" />
         <StatusCard label="Entregue"           value={stats.delivered}            dot="#15803d" color="#15803d" filterKey="delivered" />
@@ -376,7 +375,6 @@ export default function PainelGeral() {
                 <SelectItem value="awaiting_finalization">Aguard. Finalização</SelectItem>
                 <SelectItem value="awaiting_final_review">Aguard. Revisão</SelectItem>
                 <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
-                <SelectItem value="approved">Liberado</SelectItem>
                 <SelectItem value="inProduction">Em Produção</SelectItem>
                 <SelectItem value="produced">Produzido</SelectItem>
                 <SelectItem value="delivered">Entregue</SelectItem>

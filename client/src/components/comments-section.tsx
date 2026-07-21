@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MessageSquare, Send, Trash2, User } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Comment } from "@shared/schema";
 import { StatusBadge } from "@/components/status-badge";
@@ -36,11 +36,9 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
 
   const createMutation = useMutation({
     mutationFn: async (content: string) => {
-      const userName = currentUser?.name || "Usuário";
-      
       return apiRequest("POST", `/api/items/${itemId}/comments`, {
         content,
-        userName: userName,
+        userName: getCurrentUserName(),
       });
     },
     onSuccess: () => {

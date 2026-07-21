@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Image, Upload, Trash2, ZoomIn } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { DeliveryPhoto } from "@shared/schema";
 
@@ -16,10 +16,10 @@ interface DeliveryPhotoGalleryProps {
   itemId: string;
 }
 
+const MAX_PHOTO_SIZE = 10485760; // 10MB, consistente com ObjectUploader.tsx
+
 export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
-  const [uploadedBy, setUploadedBy] = useState(() => {
-    return localStorage.getItem("userName") || "";
-  });
+  const uploadedBy = getCurrentUserName();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -34,12 +34,9 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
 
   const uploadMutation = useMutation({
     mutationFn: async (photoUrl: string) => {
-      const currentUser = uploadedBy || "Usuário";
-      localStorage.setItem("userName", currentUser);
-      
       return apiRequest("POST", `/api/items/${itemId}/photos`, {
         photoUrl,
-        uploadedBy: currentUser,
+        uploadedBy,
       });
     },
     onSuccess: () => {
@@ -82,12 +79,13 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!uploadedBy.trim()) {
+    if (file.size > MAX_PHOTO_SIZE) {
       toast({
-        title: "Nome obrigatório",
-        description: "Por favor, informe seu nome antes de enviar a foto.",
+        title: "Arquivo muito grande",
+        description: `O arquivo selecionado excede o limite máximo de ${Math.round(MAX_PHOTO_SIZE / 1024 / 1024)}MB.`,
         variant: "destructive",
       });
+      e.target.value = "";
       return;
     }
 
@@ -115,9 +113,9 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
             <Label htmlFor="uploader-name">Seu nome</Label>
             <Input
               id="uploader-name"
-              placeholder="Nome de quem está enviando a foto"
               value={uploadedBy}
-              onChange={(e) => setUploadedBy(e.target.value)}
+              readOnly
+              disabled
               data-testid="input-uploader-name"
             />
           </div>

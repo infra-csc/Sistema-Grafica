@@ -1,9 +1,9 @@
 // Replit Object Storage Uploader Component
 // Reference: blueprint:javascript_object_storage
-import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { useFileUpload } from "@/hooks/use-file-upload";
 
 interface ObjectUploaderProps {
   maxNumberOfFiles?: number;
@@ -22,7 +22,7 @@ interface ObjectUploaderProps {
 
 /**
  * Componente de upload de arquivos para o Replit Object Storage
- * 
+ *
  * Upload simplificado via input file com upload automático ao selecionar arquivo
  */
 export function ObjectUploader({
@@ -35,23 +35,17 @@ export function ObjectUploader({
   buttonVariant = "default",
   children,
 }: ObjectUploaderProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const { fileInputRef, isUploading, validateAndGetFile, uploadFile } = useFileUpload({
+    maxFileSize,
+    onGetUploadParameters,
+    onComplete,
+    onError,
+    validateFile: (file) => (!file.type.startsWith("image/") ? "Apenas imagens são permitidas" : null),
+  });
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const file = validateAndGetFile(event);
     if (!file) return;
-
-    // Validações
-    if (!file.type.startsWith('image/')) {
-      onError?.(new Error('Apenas imagens são permitidas'));
-      return;
-    }
-
-    if (file.size > maxFileSize) {
-      onError?.(new Error(`Arquivo muito grande. Máximo: ${Math.round(maxFileSize / 1024 / 1024)}MB`));
-      return;
-    }
 
     // Criar preview local IMEDIATAMENTE
     const reader = new FileReader();
@@ -61,38 +55,7 @@ export function ObjectUploader({
     };
     reader.readAsDataURL(file);
 
-    setIsUploading(true);
-
-    try {
-      // Obter URL de upload
-      const { url } = await onGetUploadParameters();
-
-      // Fazer upload do arquivo
-      const uploadResponse = await fetch(url, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type,
-        },
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Erro ao fazer upload do arquivo');
-      }
-
-      // Extrair a URL final do objeto (remover query params)
-      const objectUrl = url.split('?')[0];
-      
-      onComplete?.({ url: objectUrl });
-    } catch (error) {
-      onError?.(error instanceof Error ? error : new Error('Erro no upload'));
-    } finally {
-      setIsUploading(false);
-      // Limpar input para permitir selecionar o mesmo arquivo novamente
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
+    await uploadFile(file);
   };
 
   return (
@@ -105,8 +68,8 @@ export function ObjectUploader({
         className="hidden"
         data-testid="input-file-upload"
       />
-      <Button 
-        onClick={() => fileInputRef.current?.click()} 
+      <Button
+        onClick={() => fileInputRef.current?.click()}
         className={buttonClassName}
         variant={buttonVariant}
         type="button"

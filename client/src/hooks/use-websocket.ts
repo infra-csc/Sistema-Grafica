@@ -2,10 +2,14 @@ import { useEffect, useRef, useCallback } from 'react';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000;
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
   const { toast } = useToast();
 
   const connect = useCallback(() => {
@@ -20,6 +24,7 @@ export function useWebSocket() {
 
     ws.onopen = () => {
       console.log('WebSocket connected');
+      reconnectAttemptsRef.current = 0;
     };
 
     ws.onmessage = (event) => {
@@ -176,12 +181,19 @@ export function useWebSocket() {
     ws.onclose = () => {
       console.log('WebSocket disconnected');
       if (unmountedRef.current) return;
+
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s. Resets to 0
+      // as soon as a connection is successfully (re)established in onopen.
+      const attempt = reconnectAttemptsRef.current;
+      const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS);
+      reconnectAttemptsRef.current = attempt + 1;
+
       reconnectTimerRef.current = setTimeout(() => {
         if (!unmountedRef.current) {
-          console.log('Reconnecting WebSocket...');
+          console.log(`Reconnecting WebSocket... (attempt ${attempt + 1}, delay ${delay}ms)`);
           connect();
         }
-      }, 5000);
+      }, delay);
     };
   }, [toast]);
 

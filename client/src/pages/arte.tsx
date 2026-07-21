@@ -1119,46 +1119,46 @@ export default function Arte() {
     {
       label: "Pendentes",
       value: pendingCount,
-      sub: "+hoje",
+      sub: "para envio",
       subColor: "#f97316",
       iconBg: "#fff7ed",
       iconColor: "#f97316",
+      accentColor: "#f97316",
       Icon: Clock,
       testId: "stat-pending",
-      borderLeft: false,
     },
     {
       label: "Aguard. Patrocin.",
       value: itemsForEvent.filter(i => i.status === 'awaiting_sponsor_approval').length,
-      sub: "Aguardando",
+      sub: "em análise",
       subColor: "#d97706",
       iconBg: "#fffbeb",
       iconColor: "#d97706",
+      accentColor: "#d97706",
       Icon: Clock,
       testId: "stat-awaiting-sponsor",
-      borderLeft: false,
     },
     {
       label: "Patrocin. Aprovou",
       value: itemsForEvent.filter(i => ['sponsor_approved', 'awaiting_creator_review'].includes(i.status)).length,
-      sub: "Verificado",
+      sub: "verificado",
       subColor: "#2563eb",
       iconBg: "#eff6ff",
       iconColor: "#2563eb",
+      accentColor: "#2563eb",
       Icon: CheckCircle,
       testId: "stat-sponsor-approved",
-      borderLeft: false,
     },
     {
       label: "Prontos p/ Prod.",
       value: itemsForEvent.filter(i => ['ready_for_production','approved'].includes(i.status)).length,
-      sub: "Liberado",
+      sub: "liberado",
       subColor: "#16a34a",
       iconBg: "#f0fdf4",
       iconColor: "#16a34a",
+      accentColor: "#16a34a",
       Icon: Package,
       testId: "stat-ready-production",
-      borderLeft: true,
     },
   ];
 
@@ -1822,10 +1822,11 @@ export default function Arte() {
         <div style={{ padding: '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
 
           {/* ── 1. STAT CARDS ─────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             {statCards.map((stat) => {
               const Icon = stat.Icon;
               const targetTab = statCardTabMap[stat.testId];
+              const isActiveCard = !!(activeTab === targetTab && targetTab);
               return (
                 <div
                   key={stat.testId}
@@ -1833,23 +1834,22 @@ export default function Arte() {
                   data-testid={stat.testId}
                   className="hover-elevate"
                   style={{
-                    backgroundColor: '#ffffff',
-                    padding: '16px 20px',
-                    borderRadius: 12,
-                    border: '1px solid #e7e5e4',
-                    borderLeft: stat.borderLeft ? '4px solid #22c55e' : '1px solid #e7e5e4',
+                    backgroundColor: isActiveCard ? `${stat.accentColor}08` : '#ffffff',
+                    padding: '14px 18px',
+                    borderRadius: 10,
+                    border: `1px solid ${isActiveCard ? `${stat.accentColor}40` : '#e7e5e4'}`,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 10,
+                    gap: 8,
                     cursor: targetTab ? 'pointer' : 'default',
-                    outline: activeTab === targetTab && targetTab ? '2px solid #f97316' : 'none',
-                    outlineOffset: -2,
+                    boxShadow: isActiveCard ? `inset 0 3px 0 0 ${stat.accentColor}` : 'none',
+                    transition: 'all 0.15s',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: '#78716c' }}>{stat.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: isActiveCard ? stat.accentColor : '#78716c', letterSpacing: '0.01em' }}>{stat.label}</span>
                     <span style={{
-                      width: 28, height: 28, borderRadius: 8,
+                      width: 28, height: 28, borderRadius: 7,
                       backgroundColor: stat.iconBg, color: stat.iconColor,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0,
@@ -1857,11 +1857,11 @@ export default function Arte() {
                       <Icon style={{ width: 14, height: 14 }} />
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 32, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', lineHeight: 1 }}>
-                      {String(stat.value).padStart(2, '0')}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 30, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                      {stat.value}
                     </span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: stat.subColor }}>{stat.sub}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: stat.subColor }}>{stat.sub}</span>
                   </div>
                 </div>
               );
@@ -1870,13 +1870,14 @@ export default function Arte() {
 
           {/* ── 2. FILTERS BAR ────────────────────────────────────────────── */}
           <div style={{
-            backgroundColor: '#f3f4f3',
-            padding: '10px 14px',
-            borderRadius: 10,
+            backgroundColor: '#fafaf9',
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: '1px solid #e7e5e4',
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
-            gap: 8,
+            gap: 6,
             marginBottom: 10,
           }}>
             {/* Filter icon + active count */}
@@ -2045,12 +2046,12 @@ export default function Arte() {
 
             {/* Next 10 days toggle */}
             <Button
-              variant={next10DaysFilter ? "default" : "outline"}
+              variant="outline"
               size="sm"
               onClick={() => setNext10DaysFilter(!next10DaysFilter)}
               data-testid="button-next-10-days-filter"
               className="h-9 bg-white border-0 text-sm gap-2 whitespace-nowrap"
-              style={next10DaysFilter ? { backgroundColor: '#1c1917', color: '#ffffff', border: 'none' } : {}}
+              style={next10DaysFilter ? { backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' } : {}}
             >
               <Truck style={{ width: 13, height: 13 }} />
               Próximos 10 dias
@@ -2075,30 +2076,37 @@ export default function Arte() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingBottom: 0 }}>
             {/* Tabs */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: 4, backgroundColor: 'rgba(214,211,209,0.5)',
-              borderRadius: 12, flexShrink: 0,
+              display: 'flex', alignItems: 'center', gap: 2,
+              padding: '3px', backgroundColor: '#f0efee',
+              borderRadius: 10, flexShrink: 0,
             }}>
               {tabs.map(tab => {
                 const isActive = activeTab === tab.id;
+                const tabAccentColors: Record<string, string> = {
+                  "criar-aprovacoes": "#f97316",
+                  "correcao": "#dc2626",
+                  "finalizar-layouts": "#2563eb",
+                  "finalizados": "#16a34a",
+                };
+                const accent = tabAccentColors[tab.id] || '#1c1917';
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     data-testid={tab.testId}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 7,
-                      padding: '8px 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
                       backgroundColor: isActive ? '#ffffff' : 'transparent',
                       color: isActive ? '#1c1917' : '#78716c',
                       fontWeight: isActive ? 700 : 500,
                       fontSize: 13,
-                      boxShadow: isActive ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                      boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                       transition: 'all 0.15s',
                       whiteSpace: 'nowrap',
                     }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#78716c'; }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
                   >
                     {tab.label}
                     {tab.count > 0 && (
@@ -2106,7 +2114,7 @@ export default function Arte() {
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         minWidth: 18, height: 18, borderRadius: 100,
                         fontSize: 10, fontWeight: 700,
-                        backgroundColor: isActive ? '#1c1917' : '#e7e5e4',
+                        backgroundColor: isActive ? accent : '#e7e5e4',
                         color: isActive ? '#ffffff' : '#78716c',
                         padding: '0 5px',
                       }}>

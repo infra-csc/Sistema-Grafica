@@ -73,6 +73,7 @@ export default function Atendimento() {
   const [batchShowRejectForm, setBatchShowRejectForm] = useState<boolean>(false);
   const [batchSelectedItemIds, setBatchSelectedItemIds] = useState<Set<string>>(new Set());
   const [batchSponsorComboOpen, setBatchSponsorComboOpen] = useState(false);
+  const [batchEventComboOpen, setBatchEventComboOpen]   = useState(false);
 
   // Map para rastrear patrocinadores de cada item
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
@@ -994,56 +995,69 @@ export default function Atendimento() {
       {!loadingSponsors && batchEligibleSponsors.length > 0 && (
         <section
           data-testid="section-batch-sponsor"
-          style={{
-            marginBottom: 32,
-            backgroundColor: '#ffffff',
-            border: '1px solid #e7e5e4',
-            borderRadius: 12,
-            overflow: 'hidden',
-          }}
+          style={{ marginBottom: 32, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 14, overflow: 'hidden' }}
         >
-          {/* Cabeçalho */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '18px 24px',
-            backgroundColor: '#f9f9f8',
-            borderBottom: '1px solid #e7e5e4',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ backgroundColor: '#ea580c', padding: '6px', borderRadius: 8, display: 'flex' }}>
-                <Zap style={{ width: 16, height: 16, color: '#ffffff' }} />
+          {/* ── Header do painel ── */}
+          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}>
+                <Zap style={{ width: 18, height: 18, color: '#ffffff' }} />
               </div>
               <div>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', margin: 0, color: '#1c1917' }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#ffffff' }}>
                   Aprovação em Lote
                 </h3>
-                <p style={{ color: '#78716c', fontSize: 12, margin: 0 }}>
-                  Processe múltiplos arquivos de um patrocinador simultaneamente
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>
+                  {batchEligibleSponsors.length} {batchEligibleSponsors.length === 1 ? 'patrocinador com' : 'patrocinadores com'} itens pendentes
                 </p>
               </div>
             </div>
-            {batchSelectedItemIds.size > 0 && (
-              <span style={{
-                fontSize: 12, fontWeight: 700, color: '#ea580c',
-                backgroundColor: '#fff7ed', border: '1px solid #fed7aa',
-                borderRadius: 20, padding: '4px 14px',
-              }}>
-                {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
-              </span>
-            )}
+            {/* Indicador de progresso */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {[
+                { n: 1, label: 'Patrocinador', done: !!batchSponsorId },
+                { n: 2, label: 'Evento', done: !!batchEventId },
+                { n: 3, label: 'Revisão', done: batchItemCount > 0 && !!batchEventId },
+              ].map((step, idx) => {
+                const active = idx === 0 ? !batchSponsorId : idx === 1 ? !!batchSponsorId && !batchEventId : !!batchSponsorId && !!batchEventId;
+                return (
+                  <Fragment key={step.n}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: step.done ? '#22c55e' : active ? '#f97316' : 'rgba(255,255,255,0.15)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 10, fontWeight: 800, color: step.done || active ? '#fff' : 'rgba(255,255,255,0.4)',
+                        flexShrink: 0, transition: 'background 0.2s',
+                      }}>
+                        {step.done ? <Check style={{ width: 11, height: 11 }} /> : step.n}
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: step.done ? 'rgba(255,255,255,0.7)' : active ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)', letterSpacing: '0.04em', display: idx === 2 && !batchSponsorId ? 'none' : 'block' }}>
+                        {step.label}
+                      </span>
+                    </div>
+                    {idx < 2 && <div style={{ width: 20, height: 1, background: step.done ? '#22c55e' : 'rgba(255,255,255,0.15)' }} />}
+                  </Fragment>
+                );
+              })}
+            </div>
           </div>
 
-          <div style={{ padding: 24 }}>
-            {/* ── Linha de Filtros ── */}
-            <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+          <div style={{ padding: '24px 28px' }}>
+            {/* ── Seletores: Patrocinador + Evento ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+
               {/* Patrocinador */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#78716c', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 16, height: 16, borderRadius: '50%', background: batchSponsorId ? '#22c55e' : '#e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: '#fff', flexShrink: 0 }}>
+                    {batchSponsorId ? <Check style={{ width: 9, height: 9 }} /> : '1'}
+                  </span>
                   Patrocinador
                 </label>
                 {(() => {
-                  const sortedAllSponsors = [...(sponsors as any[])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-                  const selSponsor = sortedAllSponsors.find(s => s.id === batchSponsorId);
+                  const sortedEligible = [...batchEligibleSponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'));
+                  const selSponsor = sortedEligible.find((s: any) => s.id === batchSponsorId);
                   return (
                     <Popover open={batchSponsorComboOpen} onOpenChange={setBatchSponsorComboOpen}>
                       <PopoverTrigger asChild>
@@ -1051,30 +1065,32 @@ export default function Atendimento() {
                           data-testid="select-batch-sponsor"
                           style={{
                             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-                            color: selSponsor ? '#1c1917' : '#a8a29e',
-                            borderRadius: 8, padding: '10px 14px',
-                            fontSize: 13, cursor: 'pointer', outline: 'none',
+                            background: selSponsor ? '#fff7ed' : '#ffffff',
+                            border: `1.5px solid ${selSponsor ? '#fb923c' : '#e7e5e4'}`,
+                            color: selSponsor ? '#9a3412' : '#a8a29e',
+                            borderRadius: 10, padding: '11px 14px',
+                            fontSize: 13, fontWeight: selSponsor ? 700 : 400,
+                            cursor: 'pointer', outline: 'none', transition: 'border-color 0.15s',
                           }}
                         >
                           <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
                             {selSponsor && (
-                              <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: selSponsor.color || '#a8a29e', flexShrink: 0, display: 'inline-block' }} />
+                              <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: (selSponsor as any).color || '#a8a29e', flexShrink: 0 }} />
                             )}
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {selSponsor ? selSponsor.name : 'Selecionar patrocinador...'}
+                              {selSponsor ? (selSponsor as any).name : 'Selecionar patrocinador...'}
                             </span>
                           </span>
                           <ChevronsUpDown style={{ width: 13, height: 13, color: '#a8a29e', flexShrink: 0 }} />
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="p-0" style={{ width: 260 }} align="start">
+                      <PopoverContent className="p-0" style={{ width: 280 }} align="start">
                         <Command>
                           <CommandInput placeholder="Buscar patrocinador..." />
                           <CommandList>
                             <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
                             <CommandGroup>
-                              {sortedAllSponsors.map((s: any) => (
+                              {sortedEligible.map((s: any) => (
                                 <CommandItem
                                   key={s.id}
                                   value={s.name}
@@ -1086,9 +1102,9 @@ export default function Atendimento() {
                                     setBatchSponsorComboOpen(false);
                                   }}
                                 >
-                                  <Check style={{ width: 14, height: 14, opacity: batchSponsorId === s.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
-                                  <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0, display: 'inline-block', marginRight: 6 }} />
-                                  {s.name}
+                                  <Check style={{ width: 13, height: 13, opacity: batchSponsorId === s.id ? 1 : 0, marginRight: 6, flexShrink: 0, color: '#ea580c' }} />
+                                  <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0, display: 'inline-block', marginRight: 7 }} />
+                                  <span style={{ flex: 1 }}>{s.name}</span>
                                 </CommandItem>
                               ))}
                             </CommandGroup>
@@ -1101,75 +1117,112 @@ export default function Atendimento() {
               </div>
 
               {/* Evento */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: batchSponsorId ? '#78716c' : '#c4bfbb', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 16, height: 16, borderRadius: '50%', background: batchEventId ? '#22c55e' : batchSponsorId ? '#f97316' : '#e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: '#fff', flexShrink: 0 }}>
+                    {batchEventId ? <Check style={{ width: 9, height: 9 }} /> : '2'}
+                  </span>
                   Evento
                 </label>
-                <select
-                  value={batchEventId}
-                  onChange={e => { setBatchEventId(e.target.value); setBatchShowRejectForm(false); setBatchRejectReason(""); }}
-                  disabled={!batchSponsorId}
-                  data-testid="select-batch-event"
-                  style={{
-                    width: '100%', backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-                    color: batchEventId ? '#1c1917' : '#a8a29e', borderRadius: 8, padding: '10px 14px',
-                    fontSize: 13, cursor: batchSponsorId ? 'pointer' : 'not-allowed',
-                    outline: 'none', opacity: batchSponsorId ? 1 : 0.5,
-                  }}
-                >
-                  <option value="">{batchSponsorId ? 'Selecionar evento...' : 'Selecione um patrocinador primeiro'}</option>
-                  {batchEligibleEvents.map((ev: any) => (
-                    <option key={ev.id} value={ev.id}>{ev.name}</option>
-                  ))}
-                </select>
+                {(() => {
+                  const selEvent = batchEligibleEvents.find((e: any) => e.id === batchEventId);
+                  return (
+                    <Popover open={batchEventComboOpen} onOpenChange={v => { if (batchSponsorId) setBatchEventComboOpen(v); }}>
+                      <PopoverTrigger asChild>
+                        <button
+                          data-testid="select-batch-event"
+                          disabled={!batchSponsorId}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            background: selEvent ? '#f0fdf4' : '#ffffff',
+                            border: `1.5px solid ${selEvent ? '#86efac' : batchSponsorId ? '#e7e5e4' : '#f0ede8'}`,
+                            color: selEvent ? '#166534' : batchSponsorId ? '#a8a29e' : '#d4d0cd',
+                            borderRadius: 10, padding: '11px 14px',
+                            fontSize: 13, fontWeight: selEvent ? 700 : 400,
+                            cursor: batchSponsorId ? 'pointer' : 'not-allowed', outline: 'none',
+                            opacity: batchSponsorId ? 1 : 0.55, transition: 'all 0.15s',
+                          }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {selEvent ? (selEvent as any).name : batchSponsorId ? `${batchEligibleEvents.length} evento${batchEligibleEvents.length !== 1 ? 's' : ''} disponível${batchEligibleEvents.length !== 1 ? 'is' : ''}` : 'Selecione um patrocinador primeiro'}
+                          </span>
+                          <ChevronsUpDown style={{ width: 13, height: 13, flexShrink: 0 }} />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" style={{ width: 300 }} align="start">
+                        <Command>
+                          <CommandInput placeholder="Buscar evento..." />
+                          <CommandList>
+                            <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              {batchEligibleEvents.map((ev: any) => (
+                                <CommandItem
+                                  key={ev.id}
+                                  value={ev.name}
+                                  onSelect={() => {
+                                    setBatchEventId(ev.id);
+                                    setBatchShowRejectForm(false);
+                                    setBatchRejectReason("");
+                                    setBatchEventComboOpen(false);
+                                  }}
+                                >
+                                  <Check style={{ width: 13, height: 13, opacity: batchEventId === ev.id ? 1 : 0, marginRight: 6, flexShrink: 0, color: '#16a34a' }} />
+                                  {ev.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })()}
               </div>
             </div>
 
-            {/* ── Área de Items ── */}
+            {/* ── Área de itens ── */}
             {batchSponsorId && batchEventId ? (
               batchItemCount === 0 ? (
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '32px 0', gap: 10, color: '#a8a29e',
-                  backgroundColor: '#f9f9f8', borderRadius: 8, border: '1px dashed #e7e5e4',
-                }}>
-                  <CheckCircle style={{ width: 18, height: 18 }} />
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>Nenhuma peça pendente para esta combinação</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: 10, backgroundColor: '#f9f9f8', borderRadius: 10, border: '1px dashed #e7e5e4' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <CheckCircle style={{ width: 22, height: 22, color: '#16a34a' }} />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>Tudo aprovado</p>
+                    <p style={{ fontSize: 12, color: '#a8a29e', margin: 0 }}>Nenhuma peça pendente para esta combinação</p>
+                  </div>
                 </div>
               ) : (
                 <>
-                  {/* Barra de seleção */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginBottom: 12,
-                  }}>
-                    <label style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      fontSize: 12, fontWeight: 600, color: '#57534e', cursor: 'pointer',
-                    }}>
+                  {/* Barra de seleção + contadores */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, padding: '10px 14px', backgroundColor: '#fafaf9', borderRadius: 8, border: '1px solid #f0ede8' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, fontWeight: 700, color: '#1c1917', cursor: 'pointer', userSelect: 'none' }}>
                       <input
                         type="checkbox"
-                        checked={batchSelectedItemIds.size === batchItemCount}
+                        checked={batchSelectedItemIds.size === batchItemCount && batchItemCount > 0}
                         onChange={e => {
                           if (e.target.checked) setBatchSelectedItemIds(new Set(batchEligibleItems.map((i: any) => i.id)));
                           else setBatchSelectedItemIds(new Set());
                         }}
-                        style={{ accentColor: '#ea580c', width: 14, height: 14, cursor: 'pointer' }}
+                        style={{ accentColor: '#ea580c', width: 15, height: 15, cursor: 'pointer' }}
                       />
                       Selecionar todos
                     </label>
-                    <span style={{ fontSize: 11, color: '#a8a29e' }}>
-                      {batchSelectedItemIds.size} / {batchItemCount} {batchItemCount === 1 ? 'peça' : 'peças'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length > 0 && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#b45309', fontWeight: 600, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 20, padding: '2px 10px' }}>
+                          <AlertCircle style={{ width: 10, height: 10 }} />
+                          {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length} sem arte
+                        </span>
+                      )}
+                      <span style={{ fontSize: 12, fontWeight: 700, color: batchSelectedItemIds.size > 0 ? '#ea580c' : '#a8a29e' }}>
+                        {batchSelectedItemIds.size} / {batchItemCount} selecionadas
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Grid de itens */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                    gap: 10,
-                    marginBottom: 20,
-                  }}>
+                  {/* Lista de itens */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20, maxHeight: 340, overflowY: 'auto', paddingRight: 2 }}>
                     {batchEligibleItems.map((item: any) => {
                       const isChecked = batchSelectedItemIds.has(item.id);
                       const hasThumb = !!item.approvalThumbUrl;
@@ -1177,20 +1230,18 @@ export default function Atendimento() {
                         <div
                           key={item.id}
                           data-testid={`batch-item-row-${item.id}`}
-                          onClick={() => {
-                            setBatchSelectedItemIds(prev => {
-                              const next = new Set(prev);
-                              if (next.has(item.id)) next.delete(item.id);
-                              else next.add(item.id);
-                              return next;
-                            });
-                          }}
+                          onClick={() => setBatchSelectedItemIds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(item.id)) next.delete(item.id);
+                            else next.add(item.id);
+                            return next;
+                          })}
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '10px 12px',
-                            backgroundColor: isChecked ? '#fff7ed' : '#f9f9f8',
-                            border: `1px solid ${isChecked ? '#fb923c' : '#e7e5e4'}`,
-                            borderRadius: 8, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            padding: '10px 14px',
+                            backgroundColor: isChecked ? '#fff7ed' : '#ffffff',
+                            border: `1.5px solid ${isChecked ? '#fb923c' : '#f0ede8'}`,
+                            borderRadius: 10, cursor: 'pointer',
                             transition: 'border-color 0.12s, background-color 0.12s',
                           }}
                         >
@@ -1207,27 +1258,45 @@ export default function Atendimento() {
                                 return next;
                               });
                             }}
-                            style={{ accentColor: '#ea580c', width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
+                            style={{ accentColor: '#ea580c', width: 15, height: 15, cursor: 'pointer', flexShrink: 0 }}
                           />
                           {/* Thumbnail */}
-                          <div style={{
-                            width: 44, height: 44, borderRadius: 6,
-                            backgroundColor: '#e7e5e4', flexShrink: 0, overflow: 'hidden',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
+                          <div style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: hasThumb ? '#f0ede8' : '#f4f4f3', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${hasThumb ? 'rgba(0,0,0,0.06)' : '#e7e5e4'}`, position: 'relative' }}>
                             {hasThumb ? (
                               <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
-                              <Package style={{ width: 16, height: 16, color: '#a8a29e' }} />
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                <Package style={{ width: 18, height: 18, color: '#c4bfbb' }} />
+                                <span style={{ fontSize: 7, color: '#c4bfbb', fontWeight: 700, letterSpacing: '0.04em' }}>SEM ARTE</span>
+                              </div>
                             )}
                           </div>
-                          <div style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 12, fontWeight: 700, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#1c1917' }}>
-                              {item.type}
-                            </p>
-                            <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0', fontFamily: 'monospace' }}>
-                              {item.displayId}
-                            </p>
+                          {/* Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                              <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 800, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
+                                {item.displayId}
+                              </span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.type}
+                              </span>
+                            </div>
+                            {item.description && (
+                              <p style={{ fontSize: 11, color: '#78716c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                          {/* Status thumb */}
+                          <div style={{ flexShrink: 0 }}>
+                            {hasThumb
+                              ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#15803d', fontWeight: 700, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 20, padding: '2px 8px' }}>
+                                  <CheckCircle style={{ width: 9, height: 9 }} /> Arte OK
+                                </span>
+                              : <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#92400e', fontWeight: 700, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 20, padding: '2px 8px' }}>
+                                  <AlertCircle style={{ width: 9, height: 9 }} /> Sem arte
+                                </span>
+                            }
                           </div>
                         </div>
                       );
@@ -1236,72 +1305,85 @@ export default function Atendimento() {
 
                   {/* ── Ações ── */}
                   {!batchShowRejectForm ? (
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
-                      <button
-                        onClick={() => setBatchShowRejectForm(true)}
-                        disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
-                        data-testid="button-batch-reject"
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          backgroundColor: '#ffffff', color: '#dc2626',
-                          border: '1px solid #fca5a5', borderRadius: 8,
-                          padding: '10px 20px', fontSize: 13, fontWeight: 700,
-                          cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                          opacity: batchSelectedItemIds.size === 0 ? 0.45 : 1,
-                        }}
-                      >
-                        <XCircle style={{ width: 15, height: 15 }} />
-                        Recusar
-                      </button>
-                      <button
-                        onClick={() => setConfirmApproveBatch(true)}
-                        disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
-                        data-testid="button-batch-approve"
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          backgroundColor: '#ea580c', color: '#ffffff',
-                          border: 'none', borderRadius: 8,
-                          padding: '10px 24px', fontSize: 13, fontWeight: 700,
-                          cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                          opacity: batchSelectedItemIds.size === 0 ? 0.45 : 1,
-                        }}
-                      >
-                        {batchSponsorMutation.isPending
-                          ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin" />
-                          : <CheckCircle style={{ width: 15, height: 15 }} />}
-                        Aprovar {batchSelectedItemIds.size > 0 ? `${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'Peça' : 'Peças'}` : 'Seleção'}
-                      </button>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: '#fafaf9', borderRadius: 10, border: '1px solid #f0ede8' }}>
+                      <p style={{ fontSize: 12, color: '#78716c', margin: 0 }}>
+                        {batchSelectedItemIds.size > 0
+                          ? <><strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> prontas para decisão</>
+                          : 'Selecione peças para aprovar ou recusar'}
+                      </p>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button
+                          onClick={() => setBatchShowRejectForm(true)}
+                          disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
+                          data-testid="button-batch-reject"
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 7,
+                            backgroundColor: '#ffffff', color: '#dc2626',
+                            border: '1.5px solid #fca5a5', borderRadius: 9,
+                            padding: '10px 18px', fontSize: 13, fontWeight: 700,
+                            cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                            opacity: batchSelectedItemIds.size === 0 ? 0.4 : 1,
+                            transition: 'filter 0.15s',
+                          }}
+                          onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(0.96)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+                        >
+                          <XCircle style={{ width: 15, height: 15 }} />
+                          Recusar
+                        </button>
+                        <button
+                          onClick={() => setConfirmApproveBatch(true)}
+                          disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
+                          data-testid="button-batch-approve"
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 7,
+                            background: batchSelectedItemIds.size === 0 ? '#e7e5e4' : 'linear-gradient(135deg, #22c55e, #16a34a)',
+                            color: '#ffffff', border: 'none', borderRadius: 9,
+                            padding: '10px 22px', fontSize: 13, fontWeight: 800,
+                            cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
+                            boxShadow: batchSelectedItemIds.size > 0 ? '0 4px 12px rgba(34,197,94,0.35)' : 'none',
+                            letterSpacing: '-0.01em', fontFamily: "'Space Grotesk', sans-serif",
+                            transition: 'filter 0.15s, box-shadow 0.15s',
+                          }}
+                          onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+                        >
+                          {batchSponsorMutation.isPending
+                            ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
+                            : <CheckCircle style={{ width: 14, height: 14 }} />}
+                          Aprovar {batchSelectedItemIds.size > 0 ? `${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'Peça' : 'Peças'}` : ''}
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <div style={{
-                      backgroundColor: '#fef2f2', border: '1px solid #fca5a5',
-                      borderRadius: 8, padding: 16,
-                    }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <XCircle style={{ width: 14, height: 14 }} />
-                        Motivo da reprovação
-                      </p>
+                    <div style={{ backgroundColor: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 10, padding: '18px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <XCircle style={{ width: 16, height: 16, color: '#dc2626' }} />
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 800, color: '#dc2626', margin: 0 }}>Recusar {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</p>
+                          <p style={{ fontSize: 11, color: '#f87171', margin: 0 }}>O motivo será registrado no histórico e comunicado à Arte</p>
+                        </div>
+                      </div>
                       <textarea
                         value={batchRejectReason}
                         onChange={e => setBatchRejectReason(e.target.value)}
-                        placeholder="Descreva o motivo para o patrocinador..."
+                        placeholder="Descreva o motivo da recusa para a equipe de Arte..."
                         data-testid="textarea-batch-reject-reason"
+                        rows={3}
                         style={{
                           width: '100%', backgroundColor: '#ffffff',
-                          border: `1px solid ${batchRejectReason.trim() === "" ? '#fca5a5' : '#e7e5e4'}`,
+                          border: `1.5px solid ${batchRejectReason.trim() === "" ? '#fca5a5' : '#e7e5e4'}`,
                           color: '#1c1917', borderRadius: 8, padding: '10px 12px',
-                          fontSize: 13, resize: 'none', height: 76, outline: 'none',
-                          boxSizing: 'border-box',
+                          fontSize: 13, resize: 'vertical', outline: 'none',
+                          boxSizing: 'border-box', lineHeight: 1.5,
                         }}
                       />
-                      <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
                         <button
                           onClick={() => { setBatchShowRejectForm(false); setBatchRejectReason(""); }}
-                          style={{
-                            backgroundColor: '#ffffff', color: '#78716c',
-                            border: '1px solid #e7e5e4', borderRadius: 8,
-                            padding: '9px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                          }}
+                          style={{ backgroundColor: '#ffffff', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 8, padding: '9px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Cancelar
                         </button>
@@ -1313,8 +1395,9 @@ export default function Atendimento() {
                             display: 'flex', alignItems: 'center', gap: 6,
                             backgroundColor: batchRejectReason.trim() === "" ? '#e7e5e4' : '#dc2626',
                             color: '#ffffff', border: 'none', borderRadius: 8,
-                            padding: '9px 18px', fontSize: 12, fontWeight: 700,
+                            padding: '9px 20px', fontSize: 13, fontWeight: 800,
                             cursor: batchRejectReason.trim() === "" ? 'not-allowed' : 'pointer',
+                            fontFamily: "'Space Grotesk', sans-serif",
                           }}
                         >
                           {batchSponsorMutation.isPending
@@ -1328,14 +1411,21 @@ export default function Atendimento() {
                 </>
               )
             ) : (
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '32px 0', color: '#a8a29e',
-                backgroundColor: '#f9f9f8', borderRadius: 8, border: '1px dashed #e7e5e4',
-              }}>
-                <span style={{ fontSize: 13, fontWeight: 500 }}>
-                  {batchSponsorId ? 'Selecione um evento para ver as peças.' : 'Selecione um patrocinador e um evento para começar.'}
-                </span>
+              /* Estado vazio — orientação de uso */
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '24px 28px', backgroundColor: '#fafaf9', borderRadius: 10, border: '1px dashed #e7e5e4' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: '#f4f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Zap style={{ width: 22, height: 22, color: '#d4d0cd' }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>
+                    {batchSponsorId ? 'Selecione o evento' : 'Selecione o patrocinador'}
+                  </p>
+                  <p style={{ fontSize: 12, color: '#a8a29e', margin: 0, lineHeight: 1.5 }}>
+                    {batchSponsorId
+                      ? `${batchEligibleEvents.length} evento${batchEligibleEvents.length !== 1 ? 's' : ''} com peças pendentes para o patrocinador selecionado.`
+                      : `${batchEligibleSponsors.length} patrocinador${batchEligibleSponsors.length !== 1 ? 'es' : ''} aguardam decisão — escolha um para iniciar o lote.`}
+                  </p>
+                </div>
               </div>
             )}
           </div>

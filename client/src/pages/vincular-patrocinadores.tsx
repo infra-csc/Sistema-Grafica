@@ -426,12 +426,13 @@ export default function VincularPatrocinadores() {
     return states;
   }, [visibleItems, originalSponsorsMap, pendingChanges]);
 
-  // Auto-deselect items que saíram do estado PENDENTE (ex: após vincular patrocinador individualmente)
+  // Auto-deselect items que saíram de PENDENTE/RASCUNHO (ex: após salvar → PRONTO, ou enviar → ENVIADO)
   useEffect(() => {
     setSelectedItemIds(prev => {
       const next = new Set<string>();
       prev.forEach(id => {
-        if ((itemUIStates[id] || 'PENDENTE') === 'PENDENTE') {
+        const st = itemUIStates[id] || 'PENDENTE';
+        if (st === 'PENDENTE' || st === 'RASCUNHO') {
           next.add(id);
         }
       });
@@ -997,22 +998,6 @@ export default function VincularPatrocinadores() {
     return { completed, total: eventItems.length };
   };
 
-  // Separar items em duas categorias para as abas
-  const itemsParaVincular = useMemo(() => {
-    // Items que ainda precisam ter patrocinadores vinculados
-    // Inclui: PENDENTE (sem sponsors) e RASCUNHO (mudanças não salvas)
-    return visibleItems.filter(item => {
-      const uiStatus = itemUIStates[item.id];
-      return uiStatus === 'PENDENTE' || uiStatus === 'RASCUNHO';
-    });
-  }, [visibleItems, itemUIStates]);
-
-  const itemsParaEnviar = useMemo(() => {
-    return visibleItems.filter(item => {
-      const uiStatus = itemUIStates[item.id];
-      return uiStatus === 'PRONTO';
-    });
-  }, [visibleItems, itemUIStates]);
 
   // ── Dados agrupados para aba "Por Patrocinador" ──────────────────────────
   // Estrutura: [{ event, sponsors: [{ sponsor, items: any[] }] }]

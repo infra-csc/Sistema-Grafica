@@ -1871,17 +1871,4 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/admin/fix-legacy-requested", requireAuth, async (req, res) => {
-    if ((req as any).userRole !== "admin") return res.status(403).json({ error: "Admin only" });
-    try {
-      const { db } = await import("../db");
-      const { items } = await import("@shared/schema");
-      const { eq } = await import("drizzle-orm");
-      const result = await db.update(items).set({ status: "awaiting_linking" }).where(eq(items.status, "requested")).returning({ id: items.id });
-      res.json({ updated: result.length, message: `Moved ${result.length} legacy 'requested' items → awaiting_linking` });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
 }

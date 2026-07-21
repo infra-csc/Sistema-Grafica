@@ -7,7 +7,6 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { FilePreview } from "@/components/file-preview";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -1537,14 +1536,13 @@ export default function Atendimento() {
                         className="group"
                         style={{
                           backgroundColor: '#ffffff', borderRadius: 12,
-                          borderLeft: `4px solid ${isFullyApproved ? '#d6d3d1' : '#f97316'}`,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                          boxShadow: `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : '#f97316'}`,
                           overflow: 'hidden',
                           opacity: isFullyApproved ? 0.75 : 1,
                           transition: 'box-shadow 0.2s',
                         }}
-                        onMouseEnter={e => { if (!isFullyApproved) (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; }}
+                        onMouseEnter={e => { if (!isFullyApproved) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px rgba(0,0,0,0.1), inset 4px 0 0 #f97316`; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : '#f97316'}`; }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', padding: 20, gap: 24 }}>
 
@@ -1659,13 +1657,22 @@ export default function Atendimento() {
                             {/* Col 4: Botão de ação */}
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                               {isFullyApproved ? (
-                                <span style={{
-                                  padding: '8px 20px', borderRadius: 8,
-                                  backgroundColor: '#f1f5f9', color: '#94a3b8',
-                                  fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                                }}>
+                                <button
+                                  onClick={() => handleViewDetails(item)}
+                                  data-testid={`button-history-${item.id}`}
+                                  style={{
+                                    padding: '8px 20px', borderRadius: 8,
+                                    backgroundColor: '#f1f5f9', border: 'none', color: '#64748b',
+                                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                                    transition: 'background-color 0.15s',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e2e8f0'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                                >
+                                  <Eye style={{ width: 12, height: 12 }} />
                                   Histórico
-                                </span>
+                                </button>
                               ) : (
                                 <button
                                   onClick={() => handleViewDetails(item)}
@@ -1727,8 +1734,7 @@ export default function Atendimento() {
                         data-testid={`row-approved-item-${item.id}`}
                         style={{
                           backgroundColor: '#ffffff', borderRadius: 12,
-                          borderLeft: '4px solid #d6d3d1',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.04), inset 4px 0 0 #d6d3d1',
                           overflow: 'hidden', opacity: 0.7,
                         }}
                       >
@@ -1744,7 +1750,7 @@ export default function Atendimento() {
                               <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0' }}>{item.displayId}</p>
                             </div>
                             <SponsorChips sponsors={itemSps} variant="gray" size="sm" />
-                            <span style={{
+                            <span data-testid={`badge-aprovado-${item.id}`} style={{
                               display: 'inline-flex', alignItems: 'center', gap: 4,
                               fontSize: 10, fontWeight: 700, color: '#15803d',
                               backgroundColor: '#f0fdf4', border: '1px solid #86efac',
@@ -1752,13 +1758,7 @@ export default function Atendimento() {
                             }}>
                               <CheckCircle style={{ width: 11, height: 11 }} /> APROVADO
                             </span>
-                            <span data-testid={`badge-aprovado-${item.id}`} style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                              color: '#15803d', borderRadius: 6, fontSize: 12, fontWeight: 600, padding: '4px 12px',
-                            }}>
-                              <CheckCircle style={{ width: 12, height: 12 }} /> Aprovado
-                            </span>
+                            <span />
                           </div>
                         </div>
                       </div>
@@ -2015,7 +2015,7 @@ export default function Atendimento() {
                                         Reprovar
                                       </button>
                                       <button
-                                        onClick={() => setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.sponsor?.name || 'Patrocinador' })}
+                                        onClick={() => setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador' })}
                                         disabled={individualApproveMutation.isPending}
                                         data-testid={`button-approve-sponsor-${sponsor.id}`}
                                         style={{

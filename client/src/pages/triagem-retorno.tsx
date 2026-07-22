@@ -422,7 +422,7 @@ export default function TriagemRetorno() {
   const selectedIds = Object.entries(entries).filter(([, e]) => e.selected).map(([id]) => id);
 
   const handleBulk = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || savingIds.size > 0) return;
     setSavingIds(new Set(selectedIds));
     const results = await Promise.allSettled(
       selectedIds.map(id => {
@@ -430,12 +430,15 @@ export default function TriagemRetorno() {
         return doTriage(id, asset?.quantity ?? 1);
       })
     );
-    const succeeded = results.filter(r => r.status === "fulfilled").length;
-    const failed = results.filter(r => r.status === "rejected").length;
-    setSavedIds(prev => new Set(Array.from(prev).concat(selectedIds)));
+    // Só marca como salvo (some da fila) o que realmente foi registrado. Os que
+    // falharam continuam visíveis e selecionados para nova tentativa — antes,
+    // TODOS os selecionados saíam da lista, "engolindo" os que deram erro.
+    const okIds = selectedIds.filter((_, i) => results[i].status === "fulfilled");
+    const failed = selectedIds.length - okIds.length;
+    setSavedIds(prev => new Set(Array.from(prev).concat(okIds)));
     setSavingIds(new Set());
-    setEntries(prev => { const next = { ...prev }; selectedIds.forEach(id => { if (next[id]) next[id].selected = false; }); return next; });
-    toast({ title: failed > 0 ? `${succeeded} salvas, ${failed} com erro.` : `${succeeded} triagem(ns) registradas.`, variant: failed > 0 ? "destructive" : "default" });
+    setEntries(prev => { const next = { ...prev }; okIds.forEach(id => { if (next[id]) next[id].selected = false; }); return next; });
+    toast({ title: failed > 0 ? `${okIds.length} registrada(s), ${failed} com erro.` : `${okIds.length} triagem(ns) registradas.`, variant: failed > 0 ? "destructive" : "default" });
     refetch();
   };
 

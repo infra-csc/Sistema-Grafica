@@ -471,7 +471,7 @@ export default function Usuarios() {
       ══════════════════════════════ */}
       {modalOpen && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.55)", backdropFilter: "blur(4px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget) setModalOpen(false); }}>
+          onClick={e => { if (e.target === e.currentTarget && window.confirm("Descartar as alterações deste formulário?")) setModalOpen(false); }}>
           <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 520, borderRadius: 10, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)" }}>
             {/* Modal header */}
             <div style={{ backgroundColor: T.low, padding: "20px 28px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>

@@ -149,7 +149,7 @@ export default function Historico() {
 
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: items = [] }  = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+  const { data: auditLogs = [], isLoading: logsLoading } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
 
   /* ── Build timeline ── */
   const auditLogMap = new Map<string, any>();
@@ -402,7 +402,11 @@ export default function Historico() {
         </div>
 
         {/* Rows */}
-        {filtered.length === 0 ? (
+        {logsLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: "80px 24px" }}>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
             <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
               <Search style={{ width: 32, height: 32, color: P.muted }} />

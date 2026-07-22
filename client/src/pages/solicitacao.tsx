@@ -109,6 +109,27 @@ export default function Solicitacao() {
     onError: (error: any) => toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" }),
   });
 
+  const bulkReturnMutation = useMutation({
+    mutationFn: async (payload: { ids: string[]; notes: string }) => {
+      const results = await Promise.allSettled(
+        payload.ids.map(id => apiRequest("POST", `/api/items/${id}/return-to-arte`, { notes: payload.notes }))
+      );
+      return { total: payload.ids.length, failed: results.filter(r => r.status === "rejected").length };
+    },
+    onSuccess: ({ total, failed }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      setSelectedItemIds(new Set()); setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
+      const ok = total - failed;
+      if (failed > 0) {
+        toast({ title: "Devolução parcial", description: `${ok} devolvida(s), ${failed} com erro.`, variant: "destructive" });
+      } else {
+        toast({ title: "Peças devolvidas", description: `${ok} peça(s) devolvida(s) para a Arte.` });
+      }
+    },
+    onError: (error: any) => toast({ title: "Erro ao devolver peças", description: error.message, variant: "destructive" }),
+  });
+
   const bulkCancelMutation = useMutation({
     mutationFn: async (payload: { itemIds: string[]; notes?: string }) =>
       await apiRequest("PATCH", `/api/items/bulk-cancel`, { itemIds: payload.itemIds, notes: payload.notes }),
@@ -1161,17 +1182,15 @@ export default function Solicitacao() {
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-bulk-return-cancel">Manter Itens</AlertDialogCancel>
             <AlertDialogAction
-              onClick={async () => {
-                const ids = Array.from(selectedItemIds);
-                await Promise.all(ids.map(id => apiRequest("POST", `/api/items/${id}/return-to-arte`, { notes: bulkReturnObservations })));
-                queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-                setSelectedItemIds(new Set()); setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
-                toast({ title: "Peças devolvidas", description: `${ids.length} peça(s) devolvida(s) para a Arte.` });
+              onClick={(e) => {
+                e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
+                bulkReturnMutation.mutate({ ids: Array.from(selectedItemIds), notes: bulkReturnObservations });
               }}
+              disabled={bulkReturnMutation.isPending}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-bulk-return-confirm"
             >
-              Devolver para Arte
+              {bulkReturnMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

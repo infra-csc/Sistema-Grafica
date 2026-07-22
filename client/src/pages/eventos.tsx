@@ -573,7 +573,9 @@ export default function Eventos() {
           {/* ── MODAL CRIAR / EDITAR (Dialog 100% controlado, sem DialogTrigger) ── */}
           <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(isOpen); }}>
             {/* ── MODAL CRIAR / EDITAR ── */}
-            <DialogContent className="sm:max-w-[720px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' }}>
+            <DialogContent className="sm:max-w-[720px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' }}
+              onInteractOutside={e => e.preventDefault()}
+              onEscapeKeyDown={e => e.preventDefault()}>{/* evita descartar o formulário (nome, datas, prazos, patrocinadores) por clique fora/Esc acidental — usar Cancelar/Salvar */}
               {/* Cabeçalho */}
               <div style={{ padding: '24px', borderBottom: '1px solid rgba(224,192,177,0.2)', backgroundColor: '#fafaf9', borderRadius: '16px 16px 0 0' }}>
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em', lineHeight: 1 }}>

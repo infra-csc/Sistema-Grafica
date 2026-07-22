@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Fragment, useState, useMemo, useEffect, useCallback } from "react";
+import { Fragment, useState, useMemo, useEffect, useCallback, useDeferredValue } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploader } from "@/components/FileUploader";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,7 +30,9 @@ export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
-  const [activeTab, setActiveTab] = useState<string>("criar-aprovacoes");
+  // Persiste a aba ativa para não voltar ao padrão ao abrir uma peça e retornar.
+  const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
+  useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");
@@ -42,6 +44,9 @@ export default function Arte() {
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
+  // Adia o valor usado na filtragem: o input segue responsivo, mas a tabela
+  // (grande) não re-renderiza a cada tecla — evita engasgo com muitas peças.
+  const deferredSearch = useDeferredValue(searchFilter);
 
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [showBulkDialog, setShowBulkDialog] = useState(false);
@@ -1040,8 +1045,8 @@ export default function Arte() {
         if (monthFilter !== "all" && item.event?.truckDepartureDate) {
           matchesMonth = (new Date(item.event.truckDepartureDate).getMonth() + 1).toString() === monthFilter;
         }
-        const matchesSearch = !searchFilter || [item.displayId, item.type, item.description, item.event?.name].some(
-          f => f && f.toLowerCase().includes(searchFilter.toLowerCase())
+        const matchesSearch = !deferredSearch || [item.displayId, item.type, item.description, item.event?.name].some(
+          f => f && f.toLowerCase().includes(deferredSearch.toLowerCase())
         );
         const matchesSponsor = sponsorFilter === "all" || (item.sponsors ?? []).some((s: any) => s.id === sponsorFilter);
         return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth && matchesSearch && matchesSponsor;

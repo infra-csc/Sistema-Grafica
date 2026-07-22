@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Eye, EyeOff } from "lucide-react";
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().optional(),
@@ -40,6 +41,8 @@ export default function ChangePassword() {
   });
 
   const isFirstLogin = user?.mustChangePassword;
+  const [showPasswords, setShowPasswords] = useState(false);
+  const passwordType = showPasswords ? "text" : "password";
 
   const form = useForm<ChangePasswordForm>({
     resolver: zodResolver(changePasswordSchema),
@@ -113,7 +116,7 @@ export default function ChangePassword() {
                       <FormLabel>Senha Atual</FormLabel>
                       <FormControl>
                         <Input
-                          type="password"
+                          type={passwordType}
                           placeholder="••••••••"
                           data-testid="input-current-password"
                           {...field}
@@ -132,7 +135,7 @@ export default function ChangePassword() {
                     <FormLabel>Nova Senha</FormLabel>
                     <FormControl>
                       <Input
-                        type="password"
+                        type={passwordType}
                         placeholder="••••••••"
                         data-testid="input-new-password"
                         {...field}
@@ -153,7 +156,7 @@ export default function ChangePassword() {
                     <FormLabel>Confirmar Nova Senha</FormLabel>
                     <FormControl>
                       <Input
-                        type="password"
+                        type={passwordType}
                         placeholder="••••••••"
                         data-testid="input-confirm-password"
                         {...field}
@@ -163,6 +166,14 @@ export default function ChangePassword() {
                   </FormItem>
                 )}
               />
+              <button
+                type="button"
+                onClick={() => setShowPasswords(v => !v)}
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showPasswords ? "Ocultar senhas" : "Mostrar senhas"}
+              </button>
               <Button
                 type="submit"
                 className="w-full"

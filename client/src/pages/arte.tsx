@@ -1895,7 +1895,6 @@ export default function Arte() {
 
   const statCardTabMap: Record<string, string> = {
     "stat-pending": "criar-aprovacoes",
-    "stat-awaiting-sponsor": "criar-aprovacoes",
     "stat-sponsor-approved": "finalizar-layouts",
     "stat-ready-production": "finalizados",
   };

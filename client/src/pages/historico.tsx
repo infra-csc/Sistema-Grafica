@@ -199,16 +199,32 @@ export default function Historico() {
   const { data: items = [] }  = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: auditLogs = [], isLoading: logsLoading } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
 
-  /* ── Build timeline ── */
+  /* ── Build lookup maps ── */
+  // Keep FIRST log per entity+action for userName lookups (created/delivered fire once)
   const auditLogMap = new Map<string, any>();
-  auditLogs.forEach(log => auditLogMap.set(`${log.entityId}-${log.action}`, log));
+  auditLogs.forEach(log => {
+    const key = `${log.entityId}-${log.action}`;
+    if (!auditLogMap.has(key)) auditLogMap.set(key, log);
+  });
 
-  // Build a lookup map for items by id
   const itemMap = new Map<string, any>();
   items.forEach(item => itemMap.set(item.id, item));
 
   const timeline: TimelineEvent[] = [];
 
+  // Pre-scan audit logs so the items loop can skip synthetic fallbacks
+  // when a proper audit-log entry already covers that step.
+  const itemsWithRelease = new Set<string>(); // covered by item_released from audit log
+  auditLogs.forEach((log: any) => {
+    const action = (log.action || "").toLowerCase();
+    const details = (log.details || "");
+    if (action === "approved" && details.toLowerCase().includes("liberado para produção")) {
+      const itemId = log.entityId ?? log.entity_id;
+      if (itemId) itemsWithRelease.add(itemId);
+    }
+  });
+
+  /* ── Synthetic events from items / events tables ── */
   events.forEach(event => {
     const log = auditLogMap.get(`${event.id}-created`);
     timeline.push({
@@ -232,7 +248,11 @@ export default function Historico() {
       quantity: item.quantity, userName: createdLog?.userName,
     });
 
-    if (["approved", "inProduction", "produced", "delivered"].includes(item.status)) {
+    // Synthetic "Peça Liberada" only as fallback for legacy items without an audit log
+    if (
+      ["approved", "inProduction", "produced", "delivered"].includes(item.status) &&
+      !itemsWithRelease.has(item.id)
+    ) {
       const log = auditLogMap.get(`${item.id}-approved`);
       timeline.push({
         id: `item-approved-${item.id}`, type: "item_approved",
@@ -276,7 +296,7 @@ export default function Historico() {
     const userName = log.userName ?? log.user_name;
 
     // Only process item-related logs
-    if (entityType !== "item" && entityType !== "") {
+    if (entityType !== "item") {
       return;
     }
 
@@ -319,8 +339,9 @@ export default function Historico() {
       return;
     }
 
-    // Item sent for sponsor approval
-    if (action === "updated" && detailsLower.includes("status alterado") && detailsLower.includes("awaiting_sponsor_approval")) {
+    // Item sent for sponsor approval (details: "Status alterado: X → Aguardando Aprovação")
+    // translateStatus("awaiting_sponsor_approval") = "Aguardando Aprovação"
+    if (action === "updated" && detailsLower.includes("status alterado") && details.includes("→ Aguardando Aprovação")) {
       if (!item) return;
       timeline.push({ id: `sent-${log.id ?? itemId + ts}`, type: "item_sent", ...base });
       return;

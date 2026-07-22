@@ -702,9 +702,9 @@ export default function Atendimento() {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; }
+        .page { width: 100vw; height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; overflow: hidden; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
-        @media print { .page { width: 210mm; min-height: 297mm; } }
+        @media print { .page { width: 210mm; height: 297mm; overflow: hidden; } }
 
         .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
         .hdr-left { display: flex; align-items: center; gap: 12px; }
@@ -724,8 +724,8 @@ export default function Atendimento() {
         .body { display: flex; gap: 24px; flex: 1; padding: 24px 32px; min-height: 0; }
 
         .col-img { flex: 0 0 58%; display: flex; flex-direction: column; }
-        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 320px; }
-        .ref-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 200px; max-height: 380px; }
+        .ref-img { width: 100%; height: 100%; object-fit: contain; display: block; }
         .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
         .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
         .no-img-sub { font-size: 11px; color: #94a3b8; }

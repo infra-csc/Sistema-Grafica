@@ -93,7 +93,7 @@ export function ArteRedesignV2() {
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* HERO HEADER — dark purple gradient (paleta NORTE)             */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      <div style={{ background: "linear-gradient(150deg, #1e1035 0%, #2d1b69 45%, #1a1040 100%)", flexShrink: 0 }}>
+      <div style={{ background: "linear-gradient(160deg, #1c1917 0%, #28211e 55%, #1c1917 100%)", flexShrink: 0 }}>
         <div style={{ padding: "20px 32px 0", maxWidth: 1400, margin: "0 auto" }}>
 
           {/* ── Identity + actions ── */}

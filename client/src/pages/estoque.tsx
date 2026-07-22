@@ -1344,6 +1344,7 @@ export default function Estoque() {
 
                           {/* View detail */}
                           <button data-testid={`button-view-asset-${asset.id}`}
+                            title="Ver detalhes" aria-label="Ver detalhes"
                             onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
@@ -1353,6 +1354,7 @@ export default function Estoque() {
 
                           {/* Edit */}
                           <button data-testid={`button-edit-asset-${asset.id}`}
+                            title="Editar" aria-label="Editar"
                             onClick={e => { e.stopPropagation(); setEditing(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#2563eb"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
@@ -1362,6 +1364,7 @@ export default function Estoque() {
 
                           {/* Delete */}
                           <button data-testid={`button-delete-asset-${asset.id}`}
+                            title="Excluir" aria-label="Excluir"
                             onClick={e => { e.stopPropagation(); setDeleting(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}

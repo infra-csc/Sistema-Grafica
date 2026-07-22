@@ -153,8 +153,8 @@ export default function Modelos() {
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
       if (filterGroup === vars.oldName) setFilterGroup(vars.newName);
-      setEditingGroup(null);
-      setEditGroupValue("");
+      setMgEditingGroup(null);
+      setMgEditGroupValue("");
       toast({ title: "Grupo renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
     },
     onError: (error: Error) => {

@@ -83,6 +83,12 @@ export default function ChangePassword() {
   });
 
   const onSubmit = (data: ChangePasswordForm) => {
+    // Fora do primeiro acesso, a senha atual é obrigatória — valida no client
+    // para o usuário não descobrir só depois do round-trip ao servidor.
+    if (!isFirstLogin && !data.currentPassword?.trim()) {
+      form.setError("currentPassword", { message: "Informe sua senha atual" });
+      return;
+    }
     changePasswordMutation.mutate(data);
   };
 

@@ -60,8 +60,7 @@ const EVENTS = [
     name: "COPA NORDESTE", urgent: false,
     eventDate: "10/08/2026", truck: "07/08 08:00",
     deadline: "Entrega de Layouts: 18/07 (16d)", deadlineAlert: false,
-    // roxo/índigo — paleta NORTE
-    gradient: "linear-gradient(135deg, #4c1d95 0%, #7c3aed 100%)",
+    gradient: "linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)",
     items: [ITEMS[2]],
   },
 ];
@@ -101,9 +100,9 @@ export function ArteRedesignV2() {
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: 14,
-                background: "linear-gradient(135deg, #7c3aed, #a855f7)",
+                background: "linear-gradient(135deg, #ea580c, #f97316)",
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                boxShadow: "0 0 0 1px rgba(168,85,247,0.4), 0 8px 24px rgba(124,58,237,0.5)",
+                boxShadow: "0 0 0 1px rgba(249,115,22,0.4), 0 8px 24px rgba(234,88,12,0.45)",
               }}>
                 <Palette style={{ width: 24, height: 24, color: "#fff" }} />
               </div>

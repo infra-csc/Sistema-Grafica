@@ -82,9 +82,32 @@ const BTN_COLOR: Record<string, string> = {
 export function ArteRedesignV2() {
   const [activeTab, setActiveTab] = useState("aprovar");
   const [period, setPeriod] = useState("15 dias");
-  const [activeFilters, setActiveFilters] = useState<string[]>(["Maratona de Resultados"]);
+  const [eventoFilter, setEventoFilter] = useState("all");
+  const [patrocinadorFilter, setPatrocinadorFilter] = useState("all");
+  const [tipoFilter, setTipoFilter] = useState("all");
+  const [urgente, setUrgente] = useState(false);
+  const [semThumb, setSemThumb] = useState(false);
+  const [semFinal, setSemFinal] = useState(false);
+
   const total = STATS.reduce((s, c) => s + c.value, 0);
-  const removeFilter = (f: string) => setActiveFilters(prev => prev.filter(x => x !== f));
+
+  const activeChips = [
+    eventoFilter !== "all" && `Evento: ${eventoFilter}`,
+    patrocinadorFilter !== "all" && `Patrocinador: ${patrocinadorFilter}`,
+    tipoFilter !== "all" && `Tipo: ${tipoFilter}`,
+    urgente && "Urgente",
+    semThumb && "Sem thumb",
+    semFinal && "Sem arq. final",
+  ].filter(Boolean) as string[];
+
+  const removeChip = (chip: string) => {
+    if (chip.startsWith("Evento:")) setEventoFilter("all");
+    else if (chip.startsWith("Patrocinador:")) setPatrocinadorFilter("all");
+    else if (chip.startsWith("Tipo:")) setTipoFilter("all");
+    else if (chip === "Urgente") setUrgente(false);
+    else if (chip === "Sem thumb") setSemThumb(false);
+    else if (chip === "Sem arq. final") setSemFinal(false);
+  };
 
   return (
     <div style={{ fontFamily: "'DM Sans','Helvetica Neue',Arial,sans-serif", minHeight: "100vh", backgroundColor: "#f1f0ef", display: "flex", flexDirection: "column" }}>
@@ -198,30 +221,70 @@ export function ArteRedesignV2() {
             })}
           </div>
 
-          {/* ── FILTERS ── */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          {/* ── FILTERS ROW 1: search + dropdowns + period ── */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+
+            {/* Search */}
             <div style={{ position: "relative", flex: "1 1 180px", minWidth: 160 }}>
-              <Search style={{ width: 12, height: 12, color: "rgba(255,255,255,0.30)", position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }} />
+              <Search style={{ width: 12, height: 12, color: "rgba(255,255,255,0.30)", position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
               <input
                 placeholder="Buscar arte, ID ou projeto..."
                 style={{ width: "100%", height: 34, paddingLeft: 28, paddingRight: 10, borderRadius: 8, border: "1px solid rgba(255,255,255,0.13)", backgroundColor: "rgba(255,255,255,0.08)", color: "#fff", fontSize: 12, outline: "none", boxSizing: "border-box" }}
               />
             </div>
 
-            {["Evento", "Patrocinador", "Tipo de Peça", "Material"].map((label) => (
-              <button key={label} style={{ display: "flex", alignItems: "center", gap: 5, height: 34, padding: "0 11px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>
-                {label} <ChevronDown style={{ width: 10, height: 10, color: "rgba(255,255,255,0.28)" }} />
-              </button>
-            ))}
+            {/* Evento dropdown */}
+            <div style={{ position: "relative" }}>
+              <select
+                value={eventoFilter}
+                onChange={e => setEventoFilter(e.target.value)}
+                style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: "1px solid rgba(255,255,255,0.13)", background: eventoFilter !== "all" ? "rgba(249,115,22,0.15)" : "rgba(255,255,255,0.08)", color: eventoFilter !== "all" ? "#fed7aa" : "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: 500, cursor: "pointer", outline: "none", appearance: "none", WebkitAppearance: "none" }}
+              >
+                <option value="all" style={{ background: "#1c1917", color: "#fff" }}>Evento</option>
+                <option value="Maratona de Resultados" style={{ background: "#1c1917", color: "#fff" }}>Maratona de Resultados</option>
+                <option value="Copa Nordeste" style={{ background: "#1c1917", color: "#fff" }}>Copa Nordeste</option>
+                <option value="Summit Esportivo" style={{ background: "#1c1917", color: "#fff" }}>Summit Esportivo</option>
+              </select>
+              <ChevronDown style={{ width: 10, height: 10, color: "rgba(255,255,255,0.35)", position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+            </div>
+
+            {/* Patrocinador dropdown */}
+            <div style={{ position: "relative" }}>
+              <select
+                value={patrocinadorFilter}
+                onChange={e => setPatrocinadorFilter(e.target.value)}
+                style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: "1px solid rgba(255,255,255,0.13)", background: patrocinadorFilter !== "all" ? "rgba(249,115,22,0.15)" : "rgba(255,255,255,0.08)", color: patrocinadorFilter !== "all" ? "#fed7aa" : "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: 500, cursor: "pointer", outline: "none", appearance: "none", WebkitAppearance: "none" }}
+              >
+                <option value="all" style={{ background: "#1c1917", color: "#fff" }}>Patrocinador</option>
+                <option value="Sponsor A" style={{ background: "#1c1917", color: "#fff" }}>Sponsor A</option>
+                <option value="Sponsor B" style={{ background: "#1c1917", color: "#fff" }}>Sponsor B</option>
+                <option value="Sponsor C" style={{ background: "#1c1917", color: "#fff" }}>Sponsor C</option>
+              </select>
+              <ChevronDown style={{ width: 10, height: 10, color: "rgba(255,255,255,0.35)", position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+            </div>
+
+            {/* Tipo dropdown */}
+            <div style={{ position: "relative" }}>
+              <select
+                value={tipoFilter}
+                onChange={e => setTipoFilter(e.target.value)}
+                style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: "1px solid rgba(255,255,255,0.13)", background: tipoFilter !== "all" ? "rgba(249,115,22,0.15)" : "rgba(255,255,255,0.08)", color: tipoFilter !== "all" ? "#fed7aa" : "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: 500, cursor: "pointer", outline: "none", appearance: "none", WebkitAppearance: "none" }}
+              >
+                <option value="all" style={{ background: "#1c1917", color: "#fff" }}>Tipo de Peça</option>
+                <option value="Backdrop" style={{ background: "#1c1917", color: "#fff" }}>Backdrop</option>
+                <option value="Faixa" style={{ background: "#1c1917", color: "#fff" }}>Faixa</option>
+                <option value="Banner" style={{ background: "#1c1917", color: "#fff" }}>Banner</option>
+                <option value="Adesivo" style={{ background: "#1c1917", color: "#fff" }}>Adesivo</option>
+                <option value="Painel" style={{ background: "#1c1917", color: "#fff" }}>Painel</option>
+              </select>
+              <ChevronDown style={{ width: 10, height: 10, color: "rgba(255,255,255,0.35)", position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+            </div>
 
             {/* Period pills */}
             <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "3px", borderRadius: 9, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)" }}>
               {PERIOD_PILLS.map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  style={{ height: 28, padding: "0 11px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: period === p ? 700 : 500, background: period === p ? "rgba(255,255,255,0.16)" : "transparent", color: period === p ? "#fff" : "rgba(255,255,255,0.38)", transition: "all 0.12s" }}
-                >
+                <button key={p} onClick={() => setPeriod(p)}
+                  style={{ height: 28, padding: "0 11px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: period === p ? 700 : 500, background: period === p ? "rgba(255,255,255,0.16)" : "transparent", color: period === p ? "#fff" : "rgba(255,255,255,0.38)", transition: "all 0.12s" }}>
                   {p}
                 </button>
               ))}
@@ -232,18 +295,48 @@ export function ArteRedesignV2() {
             </button>
           </div>
 
+          {/* ── FILTERS ROW 2: boolean toggles ── */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.22)", textTransform: "uppercase", letterSpacing: "0.10em", marginRight: 2 }}>Mostrar apenas:</span>
+
+            {[
+              { key: "urgente", label: "Urgente", value: urgente, set: setUrgente, color: "#ef4444", glow: "rgba(239,68,68,0.25)" },
+              { key: "semThumb", label: "Sem thumb", value: semThumb, set: setSemThumb, color: "#fbbf24", glow: "rgba(251,191,36,0.22)" },
+              { key: "semFinal", label: "Sem arq. final", value: semFinal, set: setSemFinal, color: "#06b6d4", glow: "rgba(6,182,212,0.22)" },
+            ].map(({ key, label, value, set, color, glow }) => (
+              <button
+                key={key}
+                onClick={() => set(!value)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  height: 26, padding: "0 10px", borderRadius: 99, cursor: "pointer", fontSize: 11, fontWeight: 600, transition: "all 0.14s",
+                  border: value ? `1px solid ${color}` : "1px solid rgba(255,255,255,0.13)",
+                  background: value ? glow : "rgba(255,255,255,0.06)",
+                  color: value ? color : "rgba(255,255,255,0.45)",
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: value ? color : "rgba(255,255,255,0.25)", flexShrink: 0 }} />
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Active filter chips */}
-          {activeFilters.length > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.10em" }}>Filtros ativos:</span>
-              {activeFilters.map(f => (
-                <span key={f} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(249,115,22,0.18)", border: "1px solid rgba(249,115,22,0.35)", fontSize: 11, fontWeight: 600, color: "#fed7aa" }}>
-                  {f}
-                  <button onClick={() => removeFilter(f)} style={{ background: "none", border: "none", cursor: "pointer", color: "#fed7aa", display: "flex", alignItems: "center", padding: 0 }}>
+          {activeChips.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.22)", textTransform: "uppercase", letterSpacing: "0.10em" }}>Filtros ativos:</span>
+              {activeChips.map(chip => (
+                <span key={chip} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(249,115,22,0.18)", border: "1px solid rgba(249,115,22,0.35)", fontSize: 11, fontWeight: 600, color: "#fed7aa" }}>
+                  {chip}
+                  <button onClick={() => removeChip(chip)} style={{ background: "none", border: "none", cursor: "pointer", color: "#fed7aa", display: "flex", alignItems: "center", padding: 0 }}>
                     <X style={{ width: 9, height: 9 }} />
                   </button>
                 </span>
               ))}
+              <button onClick={() => { setEventoFilter("all"); setPatrocinadorFilter("all"); setTipoFilter("all"); setUrgente(false); setSemThumb(false); setSemFinal(false); }}
+                style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.35)", background: "none", border: "none", cursor: "pointer", padding: "0 4px" }}>
+                Limpar tudo
+              </button>
             </div>
           )}
 

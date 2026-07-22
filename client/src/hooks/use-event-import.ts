@@ -48,15 +48,18 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       return response.json();
     },
     onSuccess: (data: any) => {
+      // Normalize text for matching (strip accents, lowercase)
       const norm = (s: string) =>
         (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').trim();
 
       const suggestSponsor = (item: any): string | null => {
         const descNorm = norm(item.description ?? '');
+        // 1. Try to find sponsor name in description
         for (const es of eventSponsorsList) {
           const nameNorm = norm(es.name);
           if (nameNorm.length > 2 && descNorm.includes(nameNorm)) return es.sponsorId;
         }
+        // 2. Fallback: quota rules → find quotas that include this item type → first matching event sponsor
         const itemTypeNorm = norm(item.type ?? '');
         const matchingQuotas = eventQuotaRules
           .filter((r: any) => (r.itemTypes ?? []).some((t: string) => norm(t) === itemTypeNorm))
@@ -156,6 +159,7 @@ export function useEventClone({ eventId }: UseEventCloneParams) {
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
 
+  // ── Clone items mutation ───────────────────────────────────────────────
   const cloneItemsMutation = useMutation({
     mutationFn: async ({ sourceEventId }: { sourceEventId: string }) => {
       const response = await apiRequest("POST", `/api/events/${eventId}/clone-items`, { sourceEventId });

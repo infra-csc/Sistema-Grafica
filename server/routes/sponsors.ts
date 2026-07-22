@@ -334,16 +334,13 @@ export function registerSponsorRoutes(app: Express): void {
       const validSponsorIds = sponsorIds.filter((id: any) => id && typeof id === 'string' && id.trim() !== '');
       await storage.bulkSyncItemSponsors(itemId, validSponsorIds);
       
-      // Update item with skipApproval (status "Enviar" transition still requires explicit user action)
+      // Update item with skipApproval only (status NOT changed here - user must click "Enviar para Arte")
       const currentItem = await storage.getItem(itemId);
       if (!currentItem) {
         return res.status(404).json({ error: "Item não encontrado" });
       }
       
       const itemUpdates: any = { skipApproval: skipApproval || false };
-
-      // No automatic status transition here — only the creator (Solicitação)
-      // can move items from Rascunho → Aguardando Vinculação via the submit endpoint.
       
       const item = await storage.updateItem(itemId, itemUpdates);
       

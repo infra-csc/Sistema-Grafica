@@ -1,0 +1,54 @@
+/workspace$ git status
+On branch main
+Your branch and 'origin/main' have diverged,
+and have 36 and 17 different commits each, respectively.
+  (use "git pull" if you want to integrate the remote branch with yours)
+
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Changes to be committed:
+    modified:   client/src/pages/atendimento.tsx
+    modified:   client/src/pages/change-password.tsx
+    modified:   client/src/pages/dashboard-analises.tsx
+    modified:   client/src/pages/estoque.tsx
+    modified:   client/src/pages/eventos.tsx
+    modified:   client/src/pages/grafica.tsx
+    modified:   client/src/pages/historico.tsx
+    modified:   client/src/pages/login.tsx
+    deleted:    client/src/pages/modelos-backup-full.tsx
+    deleted:    client/src/pages/modelos-backup.tsx
+    modified:   client/src/pages/modelos.tsx
+    modified:   client/src/pages/not-found.tsx
+    modified:   client/src/pages/patrocinadores.tsx
+    modified:   client/src/pages/solicitacao.tsx
+    modified:   client/src/pages/triagem-retorno.tsx
+    modified:   client/src/pages/usuarios.tsx
+
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+    both added:      client/src/components/import-xlsx-dialog.tsx
+    both added:      client/src/hooks/use-event-import.ts
+    both modified:   client/src/pages/arte.tsx
+    both modified:   client/src/pages/event-detail.tsx
+    both modified:   client/src/pages/painel-geral.tsx
+    both modified:   client/src/pages/vincular-patrocinadores.tsx
+    both modified:   server/routes.ts
+    both added:      server/routes/events.ts
+    both added:      server/routes/items.ts
+    both added:      server/routes/shared.ts
+    both added:      server/routes/sponsors.ts
+    both modified:   server/storage.ts
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+    modified:   .agents/memory/MEMORY.md
+    modified:   artifacts/mockup-sandbox/src/.generated/mockup-components.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+    attached_assets/image_1784662760052.png
+    attached_assets/image_1784726599449.png
+    attached_assets/image_1784726727176.png

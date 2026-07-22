@@ -247,7 +247,9 @@ interface ImportXlsxDialogProps {
   previewXlsxPending: boolean;
   onPreview: (file: File) => void;
   confirmImportPending: boolean;
-  onConfirmImport: (items: any[], fileName: string) => void;
+  onConfirmImport: (items: any[], fileName: string, force?: boolean) => void;
+  importDuplicateWarning?: { duplicateCount: number; totalCount: number } | null;
+  setImportDuplicateWarning?: (w: { duplicateCount: number; totalCount: number } | null) => void;
 }
 
 // Extracted from event-detail.tsx: the "Importar Peças" split-panel dialog
@@ -270,6 +272,8 @@ export function ImportXlsxDialog({
   onPreview,
   confirmImportPending,
   onConfirmImport,
+  importDuplicateWarning,
+  setImportDuplicateWarning,
 }: ImportXlsxDialogProps) {
   const { toast } = useToast();
 
@@ -411,17 +415,40 @@ export function ImportXlsxDialog({
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Duplicate warning banner */}
+              {importDuplicateWarning && setImportDuplicateWarning && (
+                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, color: '#c2410c', lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 2 }}>Possível reimportação detectada</div>
+                  <div>{importDuplicateWarning.duplicateCount} de {importDuplicateWarning.totalCount} peças já existem neste evento. Tem certeza que deseja importar mesmo assim?</div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <button
+                      onClick={() => setImportDuplicateWarning(null)}
+                      style={{ flex: 1, padding: '6px 0', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 11, fontWeight: 600, color: '#57534e', cursor: 'pointer' }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => { onConfirmImport(importPreviewItems!, importFileName, true); setImportDuplicateWarning(null); }}
+                      disabled={confirmImportPending}
+                      data-testid="button-force-import"
+                      style={{ flex: 1, padding: '6px 0', background: '#c2410c', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+                    >
+                      Importar mesmo assim
+                    </button>
+                  </div>
+                </div>
+              )}
               <button
-                onClick={() => { setImportPreviewItems(null); setImportSearch(""); }}
+                onClick={() => { setImportPreviewItems(null); setImportSearch(""); setImportDuplicateWarning?.(null); }}
                 style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 9, fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 Trocar arquivo
               </button>
               <button
-                disabled={!importPreviewItems.length || confirmImportPending}
+                disabled={!importPreviewItems.length || confirmImportPending || !!importDuplicateWarning}
                 onClick={() => { if (importPreviewItems.length > 0) onConfirmImport(importPreviewItems, importFileName); }}
                 data-testid="button-confirm-import"
-                style={{ width: '100%', padding: '11px 0', backgroundColor: '#1c1917', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                style={{ width: '100%', padding: '11px 0', backgroundColor: importDuplicateWarning ? '#a8a29e' : '#1c1917', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: importDuplicateWarning ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 {confirmImportPending ? (
                   <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>

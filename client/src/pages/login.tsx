@@ -6,7 +6,7 @@ import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, Lock, Loader2, AlertTriangle, ChevronDown, ChevronUp, ArrowRight } from "lucide-react";
+import { CheckCircle, Lock, Loader2, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Eye, EyeOff } from "lucide-react";
 
 const SSO_ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
   sso_user_not_found: {
@@ -39,6 +39,7 @@ export default function Login() {
   const { toast } = useToast();
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [btnHover, setBtnHover] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [ssoError] = useState(() => {
     const code = new URLSearchParams(search).get("error") ?? "";
@@ -78,7 +79,7 @@ export default function Login() {
   const onSubmit = (data: LoginForm) => loginMutation.mutate(data);
 
   return (
-    <main style={{
+    <main className="login-root" style={{
       display: "flex",
       height: "100vh",
       width: "100vw",
@@ -87,7 +88,7 @@ export default function Login() {
     }}>
 
       {/* ── LEFT COLUMN: Branding (42%) ── */}
-      <section style={{
+      <section className="login-branding" style={{
         position: "relative",
         width: "42%",
         backgroundColor: "#1c1917",
@@ -161,7 +162,7 @@ export default function Login() {
       </section>
 
       {/* ── RIGHT COLUMN (58%) ── */}
-      <section style={{
+      <section className="login-form-col" style={{
         width: "58%", backgroundColor: "#fafaf9",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
@@ -312,30 +313,41 @@ export default function Login() {
                   textTransform: "uppercase", letterSpacing: "0.1em",
                   color: "rgba(88,66,55,0.70)",
                 }}>Senha de Acesso</label>
-                <input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••••••"
-                  {...form.register("password")}
-                  data-testid="input-password"
-                  style={{
-                    width: "100%", height: 48,
-                    backgroundColor: "#fff",
-                    border: "1.5px solid #e7e5e4",
-                    borderRadius: 8, padding: "0 14px",
-                    fontSize: 14, fontWeight: 500, color: "#1c1917",
-                    boxSizing: "border-box", fontFamily: "inherit", outline: "none",
-                    transition: "border-color 0.2s, box-shadow 0.2s",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = "#f97316";
-                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)";
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "#e7e5e4";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••••••"
+                    {...form.register("password")}
+                    data-testid="input-password"
+                    style={{
+                      width: "100%", height: 48,
+                      backgroundColor: "#fff",
+                      border: "1.5px solid #e7e5e4",
+                      borderRadius: 8, padding: "0 44px 0 14px",
+                      fontSize: 14, fontWeight: 500, color: "#1c1917",
+                      boxSizing: "border-box", fontFamily: "inherit", outline: "none",
+                      transition: "border-color 0.2s, box-shadow 0.2s",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "#f97316";
+                      e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = "#e7e5e4";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 8, display: "flex", color: "#78716c" }}
+                  >
+                    {showPassword ? <EyeOff style={{ width: 18, height: 18 }} /> : <Eye style={{ width: 18, height: 18 }} />}
+                  </button>
+                </div>
                 {form.formState.errors.password && (
                   <p style={{ color: "#dc2626", fontSize: 12, margin: 0 }}>{form.formState.errors.password.message}</p>
                 )}
@@ -389,6 +401,11 @@ export default function Login() {
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 900px) {
+          .login-root { flex-direction: column; height: auto; min-height: 100vh; overflow: auto; }
+          .login-branding { display: none !important; }
+          .login-form-col { width: 100% !important; padding: 40px 20px !important; }
+        }
       `}</style>
     </main>
   );

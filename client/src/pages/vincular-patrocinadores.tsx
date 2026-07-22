@@ -40,39 +40,48 @@ interface SendConfirmModal {
 // Estados UI simplificados
 type UIStatus = 'RASCUNHO' | 'PRONTO' | 'ENVIADO' | 'PENDENTE';
 
+// Status iniciais em que o item ainda está na fase de vinculação de
+// patrocinadores (pode ser enviado para a Arte).
+const LINKING_STATUSES = ['requested', 'awaiting_linking'];
+
+// Status "a jusante": o item já saiu da vinculação (foi para a Arte, aprovação
+// ou produção). Precisa cobrir TODAS as convenções de status de ITEM realmente
+// gravadas pelo backend — inclui camelCase (inProduction), português
+// (pronto_para_producao) e nomes legados. Um nome faltando aqui fazia o item
+// cair errado em "Pendente" (badge) e até sumir da tela (filtro de visibilidade).
+const DOWNSTREAM_STATUSES = [
+  'awaiting_submission',       // enviado para Arte (thumb)
+  'awaiting_sponsor_approval', // em aprovação pelo patrocinador
+  'sponsor_approved',
+  'approved',
+  'awaiting_finalization',     // legado — Arte adicionando arquivo final
+  'awaiting_final_review',     // criador revisando arquivo final
+  'awaiting_creator_review',   // legado
+  'ready_for_production',
+  'pronto_para_producao',
+  'inProduction',
+  'produced',
+  'delivered',
+];
+
 // Função para determinar estado UI de um item (FONTE ÚNICA DE VERDADE)
 const getItemUIStatus = (
-  item: any, 
-  originalSponsors: string[], 
+  item: any,
+  originalSponsors: string[],
   pendingChange?: ItemChanges
 ): UIStatus => {
   // 1. Se tem mudanças pendentes não salvas → RASCUNHO
   if (pendingChange?.isDirty) {
     return 'RASCUNHO';
   }
-  
+
   // 2. Se status indica que já foi enviado para Arte ou produção → ENVIADO
-  const sentStatuses = [
-    'awaiting_submission',       // Enviado para Arte (thumb)
-    'awaiting_sponsor_approval', // Em aprovação pelo patrocinador
-    'sponsor_approved',
-    'awaiting_finalization',     // Arte adicionando arquivo final
-    'awaiting_final_review',     // Criador revisando arquivo final
-    'awaiting_creator_review',
-    'ready_for_production',
-    'pronto_para_producao',
-    'released',                  // legado
-    'in_production',             // legado snake_case
-    'inProduction',
-    'produced',
-    'delivered'
-  ];
-  if (sentStatuses.includes(item.status)) {
+  if (DOWNSTREAM_STATUSES.includes(item.status)) {
     return 'ENVIADO';
   }
-  
+
   // 3. Items com status 'awaiting_linking' e com patrocinadores salvos → PRONTO (para enviar)
-  const canSendStatuses = ['awaiting_linking'];
+  const canSendStatuses = LINKING_STATUSES;
   if (canSendStatuses.includes(item.status)) {
     const hasSponsors = originalSponsors.length > 0;
     const hasSkipApproval = item.skipApproval === true;
@@ -156,7 +165,9 @@ export default function VincularPatrocinadores() {
   
   // Estados de filtro
   const [searchQuery, setSearchQuery] = useState("");
-  const [eventFilter, setEventFilter] = useState<string>("all");
+  // Persiste o filtro de evento para não refazer a filtragem ao navegar e voltar.
+  const [eventFilter, setEventFilter] = useState<string>(() => sessionStorage.getItem("vincular:eventFilter") || "all");
+  useEffect(() => { sessionStorage.setItem("vincular:eventFilter", eventFilter); }, [eventFilter]);
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   const [itemFilter, setItemFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -173,7 +184,8 @@ export default function VincularPatrocinadores() {
   const [bulkSkipApproval, setBulkSkipApproval] = useState(false);
   
   // Estado para controlar qual aba está ativa
-  const [activeTab, setActiveTab] = useState<"vincular" | "enviar">("vincular");
+  const [activeTab, setActiveTab] = useState<"vincular" | "enviar">(() => (sessionStorage.getItem("vincular:activeTab") as "vincular" | "enviar") || "vincular");
+  useEffect(() => { sessionStorage.setItem("vincular:activeTab", activeTab); }, [activeTab]);
   const [previewRefUrl, setPreviewRefUrl] = useState<string | null>(null);
 
   // Vista principal: por-item (existente) | por-patrocinador (nova)
@@ -184,6 +196,7 @@ export default function VincularPatrocinadores() {
   const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
 
   const [sendConfirmModal, setSendConfirmModal] = useState<SendConfirmModal | null>(null);
+  const [bulkSendProgress, setBulkSendProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -261,24 +274,13 @@ export default function VincularPatrocinadores() {
   // Exclui: draft e requested (Rascunho — ainda não enviado pela Solicitação)
   const visibleItems = useMemo(() => {
     const today = startOfDay(new Date());
-    const allowedStatuses = [
-      'awaiting_linking', 
-      'awaiting_submission',
-      'awaiting_sponsor_approval',
-      'sponsor_approved',
-      'awaiting_finalization',
-      'awaiting_final_review',
-      'awaiting_creator_review',
-      'ready_for_production',
-      'pronto_para_producao',
-      'released',
-      'in_production',
-      'inProduction',
-      'produced',
-      'delivered'
-    ];
-    
-    const pendingStatuses = ['awaiting_linking'];
+    // Mesma fonte de verdade do badge: fase de vinculação + todos os status a
+    // jusante. Antes esta lista estava incompleta (faltavam approved,
+    // pronto_para_producao, awaiting_arte, new_version_pending) e continha nomes
+    // fantasmas (released, in_production), fazendo itens reais sumirem da tela.
+    const allowedStatuses = [...LINKING_STATUSES, ...DOWNSTREAM_STATUSES];
+
+    const pendingStatuses = LINKING_STATUSES;
 
     return items.filter(item => {
       // Filtro 1: Status permitido (exclui draft)
@@ -1199,12 +1201,15 @@ export default function VincularPatrocinadores() {
 
   // Confirma e executa o envio com os patrocinadores finais do modal
   const handleModalConfirmSend = async () => {
-    if (!sendConfirmModal) return;
+    if (!sendConfirmModal || bulkSendProgress) return;
     const { items, pendingByItem } = sendConfirmModal;
-    setSendConfirmModal(null);
+    // Mantém o modal aberto e mostra progresso, em vez de fechar na hora e
+    // rodar os syncs em silêncio (o usuário achava que nada tinha acontecido).
+    setBulkSendProgress({ current: 0, total: items.length });
 
     try {
-      for (const item of items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         const existing = originalSponsorsMap[item.id] || [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
         const merged = Array.from(new Set([...existing, ...newOnes]));
@@ -1216,18 +1221,22 @@ export default function VincularPatrocinadores() {
           setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
           setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         }
+        setBulkSendProgress({ current: i + 1, total: items.length });
       }
       const itemIds = items.map(i => i.id);
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
       sendToArteMutation.mutate(itemIds);
+      setSendConfirmModal(null);
+      setSponsorBulkSelected(new Set());
     } catch (err: any) {
       toast({
         title: "Erro ao enviar",
         description: err?.message || "Tente novamente",
         variant: "destructive",
       });
+    } finally {
+      setBulkSendProgress(null);
     }
-    setSponsorBulkSelected(new Set());
   };
 
   // Vincular patrocinador a item individual (aba Por Patrocinador)
@@ -3132,7 +3141,7 @@ export default function VincularPatrocinadores() {
       />
 
       {/* ===== Modal de Confirmação de Envio ===== */}
-      <Dialog open={!!sendConfirmModal} onOpenChange={(open) => !open && setSendConfirmModal(null)}>
+      <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !bulkSendProgress) setSendConfirmModal(null); }}>
         <DialogContent className="p-0 gap-0" style={{ maxWidth: 680, borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
           <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
 
@@ -3301,30 +3310,33 @@ export default function VincularPatrocinadores() {
             <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
               <button
                 onClick={() => setSendConfirmModal(null)}
-                style={{ padding: '11px 22px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: 'pointer', transition: 'background 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f4')}
-                onMouseLeave={e => (e.currentTarget.style.background = '#ffffff')}
+                disabled={!!bulkSendProgress}
+                style={{ padding: '11px 22px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: bulkSendProgress ? 'not-allowed' : 'pointer', transition: 'background 0.15s', opacity: bulkSendProgress ? 0.5 : 1 }}
+                onMouseEnter={e => { if (!bulkSendProgress) e.currentTarget.style.background = '#f5f5f4'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleModalConfirmSend}
-                disabled={sendToArteMutation.isPending}
+                disabled={sendToArteMutation.isPending || !!bulkSendProgress}
                 style={{
                   padding: '11px 26px',
-                  background: sendToArteMutation.isPending ? '#fdba74' : 'linear-gradient(135deg, #f97316, #ea580c)',
+                  background: (sendToArteMutation.isPending || bulkSendProgress) ? '#fdba74' : 'linear-gradient(135deg, #f97316, #ea580c)',
                   color: '#ffffff', border: 'none', borderRadius: 10,
-                  fontSize: 14, fontWeight: 800, cursor: sendToArteMutation.isPending ? 'not-allowed' : 'pointer',
+                  fontSize: 14, fontWeight: 800, cursor: (sendToArteMutation.isPending || bulkSendProgress) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 9,
-                  boxShadow: sendToArteMutation.isPending ? 'none' : '0 4px 12px rgba(249,115,22,0.35)',
+                  boxShadow: (sendToArteMutation.isPending || bulkSendProgress) ? 'none' : '0 4px 12px rgba(249,115,22,0.35)',
                   letterSpacing: '-0.01em', fontFamily: 'Space Grotesk, sans-serif',
                   transition: 'box-shadow 0.15s, filter 0.15s',
                 }}
-                onMouseEnter={e => { if (!sendToArteMutation.isPending) e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                onMouseEnter={e => { if (!sendToArteMutation.isPending && !bulkSendProgress) e.currentTarget.style.filter = 'brightness(1.08)'; }}
                 onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
               >
                 <Send style={{ width: 15, height: 15 }} />
-                {sendToArteMutation.isPending
+                {bulkSendProgress
+                  ? `Enviando ${bulkSendProgress.current} de ${bulkSendProgress.total}…`
+                  : sendToArteMutation.isPending
                   ? 'Enviando...'
                   : `Confirmar Envio${sendConfirmModal && sendConfirmModal.items.length > 0 ? ` (${sendConfirmModal.items.length})` : ''}`}
               </button>

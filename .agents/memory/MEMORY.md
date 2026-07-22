@@ -1,3 +1,5 @@
 - [Import dialog graduation](import-dialog-graduation.md) — two separate import dialogs merged into one split-panel dialog; single `importDialogOpen` state controls both phases.
 - [Vincular-Patrocinadores auto-draft bug](vincular-pat-autodraft.md) — root cause of all sponsors pre-selected on new items
 - [Item status naming](status-naming.md) — canonical English statuses; legacy Portuguese ones may linger in prod DB; check every gate/STATUS_CONFIG before adding a status.
+- [ImportXlsxDialog self-contained](import-xlsx-dialog-props.md) — component is self-contained (renders own Dialog); event-detail.tsx passes all state as props; supports importDuplicateWarning/force-import via optional props.
+- [Merge conflict resolution strategy](merge-conflict-strategy.md) — HEAD wins for: export route, awaiting_creator_review gates, draft+requested compat, 680px send-confirm dialog. REMOTE wins for: LINKING_STATUSES/DOWNSTREAM_STATUSES constants, "Solicitado" translation, awaiting_creator_review→awaiting_final_review bucket.

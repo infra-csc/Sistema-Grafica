@@ -97,7 +97,7 @@ export default function EventDetail() {
     referenceUrl: "",
   });
 
-  const { data: event, isLoading: loadingEvent } = useQuery<any>({
+  const { data: event, isLoading: loadingEvent, isError: eventError, refetch: refetchEvent } = useQuery<any>({
     queryKey: ["/api/events", eventId],
     enabled: !!eventId,
     placeholderData: (previousData: any) => previousData,
@@ -662,7 +662,17 @@ export default function EventDetail() {
           <CardContent className="pt-6">
             <div className="text-center py-12">
               <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Evento não encontrado</p>
+              {eventError ? (
+                <>
+                  <p className="text-red-700 font-semibold mb-1">Não foi possível carregar o evento</p>
+                  <p className="text-muted-foreground text-sm mb-4">Verifique sua conexão e tente novamente.</p>
+                  <button onClick={() => refetchEvent()} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+                    Tentar novamente
+                  </button>
+                </>
+              ) : (
+                <p className="text-muted-foreground">Evento não encontrado</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1805,6 +1815,7 @@ export default function EventDetail() {
                                   onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                   onClick={e => { e.stopPropagation(); handleEditItem(item); }}
                                   data-testid={`button-edit-item-${item.id}`}
+                                  title="Editar peça" aria-label="Editar peça"
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </button>
@@ -1815,6 +1826,7 @@ export default function EventDetail() {
                                 onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
                                 data-testid={`button-delete-item-${item.id}`}
+                                title="Excluir peça" aria-label="Excluir peça"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -2439,309 +2451,31 @@ export default function EventDetail() {
       </Dialog>
 
       {/* ── Dialog: Importar Excel (split-panel) ───────────────────────────── */}
-      <Dialog open={importDialogOpen} onOpenChange={(v) => {
-        if (!v) {
+      <ImportXlsxDialog
+        open={importDialogOpen}
+        onOpenChangeClose={() => {
           setImportDialogOpen(false);
           setImportFile(null);
           setImportPreview(null);
           setImportPreviewItems(null);
-          setImportSearch("");
           setImportDuplicateWarning(null);
-        }
-      }}>
-        <DialogContent
-          className="[&>button:last-child]:right-4 [&>button:last-child]:top-4 [&>button:last-child]:z-50"
-          style={{ maxWidth: '98vw', width: importPreviewItems ? 1200 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'visible', transition: 'width 0.3s' }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'row', height: '100%', maxHeight: '92vh', overflow: 'hidden', borderRadius: 14 }}>
-          {/* ── Left sidebar ── */}
-          <div style={{ width: 260, minWidth: 260, backgroundColor: '#ffffff', borderRight: '1px solid #e7e5e4', display: 'flex', flexDirection: 'column', padding: '22px 18px', gap: 16, overflowY: 'auto', flexShrink: 0 }}>
-            {/* Title */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 7, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <FileSpreadsheet style={{ width: 15, height: 15, color: '#16a34a' }} />
-              </div>
-              <div>
-                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, lineHeight: 1.2 }}>
-                  Importar Peças
-                </DialogTitle>
-                <DialogDescription style={{ fontSize: 10, color: '#a8a29e', margin: 0, marginTop: 1 }}>
-                  {importFileName || 'Formato padrão NORTE'}
-                </DialogDescription>
-              </div>
-            </div>
-
-            {/* Drop zone */}
-            <label
-              htmlFor="xlsx-upload"
-              data-testid="dropzone-xlsx"
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                border: '2px dashed', borderColor: importFile ? '#16a34a' : '#d4d0cc',
-                borderRadius: 10, padding: '18px 12px', cursor: 'pointer',
-                backgroundColor: importFile ? '#f0fdf4' : '#fafaf9', transition: 'all 0.2s',
-              }}
-              onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#16a34a'; e.currentTarget.style.backgroundColor = '#f0fdf4'; }}
-              onDragLeave={e => { e.currentTarget.style.borderColor = importFile ? '#16a34a' : '#d4d0cc'; e.currentTarget.style.backgroundColor = importFile ? '#f0fdf4' : '#fafaf9'; }}
-              onDrop={e => {
-                e.preventDefault();
-                const f = e.dataTransfer.files[0];
-                if (f && (f.name.endsWith('.xlsx') || f.name.endsWith('.xls'))) {
-                  setImportFile(f); setImportPreview(null); setImportPreviewItems(null);
-                } else {
-                  toast({ title: "Arquivo inválido", description: "Selecione um arquivo .xlsx", variant: "destructive" });
-                }
-              }}
-            >
-              {importFile ? (
-                <>
-                  <CheckCircle2 style={{ width: 24, height: 24, color: '#16a34a' }} />
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#166534', fontFamily: "'Space Grotesk', sans-serif" }}>{importFile.name}</div>
-                    <div style={{ fontSize: 11, color: '#78716c', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
-                  </div>
-                  <button
-                    onClick={e => { e.preventDefault(); setImportFile(null); setImportPreview(null); setImportPreviewItems(null); }}
-                    style={{ fontSize: 10, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
-                  >
-                    <X style={{ width: 10, height: 10 }} /> Remover
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Upload style={{ width: 20, height: 20, color: '#a8a29e' }} />
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#44403c' }}>Arraste o .xlsx aqui</div>
-                    <div style={{ fontSize: 11, color: '#78716c', marginTop: 2 }}>ou clique para selecionar</div>
-                  </div>
-                </>
-              )}
-            </label>
-            <input id="xlsx-upload" type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => {
-              const f = e.target.files?.[0];
-              if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
-              e.target.value = "";
-            }} />
-
-            {/* Stats (when preview is loaded) */}
-            {importPreviewItems && (() => {
-              const allItems = importPreviewItems;
-              const totalM2 = allItems.reduce((s: number, i: any) => s + (parseFloat(i.calculatedM2) || 0), 0);
-              const linked = allItems.filter((i: any) => (i.suggestedSponsorIds ?? []).length > 0).length;
-              const groups = new Set(allItems.map((i: any) => i.type)).size;
-              const linkPct = allItems.length > 0 ? Math.round((linked / allItems.length) * 100) : 0;
-              return (
-                <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {[
-                      { l: 'Peças',      v: allItems.length,         color: '#1a1c1c', mono: false },
-                      { l: 'Grupos',     v: groups,                  color: '#1a1c1c', mono: false },
-                      { l: 'M² total',   v: `${totalM2.toFixed(0)}`, color: '#D97A1E', mono: true  },
-                      { l: 'Vinculados', v: `${linkPct}%`,           color: linkPct === 100 ? '#16a34a' : '#d97706', mono: false },
-                    ].map(s => (
-                      <div key={s.l} style={{ backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px' }}>
-                        <div style={{ fontSize: 20, fontWeight: 900, color: s.color, fontFamily: s.mono ? 'DM Mono, monospace' : "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.v}</div>
-                        <div style={{ fontSize: 9, color: '#a8a29e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600 }}>Vinculação</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? '#16a34a' : '#d97706' }}>{linked}/{allItems.length}</span>
-                    </div>
-                    <div style={{ height: 5, backgroundColor: '#e7e5e4', borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? '#16a34a' : '#d97706', borderRadius: 99, transition: 'width 0.4s' }} />
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* Format tip */}
-            <div style={{ padding: '10px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, display: 'flex', gap: 8 }}>
-              <AlertTriangle style={{ width: 13, height: 13, color: '#d97706', flexShrink: 0, marginTop: 1 }} />
-              <div style={{ fontSize: 10, color: '#78350f', lineHeight: 1.6 }}>
-                <strong style={{ color: '#92400e' }}>Formato NORTE:</strong><br />
-                item · qtde · material · acabamento
-              </div>
-            </div>
-
-            <div style={{ flex: 1 }} />
-
-            {/* Action buttons */}
-            {!importPreviewItems ? (
-              <button
-                disabled={!importFile || previewXlsxMutation.isPending}
-                onClick={() => { if (importFile) previewXlsxMutation.mutate({ file: importFile }); }}
-                data-testid="button-preview-import"
-                style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#16a34a' : '#e7e5e4', color: importFile ? '#fff' : '#a8a29e', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-              >
-                {previewXlsxMutation.isPending ? (
-                  <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Processando...</>
-                ) : (
-                  <><List style={{ width: 15, height: 15 }} /> Pré-visualizar Peças</>
-                )}
-              </button>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* Duplicate warning banner */}
-                {importDuplicateWarning && (
-                  <div style={{
-                    padding: '10px 12px', borderRadius: 8,
-                    background: '#fff7ed', border: '1px solid #fed7aa',
-                    fontSize: 11, color: '#c2410c', lineHeight: 1.5,
-                  }}>
-                    <div style={{ fontWeight: 700, marginBottom: 2 }}>⚠ Possível reimportação detectada</div>
-                    <div>{importDuplicateWarning.duplicateCount} de {importDuplicateWarning.totalCount} peças já existem neste evento. Tem certeza que deseja importar mesmo assim?</div>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                      <button
-                        onClick={() => setImportDuplicateWarning(null)}
-                        style={{ flex: 1, padding: '6px 0', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 11, fontWeight: 600, color: '#57534e', cursor: 'pointer' }}
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={() => { confirmImportMutation.mutate({ items: importPreviewItems!, fileName: importFileName, force: true }); setImportDuplicateWarning(null); }}
-                        disabled={confirmImportMutation.isPending}
-                        data-testid="button-force-import"
-                        style={{ flex: 1, padding: '6px 0', background: '#c2410c', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
-                      >
-                        Importar mesmo assim
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <button
-                  onClick={() => { setImportPreviewItems(null); setImportSearch(""); setImportDuplicateWarning(null); }}
-                  style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 9, fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
-                >
-                  Trocar arquivo
-                </button>
-                <button
-                  disabled={!importPreviewItems.length || confirmImportMutation.isPending || !!importDuplicateWarning}
-                  onClick={() => { if (importPreviewItems.length > 0) confirmImportMutation.mutate({ items: importPreviewItems, fileName: importFileName }); }}
-                  data-testid="button-confirm-import"
-                  style={{ width: '100%', padding: '11px 0', backgroundColor: importDuplicateWarning ? '#a8a29e' : '#1c1917', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: importDuplicateWarning ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
-                  {confirmImportMutation.isPending ? (
-                    <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
-                  ) : (
-                    <><Check style={{ width: 15, height: 15 }} /> Importar {importPreviewItems.length} peças</>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* ── Right panel: table ── */}
-          {importPreviewItems && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              {/* Search bar */}
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#a8a29e', pointerEvents: 'none' }} />
-                  <input
-                    value={importSearch}
-                    onChange={e => setImportSearch(e.target.value)}
-                    placeholder="Filtrar peças ou grupos..."
-                    style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 7, color: '#1a1c1c', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <span style={{ fontSize: 11, color: '#a8a29e', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                  {importSearch
-                    ? `${importPreviewItems.filter(i => i.description?.toLowerCase().includes(importSearch.toLowerCase()) || i.type?.toLowerCase().includes(importSearch.toLowerCase())).length} de ${importPreviewItems.length}`
-                    : `${importPreviewItems.length} peças`
-                  }
-                </span>
-              </div>
-
-              {/* Table */}
-              <div style={{ flex: 1, overflow: 'auto' }}>
-                <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f5f4f2', position: 'sticky', top: 0, zIndex: 2, boxShadow: '0 1px 0 #e8e6e3' }}>
-                      {[
-                        { label: 'Descrição', tip: 'Nome da peça' },
-                        { label: 'Qtd', tip: 'Quantidade' },
-                        { label: 'Visual', tip: 'Largura × Altura visual (m)' },
-                        { label: 'Arquivo', tip: 'Largura × Altura do arquivo (m)' },
-                        { label: 'M²', tip: 'Metros quadrados calculados' },
-                        { label: 'Material', tip: '' },
-                        { label: 'Acabamento', tip: '' },
-                        { label: 'Obs', tip: 'Observações' },
-                        { label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar' },
-                        { label: '', tip: '' },
-                      ].map((h, i) => (
-                        <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const items = importSearch
-                        ? importPreviewItems.filter((i: any) => i.description?.toLowerCase().includes(importSearch.toLowerCase()) || i.type?.toLowerCase().includes(importSearch.toLowerCase()))
-                        : importPreviewItems;
-                      const groupMap = new Map<string, any[]>();
-                      for (const item of items) {
-                        const t = item.type || '—';
-                        if (!groupMap.has(t)) groupMap.set(t, []);
-                        groupMap.get(t)!.push(item);
-                      }
-                      const groups = Array.from(groupMap.entries());
-                      return groups.map(([type, groupItems], gIdx) => {
-                        const groupM2 = groupItems.reduce((s: number, i: any) => s + (parseFloat(i.calculatedM2) || 0), 0);
-                        const groupLinked = groupItems.filter((i: any) => (i.suggestedSponsorIds ?? []).length > 0).length;
-                        return (
-                          <Fragment key={type}>
-                            <tr>
-                              <td colSpan={10} style={{ padding: '9px 14px 8px', background: 'linear-gradient(90deg, #F0EEEC 0%, #F5F4F2 100%)', borderTop: gIdx > 0 ? '2px solid #E2DEDA' : undefined, borderBottom: '1px solid #e2deda' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 3, height: 14, backgroundColor: '#D97A1E', borderRadius: 2 }} />
-                                    <span style={{ fontWeight: 800, fontSize: 12, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
-                                    <span style={{ fontSize: 10, fontWeight: 600, color: '#78716c', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '1px 8px' }}>{groupItems.length}</span>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                                    {groupM2 > 0 && (
-                                      <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', fontWeight: 700, color: '#D97A1E' }}>{groupM2.toFixed(2)} m²</span>
-                                    )}
-                                    <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? '#16a34a' : '#d97706', fontWeight: 600 }}>
-                                      {groupLinked}/{groupItems.length} vinculados
-                                    </span>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                            {groupItems.map((row: any, rowIdx: number) => (
-                              <ImportPreviewRow
-                                key={row._id}
-                                row={row}
-                                idx={rowIdx}
-                                onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
-                                onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
-                                eventSponsorsList={eventSponsorsList}
-                              />
-                            ))}
-                          </Fragment>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
-                {importPreviewItems.length === 0 && (
-                  <div style={{ padding: 60, textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
-                    <List style={{ width: 32, height: 32, color: '#d0cdc9', margin: '0 auto 12px' }} />
-                    <div>Nenhuma peça para importar.</div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          </div>{/* wrapper flex row */}
-        </DialogContent>
-      </Dialog>
-
+        }}
+        importFile={importFile}
+        setImportFile={setImportFile}
+        setImportPreview={setImportPreview}
+        importPreviewItems={importPreviewItems}
+        setImportPreviewItems={setImportPreviewItems}
+        importFileName={importFileName}
+        importSearch={importSearch}
+        setImportSearch={setImportSearch}
+        eventSponsorsList={eventSponsorsList}
+        previewXlsxPending={previewXlsxMutation.isPending}
+        onPreview={(file) => previewXlsxMutation.mutate({ file })}
+        confirmImportPending={confirmImportMutation.isPending}
+        onConfirmImport={(items, fileName, force) => confirmImportMutation.mutate({ items, fileName, force })}
+        importDuplicateWarning={importDuplicateWarning}
+        setImportDuplicateWarning={setImportDuplicateWarning}
+      />
       {/* ── Dialog: Clonar Evento ──────────────────────────────────────────── */}
       <CloneItemsDialog
         open={cloneDialogOpen}

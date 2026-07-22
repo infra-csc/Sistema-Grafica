@@ -72,7 +72,7 @@ function EventCardActions({
 }) {
   return (
     <div
-      className="opacity-0 group-hover:opacity-100"
+      className="opacity-40 group-hover:opacity-100 focus-within:opacity-100"
       style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
     >
@@ -88,12 +88,14 @@ function EventCardActions({
       )}
       {canEdit && (
         <button onClick={(e) => onEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
+          title="Editar evento" aria-label="Editar evento"
           style={{ padding: '8px', backgroundColor: dark ? 'rgba(255,255,255,0.1)' : '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#d4d0cb' : '#78716c', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
           <Pencil style={{ width: '13px', height: '13px' }} />
         </button>
       )}
       {canDelete && (
         <button onClick={(e) => onDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
+          title="Excluir evento" aria-label="Excluir evento"
           style={{ padding: '8px', backgroundColor: dark ? 'rgba(239,68,68,0.15)' : '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#f87171' : '#ef4444', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
           <Trash2 style={{ width: '13px', height: '13px' }} />
         </button>
@@ -122,6 +124,8 @@ export default function Eventos() {
   const [prazosExpanded, setPrazosExpanded] = useState(false);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [sponsorQuotaMap, setSponsorQuotaMap] = useState<Record<string, string>>({});
+  const [sponsorsLoading, setSponsorsLoading] = useState(false);
+  const [sponsorsError, setSponsorsError] = useState(false);
   const [sponsorSearch, setSponsorSearch] = useState("");
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
@@ -302,7 +306,20 @@ export default function Eventos() {
       });
       return;
     }
-    
+
+    // Ao editar, não deixa salvar antes de os patrocinadores carregarem (ou se
+    // o carregamento falhou), para não apagar os vínculos existentes por engano.
+    if (editingEvent && (sponsorsLoading || sponsorsError)) {
+      toast({
+        title: sponsorsLoading ? "Aguarde o carregamento" : "Não foi possível carregar os patrocinadores",
+        description: sponsorsLoading
+          ? "Os patrocinadores do evento ainda estão carregando."
+          : "Reabra o evento para editar com segurança — salvar agora poderia remover os patrocinadores vinculados.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (editingEvent) {
       updateEventMutation.mutate({ id: editingEvent.id, data: formData });
     } else {
@@ -356,6 +373,8 @@ export default function Eventos() {
   // Buscar patrocinadores vinculados ao editar evento
   useEffect(() => {
     if (editingEvent) {
+      setSponsorsLoading(true);
+      setSponsorsError(false);
       apiRequest("GET", `/api/events/${editingEvent.id}/sponsors`)
         .then((res) => res.json())
         .then((eventSponsors) => {
@@ -364,11 +383,14 @@ export default function Eventos() {
           eventSponsors.forEach((es: any) => { if (es.quota) quotaMap[es.sponsorId] = es.quota; });
           setSelectedSponsorIds(sponsorIds);
           setSponsorQuotaMap(quotaMap);
+          setSponsorsLoading(false);
         })
         .catch((error) => {
+          // NÃO zera selectedSponsorIds aqui: se zerasse e o usuário salvasse,
+          // o updateEvent removeria TODOS os vínculos de patrocinador do evento.
           console.error("Erro ao buscar patrocinadores:", error);
-          setSelectedSponsorIds([]);
-          setSponsorQuotaMap({});
+          setSponsorsError(true);
+          setSponsorsLoading(false);
         });
     }
   }, [editingEvent]);
@@ -573,7 +595,11 @@ export default function Eventos() {
           {/* ── MODAL CRIAR / EDITAR (Dialog 100% controlado, sem DialogTrigger) ── */}
           <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(isOpen); }}>
             {/* ── MODAL CRIAR / EDITAR ── */}
-            <DialogContent className="sm:max-w-[720px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' }}>
+            <DialogContent
+              className="sm:max-w-[720px] p-0 gap-0"
+              onInteractOutside={(e) => e.preventDefault()}
+              onEscapeKeyDown={(e) => e.preventDefault()}
+              style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' }}>
               {/* Cabeçalho */}
               <div style={{ padding: '24px', borderBottom: '1px solid rgba(224,192,177,0.2)', backgroundColor: '#fafaf9', borderRadius: '16px 16px 0 0' }}>
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em', lineHeight: 1 }}>
@@ -641,6 +667,14 @@ export default function Eventos() {
                         onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.backgroundColor = '#ffffff'; }}
                         onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
                       />
+                      {(() => {
+                        const s = formData.startDate;
+                        const t = formData.truckDepartureDate?.substring(0, 10);
+                        if (s && t && t >= s) {
+                          return <p style={{ margin: 0, fontSize: '11px', color: '#dc2626', fontWeight: 600 }}>Deve ser pelo menos 1 dia antes do início do evento.</p>;
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
 

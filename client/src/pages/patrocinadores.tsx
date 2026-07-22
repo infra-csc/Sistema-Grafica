@@ -416,7 +416,7 @@ export default function Patrocinadores() {
       {modalOpen && (
         <div
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.6)", backdropFilter: "blur(5px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}
-          onClick={e => { if (e.target === e.currentTarget) closeModal(); }}
+          onClick={e => { if (e.target === e.currentTarget && window.confirm("Descartar as alterações deste formulário?")) closeModal(); }}
         >
           <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 640, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", maxHeight: "90vh", margin: "auto" }}>
 

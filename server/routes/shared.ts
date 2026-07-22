@@ -43,7 +43,7 @@ export function broadcast(data: any) {
 export function translateStatus(status: string): string {
   const statusMap: Record<string, string> = {
     draft: "Rascunho",
-    requested: "Rascunho",
+    requested: "Solicitado",
     awaiting_linking: "Aguardando Vinculação",
     awaiting_submission: "Aguardando Envio",
     awaiting_approval: "Aguardando Aprovação",
@@ -61,7 +61,7 @@ export function translateStatus(status: string): string {
     // Legacy status compatibility
     awaiting_sponsor_approval: "Aguardando Aprovação",
     sponsor_approved: "Aguardando Finalização",
-    awaiting_creator_review: "Aguardando Finalização",
+    awaiting_creator_review: "Aguardando Revisão Final",
   };
   return statusMap[status] || status;
 }

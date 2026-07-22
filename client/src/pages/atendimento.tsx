@@ -16,7 +16,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useMemo, Fragment, useEffect, useRef } from "react";
+import { useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -43,7 +43,11 @@ export default function Atendimento() {
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
-  const [eventFilter, setEventFilter] = useState<string>("all");
+  // Adia o termo usado na filtragem para não travar a digitação com listas grandes.
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+  // Persiste o filtro de evento para não refazer a filtragem ao abrir uma peça e voltar.
+  const [eventFilter, setEventFilter] = useState<string>(() => sessionStorage.getItem("atendimento:eventFilter") || "all");
+  useEffect(() => { sessionStorage.setItem("atendimento:eventFilter", eventFilter); }, [eventFilter]);
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string>("all");
   const [eventComboOpen, setEventComboOpen] = useState(false);
@@ -94,7 +98,7 @@ export default function Atendimento() {
   const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
 
-  const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
+  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
@@ -363,10 +367,10 @@ export default function Atendimento() {
       const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
       if (!hasSponsors && !loadingSponsors) return false;
 
-      const matchesSearch = searchTerm === "" ||
-        item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = deferredSearchTerm === "" ||
+        item.type?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
+        item.description?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
+        item.name?.toLowerCase().includes(deferredSearchTerm.toLowerCase());
 
       const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
       const matchesType = itemTypeFilter === "all" || item.type === itemTypeFilter;
@@ -375,7 +379,7 @@ export default function Atendimento() {
 
       return matchesSearch && matchesEvent && matchesType && matchesSponsor;
     });
-  }, [pendingItems, searchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
+  }, [pendingItems, deferredSearchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
 
   const uniqueItemGroups = useMemo(() => {
     const groups = new Set(pendingItems.map(item => (item.type ?? "").split(/[\s(]/)[0]).filter(Boolean));
@@ -506,6 +510,10 @@ export default function Atendimento() {
   const getEventInfo = (eventId: string) => events.find((e: any) => e.id === eventId);
 
   const handleViewDetails = (item: any) => {
+    // Limpa o motivo/patrocinador de reprovação para não vazar o texto
+    // digitado numa peça anterior e reprovar a peça errada com justificativa alheia.
+    setRejectionReason("");
+    setRejectingSponsorId(null);
     setSelectedItem(item);
     setDialogOpen(true);
   };
@@ -531,7 +539,19 @@ export default function Atendimento() {
   if (itemsLoading || eventsLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Carregando itens...</div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if (itemsError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
+        <p className="text-base font-semibold text-red-700">Não foi possível carregar os itens</p>
+        <p className="text-sm text-muted-foreground">Verifique sua conexão e tente novamente.</p>
+        <button onClick={() => refetchItems()} className="mt-1 rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+          Tentar novamente
+        </button>
       </div>
     );
   }

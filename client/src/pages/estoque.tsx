@@ -924,7 +924,7 @@ export default function Estoque() {
     return () => document.removeEventListener("click", close);
   }, [quickEdit]);
 
-  const { data: assets = [], isLoading } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
+  const { data: assets = [], isLoading, isError, refetch } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
   const { data: sponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
   const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: allEvents = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
@@ -964,7 +964,7 @@ export default function Estoque() {
 
   const patchMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: object }) => apiRequest("PATCH", `/api/inventory/${id}`, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); toast({ title: "Item atualizado" }); },
     onError: () => toast({ title: "Erro ao atualizar.", variant: "destructive" }),
   });
 
@@ -1185,6 +1185,12 @@ export default function Estoque() {
           <div style={{ padding: 60, textAlign: "center", color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 14 }}>
             Carregando estoque...
           </div>
+        ) : isError ? (
+          <div style={{ padding: 72, textAlign: "center" }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar o estoque</p>
+            <p style={{ fontSize: 12, color: "#94a3b8", margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+            <button onClick={() => refetch()} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
+          </div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 72, textAlign: "center" }}>
             <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
@@ -1344,6 +1350,7 @@ export default function Estoque() {
 
                           {/* View detail */}
                           <button data-testid={`button-view-asset-${asset.id}`}
+                            title="Ver detalhes" aria-label="Ver detalhes"
                             onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
@@ -1353,6 +1360,7 @@ export default function Estoque() {
 
                           {/* Edit */}
                           <button data-testid={`button-edit-asset-${asset.id}`}
+                            title="Editar" aria-label="Editar"
                             onClick={e => { e.stopPropagation(); setEditing(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#2563eb"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
@@ -1362,6 +1370,7 @@ export default function Estoque() {
 
                           {/* Delete */}
                           <button data-testid={`button-delete-asset-${asset.id}`}
+                            title="Excluir" aria-label="Excluir"
                             onClick={e => { e.stopPropagation(); setDeleting(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}

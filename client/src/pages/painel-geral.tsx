@@ -29,10 +29,15 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; co
   awaiting_final_review: { label: "Aguard. Revisão",    dot: "#d946ef", bg: "#fdf4ff", color: "#d946ef", border: "#fae8ff" },
   awaiting_creator_review: { label: "Aguard. Finalização", dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
   ready_for_production:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
+  // pronto_para_producao: mesmo conceito de ready_for_production (a dispensa da
+  // Arte grava esse valor em português). Sem esta entrada o item mostrava o
+  // texto cru "pronto_para_producao" na tabela e não entrava em nenhum card.
   pronto_para_producao:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
+  approved:              { label: "Liberado",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
   inProduction:          { label: "Em Produção",        dot: "#f59e0b", bg: "#fff7ed", color: "#f59e0b", border: "#fef3c7" },
   produced:              { label: "Produzido",          dot: "#ec4899", bg: "#fdf2f8", color: "#ec4899", border: "#fce7f3" },
   delivered:             { label: "Entregue",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
+  canceled:              { label: "Cancelado",          dot: "#ef4444", bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -75,7 +80,9 @@ export default function PainelGeral() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
-  const { data: items = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/items"], placeholderData: [] });
+  // Sem placeholderData: no TanStack v5 ele zera o isLoading e o spinner nunca
+  // aparece, fazendo o usuário ver "Nenhum item" e KPIs zerados durante o load.
+  const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [] }           = useQuery<any[]>({ queryKey: ["/api/events"], placeholderData: [] });
   const { data: sponsors = [] }         = useQuery<any[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
   const { data: auditLogs = [] }        = useQuery<any[]>({ queryKey: ["/api/audit-logs"], placeholderData: [] });
@@ -134,8 +141,8 @@ export default function PainelGeral() {
     const map: Record<string, string[]> = {
       requested:             ["draft", "requested"],
       awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
-      awaiting_finalization: ["awaiting_finalization", "sponsor_approved", "awaiting_creator_review"],
-      awaiting_final_review: ["awaiting_final_review"],
+      awaiting_finalization: ["awaiting_finalization", "sponsor_approved"],
+      awaiting_final_review: ["awaiting_final_review", "awaiting_creator_review"],
       ready_for_production:  ["ready_for_production", "pronto_para_producao"],
     };
     return map[f] ? map[f].includes(item.status) : item.status === f;
@@ -165,9 +172,10 @@ export default function PainelGeral() {
     awaitingLinking:       statsItems.filter(i => i.status === "awaiting_linking").length,
     awaitingSubmission:    statsItems.filter(i => i.status === "awaiting_submission").length,
     awaitingApproval:      statsItems.filter(i => i.status === "awaiting_approval" || i.status === "awaiting_sponsor_approval").length,
-    awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved" || i.status === "awaiting_creator_review").length,
-    awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review").length,
+    awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved").length,
+    awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review" || i.status === "awaiting_creator_review").length,
     readyForProduction:    statsItems.filter(i => i.status === "ready_for_production" || i.status === "pronto_para_producao").length,
+    approved:              statsItems.filter(i => i.status === "approved").length,
     inProduction:          statsItems.filter(i => i.status === "inProduction").length,
     produced:              statsItems.filter(i => i.status === "produced").length,
     delivered:             statsItems.filter(i => i.status === "delivered").length,
@@ -410,6 +418,12 @@ export default function PainelGeral() {
         {isLoading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        ) : isError ? (
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #fecaca", padding: 48, textAlign: "center" }}>
+            <p style={{ color: "#b91c1c", fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>Não foi possível carregar os itens</p>
+            <p style={{ color: "#a8a29e", fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+            <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", padding: 48, textAlign: "center" }}>

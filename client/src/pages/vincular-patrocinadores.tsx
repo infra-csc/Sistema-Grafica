@@ -159,6 +159,7 @@ export default function VincularPatrocinadores() {
   const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
   const [sponsorDialogOpen, setSponsorDialogOpen] = useState(false);
+  const [sponsorModalSearch, setSponsorModalSearch] = useState('');
   
   // Estado para dialog de detalhes do item
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any>(null);
@@ -2934,83 +2935,165 @@ export default function VincularPatrocinadores() {
       )} {/* fim viewMode === 'por-patrocinador' */}
 
       {/* Dialog — Gerenciar Patrocinadores do Evento */}
-      <Dialog open={sponsorDialogOpen} onOpenChange={setSponsorDialogOpen}>
-        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9', borderRadius: 12 }}>
-          <div style={{ padding: '24px', borderBottom: '1px solid #eeeeed' }}>
-            <DialogTitle style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: '#1a1c1c', lineHeight: 1.2 }}>
-              Patrocinadores do Evento
-            </DialogTitle>
-            {selectedEventForSponsors && (
-              <p style={{ fontSize: 11, marginTop: 4, color: '#625d5b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                {selectedEventForSponsors.name}
-              </p>
-            )}
+      <Dialog open={sponsorDialogOpen} onOpenChange={(open) => { setSponsorDialogOpen(open); if (!open) setSponsorModalSearch(''); }}>
+        <DialogContent className="sm:max-w-lg p-0 gap-0" style={{ backgroundColor: '#ffffff', borderRadius: 14 }}>
+          {/* Header */}
+          <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f0efee' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+              <div>
+                <DialogTitle style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 18, fontWeight: 700, letterSpacing: '-0.03em', color: '#1c1917', lineHeight: 1.2, margin: 0 }}>
+                  Patrocinadores do Evento
+                </DialogTitle>
+                {selectedEventForSponsors && (
+                  <p style={{ fontSize: 11, marginTop: 3, color: '#78716c', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+                    {selectedEventForSponsors.name}
+                  </p>
+                )}
+              </div>
+              {/* Contador inline */}
+              {selectedSponsorIds.length > 0 && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', fontSize: 12, fontWeight: 700, color: '#c2410c', flexShrink: 0, marginTop: 2 }}>
+                  {selectedSponsorIds.length} selecionado{selectedSponsorIds.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {/* Barra de busca */}
+            <div style={{ position: 'relative', marginTop: 14 }}>
+              <Search style={{ width: 13, height: 13, color: '#a8a29e', position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                value={sponsorModalSearch}
+                onChange={e => setSponsorModalSearch(e.target.value)}
+                placeholder="Buscar patrocinador..."
+                style={{ width: '100%', height: 36, paddingLeft: 32, paddingRight: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#fafaf9', color: '#1c1917', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+              />
+              {sponsorModalSearch && (
+                <button onClick={() => setSponsorModalSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, color: '#a8a29e' }}>
+                  <X style={{ width: 13, height: 13 }} />
+                </button>
+              )}
+            </div>
+
+            {/* Ações rápidas */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+              {selectedSponsorIds.length > 0 ? (
+                <button onClick={() => setSelectedSponsorIds([])} style={{ fontSize: 11, fontWeight: 600, color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  Limpar seleção
+                </button>
+              ) : (
+                <button onClick={() => setSelectedSponsorIds(sponsors.map((s: any) => s.id))} style={{ fontSize: 11, fontWeight: 600, color: '#f97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  Selecionar todos
+                </button>
+              )}
+            </div>
           </div>
 
-          <div style={{ padding: '24px', maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {sponsors.length === 0 ? (
-              <p style={{ fontSize: 13, textAlign: 'center', padding: '32px 0', color: '#625d5b' }}>
-                Nenhum patrocinador cadastrado
-              </p>
-            ) : sponsors.map((sponsor) => {
-              const isSelected = selectedSponsorIds.includes(sponsor.id);
-              return (
-                <div
-                  key={sponsor.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 16px',
-                    backgroundColor: '#ffffff',
-                    border: isSelected ? '2px solid #f97316' : '1px solid #eeeeed',
-                    borderRadius: 8, cursor: 'pointer',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onClick={() => {
-                    if (isSelected) {
-                      setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
-                    } else {
-                      setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
-                    }
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0 }} />
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1c1c' }}>
-                      {sponsor.name}
-                      {sponsor.company && (
-                        <span style={{ marginLeft: 6, fontWeight: 400, color: '#625d5b', fontSize: 13 }}> ({sponsor.company})</span>
-                      )}
-                    </span>
-                  </div>
-                  {isSelected ? (
-                    <CheckCircle2 style={{ width: 18, height: 18, color: '#f97316', flexShrink: 0 }} />
-                  ) : (
-                    <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
-                  )}
-                </div>
+          {/* Lista */}
+          <div style={{ maxHeight: 340, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(() => {
+              const term = sponsorModalSearch.toLowerCase();
+              const filtered = (sponsors as any[]).filter((s: any) =>
+                s.name.toLowerCase().includes(term) || (s.company || '').toLowerCase().includes(term)
               );
-            })}
+              const selected = filtered.filter((s: any) => selectedSponsorIds.includes(s.id)).sort((a: any, b: any) => a.name.localeCompare(b.name));
+              const unselected = filtered.filter((s: any) => !selectedSponsorIds.includes(s.id)).sort((a: any, b: any) => a.name.localeCompare(b.name));
+              const sorted = [...selected, ...unselected];
+
+              if (sorted.length === 0) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '32px 0', color: '#a8a29e', fontSize: 13 }}>
+                    {sponsorModalSearch ? 'Nenhum resultado para a busca' : 'Nenhum patrocinador cadastrado'}
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  {selected.length > 0 && unselected.length > 0 && (
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '2px 4px 4px' }}>
+                      Selecionados ({selected.length})
+                    </div>
+                  )}
+                  {sorted.map((sponsor: any, idx: number) => {
+                    const isSelected = selectedSponsorIds.includes(sponsor.id);
+                    const showDivider = selected.length > 0 && unselected.length > 0 && idx === selected.length;
+                    return (
+                      <div key={sponsor.id}>
+                        {showDivider && (
+                          <div style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '8px 4px 4px' }}>
+                            Disponíveis ({unselected.length})
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '11px 14px',
+                            backgroundColor: isSelected ? '#fff7ed' : '#fafaf9',
+                            border: isSelected ? '1.5px solid #fdba74' : '1.5px solid #f0efee',
+                            borderRadius: 8, cursor: 'pointer',
+                            transition: 'all 0.12s',
+                          }}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                            } else {
+                              setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                            }
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0 }} />
+                            <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 500, color: isSelected ? '#92400e' : '#1c1917' }}>
+                              {sponsor.name}
+                            </span>
+                            {sponsor.company && (
+                              <span style={{ fontSize: 11, fontWeight: 400, color: '#a8a29e' }}>({sponsor.company})</span>
+                            )}
+                          </div>
+                          {isSelected ? (
+                            <div style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Check style={{ width: 11, height: 11, color: '#ffffff' }} />
+                            </div>
+                          ) : (
+                            <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #d6d3d1', flexShrink: 0 }} />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()}
           </div>
 
-          <div style={{ padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '0 0 12px 12px' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              {selectedSponsorIds.length.toString().padStart(2, '0')} / {sponsors.length.toString().padStart(2, '0')} SELECIONADOS
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
+          {/* Footer */}
+          <div style={{ padding: '14px 20px', borderTop: '1px solid #f0efee', backgroundColor: '#fafaf9', borderRadius: '0 0 14px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c' }}>
+                  {selectedSponsorIds.length} de {sponsors.length} selecionados
+                </span>
+              </div>
+              <div style={{ height: 4, borderRadius: 2, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${sponsors.length > 0 ? (selectedSponsorIds.length / sponsors.length) * 100 : 0}%`, backgroundColor: '#f97316', borderRadius: 2, transition: 'width 0.2s' }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button
-                onClick={() => setSponsorDialogOpen(false)}
+                onClick={() => { setSponsorDialogOpen(false); setSponsorModalSearch(''); }}
                 disabled={manageEventSponsorsMutation.isPending}
-                style={{ padding: '8px 16px', background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}
+                style={{ height: 34, padding: '0 14px', background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#44403c', cursor: 'pointer' }}
               >
-                CANCELAR
+                Cancelar
               </button>
               <button
                 onClick={handleSaveEventSponsors}
                 disabled={manageEventSponsorsMutation.isPending}
                 data-testid="button-save-event-sponsors"
-                style={{ padding: '8px 16px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}
+                style={{ height: 34, padding: '0 16px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
               >
-                {manageEventSponsorsMutation.isPending ? "SALVANDO..." : "SALVAR"}
+                {manageEventSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
               </button>
             </div>
           </div>

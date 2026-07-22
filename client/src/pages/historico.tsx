@@ -36,9 +36,41 @@ const TYPE_CONFIG: Record<string, {
     label: "Vinculação", dot: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe", color: "#7c3aed",
     icon: Link2,
   },
+  thumb_uploaded: {
+    label: "Thumb Enviado", dot: "#f59e0b", bg: "#fffbeb", border: "#fde68a", color: "#b45309",
+    icon: FileCheck,
+  },
+  final_file_added: {
+    label: "Arq. Final", dot: "#06b6d4", bg: "#ecfeff", border: "#a5f3fc", color: "#0891b2",
+    icon: FileCheck,
+  },
+  item_sent: {
+    label: "Enviado p/ Aprov.", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#ea580c",
+    icon: Clock,
+  },
+  sponsor_approved: {
+    label: "Pat. Aprovou", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
+    icon: FileCheck,
+  },
+  sponsor_rejected: {
+    label: "Pat. Reprovou", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
+    icon: Activity,
+  },
   item_approved: {
     label: "Peça Liberada", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
     icon: FileCheck,
+  },
+  item_released: {
+    label: "Lib. p/ Produção", dot: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8",
+    icon: Package,
+  },
+  item_dispensed: {
+    label: "Dispensado", dot: "#6b7280", bg: "#f3f4f6", border: "#e5e7eb", color: "#374151",
+    icon: Activity,
+  },
+  item_deleted: {
+    label: "Excluído", dot: "#ef4444", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
+    icon: Activity,
   },
   production_started: {
     label: "Em Produção", dot: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8",
@@ -124,8 +156,24 @@ function buildDescription(e: TimelineEvent) {
           no evento <strong style={{ color: P.text }}>{e.eventName}</strong>
         </span>
       );
+    case "thumb_uploaded":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — thumb de aprovação enviado · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "final_file_added":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — arquivo final adicionado · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "item_sent":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> enviado para aprovação de patrocinador · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "sponsor_approved":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.logDetails || "patrocinador aprovou"} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "sponsor_rejected":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.logDetails || "patrocinador reprovou"} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "item_approved":
       return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> de <strong style={{ color: P.text }}>{e.eventName}</strong> liberado para produção</span>;
+    case "item_released":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> revisado e liberado para produção · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "item_dispensed":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> dispensado (aprovação ignorada) · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "item_deleted":
+      return <span>Peça <strong style={{ color: P.text }}>{e.itemType}</strong> excluída do evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "production_started":
       return <span>Produção de {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.quantityProduced}/{e.quantity} un.</span>;
     case "item_delivered":
@@ -217,39 +265,110 @@ export default function Historico() {
     }
   });
 
-  // Add sponsor linking events from audit logs
-  // (entityType: 'item', action: 'updated', details starting with "Patrocinadores atualizados")
-  auditLogs
-    .filter((log: any) => {
-      const action = (log.action || "").toLowerCase();
-      const details = (log.details || "").toLowerCase();
-      return action === "updated" && details.includes("patrocinadores atualizados");
-    })
-    .forEach((log: any) => {
-      const itemId = log.entityId ?? log.entity_id;
-      const item = itemMap.get(itemId);
+  // Parse audit logs for all relevant action types
+  auditLogs.forEach((log: any) => {
+    const action = (log.action || "").toLowerCase();
+    const details = (log.details || "");
+    const detailsLower = details.toLowerCase();
+    const itemId = log.entityId ?? log.entity_id;
+    const entityType = (log.entityType ?? log.entity_type ?? "").toLowerCase();
+    const ts = log.createdAt ?? log.created_at;
+    const userName = log.userName ?? log.user_name;
+
+    // Only process item-related logs
+    if (entityType !== "item" && entityType !== "") {
+      return;
+    }
+
+    const item = itemMap.get(itemId);
+    const event = item ? events.find(e => e.id === item.eventId) : null;
+    const eventName = event?.name || "Evento desconhecido";
+
+    const base = {
+      timestamp: new Date(ts),
+      eventName,
+      eventId: item?.eventId || "",
+      itemType: item?.type,
+      itemId: item?.id,
+      itemDisplayId: item?.displayId,
+      quantity: item?.quantity,
+      userName,
+      logDetails: details,
+    };
+
+    // Sponsor linking
+    if (action === "updated" && detailsLower.includes("patrocinadores atualizados")) {
       if (!item) return;
-      const event = events.find(e => e.id === item.eventId);
-      const eventName = event?.name || "Evento desconhecido";
-      // Extract count from details: "Patrocinadores atualizados - N patrocinador..."
-      const match = (log.details || "").match(/(\d+)\s+patrocinador/i);
+      const match = details.match(/(\d+)\s+patrocinador/i);
       const sponsorCount = match ? parseInt(match[1], 10) : undefined;
-      const ts = log.createdAt ?? log.created_at;
+      timeline.push({ id: `sponsor-linked-${log.id ?? itemId + ts}`, type: "sponsor_linked", ...base, sponsorCount });
+      return;
+    }
+
+    // Thumb uploaded
+    if (action === "updated" && detailsLower.includes("thumb de aprovação atualizado")) {
+      if (!item) return;
+      timeline.push({ id: `thumb-${log.id ?? itemId + ts}`, type: "thumb_uploaded", ...base });
+      return;
+    }
+
+    // Final file added (via add-final-file route OR via general patch with "arquivo final")
+    if (action === "updated" && (detailsLower.includes("arquivo final adicionado") || detailsLower.includes("arquivo final atualizado"))) {
+      if (!item) return;
+      timeline.push({ id: `final-${log.id ?? itemId + ts}`, type: "final_file_added", ...base });
+      return;
+    }
+
+    // Item sent for sponsor approval
+    if (action === "updated" && detailsLower.includes("status alterado") && detailsLower.includes("awaiting_sponsor_approval")) {
+      if (!item) return;
+      timeline.push({ id: `sent-${log.id ?? itemId + ts}`, type: "item_sent", ...base });
+      return;
+    }
+
+    // Sponsor approved (individual or all)
+    if (action === "approved" && (detailsLower.includes("patrocinador") || detailsLower.includes("aprovou"))) {
+      if (!item) return;
+      // Skip "liberado para produção" — that's item_released
+      if (detailsLower.includes("liberado para produção")) return;
+      timeline.push({ id: `sp-approved-${log.id ?? itemId + ts}`, type: "sponsor_approved", ...base });
+      return;
+    }
+
+    // Sponsor rejected
+    if (action === "rejected") {
+      if (!item) return;
+      timeline.push({ id: `sp-rejected-${log.id ?? itemId + ts}`, type: "sponsor_rejected", ...base });
+      return;
+    }
+
+    // Item released for production (creator review)
+    if (action === "approved" && detailsLower.includes("liberado para produção")) {
+      if (!item) return;
+      timeline.push({ id: `released-${log.id ?? itemId + ts}`, type: "item_released", ...base });
+      return;
+    }
+
+    // Item dispensed
+    if (action === "dispensed") {
+      if (!item) return;
+      timeline.push({ id: `dispensed-${log.id ?? itemId + ts}`, type: "item_dispensed", ...base });
+      return;
+    }
+
+    // Item deleted
+    if (action === "deleted" && (entityType === "item" || item)) {
+      // For deleted items, use log details for type name since item may not exist
+      const itemTypeFallback = details.match(/Item "(.+?)"/)?.[1] || "Peça";
       timeline.push({
-        id: `sponsor-linked-${log.id ?? itemId + ts}`,
-        type: "sponsor_linked",
-        timestamp: new Date(ts),
-        eventName,
-        eventId: item.eventId,
-        itemType: item.type,
-        itemId: item.id,
-        itemDisplayId: item.displayId,
-        quantity: item.quantity,
-        userName: log.userName ?? log.user_name,
-        sponsorCount,
-        logDetails: log.details,
+        id: `deleted-${log.id ?? itemId + ts}`,
+        type: "item_deleted",
+        ...base,
+        itemType: item?.type || itemTypeFallback,
       });
-    });
+      return;
+    }
+  });
 
   const sorted = timeline.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
@@ -357,12 +476,28 @@ export default function Historico() {
             style={selectStyle}
           >
             <option value="all">Todas as ações</option>
-            <option value="event_created">Eventos criados</option>
-            <option value="item_created">Itens adicionados</option>
-            <option value="sponsor_linked">Vinculações</option>
-            <option value="item_approved">Itens liberados</option>
-            <option value="production_started">Em produção</option>
-            <option value="item_delivered">Entregas</option>
+            <optgroup label="─── Criação ───────────────">
+              <option value="event_created">Eventos criados</option>
+              <option value="item_created">Itens adicionados</option>
+              <option value="item_deleted">Itens excluídos</option>
+            </optgroup>
+            <optgroup label="─── Arte ───────────────────">
+              <option value="sponsor_linked">Vinculações</option>
+              <option value="thumb_uploaded">Thumbs enviados</option>
+              <option value="item_sent">Enviados p/ aprovação</option>
+              <option value="final_file_added">Arq. finais adicionados</option>
+              <option value="item_dispensed">Dispensados</option>
+            </optgroup>
+            <optgroup label="─── Aprovação ──────────────">
+              <option value="sponsor_approved">Pat. aprovou</option>
+              <option value="sponsor_rejected">Pat. reprovou</option>
+              <option value="item_released">Lib. p/ produção</option>
+            </optgroup>
+            <optgroup label="─── Produção ───────────────">
+              <option value="item_approved">Itens liberados</option>
+              <option value="production_started">Em produção</option>
+              <option value="item_delivered">Entregas</option>
+            </optgroup>
           </select>
 
           {/* Event select */}

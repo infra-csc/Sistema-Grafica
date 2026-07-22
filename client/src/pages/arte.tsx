@@ -112,6 +112,26 @@ export default function Arte() {
     },
   });
 
+  // Salva o thumb no item SEM mudar o status (rascunho). O item continua na aba
+  // "Mandar para Aprovação" (filtrada por status awaiting_submission) — só grava
+  // o approvalThumbUrl para enviar depois.
+  const saveThumbDraftMutation = useMutation({
+    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}`, { approvalThumbUrl });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      toast({
+        title: "Thumb salvo",
+        description: "O thumb foi salvo. Envie para aprovação quando quiser.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao salvar thumb", description: error.message, variant: "destructive" });
+    },
+  });
+
   const submitBulkForApprovalMutation = useMutation({
     mutationFn: async ({ itemIds, pdfUrl }: { itemIds: string[]; pdfUrl: string }) => {
       const promises = itemIds.map(itemId =>
@@ -1124,6 +1144,17 @@ export default function Arte() {
       return;
     }
     submitForApprovalMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
+  };
+
+  // Salva o thumb sem enviar para aprovação (rascunho).
+  const handleSaveThumbDraft = () => {
+    if (!selectedItem || !approvalThumbUrl) {
+      toast({ title: "Erro", description: "Faça o upload do thumb antes de salvar", variant: "destructive" });
+      return;
+    }
+    // Atualiza o item local otimisticamente para refletir o thumb salvo na lista.
+    setSelectedItem((prev: any) => prev ? { ...prev, approvalThumbUrl } : prev);
+    saveThumbDraftMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
   };
 
   const handleSubmitFinalFile = () => {
@@ -2630,6 +2661,27 @@ export default function Arte() {
                         </FileUploader>
                       </div>
                     </div>
+
+                    {/* Salvar thumb sem enviar (rascunho) */}
+                    <button
+                      onClick={handleSaveThumbDraft}
+                      disabled={saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending}
+                      data-testid="button-save-thumb-draft"
+                      style={{
+                        width: '100%', padding: '12px 0', borderRadius: 8,
+                        border: '1.5px solid #ddd6fe', background: '#ffffff',
+                        color: '#7c3aed', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
+                        fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em',
+                        cursor: (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        marginBottom: 8, transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => { if (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) return; e.currentTarget.style.background = '#faf5ff'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
+                    >
+                      <FileImage style={{ width: 14, height: 14 }} />
+                      {saveThumbDraftMutation.isPending ? 'Salvando...' : 'Salvar thumb (sem enviar)'}
+                    </button>
 
                     {/* Enviar para Aprovação */}
                     <button

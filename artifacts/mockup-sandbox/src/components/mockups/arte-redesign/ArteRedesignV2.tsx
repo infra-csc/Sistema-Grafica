@@ -88,7 +88,9 @@ export function ArteRedesignV2() {
   const [materialFilter, setMaterialFilter] = useState("all");
   const [urgente, setUrgente] = useState(false);
   const [semThumb, setSemThumb] = useState(false);
+  const [comThumb, setComThumb] = useState(false);
   const [semFinal, setSemFinal] = useState(false);
+  const [comFinal, setComFinal] = useState(false);
 
   const total = STATS.reduce((s, c) => s + c.value, 0);
 
@@ -99,7 +101,9 @@ export function ArteRedesignV2() {
     materialFilter !== "all" && `Material: ${materialFilter}`,
     urgente && "Urgente",
     semThumb && "Sem thumb",
+    comThumb && "Com thumb",
     semFinal && "Sem arq. final",
+    comFinal && "Com arq. final",
   ].filter(Boolean) as string[];
 
   const removeChip = (chip: string) => {
@@ -109,7 +113,9 @@ export function ArteRedesignV2() {
     else if (chip.startsWith("Material:")) setMaterialFilter("all");
     else if (chip === "Urgente") setUrgente(false);
     else if (chip === "Sem thumb") setSemThumb(false);
+    else if (chip === "Com thumb") setComThumb(false);
     else if (chip === "Sem arq. final") setSemFinal(false);
+    else if (chip === "Com arq. final") setComFinal(false);
   };
 
   return (
@@ -320,9 +326,11 @@ export function ArteRedesignV2() {
             <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.22)", textTransform: "uppercase", letterSpacing: "0.10em", marginRight: 2 }}>Mostrar apenas:</span>
 
             {[
-              { key: "urgente", label: "Urgente", value: urgente, set: setUrgente, color: "#ef4444", glow: "rgba(239,68,68,0.25)" },
-              { key: "semThumb", label: "Sem thumb", value: semThumb, set: setSemThumb, color: "#fbbf24", glow: "rgba(251,191,36,0.22)" },
-              { key: "semFinal", label: "Sem arq. final", value: semFinal, set: setSemFinal, color: "#06b6d4", glow: "rgba(6,182,212,0.22)" },
+              { key: "urgente",  label: "Urgente",        value: urgente,  set: setUrgente,  color: "#ef4444", glow: "rgba(239,68,68,0.25)" },
+              { key: "semThumb", label: "Sem thumb",       value: semThumb, set: setSemThumb, color: "#fbbf24", glow: "rgba(251,191,36,0.22)" },
+              { key: "comThumb", label: "Com thumb",       value: comThumb, set: setComThumb, color: "#4ade80", glow: "rgba(74,222,128,0.22)" },
+              { key: "semFinal", label: "Sem arq. final",  value: semFinal, set: setSemFinal, color: "#06b6d4", glow: "rgba(6,182,212,0.22)" },
+              { key: "comFinal", label: "Com arq. final",  value: comFinal, set: setComFinal, color: "#4ade80", glow: "rgba(74,222,128,0.22)" },
             ].map(({ key, label, value, set, color, glow }) => (
               <button
                 key={key}

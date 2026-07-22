@@ -76,7 +76,7 @@ const BTN_LABEL: Record<string, string> = {
 const BTN_COLOR: Record<string, string> = {
   aprovar: "#f97316",
   correcao: "#ef4444",
-  finalizar: "#7c3aed",
+  finalizar: "#0891b2",
   finalizados: "#64748b",
 };
 
@@ -238,9 +238,9 @@ export function ArteRedesignV2() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
               <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.10em" }}>Filtros ativos:</span>
               {activeFilters.map(f => (
-                <span key={f} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(167,139,250,0.18)", border: "1px solid rgba(167,139,250,0.35)", fontSize: 11, fontWeight: 600, color: "#c4b5fd" }}>
+                <span key={f} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(249,115,22,0.18)", border: "1px solid rgba(249,115,22,0.35)", fontSize: 11, fontWeight: 600, color: "#fed7aa" }}>
                   {f}
-                  <button onClick={() => removeFilter(f)} style={{ background: "none", border: "none", cursor: "pointer", color: "#c4b5fd", display: "flex", alignItems: "center", padding: 0 }}>
+                  <button onClick={() => removeFilter(f)} style={{ background: "none", border: "none", cursor: "pointer", color: "#fed7aa", display: "flex", alignItems: "center", padding: 0 }}>
                     <X style={{ width: 9, height: 9 }} />
                   </button>
                 </span>

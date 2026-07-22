@@ -16,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink, RotateCcw, Zap } from "lucide-react";
+import { Package, Check, Calendar, Truck, Link2, AlertCircle, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink, RotateCcw, Zap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
@@ -184,6 +184,8 @@ export default function VincularPatrocinadores() {
   const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
 
   const [sendConfirmModal, setSendConfirmModal] = useState<SendConfirmModal | null>(null);
+  // Trava o botão de confirmar envio enquanto a sincronização/envio está em curso.
+  const [isSending, setIsSending] = useState(false);
 
   // Estado para controlar items expandidos
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -257,12 +259,22 @@ export default function VincularPatrocinadores() {
     });
   }, [rawEvents]);
 
+  // Lookup O(1) de evento por id — evita rawEvents.find() dentro de loops de
+  // filtro (que era O(nº itens × nº eventos) e pesava com muitos itens).
+  const eventById = useMemo(() => {
+    const m = new Map<string, any>();
+    rawEvents.forEach(e => m.set(e.id, e));
+    return m;
+  }, [rawEvents]);
+
   // Mostrar apenas items de eventos futuros com status que permitem vinculação de patrocinadores
   // Exclui: draft e requested (Rascunho — ainda não enviado pela Solicitação)
   const visibleItems = useMemo(() => {
     const today = startOfDay(new Date());
+    // Nomes que o backend realmente grava (sem 'released'/'in_production', que
+    // eram fantasmas e nunca casavam).
     const allowedStatuses = [
-      'awaiting_linking', 
+      'awaiting_linking',
       'awaiting_submission',
       'awaiting_sponsor_approval',
       'sponsor_approved',
@@ -271,8 +283,6 @@ export default function VincularPatrocinadores() {
       'awaiting_creator_review',
       'ready_for_production',
       'pronto_para_producao',
-      'released',
-      'in_production',
       'inProduction',
       'produced',
       'delivered'
@@ -284,7 +294,7 @@ export default function VincularPatrocinadores() {
       // Filtro 1: Status permitido (exclui draft)
       if (!allowedStatuses.includes(item.status)) return false;
 
-      const event = rawEvents.find(e => e.id === item.eventId);
+      const event = eventById.get(item.eventId);
       if (!event) return false;
 
       // Itens com trabalho pendente aparecem sempre (independente da data do evento)
@@ -294,7 +304,7 @@ export default function VincularPatrocinadores() {
       const eventStartDate = startOfDay(parseDateLocal(event.startDate));
       return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
     });
-  }, [items, rawEvents]);
+  }, [items, eventById]);
   
   // Toggle "Sem Patrocinador" por item individual
   const toggleItemSkipApproval = (item: any) => {
@@ -399,7 +409,7 @@ export default function VincularPatrocinadores() {
     const entries = Object.entries(itemsByEvent);
     
     return entries.filter(([eventId, eventItems]) => {
-      const event = rawEvents.find(e => e.id === eventId);
+      const event = eventById.get(eventId);
       if (!event) return false;
 
       // Filtro por evento específico
@@ -413,7 +423,7 @@ export default function VincularPatrocinadores() {
       // Se não há items que passaram no filtro, ocultar o evento
       return filteredItems.length > 0;
     });
-  }, [itemsByEvent, events, searchQuery, eventFilter, sponsorFilter, itemFilter, statusFilter, originalSponsorsMap, pendingChanges]);
+  }, [itemsByEvent, eventById, searchQuery, eventFilter, sponsorFilter, itemFilter, statusFilter, originalSponsorsMap, pendingChanges]);
 
   // ===== FONTE ÚNICA DE VERDADE: Computar estados UI de todos os items =====
   const itemUIStates = useMemo(() => {
@@ -463,7 +473,7 @@ export default function VincularPatrocinadores() {
   // Itens que passam em TODOS os filtros ativos (usado no bloco de progresso)
   const fullyFilteredItems = useMemo(() => {
     return contextVisibleItems.filter(item => {
-      const event = rawEvents.find(e => e.id === item.eventId);
+      const event = eventById.get(item.eventId);
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         if (!item.type.toLowerCase().includes(q) &&
@@ -482,7 +492,7 @@ export default function VincularPatrocinadores() {
       }
       return true;
     });
-  }, [contextVisibleItems, rawEvents, searchQuery, itemFilter, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
+  }, [contextVisibleItems, eventById, searchQuery, itemFilter, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
 
   // Contadores de contexto: baseados no filtro de evento ativo
   const contextStatusCounts = useMemo(() => {
@@ -494,52 +504,39 @@ export default function VincularPatrocinadores() {
     return counts;
   }, [contextVisibleItems, itemUIStates]);
 
-  // IDs já carregados — evita re-fetch e overwrite durante mutations
+  // IDs já processados — evita overwrite de updates otimistas durante mutations
   const loadedItemIdsRef = useRef(new Set<string>());
 
-  // Carregar sponsors salvos no banco para cada item ainda NÃO carregado
+  // Preencher os mapas de patrocinadores a partir dos dados que JÁ vêm no
+  // payload de /api/items (item.sponsors). Antes isto disparava uma requisição
+  // GET /api/items/:id/sponsors por item (N+1) — com muitos itens, centenas de
+  // requisições paralelas travavam a tela. Os mesmos ids já estão em
+  // item.sponsors, então derivamos direto, sem rede.
   useEffect(() => {
-    if (itemsLoading || !visibleItems || visibleItems.length === 0) return;
+    if (itemsLoading || items.length === 0) return;
 
-    const unloaded = visibleItems.filter(item => !loadedItemIdsRef.current.has(item.id));
-    if (unloaded.length === 0) return;
+    const newEntries: Record<string, string[]> = {};
+    const newOriginals: Record<string, string[]> = {};
+    let hasNew = false;
 
-    let cancelled = false;
+    for (const item of items) {
+      // Pula itens já processados para não sobrescrever updates otimistas.
+      if (loadedItemIdsRef.current.has(item.id)) continue;
+      const sponsorIds = Array.isArray(item.sponsors)
+        ? item.sponsors.map((s: any) => s.id).filter(Boolean)
+        : [];
+      newEntries[item.id] = sponsorIds;
+      newOriginals[item.id] = sponsorIds;
+      loadedItemIdsRef.current.add(item.id);
+      hasNew = true;
+    }
 
-    Promise.all(
-      unloaded.map(async (item) => {
-        try {
-          const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
-          const itemSponsors = await response.json();
-          const sponsorIds = itemSponsors.map((is: any) => is.id).filter(Boolean);
-          return { itemId: item.id, sponsorIds };
-        } catch (error) {
-          console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
-          return { itemId: item.id, sponsorIds: [] };
-        }
-      })
-    ).then((itemResults) => {
-      if (cancelled) return;
+    if (!hasNew) return;
 
-      const newEntries: Record<string, string[]> = {};
-      const newOriginals: Record<string, string[]> = {};
-
-      itemResults.forEach(({ itemId, sponsorIds }) => {
-        newOriginals[itemId] = sponsorIds; // verdade do banco
-        newEntries[itemId] = sponsorIds;   // exibe apenas o que está salvo
-      });
-
-      // MERGE — nunca substitui entradas já existentes (evita overwrite de updates otimistas)
-      setItemSponsorsMap(prev => ({ ...newEntries, ...prev }));
-      setOriginalSponsorsMap(prev => ({ ...newOriginals, ...prev }));
-
-      itemResults.forEach(({ itemId }) => loadedItemIdsRef.current.add(itemId));
-    }).catch(error => {
-      console.error('Erro ao carregar sponsors:', error);
-    });
-
-    return () => { cancelled = true; };
-  }, [visibleItems.length, itemsLoading]);
+    // MERGE — nunca substitui entradas já existentes (preserva updates otimistas)
+    setItemSponsorsMap(prev => ({ ...newEntries, ...prev }));
+    setOriginalSponsorsMap(prev => ({ ...newOriginals, ...prev }));
+  }, [items, itemsLoading]);
 
   // Helper para comparar arrays de sponsor IDs
   const areSponsorsEqual = (a: string[], b: string[]): boolean => {
@@ -616,16 +613,12 @@ export default function VincularPatrocinadores() {
     }) => {
       const toAdd = newSponsors.filter(id => !currentSponsors.includes(id));
       const toRemove = currentSponsors.filter(id => !newSponsors.includes(id));
-      
-      // Adicionar novos patrocinadores
-      for (const sponsorId of toAdd) {
-        await apiRequest("POST", `/api/events/${eventId}/sponsors`, { sponsorId });
-      }
-      
-      // Remover patrocinadores desmarcados
-      for (const sponsorId of toRemove) {
-        await apiRequest("DELETE", `/api/events/${eventId}/sponsors/${sponsorId}`);
-      }
+
+      // Adiciona e remove em paralelo (antes eram dois for...of sequenciais).
+      await Promise.all([
+        ...toAdd.map(sponsorId => apiRequest("POST", `/api/events/${eventId}/sponsors`, { sponsorId })),
+        ...toRemove.map(sponsorId => apiRequest("DELETE", `/api/events/${eventId}/sponsors/${sponsorId}`)),
+      ]);
     },
     onSuccess: async () => {
       // Invalidar e fazer refetch forçado
@@ -688,7 +681,10 @@ export default function VincularPatrocinadores() {
         savedIds.forEach(id => { delete next[id]; });
         return next;
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      // Sem invalidar /api/items: o onMutate já atualizou de forma otimista os
+      // mapas de patrocinadores e o skipApproval no cache do React Query — que é
+      // tudo que a UI lê. Invalidar aqui forçava um reload completo (N+1 no
+      // backend) a cada salvamento, deixando a tela lenta.
       toast({
         title: "Vinculação salva!",
         description: `${savedIds.length} item${savedIds.length !== 1 ? 's' : ''} pronto${savedIds.length !== 1 ? 's' : ''} para enviar.`,
@@ -1134,7 +1130,8 @@ export default function VincularPatrocinadores() {
         return newOnes.some(id => !existing.includes(id));
       });
 
-      for (const itemId of itemsToSync) {
+      // Sincroniza em paralelo (antes era um for...of sequencial).
+      await Promise.all(itemsToSync.map(async (itemId) => {
         const existing = originalSponsorsMap[itemId] || [];
         const merged = Array.from(new Set([...existing, ...(grouped[itemId] || [])]));
         await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
@@ -1144,7 +1141,7 @@ export default function VincularPatrocinadores() {
         // Atualizar estado local imediatamente
         setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
         setItemSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
-      }
+      }));
 
       // Abrir modal de confirmação em vez de enviar direto
       const itemsToSend = items.filter((i: any) => itemIds.includes(i.id));
@@ -1199,35 +1196,44 @@ export default function VincularPatrocinadores() {
 
   // Confirma e executa o envio com os patrocinadores finais do modal
   const handleModalConfirmSend = async () => {
-    if (!sendConfirmModal) return;
+    if (!sendConfirmModal || isSending) return;
     const { items, pendingByItem } = sendConfirmModal;
-    setSendConfirmModal(null);
+    setIsSending(true);
 
     try {
-      for (const item of items) {
+      // Sincroniza em PARALELO apenas os itens que ganharam novos patrocinadores
+      // (antes era um for...of sequencial — uma requisição por vez, lento).
+      const toSync = items.filter(item => {
+        const existing = originalSponsorsMap[item.id] || [];
+        const newOnes = Array.from(pendingByItem[item.id] || []);
+        return newOnes.some(id => !existing.includes(id));
+      });
+      await Promise.all(toSync.map(async (item) => {
         const existing = originalSponsorsMap[item.id] || [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
         const merged = Array.from(new Set([...existing, ...newOnes]));
-        if (newOnes.some(id => !existing.includes(id))) {
-          await apiRequest("POST", `/api/items/${item.id}/sponsors/sync`, {
-            sponsorIds: merged,
-            skipApproval: false,
-          });
-          setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
-          setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
-        }
-      }
+        await apiRequest("POST", `/api/items/${item.id}/sponsors/sync`, {
+          sponsorIds: merged,
+          skipApproval: false,
+        });
+        setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
+        setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
+      }));
       const itemIds = items.map(i => i.id);
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
       sendToArteMutation.mutate(itemIds);
+      // Só fecha o modal após o sync dar certo (em erro, mantém aberto p/ retry).
+      setSendConfirmModal(null);
+      setSponsorBulkSelected(new Set());
     } catch (err: any) {
       toast({
         title: "Erro ao enviar",
         description: err?.message || "Tente novamente",
         variant: "destructive",
       });
+    } finally {
+      setIsSending(false);
     }
-    setSponsorBulkSelected(new Set());
   };
 
   // Vincular patrocinador a item individual (aba Por Patrocinador)
@@ -1251,12 +1257,12 @@ export default function VincularPatrocinadores() {
     // Atualizar estado local imediatamente
     setItemSponsorsMap(prev => ({ ...prev, [itemId]: newSponsors }));
     setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: newSponsors }));
-    // Persistir no servidor
+    // Persistir no servidor (sem invalidar /api/items — os mapas já foram
+    // atualizados de forma otimista, que é o que a UI lê; invalidar recarregava
+    // todos os itens à toa).
     apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
       sponsorIds: newSponsors,
       skipApproval: false,
-    }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
     }).catch(() => {
       // reverter em caso de erro
       setItemSponsorsMap(prev => ({ ...prev, [itemId]: current }));
@@ -3309,22 +3315,22 @@ export default function VincularPatrocinadores() {
               </button>
               <button
                 onClick={handleModalConfirmSend}
-                disabled={sendToArteMutation.isPending}
+                disabled={isSending || sendToArteMutation.isPending}
                 style={{
                   padding: '11px 26px',
-                  background: sendToArteMutation.isPending ? '#fdba74' : 'linear-gradient(135deg, #f97316, #ea580c)',
+                  background: (isSending || sendToArteMutation.isPending) ? '#fdba74' : 'linear-gradient(135deg, #f97316, #ea580c)',
                   color: '#ffffff', border: 'none', borderRadius: 10,
-                  fontSize: 14, fontWeight: 800, cursor: sendToArteMutation.isPending ? 'not-allowed' : 'pointer',
+                  fontSize: 14, fontWeight: 800, cursor: (isSending || sendToArteMutation.isPending) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 9,
-                  boxShadow: sendToArteMutation.isPending ? 'none' : '0 4px 12px rgba(249,115,22,0.35)',
+                  boxShadow: (isSending || sendToArteMutation.isPending) ? 'none' : '0 4px 12px rgba(249,115,22,0.35)',
                   letterSpacing: '-0.01em', fontFamily: 'Space Grotesk, sans-serif',
                   transition: 'box-shadow 0.15s, filter 0.15s',
                 }}
-                onMouseEnter={e => { if (!sendToArteMutation.isPending) e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                onMouseEnter={e => { if (!(isSending || sendToArteMutation.isPending)) e.currentTarget.style.filter = 'brightness(1.08)'; }}
                 onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
               >
                 <Send style={{ width: 15, height: 15 }} />
-                {sendToArteMutation.isPending
+                {(isSending || sendToArteMutation.isPending)
                   ? 'Enviando...'
                   : `Confirmar Envio${sendConfirmModal && sendConfirmModal.items.length > 0 ? ` (${sendConfirmModal.items.length})` : ''}`}
               </button>

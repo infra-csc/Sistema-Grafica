@@ -141,8 +141,8 @@ export default function PainelGeral() {
     const map: Record<string, string[]> = {
       requested:             ["draft", "requested"],
       awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
-      awaiting_finalization: ["awaiting_finalization", "sponsor_approved"],
-      awaiting_final_review: ["awaiting_final_review", "awaiting_creator_review"],
+      awaiting_finalization: ["awaiting_finalization", "sponsor_approved", "awaiting_creator_review"],
+      awaiting_final_review: ["awaiting_final_review"],
       ready_for_production:  ["ready_for_production", "pronto_para_producao"],
     };
     return map[f] ? map[f].includes(item.status) : item.status === f;
@@ -172,8 +172,8 @@ export default function PainelGeral() {
     awaitingLinking:       statsItems.filter(i => i.status === "awaiting_linking").length,
     awaitingSubmission:    statsItems.filter(i => i.status === "awaiting_submission").length,
     awaitingApproval:      statsItems.filter(i => i.status === "awaiting_approval" || i.status === "awaiting_sponsor_approval").length,
-    awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved").length,
-    awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review" || i.status === "awaiting_creator_review").length,
+    awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved" || i.status === "awaiting_creator_review").length,
+    awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review").length,
     readyForProduction:    statsItems.filter(i => i.status === "ready_for_production" || i.status === "pronto_para_producao").length,
     approved:              statsItems.filter(i => i.status === "approved").length,
     inProduction:          statsItems.filter(i => i.status === "inProduction").length,

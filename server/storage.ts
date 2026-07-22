@@ -126,6 +126,7 @@ export interface IStorage {
   
   // Item Sponsors (many-to-many relationship)
   getItemSponsors(itemId: string): Promise<ItemSponsor[]>;
+  getAllItemSponsors(): Promise<ItemSponsor[]>;
   addSponsorToItem(itemSponsor: InsertItemSponsor): Promise<ItemSponsor>;
   removeSponsorFromItem(itemId: string, sponsorId: string): Promise<boolean>;
   bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void>;
@@ -799,6 +800,16 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(itemSponsors)
       .where(eq(itemSponsors.itemId, itemId))
+      .orderBy(desc(itemSponsors.createdAt));
+  }
+
+  // Todos os vínculos item↔patrocinador de uma vez. Usado para enriquecer
+  // listas de itens sem fazer 1 query por item (N+1). Mantém a mesma ordem
+  // (createdAt desc) do getItemSponsors por item.
+  async getAllItemSponsors(): Promise<ItemSponsor[]> {
+    return await db
+      .select()
+      .from(itemSponsors)
       .orderBy(desc(itemSponsors.createdAt));
   }
 

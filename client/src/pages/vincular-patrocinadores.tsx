@@ -2938,9 +2938,9 @@ export default function VincularPatrocinadores() {
       <Dialog open={sponsorDialogOpen} onOpenChange={(open) => { setSponsorDialogOpen(open); if (!open) setSponsorModalSearch(''); }}>
         <DialogContent className="sm:max-w-lg p-0 gap-0" style={{ backgroundColor: '#ffffff', borderRadius: 14 }}>
           {/* Header */}
-          <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid #f0efee' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-              <div>
+          <div style={{ padding: '20px 24px 16px', paddingRight: 52, borderBottom: '1px solid #f0efee' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ flex: 1 }}>
                 <DialogTitle style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 18, fontWeight: 700, letterSpacing: '-0.03em', color: '#1c1917', lineHeight: 1.2, margin: 0 }}>
                   Patrocinadores do Evento
                 </DialogTitle>

@@ -1826,49 +1826,100 @@ export default function Arte() {
       }}>
         <div style={{ padding: '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
 
-          {/* ── 1. STAT CARDS ─────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-            {statCards.map((stat) => {
+          {/* ── PAGE HEADER ──────────────────────────────────────────────── */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(124,58,237,0.22)' }}>
+                <Palette style={{ width: 20, height: 20, color: '#fff' }} />
+              </div>
+              <div>
+                <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.04em', margin: 0, fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1.1 }}>
+                  Módulo Arte
+                </h1>
+                <p style={{ fontSize: 11, color: '#78716c', margin: 0, marginTop: 2 }}>
+                  Aprovações, correções e finalizações de layout
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {(pendingCount + correcaoCount + needsFinalFileCount) > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 14px', borderRadius: 8, backgroundColor: '#fef3c7', border: '1px solid #fde68a' }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>
+                    {pendingCount + correcaoCount + needsFinalFileCount} em andamento
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 14px', borderRadius: 8, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                  <CheckCircle style={{ width: 12, height: 12, color: '#16a34a' }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d' }}>Tudo em dia</span>
+                </div>
+              )}
+              <span style={{ fontSize: 11, color: '#a8a29e', fontWeight: 500 }}>
+                {new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+              </span>
+            </div>
+          </div>
+
+          {/* ── 1. STAT CARDS — PIPELINE FLOW ───────────────────────────────── */}
+          <div style={{ display: 'flex', alignItems: 'stretch', marginBottom: 14 }}>
+            {statCards.map((stat, idx) => {
               const Icon = stat.Icon;
               const targetTab = statCardTabMap[stat.testId];
               const isActiveCard = !!(activeTab === targetTab && targetTab);
+              const totalAll = pendingCount + correcaoCount + needsFinalFileCount + finalizadosCount;
+              const proportion = totalAll > 0 ? Math.min(1, stat.value / totalAll) : 0;
+              const isFirst = idx === 0;
+              const isLast = idx === statCards.length - 1;
               return (
-                <div
-                  key={stat.testId}
-                  onClick={() => targetTab && setActiveTab(targetTab)}
-                  data-testid={stat.testId}
-                  className="hover-elevate"
-                  style={{
-                    backgroundColor: isActiveCard ? `${stat.accentColor}08` : '#ffffff',
-                    padding: '14px 18px',
-                    borderRadius: 10,
-                    border: `1px solid ${isActiveCard ? `${stat.accentColor}40` : '#e7e5e4'}`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    cursor: targetTab ? 'pointer' : 'default',
-                    boxShadow: isActiveCard ? `inset 0 3px 0 0 ${stat.accentColor}` : 'none',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: isActiveCard ? stat.accentColor : '#78716c', letterSpacing: '0.01em' }}>{stat.label}</span>
-                    <span style={{
-                      width: 28, height: 28, borderRadius: 7,
-                      backgroundColor: stat.iconBg, color: stat.iconColor,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      <Icon style={{ width: 14, height: 14 }} />
-                    </span>
+                <Fragment key={stat.testId}>
+                  <div
+                    onClick={() => targetTab && setActiveTab(targetTab)}
+                    data-testid={stat.testId}
+                    className="hover-elevate"
+                    style={{
+                      flex: 1,
+                      backgroundColor: isActiveCard ? `${stat.accentColor}08` : '#ffffff',
+                      padding: '14px 18px 12px',
+                      border: `1px solid ${isActiveCard ? `${stat.accentColor}40` : '#e7e5e4'}`,
+                      borderLeft: idx > 0 ? 'none' : `1px solid ${isActiveCard ? `${stat.accentColor}40` : '#e7e5e4'}`,
+                      borderRadius: isFirst ? '10px 0 0 10px' : isLast ? '0 10px 10px 0' : 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      cursor: targetTab ? 'pointer' : 'default',
+                      boxShadow: isActiveCard ? `inset 0 3px 0 0 ${stat.accentColor}` : 'none',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: isActiveCard ? stat.accentColor : '#78716c', letterSpacing: '0.01em' }}>{stat.label}</span>
+                      <span style={{
+                        width: 28, height: 28, borderRadius: 7,
+                        backgroundColor: isActiveCard ? `${stat.accentColor}18` : stat.iconBg,
+                        color: stat.iconColor,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <Icon style={{ width: 14, height: 14 }} />
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 30, fontWeight: 700, color: isActiveCard ? stat.accentColor : '#1c1917', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                        {stat.value}
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: stat.subColor }}>{stat.sub}</span>
+                    </div>
+                    <div style={{ height: 3, borderRadius: 2, backgroundColor: '#f0ede8', marginTop: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${proportion * 100}%`, backgroundColor: stat.accentColor, borderRadius: 2, transition: 'width 0.4s ease' }} />
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 30, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', lineHeight: 1 }}>
-                      {stat.value}
-                    </span>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: stat.subColor }}>{stat.sub}</span>
-                  </div>
-                </div>
+                  {!isLast && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, flexShrink: 0, backgroundColor: '#f5f5f4', borderTop: '1px solid #e7e5e4', borderBottom: '1px solid #e7e5e4' }}>
+                      <ArrowRight style={{ width: 12, height: 12, color: '#c8c5c2' }} />
+                    </div>
+                  )}
+                </Fragment>
               );
             })}
           </div>
@@ -2079,11 +2130,11 @@ export default function Arte() {
 
           {/* ── 3. TABS + ACTION BUTTONS ──────────────────────────────────── */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingBottom: 0 }}>
-            {/* Tabs */}
+            {/* Tabs — bottom border indicator */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 2,
-              padding: '3px', backgroundColor: '#f0efee',
-              borderRadius: 10, flexShrink: 0,
+              display: 'flex', alignItems: 'flex-end', gap: 0,
+              borderBottom: '2px solid #e7e5e4',
+              flexShrink: 0,
             }}>
               {tabs.map(tab => {
                 const isActive = activeTab === tab.id;
@@ -2100,25 +2151,27 @@ export default function Arte() {
                     onClick={() => setActiveTab(tab.id)}
                     data-testid={tab.testId}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                      backgroundColor: isActive ? '#ffffff' : 'transparent',
-                      color: isActive ? '#1c1917' : '#78716c',
+                      display: 'flex', alignItems: 'center', gap: 7,
+                      padding: '9px 16px', border: 'none', cursor: 'pointer',
+                      borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent',
+                      marginBottom: -2,
+                      backgroundColor: isActive ? `${accent}0d` : 'transparent',
+                      color: isActive ? accent : '#78716c',
                       fontWeight: isActive ? 700 : 500,
                       fontSize: 13,
-                      boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                       transition: 'all 0.15s',
                       whiteSpace: 'nowrap',
+                      borderRadius: '6px 6px 0 0',
                     }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)'; e.currentTarget.style.color = '#1c1917'; } }}
+                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#78716c'; } }}
                   >
                     {tab.label}
                     {tab.count > 0 && (
                       <span style={{
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         minWidth: 18, height: 18, borderRadius: 100,
-                        fontSize: 10, fontWeight: 700,
+                        fontSize: 10, fontWeight: 800,
                         backgroundColor: isActive ? accent : '#e7e5e4',
                         color: isActive ? '#ffffff' : '#78716c',
                         padding: '0 5px',

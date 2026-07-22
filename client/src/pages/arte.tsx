@@ -1905,7 +1905,8 @@ export default function Arte() {
       {/* ── STICKY HEADER ─────────────────────────────────────────────────── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 40,
-        background: 'linear-gradient(160deg, #1c1917 0%, #28211e 55%, #1c1917 100%)',
+        background: '#ffffff',
+        borderBottom: '1px solid #e7e5e4',
         flexShrink: 0,
       }}>
         <div style={{ padding: '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
@@ -1918,21 +1919,21 @@ export default function Arte() {
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.05em', margin: 0, fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1.1 }}>
+                  <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.05em', margin: 0, fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1.1 }}>
                     Módulo Arte
                   </h1>
                   {(pendingCount + correcaoCount + needsFinalFileCount) > 0 ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, backgroundColor: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.28)', fontSize: 11, fontWeight: 700, color: '#fbbf24' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#fbbf24', display: 'inline-block' }} />
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, backgroundColor: '#fef3c7', border: '1px solid #fde68a', fontSize: 11, fontWeight: 700, color: '#92400e' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#f59e0b', display: 'inline-block' }} />
                       {pendingCount + correcaoCount + needsFinalFileCount} em andamento
                     </span>
                   ) : (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, backgroundColor: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.25)', fontSize: 11, fontWeight: 700, color: '#4ade80' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', fontSize: 11, fontWeight: 700, color: '#15803d' }}>
                       Tudo em dia
                     </span>
                   )}
                 </div>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', margin: 0, marginTop: 3 }}>
+                <p style={{ fontSize: 12, color: '#78716c', margin: 0, marginTop: 3 }}>
                   Aprovações · Correções · Finalizações de layout
                 </p>
               </div>
@@ -1941,7 +1942,7 @@ export default function Arte() {
               <button
                 onClick={handleClickExportButton}
                 data-testid="button-export-pdf"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
               >
                 <Printer style={{ width: 12, height: 12 }} />
                 {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
@@ -1949,7 +1950,7 @@ export default function Arte() {
               {activeTab === "criar-aprovacoes" && (
                 <label
                   data-testid="button-open-bulk-thumb"
-                  style={{ height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(74,222,128,0.30)', background: 'rgba(74,222,128,0.12)', color: '#4ade80', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
+                  style={{ height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#15803d', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
                 >
                   <FileImage style={{ width: 12, height: 12 }} />
                   Multi-Upload Thumbs
@@ -1961,7 +1962,7 @@ export default function Arte() {
                   onClick={() => setShowBulkDialog(true)}
                   disabled={selectedItemIds.size === 0}
                   data-testid="button-open-bulk-upload"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.09)', background: 'rgba(255,255,255,0.04)', color: selectedItemIds.size > 0 ? 'rgba(255,255,255,0.70)' : 'rgba(255,255,255,0.25)', fontSize: 12, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#a8a29e', fontSize: 12, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed' }}
                 >
                   <Upload style={{ width: 12, height: 12 }} />
                   {selectedItemIds.size > 0 ? `PDF Compartilhado (${selectedItemIds.size})` : 'PDF Compartilhado'}
@@ -1970,7 +1971,7 @@ export default function Arte() {
             </div>
           </div>
 
-          {/* ── Stat cards — dark glass ── */}
+          {/* ── Stat cards — light ── */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
             {statCards.map(stat => {
               const Icon = stat.Icon;
@@ -1985,30 +1986,30 @@ export default function Arte() {
                   data-testid={stat.testId}
                   style={{
                     flex: 1, padding: '14px 16px 12px', borderRadius: 12,
-                    background: isActiveCard ? 'linear-gradient(145deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0.06) 100%)' : 'rgba(255,255,255,0.06)',
-                    border: `1px solid ${isActiveCard ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.09)'}`,
+                    background: isActiveCard ? `${stat.accentColor}08` : '#fafaf9',
+                    border: `1px solid ${isActiveCard ? `${stat.accentColor}30` : '#e7e5e4'}`,
                     cursor: targetTab ? 'pointer' : 'default',
                     display: 'flex', flexDirection: 'column', gap: 6,
-                    boxShadow: isActiveCard ? `0 0 28px ${stat.accentColor}55` : 'none',
+                    boxShadow: isActiveCard ? `inset 0 0 0 0 transparent` : 'none',
                     transition: 'all 0.15s',
                     position: 'relative', overflow: 'hidden',
                   }}
                 >
                   {isActiveCard && (
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${stat.accentColor}, transparent)` }} />
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: stat.accentColor, borderRadius: '12px 12px 0 0' }} />
                   )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: isActiveCard ? stat.accentColor : 'rgba(255,255,255,0.38)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{stat.label}</span>
-                    <span style={{ width: 26, height: 26, borderRadius: 7, backgroundColor: `${stat.accentColor}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: isActiveCard ? stat.accentColor : '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{stat.label}</span>
+                    <span style={{ width: 26, height: 26, borderRadius: 7, backgroundColor: isActiveCard ? `${stat.accentColor}18` : stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Icon style={{ width: 13, height: 13, color: stat.accentColor }} />
                     </span>
                   </div>
-                  <span style={{ fontSize: 34, fontWeight: 800, color: isActiveCard ? stat.accentColor : '#fff', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif', textShadow: isActiveCard ? `0 0 20px ${stat.accentColor}88` : 'none' }}>
+                  <span style={{ fontSize: 34, fontWeight: 800, color: isActiveCard ? stat.accentColor : '#1c1917', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
                     {stat.value}
                   </span>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)' }}>{stat.sub}</div>
-                  <div style={{ height: 2, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pct}%`, backgroundColor: stat.accentColor, borderRadius: 2, opacity: 0.65 }} />
+                  <div style={{ fontSize: 10, color: '#a8a29e' }}>{stat.sub}</div>
+                  <div style={{ height: 3, borderRadius: 2, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, backgroundColor: stat.accentColor, borderRadius: 2 }} />
                   </div>
                 </div>
               );
@@ -2018,14 +2019,14 @@ export default function Arte() {
           {/* ── Filter Row 1: search + dropdowns + period ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
             <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
-              <Search style={{ width: 12, height: 12, color: 'rgba(255,255,255,0.30)', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <Search style={{ width: 12, height: 12, color: '#a8a29e', position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               <input
                 type="text"
                 value={searchFilter}
                 onChange={e => setSearchFilter(e.target.value)}
                 placeholder="Buscar arte, ID ou projeto..."
                 data-testid="input-search-filter"
-                style={{ width: '100%', height: 34, paddingLeft: 28, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid rgba(249,115,22,0.45)' : '1px solid rgba(255,255,255,0.13)', backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', height: 34, paddingLeft: 28, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid #f97316' : '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -2033,7 +2034,7 @@ export default function Arte() {
               <PopoverTrigger asChild>
                 <button
                   data-testid="button-event-filter"
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, paddingLeft: 10, paddingRight: 8, borderRadius: 8, border: `1px solid ${eventFilter !== 'all' ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.13)'}`, background: eventFilter !== 'all' ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.08)', color: eventFilter !== 'all' ? '#fed7aa' : 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, paddingLeft: 10, paddingRight: 8, borderRadius: 8, border: `1px solid ${eventFilter !== 'all' ? '#f97316' : '#e7e5e4'}`, background: eventFilter !== 'all' ? '#fff7ed' : '#ffffff', color: eventFilter !== 'all' ? '#c2410c' : '#44403c', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
                   {eventFilter === 'all' ? 'Evento' : (events as any[]).find((e: any) => e.id === eventFilter)?.name || 'Evento'}
                   <ChevronDown style={{ width: 10, height: 10, opacity: 0.5 }} />
@@ -2069,40 +2070,40 @@ export default function Arte() {
             {uniqueSponsors.length > 0 && (
               <div style={{ position: 'relative' }}>
                 <select value={sponsorFilter} onChange={e => setSponsorFilter(e.target.value)} data-testid="select-sponsor-filter"
-                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${sponsorFilter !== 'all' ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.13)'}`, background: sponsorFilter !== 'all' ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.08)', color: sponsorFilter !== 'all' ? '#fed7aa' : 'rgba(255,255,255,0.65)', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
-                  <option value="all" style={{ background: '#1c1917', color: '#fff' }}>Patrocinador</option>
-                  {(uniqueSponsors as any[]).map((s: any) => <option key={s.id} value={s.id} style={{ background: '#1c1917', color: '#fff' }}>{s.name}</option>)}
+                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${sponsorFilter !== 'all' ? '#f97316' : '#e7e5e4'}`, background: sponsorFilter !== 'all' ? '#fff7ed' : '#ffffff', color: sponsorFilter !== 'all' ? '#c2410c' : '#44403c', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
+                  <option value="all">Patrocinador</option>
+                  {(uniqueSponsors as any[]).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
-                <ChevronDown style={{ width: 10, height: 10, color: 'rgba(255,255,255,0.35)', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <ChevronDown style={{ width: 10, height: 10, color: '#a8a29e', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               </div>
             )}
 
             {uniqueTypes.length > 0 && (
               <div style={{ position: 'relative' }}>
                 <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} data-testid="select-type-filter"
-                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${typeFilter !== 'all' ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.13)'}`, background: typeFilter !== 'all' ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.08)', color: typeFilter !== 'all' ? '#fed7aa' : 'rgba(255,255,255,0.65)', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
-                  <option value="all" style={{ background: '#1c1917', color: '#fff' }}>Tipo de Peça</option>
-                  {(uniqueTypes as string[]).map((t: string) => <option key={t} value={t} style={{ background: '#1c1917', color: '#fff' }}>{t}</option>)}
+                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${typeFilter !== 'all' ? '#f97316' : '#e7e5e4'}`, background: typeFilter !== 'all' ? '#fff7ed' : '#ffffff', color: typeFilter !== 'all' ? '#c2410c' : '#44403c', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
+                  <option value="all">Tipo de Peça</option>
+                  {(uniqueTypes as string[]).map((t: string) => <option key={t} value={t}>{t}</option>)}
                 </select>
-                <ChevronDown style={{ width: 10, height: 10, color: 'rgba(255,255,255,0.35)', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <ChevronDown style={{ width: 10, height: 10, color: '#a8a29e', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               </div>
             )}
 
             {uniqueMaterials.length > 0 && (
               <div style={{ position: 'relative' }}>
                 <select value={materialFilter} onChange={e => setMaterialFilter(e.target.value)} data-testid="select-material-filter"
-                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${materialFilter !== 'all' ? 'rgba(249,115,22,0.4)' : 'rgba(255,255,255,0.13)'}`, background: materialFilter !== 'all' ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.08)', color: materialFilter !== 'all' ? '#fed7aa' : 'rgba(255,255,255,0.65)', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
-                  <option value="all" style={{ background: '#1c1917', color: '#fff' }}>Material</option>
-                  {(uniqueMaterials as string[]).map((m: string) => <option key={m} value={m} style={{ background: '#1c1917', color: '#fff' }}>{m}</option>)}
+                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${materialFilter !== 'all' ? '#f97316' : '#e7e5e4'}`, background: materialFilter !== 'all' ? '#fff7ed' : '#ffffff', color: materialFilter !== 'all' ? '#c2410c' : '#44403c', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
+                  <option value="all">Material</option>
+                  {(uniqueMaterials as string[]).map((m: string) => <option key={m} value={m}>{m}</option>)}
                 </select>
-                <ChevronDown style={{ width: 10, height: 10, color: 'rgba(255,255,255,0.35)', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <ChevronDown style={{ width: 10, height: 10, color: '#a8a29e', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
               {['Hoje', '7 dias', '15 dias', '30 dias', 'Todos'].map(p => (
                 <button key={p} onClick={() => setPeriodFilter(p)}
-                  style={{ height: 28, padding: '0 11px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: periodFilter === p ? 700 : 500, background: periodFilter === p ? 'rgba(255,255,255,0.16)' : 'transparent', color: periodFilter === p ? '#fff' : 'rgba(255,255,255,0.38)', transition: 'all 0.12s' }}>
+                  style={{ height: 28, padding: '0 11px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: periodFilter === p ? 700 : 500, background: periodFilter === p ? '#ffffff' : 'transparent', color: periodFilter === p ? '#1c1917' : '#78716c', boxShadow: periodFilter === p ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
                   {p}
                 </button>
               ))}
@@ -2111,7 +2112,7 @@ export default function Arte() {
             <button
               onClick={() => setNext10DaysFilter(!next10DaysFilter)}
               data-testid="button-next-10-days-filter"
-              style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, padding: '0 11px', borderRadius: 8, border: next10DaysFilter ? '1px solid rgba(251,191,36,0.50)' : '1px solid rgba(251,191,36,0.28)', background: next10DaysFilter ? 'rgba(251,191,36,0.18)' : 'rgba(251,191,36,0.10)', color: '#fbbf24', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, padding: '0 11px', borderRadius: 8, border: next10DaysFilter ? '1px solid #f59e0b' : '1px solid #fde68a', background: next10DaysFilter ? '#fef3c7' : '#fffbeb', color: next10DaysFilter ? '#92400e' : '#b45309', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
               <Truck style={{ width: 12, height: 12 }} /> Saída 10 dias
             </button>
@@ -2119,18 +2120,18 @@ export default function Arte() {
 
           {/* ── Filter Row 2: boolean toggles ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase', letterSpacing: '0.10em', marginRight: 2 }}>Mostrar:</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.10em', marginRight: 2 }}>Mostrar:</span>
             {([
-              { key: 'urgente', label: 'Urgente', value: urgenteFilter, set: setUrgenteFilter, color: '#ef4444', glow: 'rgba(239,68,68,0.22)' },
-              { key: 'semThumb', label: 'Sem thumb', value: semThumb, set: setSemThumb, color: '#fbbf24', glow: 'rgba(251,191,36,0.22)' },
-              { key: 'comThumb', label: 'Com thumb', value: comThumb, set: setComThumb, color: '#4ade80', glow: 'rgba(74,222,128,0.22)' },
-              { key: 'semFinal', label: 'Sem arq. final', value: semFinal, set: setSemFinal, color: '#06b6d4', glow: 'rgba(6,182,212,0.22)' },
-              { key: 'comFinal', label: 'Com arq. final', value: comFinal, set: setComFinal, color: '#4ade80', glow: 'rgba(74,222,128,0.22)' },
-            ] as { key: string; label: string; value: boolean; set: (v: boolean) => void; color: string; glow: string }[]).map(({ key, label, value, set, color, glow }) => (
+              { key: 'urgente', label: 'Urgente', value: urgenteFilter, set: setUrgenteFilter, color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
+              { key: 'semThumb', label: 'Sem thumb', value: semThumb, set: setSemThumb, color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
+              { key: 'comThumb', label: 'Com thumb', value: comThumb, set: setComThumb, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
+              { key: 'semFinal', label: 'Sem arq. final', value: semFinal, set: setSemFinal, color: '#0369a1', bg: '#f0f9ff', border: '#7dd3fc' },
+              { key: 'comFinal', label: 'Com arq. final', value: comFinal, set: setComFinal, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
+            ] as { key: string; label: string; value: boolean; set: (v: boolean) => void; color: string; bg: string; border: string }[]).map(({ key, label, value, set, color, bg, border }) => (
               <button key={key} onClick={() => set(!value)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 26, padding: '0 10px', borderRadius: 99, cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.14s', border: value ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.13)', background: value ? glow : 'rgba(255,255,255,0.06)', color: value ? color : 'rgba(255,255,255,0.45)' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 26, padding: '0 10px', borderRadius: 99, cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.14s', border: value ? `1px solid ${border}` : '1px solid #e7e5e4', background: value ? bg : '#ffffff', color: value ? color : '#78716c' }}
               >
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: value ? color : 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: value ? color : '#d6d3d1', flexShrink: 0 }} />
                 {label}
               </button>
             ))}
@@ -2139,16 +2140,16 @@ export default function Arte() {
           {/* ── Active chips ── */}
           {activeChips.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase', letterSpacing: '0.10em' }}>Ativos:</span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.10em' }}>Ativos:</span>
               {activeChips.map(chip => (
-                <span key={chip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 99, background: 'rgba(249,115,22,0.18)', border: '1px solid rgba(249,115,22,0.35)', fontSize: 11, fontWeight: 600, color: '#fed7aa' }}>
+                <span key={chip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 99, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
                   {chip}
-                  <button onClick={() => removeChipFilter(chip)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fed7aa', display: 'inline-flex', alignItems: 'center', padding: 0 }}>
+                  <button onClick={() => removeChipFilter(chip)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'inline-flex', alignItems: 'center', padding: 0 }}>
                     <X style={{ width: 9, height: 9 }} />
                   </button>
                 </span>
               ))}
-              <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.30)', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 99, cursor: 'pointer', padding: '2px 8px' }}>
+              <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 10, fontWeight: 600, color: '#78716c', background: 'none', border: '1px solid #e7e5e4', borderRadius: 99, cursor: 'pointer', padding: '2px 8px' }}>
                 Limpar tudo
               </button>
             </div>
@@ -2178,14 +2179,14 @@ export default function Arte() {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     data-testid={tab.testId}
-                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent', marginBottom: -1, background: isActive ? `${accent}14` : 'transparent', color: isActive ? accent : 'rgba(255,255,255,0.40)', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s' }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.72)'; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.40)'; }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent', marginBottom: -1, background: isActive ? `${accent}0d` : 'transparent', color: isActive ? accent : '#78716c', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s' }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#78716c'; }}
                   >
                     {TabIcon && <TabIcon style={{ width: 13, height: 13, flexShrink: 0 }} />}
                     {tab.label}
                     {tab.count > 0 && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 100, fontSize: 10, fontWeight: 800, padding: '0 5px', backgroundColor: isActive ? accent : 'rgba(255,255,255,0.12)', color: isActive ? '#fff' : 'rgba(255,255,255,0.42)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 100, fontSize: 10, fontWeight: 800, padding: '0 5px', backgroundColor: isActive ? accent : '#e7e5e4', color: isActive ? '#fff' : '#78716c' }}>
                         {tab.count}
                       </span>
                     )}
@@ -2201,14 +2202,14 @@ export default function Arte() {
                   else setSelectedItemIds(new Set(filteredItems.map((i: any) => i.id)));
                 }}
                 data-testid="button-select-all"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 28, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.13)', background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.60)', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 28, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
               >
                 {selectedItemIds.size === filteredItems.length && filteredItems.length > 0
                   ? <><X style={{ width: 11, height: 11 }} /> Limpar seleção</>
                   : <><CheckSquare style={{ width: 11, height: 11 }} /> Selecionar tudo</>
                 }
                 {selectedItemIds.size > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 16, height: 16, borderRadius: 100, fontSize: 9, fontWeight: 700, backgroundColor: 'rgba(255,255,255,0.9)', color: '#1c1917', padding: '0 4px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 16, height: 16, borderRadius: 100, fontSize: 9, fontWeight: 700, backgroundColor: '#1c1917', color: '#ffffff', padding: '0 4px' }}>
                     {selectedItemIds.size}
                   </span>
                 )}

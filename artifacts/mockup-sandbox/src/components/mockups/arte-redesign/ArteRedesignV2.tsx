@@ -10,22 +10,22 @@ import {
 const TABS = [
   { id: "aprovar", label: "Mandar p/ Aprovação", count: 12, color: "#f97316", Icon: Send },
   { id: "correcao", label: "Correção", count: 3, color: "#ef4444", Icon: RotateCcw },
-  { id: "finalizar", label: "Finalizar Arte", count: 7, color: "#a78bfa", Icon: FileCheck },
+  { id: "finalizar", label: "Finalizar Arte", count: 7, color: "#06b6d4", Icon: FileCheck },
   { id: "finalizados", label: "Finalizados", count: 45, color: "#22c55e", Icon: CheckCircle },
 ];
 
 const STATS = [
   { label: "Pendentes", sub: "para envio", value: 12, trend: +3, Icon: Clock, color: "#fb923c", glow: "rgba(251,146,60,0.35)", tab: "aprovar" },
   { label: "Aguard. Patrocinador", sub: "em análise", value: 5, trend: -2, Icon: Send, color: "#fbbf24", glow: "rgba(251,191,36,0.30)", tab: null },
-  { label: "Aprovado", sub: "pelo patrocinador", value: 7, trend: +1, Icon: CheckCircle, color: "#a78bfa", glow: "rgba(167,139,250,0.35)", tab: "finalizar" },
+  { label: "Aprovado", sub: "pelo patrocinador", value: 7, trend: +1, Icon: CheckCircle, color: "#06b6d4", glow: "rgba(6,182,212,0.35)", tab: "finalizar" },
   { label: "Pronto p/ Produção", sub: "liberado", value: 9, trend: +4, Icon: Package, color: "#4ade80", glow: "rgba(74,222,128,0.30)", tab: null },
 ];
 
 const PERIOD_PILLS = ["Hoje", "7 dias", "15 dias", "30 dias", "Todos"];
 
 const SP_COLORS: Record<string, { bg: string; text: string; dot: string; initials: string }> = {
-  "Sponsor A": { bg: "#ede9fe", text: "#6d28d9", dot: "#7c3aed", initials: "SA" },
-  "Sponsor B": { bg: "#fce7f3", text: "#9d174d", dot: "#be185d", initials: "SB" },
+  "Sponsor A": { bg: "#cffafe", text: "#155e75", dot: "#0891b2", initials: "SA" },
+  "Sponsor B": { bg: "#fef3c7", text: "#92400e", dot: "#d97706", initials: "SB" },
   "Sponsor C": { bg: "#d1fae5", text: "#065f46", dot: "#059669", initials: "SC" },
 };
 

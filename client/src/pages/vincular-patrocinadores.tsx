@@ -3150,7 +3150,7 @@ export default function VincularPatrocinadores() {
       />
 
       {/* ===== Modal de Confirmação de Envio ===== */}
-      <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !bulkSendProgress) setSendConfirmModal(null); }}>
+      <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !isSending) setSendConfirmModal(null); }}>
         <DialogContent className="p-0 gap-0" style={{ maxWidth: 680, borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
           <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
 
@@ -3319,9 +3319,9 @@ export default function VincularPatrocinadores() {
             <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
               <button
                 onClick={() => setSendConfirmModal(null)}
-                disabled={!!bulkSendProgress}
-                style={{ padding: '11px 22px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: bulkSendProgress ? 'not-allowed' : 'pointer', transition: 'background 0.15s', opacity: bulkSendProgress ? 0.5 : 1 }}
-                onMouseEnter={e => { if (!bulkSendProgress) e.currentTarget.style.background = '#f5f5f4'; }}
+                disabled={!!isSending}
+                style={{ padding: '11px 22px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: isSending ? 'not-allowed' : 'pointer', transition: 'background 0.15s', opacity: isSending ? 0.5 : 1 }}
+                onMouseEnter={e => { if (!isSending) e.currentTarget.style.background = '#f5f5f4'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
               >
                 Cancelar

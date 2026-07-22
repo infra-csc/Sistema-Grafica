@@ -1056,6 +1056,8 @@ export default function Arte() {
         let matchesView = false;
         if (tab === "criar-aprovacoes") {
           matchesView = item.status === 'awaiting_submission';
+        } else if (tab === "aguardando-patrocinador") {
+          matchesView = item.status === 'awaiting_sponsor_approval';
         } else if (tab === "finalizar-layouts") {
           matchesView = ['sponsor_approved', 'awaiting_creator_review'].includes(item.status);
         } else if (tab === "finalizados") {
@@ -1126,6 +1128,7 @@ export default function Arte() {
   const filteredItems = getFilteredItemsForTab(activeTab);
   const itemsForEvent = eventFilter === "all" ? allItems : allItems.filter(item => item.eventId === eventFilter);
   const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
+  const aguardandoCount = getFilteredItemsForTab("aguardando-patrocinador").length;
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
   const finalizadosCount = getFilteredItemsForTab("finalizados").length;
   const correcaoCount = correcaoItems.length;
@@ -1231,6 +1234,7 @@ export default function Arte() {
   // ─── RENDER ────────────────────────────────────────────────────────────────
   const tabs = [
     { id: "criar-aprovacoes", label: "Mandar para Aprovação", count: pendingCount, testId: "tab-criar-aprovacoes" },
+    { id: "aguardando-patrocinador", label: "Aguardando Patrocinador", count: aguardandoCount, testId: "tab-aguardando-patrocinador" },
     { id: "correcao", label: "Correção", count: correcaoCount, testId: "tab-correcao" },
     { id: "finalizar-layouts", label: "Finalizar Arte", count: needsFinalFileCount, testId: "tab-finalizar-layouts" },
     { id: "finalizados", label: "Finalizados", count: finalizadosCount, testId: "tab-finalizados" },
@@ -1291,10 +1295,10 @@ export default function Arte() {
            tabId === "finalizar-layouts" ? <Upload style={{ width: 48, height: 48, color: '#2563eb', margin: '0 auto 16px' }} /> :
            <Eye style={{ width: 48, height: 48, color: '#a8a29e', margin: '0 auto 16px' }} />}
           <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>
-            {tabId === "criar-aprovacoes" ? "Tudo liberado!" : tabId === "finalizar-layouts" ? "Nenhum item aguardando arquivo final" : "Nenhum item finalizado"}
+            {tabId === "criar-aprovacoes" ? "Tudo liberado!" : tabId === "aguardando-patrocinador" ? "Nenhuma peça aguardando patrocinador" : tabId === "finalizar-layouts" ? "Nenhum item aguardando arquivo final" : "Nenhum item finalizado"}
           </p>
           <p style={{ fontSize: 13, color: '#a8a29e' }}>
-            {tabId === "criar-aprovacoes" ? "Não há itens pendentes no momento" : "Histórico vazio"}
+            {tabId === "criar-aprovacoes" ? "Não há itens pendentes no momento" : tabId === "aguardando-patrocinador" ? "Nenhuma peça em aprovação pelo patrocinador" : "Histórico vazio"}
           </p>
         </div>
       );
@@ -1472,6 +1476,12 @@ export default function Arte() {
                               {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
                                 <span style={{ fontSize: 9, fontWeight: 700, color: '#dc2626', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '1px 5px' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
                                   REPROV.
+                                </span>
+                              )}
+                              {/* Thumb salvo mas ainda NÃO enviado para aprovação (rascunho) */}
+                              {tabId === "criar-aprovacoes" && item.approvalThumbUrl && !item.rejectedBySponsor && (
+                                <span style={{ fontSize: 9, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 4, padding: '1px 5px' }} data-testid={`badge-thumb-draft-${item.id}`}>
+                                  RASCUNHO
                                 </span>
                               )}
                             </div>

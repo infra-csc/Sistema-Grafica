@@ -85,6 +85,7 @@ export function ArteRedesignV2() {
   const [eventoFilter, setEventoFilter] = useState("all");
   const [patrocinadorFilter, setPatrocinadorFilter] = useState("all");
   const [tipoFilter, setTipoFilter] = useState("all");
+  const [materialFilter, setMaterialFilter] = useState("all");
   const [urgente, setUrgente] = useState(false);
   const [semThumb, setSemThumb] = useState(false);
   const [semFinal, setSemFinal] = useState(false);
@@ -95,6 +96,7 @@ export function ArteRedesignV2() {
     eventoFilter !== "all" && `Evento: ${eventoFilter}`,
     patrocinadorFilter !== "all" && `Patrocinador: ${patrocinadorFilter}`,
     tipoFilter !== "all" && `Tipo: ${tipoFilter}`,
+    materialFilter !== "all" && `Material: ${materialFilter}`,
     urgente && "Urgente",
     semThumb && "Sem thumb",
     semFinal && "Sem arq. final",
@@ -104,6 +106,7 @@ export function ArteRedesignV2() {
     if (chip.startsWith("Evento:")) setEventoFilter("all");
     else if (chip.startsWith("Patrocinador:")) setPatrocinadorFilter("all");
     else if (chip.startsWith("Tipo:")) setTipoFilter("all");
+    else if (chip.startsWith("Material:")) setMaterialFilter("all");
     else if (chip === "Urgente") setUrgente(false);
     else if (chip === "Sem thumb") setSemThumb(false);
     else if (chip === "Sem arq. final") setSemFinal(false);
@@ -276,6 +279,23 @@ export function ArteRedesignV2() {
                 <option value="Banner" style={{ background: "#1c1917", color: "#fff" }}>Banner</option>
                 <option value="Adesivo" style={{ background: "#1c1917", color: "#fff" }}>Adesivo</option>
                 <option value="Painel" style={{ background: "#1c1917", color: "#fff" }}>Painel</option>
+              </select>
+              <ChevronDown style={{ width: 10, height: 10, color: "rgba(255,255,255,0.35)", position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+            </div>
+
+            {/* Material dropdown */}
+            <div style={{ position: "relative" }}>
+              <select
+                value={materialFilter}
+                onChange={e => setMaterialFilter(e.target.value)}
+                style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: "1px solid rgba(255,255,255,0.13)", background: materialFilter !== "all" ? "rgba(249,115,22,0.15)" : "rgba(255,255,255,0.08)", color: materialFilter !== "all" ? "#fed7aa" : "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: 500, cursor: "pointer", outline: "none", appearance: "none", WebkitAppearance: "none" }}
+              >
+                <option value="all" style={{ background: "#1c1917", color: "#fff" }}>Material</option>
+                <option value="Lona 440g" style={{ background: "#1c1917", color: "#fff" }}>Lona 440g</option>
+                <option value="Lona 280g" style={{ background: "#1c1917", color: "#fff" }}>Lona 280g</option>
+                <option value="Tecido" style={{ background: "#1c1917", color: "#fff" }}>Tecido</option>
+                <option value="Adesivo Vinil" style={{ background: "#1c1917", color: "#fff" }}>Adesivo Vinil</option>
+                <option value="Papel" style={{ background: "#1c1917", color: "#fff" }}>Papel</option>
               </select>
               <ChevronDown style={{ width: 10, height: 10, color: "rgba(255,255,255,0.35)", position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
             </div>

@@ -425,11 +425,10 @@ export default function Grafica() {
             <div style={{ width: 32, height: 32, border: `3px solid ${TI.border}`, borderTopColor: TI.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
           </div>
         ) : isError ? (
-          <div style={{ textAlign: "center", padding: "48px 24px", color: TI.muted }}>
-            <Package style={{ width: 40, height: 40, margin: "0 auto 12px", color: "#dc2626" }} />
+          <div style={{ textAlign: "center", padding: "48px 24px" }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", marginBottom: 4 }}>Não foi possível carregar as peças</div>
-            <div style={{ fontSize: 13, marginBottom: 16 }}>Verifique sua conexão e tente novamente.</div>
-            <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: TI.text, border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>Tentar novamente</button>
+            <div style={{ fontSize: 13, color: TI.muted, marginBottom: 16 }}>Verifique sua conexão e tente novamente.</div>
+            <button onClick={() => refetch()} style={{ background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 24px", color: TI.muted }}>

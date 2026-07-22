@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -19,29 +20,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { KeyRound, Eye, EyeOff } from "lucide-react";
-
-function PasswordField({ field, show, onToggle, testid }: { field: any; show: boolean; onToggle: () => void; testid: string }) {
-  return (
-    <div className="relative">
-      <Input
-        type={show ? "text" : "password"}
-        placeholder="••••••••"
-        data-testid={testid}
-        className="pr-10"
-        {...field}
-      />
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={show ? "Ocultar senha" : "Mostrar senha"}
-        title={show ? "Ocultar senha" : "Mostrar senha"}
-        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-      >
-        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-      </button>
-    </div>
-  );
-}
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().optional(),
@@ -64,6 +42,8 @@ export default function ChangePassword() {
   });
 
   const isFirstLogin = user?.mustChangePassword;
+  const [showPasswords, setShowPasswords] = useState(false);
+  const passwordType = showPasswords ? "text" : "password";
 
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -146,7 +126,12 @@ export default function ChangePassword() {
                     <FormItem>
                       <FormLabel>Senha Atual</FormLabel>
                       <FormControl>
-                        <PasswordField field={field} show={showCurrent} onToggle={() => setShowCurrent(v => !v)} testid="input-current-password" />
+                        <Input
+                          type={passwordType}
+                          placeholder="••••••••"
+                          data-testid="input-current-password"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -160,7 +145,12 @@ export default function ChangePassword() {
                   <FormItem>
                     <FormLabel>Nova Senha</FormLabel>
                     <FormControl>
-                      <PasswordField field={field} show={showNew} onToggle={() => setShowNew(v => !v)} testid="input-new-password" />
+                      <Input
+                        type={passwordType}
+                        placeholder="••••••••"
+                        data-testid="input-new-password"
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription>
                       Mínimo de 6 caracteres
@@ -176,12 +166,25 @@ export default function ChangePassword() {
                   <FormItem>
                     <FormLabel>Confirmar Nova Senha</FormLabel>
                     <FormControl>
-                      <PasswordField field={field} show={showConfirm} onToggle={() => setShowConfirm(v => !v)} testid="input-confirm-password" />
+                      <Input
+                        type={passwordType}
+                        placeholder="••••••••"
+                        data-testid="input-confirm-password"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <button
+                type="button"
+                onClick={() => setShowPasswords(v => !v)}
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showPasswords ? "Ocultar senhas" : "Mostrar senhas"}
+              </button>
               <Button
                 type="submit"
                 className="w-full"

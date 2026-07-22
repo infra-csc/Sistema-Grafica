@@ -81,7 +81,7 @@ export default function PainelGeral() {
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
   // Sem placeholderData: no TanStack v5 ele zera o isLoading e o spinner nunca
-  // aparece, fazendo o usuário ver "Nenhum item" e KPIs zerados durante o load.
+  // aparece — o usuário via "Nenhum item" e KPIs zerados durante o carregamento.
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [] }           = useQuery<any[]>({ queryKey: ["/api/events"], placeholderData: [] });
   const { data: sponsors = [] }         = useQuery<any[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });

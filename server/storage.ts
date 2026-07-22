@@ -126,6 +126,7 @@ export interface IStorage {
   
   // Item Sponsors (many-to-many relationship)
   getItemSponsors(itemId: string): Promise<ItemSponsor[]>;
+  getAllItemSponsors(): Promise<ItemSponsor[]>;
   addSponsorToItem(itemSponsor: InsertItemSponsor): Promise<ItemSponsor>;
   removeSponsorFromItem(itemId: string, sponsorId: string): Promise<boolean>;
   bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void>;
@@ -802,6 +803,16 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(itemSponsors.createdAt));
   }
 
+  // Todos os vínculos item↔patrocinador de uma vez. Usado para enriquecer
+  // listas de itens sem fazer 1 query por item (N+1). Mantém a mesma ordem
+  // (createdAt desc) do getItemSponsors por item.
+  async getAllItemSponsors(): Promise<ItemSponsor[]> {
+    return await db
+      .select()
+      .from(itemSponsors)
+      .orderBy(desc(itemSponsors.createdAt));
+  }
+
   async addSponsorToItem(insertItemSponsor: InsertItemSponsor): Promise<ItemSponsor> {
     const [itemSponsor] = await db
       .insert(itemSponsors)
@@ -825,14 +836,24 @@ export class DatabaseStorage implements IStorage {
   async bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void> {
     // Remove all existing sponsors for this item
     await db.delete(itemSponsors).where(eq(itemSponsors.itemId, itemId));
-    
-    // Add new sponsors
-    if (sponsorIds.length > 0) {
+
+    if (sponsorIds.length === 0) return;
+
+    // Deduplica e valida a existência dos patrocinadores antes de inserir.
+    // Sem isto, um sponsorId de um patrocinador que foi deletado depois da tela
+    // carregar (ou um id inválido no estado do cliente) causava violação de FK
+    // e o usuário via "erro ao salvar patrocínio". Ids inexistentes são
+    // simplesmente ignorados em vez de derrubar toda a operação.
+    const uniqueIds = Array.from(new Set(sponsorIds));
+    const existing = await db
+      .select({ id: sponsors.id })
+      .from(sponsors)
+      .where(inArray(sponsors.id, uniqueIds));
+    const validIds = existing.map(s => s.id);
+
+    if (validIds.length > 0) {
       await db.insert(itemSponsors).values(
-        sponsorIds.map(sponsorId => ({
-          itemId,
-          sponsorId,
-        }))
+        validIds.map(sponsorId => ({ itemId, sponsorId }))
       );
     }
   }

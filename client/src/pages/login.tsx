@@ -38,8 +38,8 @@ export default function Login() {
   const search = useSearch();
   const { toast } = useToast();
   const [showAdminForm, setShowAdminForm] = useState(false);
-  const [btnHover, setBtnHover] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [btnHover, setBtnHover] = useState(false);
 
   const [ssoError] = useState(() => {
     const code = new URLSearchParams(search).get("error") ?? "";
@@ -79,16 +79,25 @@ export default function Login() {
   const onSubmit = (data: LoginForm) => loginMutation.mutate(data);
 
   return (
-    <main className="login-root" style={{
+    <main className="login-main" style={{
       display: "flex",
       height: "100vh",
       width: "100vw",
       overflow: "hidden",
       fontFamily: "'Plus Jakarta Sans', sans-serif",
     }}>
+      {/* Responsivo: em telas pequenas empilha, esconde o branding e permite
+          rolar — os estilos inline vencem media queries, por isso o !important. */}
+      <style>{`
+        @media (max-width: 900px) {
+          .login-main { flex-direction: column !important; height: auto !important; min-height: 100vh !important; overflow: auto !important; }
+          .login-brand-col { display: none !important; }
+          .login-form-col { width: 100% !important; padding: 40px 24px !important; }
+        }
+      `}</style>
 
       {/* ── LEFT COLUMN: Branding (42%) ── */}
-      <section className="login-branding" style={{
+      <section className="login-brand-col" style={{
         position: "relative",
         width: "42%",
         backgroundColor: "#1c1917",
@@ -341,9 +350,9 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(v => !v)}
-                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     title={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                    style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 8, display: "flex", color: "#78716c" }}
+                    aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#a8a29e", padding: 6, display: "flex", alignItems: "center" }}
                   >
                     {showPassword ? <EyeOff style={{ width: 18, height: 18 }} /> : <Eye style={{ width: 18, height: 18 }} />}
                   </button>

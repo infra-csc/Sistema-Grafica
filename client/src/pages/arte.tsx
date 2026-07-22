@@ -30,7 +30,7 @@ export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [eventFilter, setEventFilter] = useState<string>("all");
-  // Persiste a aba ativa para não perder o contexto ao abrir uma peça e voltar.
+  // Persiste a aba ativa para não voltar ao padrão ao abrir uma peça e retornar.
   const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
   useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
@@ -44,8 +44,8 @@ export default function Arte() {
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
-  // Adia o valor usado na filtragem para não re-renderizar a tabela inteira a
-  // cada tecla (o input continua controlado por searchFilter, sem travar).
+  // Adia o valor usado na filtragem: o input segue responsivo, mas a tabela
+  // (grande) não re-renderiza a cada tecla — evita engasgo com muitas peças.
   const deferredSearch = useDeferredValue(searchFilter);
 
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
@@ -946,39 +946,20 @@ export default function Arte() {
     const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
     if (!toProcess.length) return;
     setBulkThumbRunning(true);
-    let ok = 0, fail = 0;
     for (const entry of toProcess) {
       setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
       try {
         const localPath = await uploadFileRaw(entry.file);
         await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e));
-        ok++;
       } catch (err: any) {
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', errorMsg: err.message } : e));
-        fail++;
       }
     }
     setBulkThumbRunning(false);
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-    // Conta sucessos/erros reais em vez de reportar todos os itens tentados.
-    toast({
-      title: fail > 0 ? "Upload em lote parcial" : "Upload em lote concluído",
-      description: fail > 0 ? `${ok} enviado(s), ${fail} com erro` : `${ok} thumb(s) enviados para aprovação`,
-      variant: fail > 0 ? "destructive" : "default",
-    });
+    toast({ title: "Upload em lote concluído", description: `${toProcess.length} thumb(s) enviados para aprovação` });
   }, [bulkThumbEntries, uploadFileRaw]);
-
-  // Fecha o modal de upload em lote pedindo confirmação se houver arquivos/
-  // pareamentos ainda não enviados (evita perder trabalho por clique acidental).
-  const closeBulkThumbModal = useCallback(() => {
-    if (bulkThumbRunning) return;
-    const hasUnsaved = bulkThumbEntries.some(e => e.status !== 'done');
-    if (hasUnsaved && !window.confirm("Descartar os arquivos e pareamentos que ainda não foram enviados?")) return;
-    setShowBulkThumbModal(false);
-    setBulkThumbEntries([]);
-    setBulkThumbEventFilter("all");
-  }, [bulkThumbRunning, bulkThumbEntries]);
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
     if (gcsUrl.startsWith('/')) return gcsUrl;
@@ -1188,18 +1169,6 @@ export default function Arte() {
 
   const renderGroupedTable = (items: any[], tabId: string) => {
     if (items.length === 0) {
-      // Distingue "fila realmente vazia" de "busca/filtro sem resultado" para
-      // não dizer "Tudo liberado!" quando na verdade o filtro é que zerou a lista.
-      const hasSearch = !!searchFilter.trim();
-      if (hasSearch) {
-        return (
-          <div style={{ textAlign: 'center', padding: '48px 0' }}>
-            <Search style={{ width: 48, height: 48, color: '#a8a29e', margin: '0 auto 16px' }} />
-            <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Nenhum resultado encontrado</p>
-            <p style={{ fontSize: 13, color: '#a8a29e' }}>Tente ajustar a busca ou os filtros</p>
-          </div>
-        );
-      }
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           {tabId === "criar-aprovacoes" ? <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} /> :
@@ -2278,7 +2247,7 @@ export default function Arte() {
                 <span style={{ display: 'inline-block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)', padding: '2px 8px', borderRadius: 4, marginBottom: 6 }}>Ação Irreversível</span>
                 <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0 }}>Dispensar Peça</h2>
               </div>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} title="Fechar" aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, borderRadius: 4 }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, borderRadius: 4 }}>
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
@@ -2958,7 +2927,6 @@ export default function Arte() {
             </div>
             <button
               onClick={() => setShowExportModal(false)}
-              title="Fechar" aria-label="Fechar"
               style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0 }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
@@ -3193,7 +3161,7 @@ export default function Arte() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL 5 — MULTI-UPLOAD THUMBS (redesenhado)                        */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open) closeBulkThumbModal(); }}>
+      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open && !bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}>
         <DialogContent className="p-0 gap-0" style={{ maxWidth: 980, width: '95vw', borderRadius: 14, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.18)' }}>
           <DialogTitle className="sr-only">Multi-Upload de Thumbs</DialogTitle>
           <DialogDescription className="sr-only">Upload em lote de miniaturas de aprovação</DialogDescription>
@@ -3214,8 +3182,7 @@ export default function Arte() {
               </p>
             </div>
             <button
-              onClick={() => closeBulkThumbModal()}
-              title="Fechar" aria-label="Fechar"
+              onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
               style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0, transition: 'background 0.15s' }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
@@ -3339,7 +3306,7 @@ export default function Arte() {
                   </button>
                 )}
                 <button
-                  onClick={() => closeBulkThumbModal()}
+                  onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
                   style={{ width: '100%', height: 34, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
                 >Cancelar</button>
                 <button

@@ -15,6 +15,34 @@ import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handleImportXlsx, handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx } from "../services/xlsxExport";
 
+// Enriquece uma lista de itens com { event, sponsors } fazendo apenas 3 queries
+// totais (eventos, patrocinadores e vínculos item↔patrocinador em bloco), em
+// vez de 1 getEvent + 1 getItemSponsors + N getSponsor POR item (N+1). Mantém
+// exatamente o mesmo formato de saída das rotas antigas.
+async function enrichItemsWithEventsAndSponsors(list: any[]): Promise<any[]> {
+  if (list.length === 0) return [];
+  const [allEvents, allSponsors, allItemSponsors] = await Promise.all([
+    storage.getAllEvents(),
+    storage.getAllSponsors(),
+    storage.getAllItemSponsors(),
+  ]);
+  const eventById = new Map(allEvents.map((e) => [e.id, e]));
+  const sponsorById = new Map(allSponsors.map((s) => [s.id, s]));
+  const sponsorsByItem = new Map<string, any[]>();
+  for (const is of allItemSponsors) {
+    const sponsor = sponsorById.get(is.sponsorId);
+    if (!sponsor) continue;
+    const arr = sponsorsByItem.get(is.itemId);
+    if (arr) arr.push(sponsor);
+    else sponsorsByItem.set(is.itemId, [sponsor]);
+  }
+  return list.map((item) => ({
+    ...item,
+    event: eventById.get(item.eventId) ?? undefined,
+    sponsors: sponsorsByItem.get(item.id) ?? [],
+  }));
+}
+
 export function registerItemRoutes(app: Express): void {
   // ============ ITEMS ============
 
@@ -22,31 +50,7 @@ export function registerItemRoutes(app: Express): void {
   app.get("/api/items", requireAuth, async (req, res) => {
     try {
       const allItems = await storage.getAllItems();
-      
-      // Fetch event and sponsors for each item
-      const itemsWithEventsAndSponsors = await Promise.all(
-        allItems.map(async (item) => {
-          const event = await storage.getEvent(item.eventId);
-          
-          // Buscar sponsors do item
-          const itemSponsors = await storage.getItemSponsors(item.id);
-          
-          // Fazer lookup dos dados completos dos sponsors
-          const sponsors = await Promise.all(
-            itemSponsors.map(async (is: any) => {
-              const sponsor = await storage.getSponsor(is.sponsorId);
-              return sponsor;
-            })
-          );
-          
-          return {
-            ...item,
-            event,
-            sponsors: sponsors.filter(Boolean), // Remove nulls
-          };
-        })
-      );
-      
+      const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(allItems);
       res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -57,31 +61,7 @@ export function registerItemRoutes(app: Express): void {
   app.get("/api/items/pending", requireAuth, async (req, res) => {
     try {
       const pendingItems = await storage.getPendingItems();
-      
-      // Fetch event and sponsors for each item
-      const itemsWithEventsAndSponsors = await Promise.all(
-        pendingItems.map(async (item) => {
-          const event = await storage.getEvent(item.eventId);
-          
-          // Buscar sponsors do item
-          const itemSponsors = await storage.getItemSponsors(item.id);
-          
-          // Fazer lookup dos dados completos dos sponsors
-          const sponsors = await Promise.all(
-            itemSponsors.map(async (is: any) => {
-              const sponsor = await storage.getSponsor(is.sponsorId);
-              return sponsor;
-            })
-          );
-          
-          return {
-            ...item,
-            event,
-            sponsors: sponsors.filter(Boolean), // Remove nulls
-          };
-        })
-      );
-      
+      const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(pendingItems);
       res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -133,31 +113,7 @@ export function registerItemRoutes(app: Express): void {
   app.get("/api/items/approved", requireAuth, async (req, res) => {
     try {
       const approvedItems = await storage.getApprovedItems();
-      
-      // Fetch event and sponsors for each item
-      const itemsWithEventsAndSponsors = await Promise.all(
-        approvedItems.map(async (item) => {
-          const event = await storage.getEvent(item.eventId);
-          
-          // Buscar sponsors do item
-          const itemSponsors = await storage.getItemSponsors(item.id);
-          
-          // Fazer lookup dos dados completos dos sponsors
-          const sponsors = await Promise.all(
-            itemSponsors.map(async (is: any) => {
-              const sponsor = await storage.getSponsor(is.sponsorId);
-              return sponsor;
-            })
-          );
-          
-          return {
-            ...item,
-            event,
-            sponsors: sponsors.filter(Boolean), // Remove nulls
-          };
-        })
-      );
-      
+      const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(approvedItems);
       res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -168,28 +124,7 @@ export function registerItemRoutes(app: Express): void {
   app.get("/api/items/:eventId", requireAuth, async (req, res) => {
     try {
       const items = await storage.getItemsByEvent(req.params.eventId);
-      
-      // Buscar sponsors para cada item
-      const itemsWithSponsors = await Promise.all(
-        items.map(async (item) => {
-          // Buscar sponsors do item
-          const itemSponsors = await storage.getItemSponsors(item.id);
-          
-          // Fazer lookup dos dados completos dos sponsors
-          const sponsors = await Promise.all(
-            itemSponsors.map(async (is: any) => {
-              const sponsor = await storage.getSponsor(is.sponsorId);
-              return sponsor;
-            })
-          );
-          
-          return {
-            ...item,
-            sponsors: sponsors.filter(Boolean), // Remove nulls
-          };
-        })
-      );
-      
+      const itemsWithSponsors = await enrichItemsWithEventsAndSponsors(items);
       res.json(itemsWithSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -721,7 +656,7 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Arte dispenses item (bypasses remaining approval steps → pronto_para_producao)
+  // Arte dispenses item (bypasses remaining approval steps → ready_for_production)
   app.patch("/api/items/:id/dispense", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "arte" && req.userRole !== "admin") {

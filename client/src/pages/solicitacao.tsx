@@ -114,8 +114,7 @@ export default function Solicitacao() {
       const results = await Promise.allSettled(
         payload.ids.map(id => apiRequest("POST", `/api/items/${id}/return-to-arte`, { notes: payload.notes }))
       );
-      const failed = results.filter(r => r.status === "rejected").length;
-      return { total: payload.ids.length, failed };
+      return { total: payload.ids.length, failed: results.filter(r => r.status === "rejected").length };
     },
     onSuccess: ({ total, failed }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -1194,7 +1193,7 @@ export default function Solicitacao() {
             <AlertDialogCancel data-testid="button-bulk-return-cancel">Manter Itens</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
-                e.preventDefault(); // não fecha o dialog automaticamente — a mutation controla o fechamento
+                e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
                 bulkReturnMutation.mutate({ ids: Array.from(selectedItemIds), notes: bulkReturnObservations });
               }}
               disabled={bulkReturnMutation.isPending}

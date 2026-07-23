@@ -257,6 +257,29 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
 
+      // Patrocinadores JÁ vinculados a ESTE evento (só esses podem ser
+      // pré-vinculados nas peças da planilha — nunca a lista global).
+      const normSponsor = (s: string) =>
+        (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+      const eventSponsorRows = await storage.getEventSponsors(event.id);
+      const allSponsorsList = await storage.getAllSponsors();
+      const sponsorById = new Map(allSponsorsList.map((s: any) => [s.id, s]));
+      const eventSponsors = eventSponsorRows
+        .map((es: any) => sponsorById.get(es.sponsorId))
+        .filter(Boolean)
+        .map((s: any) => ({ id: s.id, name: s.name, norm: normSponsor(s.name) }))
+        // ignora nomes muito curtos (< 3) para evitar falso-positivo em substrings
+        .filter((s: any) => s.norm.length >= 3);
+      // Retorna os ids dos patrocinadores do evento cujo nome aparece no texto.
+      const matchSponsors = (text: string): string[] => {
+        if (!text || eventSponsors.length === 0) return [];
+        const t = normSponsor(text);
+        return eventSponsors.filter(s => {
+          // casa por palavra inteira para não pegar substrings acidentais
+          return new RegExp(`(^|[^a-z0-9])${s.norm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`).test(t);
+        }).map(s => s.id);
+      };
+
       const multer = (await import("multer")).default;
       const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
       await new Promise<void>((resolve, reject) =>
@@ -499,6 +522,11 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
           const trailingNum = groupType.match(/^(.+?)\s+\d+$/);
           if (trailingNum) groupType = trailingNum[1];
 
+          // Patrocinador sugerido = nome que aparece na descrição da PRÓPRIA
+          // peça (cada peça tem o seu, ex.: "2x1 Sotreq"). Sempre limitado aos
+          // patrocinadores já vinculados ao evento.
+          const suggestedSponsorIds = matchSponsors(itemVal);
+
           localItems.push({
             type: groupType,
             description: itemVal,
@@ -512,6 +540,7 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
             finish: cap(finVal) || "Ilhós",
             measurement: fileW && fileH ? `${fileW.toFixed(2)} × ${fileH.toFixed(2)}` : (visualW && visualH ? `${visualW.toFixed(2)} × ${visualH.toFixed(2)}` : ""),
             observations: obsVal,
+            suggestedSponsorIds,
           });
         }
 

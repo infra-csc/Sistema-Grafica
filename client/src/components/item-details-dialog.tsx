@@ -133,15 +133,28 @@ export function ItemDetailsDialog({
 
   const createdBy = createdLog?.userName ?? createdLog?.user_name ?? null;
 
-  // Find sponsor linking from audit logs (no dedicated DB timestamp field for this step)
+  // Etapas intermediárias não têm campo de timestamp dedicado no item — vêm dos
+  // audit logs, igual ao HISTÓRICO, para a rastreabilidade não ficar incompleta.
   const sponsorLinkLog = itemLogs.find((l: any) => {
     const d = (l.details || l.action || "").toLowerCase();
     return d.includes("patrocinadores atualizados") || d.includes("patrocinadores vinculados") || d.includes("sponsor");
   });
+  const sentToArteLog = itemLogsInclusive.find((l: any) => {
+    const d = (l.details || l.action || "").toLowerCase();
+    return d.includes("enviado") && d.includes("arte");
+  });
+  const awaitingSponsorLog = itemLogs.find((l: any) => {
+    const d = (l.details || l.action || "").toLowerCase();
+    return d.includes("aguardando aprovação") || d.includes("em aprovação");
+  });
+  const logTs = (l: any) => l?.createdAt ?? l?.created_at ?? null;
+  const logBy = (l: any) => l?.userName ?? l?.user_name ?? null;
 
   const traceRows = [
     { label: "Solicitado / Criado",        value: item.createdAt,                                         by: createdBy,                                                 dot: "#2563eb" },
-    sponsorLinkLog ? { label: "Vinculação de Patrocinador", value: sponsorLinkLog.createdAt ?? sponsorLinkLog.created_at, by: sponsorLinkLog.userName ?? sponsorLinkLog.user_name ?? null, dot: "#8b5cf6" } : null,
+    sponsorLinkLog ? { label: "Vinculação de Patrocinador", value: logTs(sponsorLinkLog), by: logBy(sponsorLinkLog), dot: "#8b5cf6" } : null,
+    sentToArteLog ? { label: "Enviado para Arte", value: logTs(sentToArteLog), by: logBy(sentToArteLog), dot: "#0ea5e9" } : null,
+    awaitingSponsorLog ? { label: "Em Aprovação de Patrocinador", value: logTs(awaitingSponsorLog), by: logBy(awaitingSponsorLog), dot: "#f97316" } : null,
     { label: "Aprovado pelo Patrocinador", value: item.sponsorApprovedAt,                                  by: item.sponsorApprovedBy,                                    dot: "#7c3aed" },
     { label: "Revisado pelo Criador",      value: item.creatorReviewedAt,                                  by: null,                                                      dot: "#d946ef" },
     { label: "Liberado para Produção",     value: item.approvedAt,                                         by: null,                                                      dot: "#f97316" },

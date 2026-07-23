@@ -1434,15 +1434,15 @@ export default function Arte() {
                         </th>
                       )}
                       {[
-                        { label: 'ID', w: 80 },
-                        { label: 'Qtd', w: 50 },
+                        { label: 'ID', w: 68 },
+                        { label: 'Qtd', w: 44 },
                         { label: `${group.type}`, flex: true },
-                        { label: 'Dimensões (V / A)', w: 150 },
-                        { label: 'M²', w: 55 },
-                        { label: 'Material', w: 110 },
-                        { label: 'Arte', w: 90 },
-                        { label: 'Patrocinadores', w: 150 },
-                        { label: 'Ações', w: 120, right: true },
+                        { label: 'Dimensões (V / A)', w: 120 },
+                        { label: 'M²', w: 46 },
+                        { label: 'Material', w: 92 },
+                        { label: 'Arte', w: 68 },
+                        { label: 'Patroc.', w: 118 },
+                        { label: 'Ações', w: 96, right: true },
                       ].map((col, ci) => (
                         <th
                           key={ci}

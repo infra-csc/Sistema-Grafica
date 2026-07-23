@@ -702,9 +702,11 @@ export default function Atendimento() {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-        .page { width: 100vw; height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; overflow: hidden; }
+        /* min-height + sem overflow:hidden: conteúdo que exceder a folha flui
+           para a próxima página em vez de ser cortado. */
+        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
-        @media print { .page { width: 210mm; height: 297mm; overflow: hidden; } }
+        @media print { .page { width: 210mm; min-height: 297mm; } }
 
         .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
         .hdr-left { display: flex; align-items: center; gap: 12px; }

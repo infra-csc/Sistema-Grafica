@@ -1437,14 +1437,11 @@ export default function Arte() {
                         { label: 'ID', w: 80 },
                         { label: 'Qtd', w: 50 },
                         { label: `${group.type}`, flex: true },
-                        ...(tabId === 'finalizados' ? [
-                          { label: 'Patrocinadores', w: 140 },
-                          { label: 'Thumb', w: 80 },
-                          { label: 'Arq. Final', w: 160 },
-                        ] : []),
-                        { label: 'Dimensões (V / A)', w: 160 },
-                        { label: 'M²', w: 60 },
-                        { label: 'Material', w: 120 },
+                        { label: 'Dimensões (V / A)', w: 150 },
+                        { label: 'M²', w: 55 },
+                        { label: 'Material', w: 110 },
+                        { label: 'Arte', w: 90 },
+                        { label: 'Patrocinadores', w: 150 },
                         { label: 'Ações', w: 120, right: true },
                       ].map((col, ci) => (
                         <th
@@ -1512,11 +1509,6 @@ export default function Arte() {
                           <td style={{ padding: '12px 16px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                               <span style={{ fontWeight: 600, color: '#1c1917', fontSize: 13 }}>{item.description || item.type}</span>
-                              {tabId !== 'finalizados' && item.sponsors && item.sponsors.length > 0 && (
-                                <span style={{ fontSize: 11, color: '#78716c' }}>
-                                  Logos: {item.sponsors.map((s: any) => s.name).join(', ')}
-                                </span>
-                              )}
                               {item.observations && (
                                 <span style={{ fontSize: 11, color: '#d97706', display: 'flex', alignItems: 'center', gap: 3 }}>
                                   <AlertCircle style={{ width: 10, height: 10 }} />{item.observations}
@@ -1530,66 +1522,6 @@ export default function Arte() {
                               )}
                             </div>
                           </td>
-                          {/* Patrocinadores — finalizados only */}
-                          {tabId === 'finalizados' && (
-                            <td style={{ padding: '12px 16px' }}>
-                              <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
-                            </td>
-                          )}
-
-                          {/* Thumb aprovado — finalizados only */}
-                          {tabId === 'finalizados' && (
-                            <td style={{ padding: '12px 16px' }}>
-                              {item.approvalThumbUrl ? (() => {
-                                const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(item.approvalThumbUrl.toLowerCase()) || item.approvalThumbUrl.startsWith('/objects/');
-                                return isImage ? (
-                                  <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" title="Ver thumb aprovado">
-                                    <img
-                                      src={item.approvalThumbUrl}
-                                      alt="Thumb"
-                                      style={{ width: 48, height: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4', display: 'block' }}
-                                    />
-                                  </a>
-                                ) : (
-                                  <a
-                                    href={item.approvalThumbUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    title="Ver PDF aprovado"
-                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 32, backgroundColor: '#fef2f2', borderRadius: 4, border: '1px solid #fecaca' }}
-                                  >
-                                    <FileText style={{ width: 16, height: 16, color: '#ef4444' }} />
-                                  </a>
-                                );
-                              })() : (
-                                <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>
-                              )}
-                            </td>
-                          )}
-
-                          {/* Arquivo final — finalizados only */}
-                          {tabId === 'finalizados' && (
-                            <td style={{ padding: '12px 16px', maxWidth: 160 }}>
-                              {item.finalFileUrl ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                  <FolderOpen style={{ width: 12, height: 12, color: '#16a34a', flexShrink: 0 }} />
-                                  <span
-                                    title={item.finalFileUrl}
-                                    style={{
-                                      fontSize: 11, color: '#15803d', fontWeight: 600,
-                                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                      maxWidth: 120,
-                                    }}
-                                  >
-                                    {item.finalFileUrl.split('/').pop() || item.finalFileUrl}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span style={{ fontSize: 11, color: '#f97316', fontWeight: 600 }}>Pendente</span>
-                              )}
-                            </td>
-                          )}
-
                           {/* Dimensões */}
                           <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                             {item.visualWidth && item.visualHeight ? (
@@ -1630,6 +1562,37 @@ export default function Arte() {
                                 )}
                               </div>
                             ) : <span style={{ color: '#a8a29e', fontSize: 12 }}>—</span>}
+                          </td>
+                          {/* ARTE — indicadores thumb / arquivo final (todas as abas) */}
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {item.approvalThumbUrl ? (
+                                <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" title="Ver thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
+                                  <FileImage style={{ width: 13, height: 13 }} />
+                                </a>
+                              ) : (
+                                <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#c7c3c0' }}>
+                                  <FileImage style={{ width: 13, height: 13 }} />
+                                </span>
+                              )}
+                              {item.finalFileUrl ? (
+                                <a href={item.finalFileUrl} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
+                                  <FileText style={{ width: 13, height: 13 }} />
+                                </a>
+                              ) : (
+                                <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#c7c3c0' }}>
+                                  <FileText style={{ width: 13, height: 13 }} />
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 3, paddingLeft: 2 }}>
+                              <span style={{ fontSize: 8.5, color: '#a8a29e', width: 26, textAlign: 'center' }}>thumb</span>
+                              <span style={{ fontSize: 8.5, color: '#a8a29e', width: 26, textAlign: 'center' }}>final</span>
+                            </div>
+                          </td>
+                          {/* Patrocinadores (todas as abas) */}
+                          <td style={{ padding: '12px 16px' }}>
+                            <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
                           </td>
                           {/* Ações */}
                           <td style={{ padding: '12px 16px', textAlign: 'right' }}>

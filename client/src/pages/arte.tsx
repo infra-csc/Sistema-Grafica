@@ -3352,7 +3352,7 @@ export default function Arte() {
                   {[
                     { label: 'Vinculados', count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length, color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
                     { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
-                    { label: 'Enviados', count: bulkThumbEntries.filter(e => e.status === 'done').length, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+                    { label: 'Concluídos', count: bulkThumbEntries.filter(e => e.status === 'done').length, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
                     { label: 'Erro', count: bulkThumbEntries.filter(e => e.status === 'error').length, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
                   ].map(s => (
                     <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderRadius: 8, backgroundColor: s.count > 0 ? s.bg : '#f5f5f4', border: `1px solid ${s.count > 0 ? s.border : '#e7e5e4'}` }}>

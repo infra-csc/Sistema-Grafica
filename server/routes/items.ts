@@ -12,7 +12,7 @@ import {
   updateEventStatus,
 } from "./shared";
 import { runInventoryCron } from "../services/inventoryLifecycle";
-import { handleImportXlsx, handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
+import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx } from "../services/xlsxExport";
 
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 3 queries
@@ -251,9 +251,10 @@ export function registerItemRoutes(app: Express): void {
   app.get("/api/events/:id/export-items", requireAuth, handleExportItemsXlsx);
 
 
-  // ── Import items from Excel (.xlsx) ──────────────────────────────────────
-  // Uses multer to handle multipart/form-data upload (avoids JSON body size limits)
-  app.post("/api/events/:id/import-xlsx", requireAuth, handleImportXlsx);
+  // Import de Excel usa o fluxo preview → confirm (abaixo). O endpoint direto
+  // /import-xlsx (parser legado) foi removido: importava a aba errada em
+  // planilhas cujo cabeçalho usa "cód peça" em vez de "item" e não vinculava
+  // patrocinadores.
 
   // ── Preview Excel items (parse without saving) ───────────────────────────
   app.post("/api/events/:id/preview-xlsx", requireAuth, handlePreviewXlsx);

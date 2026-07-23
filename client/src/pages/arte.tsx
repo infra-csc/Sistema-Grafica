@@ -968,7 +968,10 @@ export default function Arte() {
     setShowBulkThumbModal(true);
   }, [allItems]);
 
-  const handleBulkThumbUpload = useCallback(async () => {
+  // Núcleo do upload em lote de thumbs. Se send=true, envia para aprovação
+  // (/submit-for-approval, muda status). Se send=false, só salva o thumb no
+  // item (PATCH /api/items/:id, mantém status awaiting_submission = rascunho).
+  const runBulkThumb = useCallback(async (send: boolean) => {
     const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
     if (!toProcess.length) return;
     setBulkThumbRunning(true);
@@ -976,7 +979,11 @@ export default function Arte() {
       setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
       try {
         const localPath = await uploadFileRaw(entry.file);
-        await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
+        if (send) {
+          await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
+        } else {
+          await apiRequest("PATCH", `/api/items/${entry.matchedItemId}`, { approvalThumbUrl: localPath });
+        }
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e));
       } catch (err: any) {
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', errorMsg: err.message } : e));
@@ -984,8 +991,14 @@ export default function Arte() {
     }
     setBulkThumbRunning(false);
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-    toast({ title: "Upload em lote concluído", description: `${toProcess.length} thumb(s) enviados para aprovação` });
+    queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
+    toast(send
+      ? { title: "Upload em lote concluído", description: `${toProcess.length} thumb(s) enviados para aprovação` }
+      : { title: "Thumbs salvos", description: `${toProcess.length} thumb(s) salvos sem enviar. Envie quando quiser.` });
   }, [bulkThumbEntries, uploadFileRaw]);
+
+  const handleBulkThumbUpload = useCallback(() => runBulkThumb(true), [runBulkThumb]);
+  const handleBulkThumbSaveDraft = useCallback(() => runBulkThumb(false), [runBulkThumb]);
 
   const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
     if (gcsUrl.startsWith('/')) return gcsUrl;
@@ -2743,7 +2756,7 @@ export default function Arte() {
                       uploadFileDirect(file, (localPath) => {
                         setApprovalThumbUrl(localPath);
                         setApprovalThumbPreview(localPath);
-                        toast({ title: "Upload concluído", description: "Thumb de aprovação enviado com sucesso" });
+                        toast({ title: "Thumb carregado", description: "Agora clique em Salvar (rascunho) ou Enviar para Aprovação." });
                       });
                     }}
                   >
@@ -2768,7 +2781,7 @@ export default function Arte() {
                           const localPath = convertGCSUrlToLocalPath(result.url);
                           setApprovalThumbUrl(localPath);
                           setApprovalThumbPreview(localPath);
-                          toast({ title: "Upload concluído", description: "Thumb de aprovação enviado com sucesso" });
+                          toast({ title: "Thumb carregado", description: "Agora clique em Salvar (rascunho) ou Enviar para Aprovação." });
                         }}
                         onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
                         onFileSelect={(file) => {
@@ -3367,6 +3380,26 @@ export default function Arte() {
                   onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
                   style={{ width: '100%', height: 34, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
                 >Cancelar</button>
+                {/* Salvar thumbs sem enviar (rascunho) */}
+                <button
+                  onClick={handleBulkThumbSaveDraft}
+                  disabled={bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0}
+                  data-testid="button-bulk-thumb-save-draft"
+                  style={{
+                    width: '100%', height: 40, borderRadius: 8,
+                    backgroundColor: '#ffffff',
+                    border: `1.5px solid ${(bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#e7e5e4' : '#ddd6fe'}`,
+                    color: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#a8a29e' : '#7c3aed',
+                    fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    cursor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!bulkThumbRunning && bulkThumbEntries.filter(x => x.matchedItemId && x.status === 'pending').length > 0) e.currentTarget.style.backgroundColor = '#faf5ff'; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                >
+                  <FileImage style={{ width: 13, height: 13 }} />
+                  Salvar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s) sem enviar
+                </button>
                 <button
                   onClick={handleBulkThumbUpload}
                   disabled={bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0}

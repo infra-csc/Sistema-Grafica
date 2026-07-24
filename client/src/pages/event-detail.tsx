@@ -218,6 +218,10 @@ export default function EventDetail() {
   // Solicitação ou admin podem adicionar referência
   const canUploadReference = hasPermission("admin") || user?.role === "solicitacao";
 
+  // Quem cria a lista (solicitação, admin ou criador do evento) sempre pode
+  // editar uma peça, mesmo depois que ela entra em produção/entrega.
+  const canEditLists = hasPermission("admin") || user?.role === "solicitacao" || !!(event && user && event.createdBy === user.id);
+
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});
     const data = await response.json();
@@ -556,7 +560,7 @@ export default function EventDetail() {
   };
 
   const BLOCKED_EDIT_STATUSES = ["ready_for_production", "inProduction", "produced", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
-  const isEditBlocked = (status: string) => BLOCKED_EDIT_STATUSES.includes(status);
+  const isEditBlocked = (status: string) => BLOCKED_EDIT_STATUSES.includes(status) && !canEditLists;
 
   const handleEditItem = (item: any) => {
     if (isEditBlocked(item.status)) return;

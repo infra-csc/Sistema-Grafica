@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { SponsorChips } from "@/components/sponsor-chips";
+import { FilterSelect } from "@/components/filter-select";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -389,6 +390,55 @@ export default function Atendimento() {
     const types = new Set(pendingItems.map(item => item.type).filter(Boolean));
     return Array.from(types).sort();
   }, [pendingItems]);
+
+  // Filtros facetados: cada filtro lista só o que existe na página, aplicando
+  // os OUTROS filtros ativos (escolher um evento reduz tipos e patrocinadores).
+  const facetPool = (exclude: 'event' | 'type' | 'sponsor') =>
+    pendingItems.filter((item: any) => {
+      if (!(itemSponsorsMap[item.id]?.length > 0) && !loadingSponsors) return false;
+      if (exclude !== 'event' && eventFilter !== "all" && item.eventId !== eventFilter) return false;
+      if (exclude !== 'type' && itemTypeFilter !== "all" && item.type !== itemTypeFilter) return false;
+      if (exclude !== 'sponsor' && sponsorFilter !== "all" && !itemSponsorsMap[item.id]?.some(s => s.id === sponsorFilter)) return false;
+      return true;
+    });
+  const facetDeps = [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors];
+
+  const eventFilterOptions = useMemo(() => {
+    const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const byId = new Map((events as any[]).map((e: any) => [e.id, e]));
+    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    facetPool('event').forEach((i: any) => {
+      if (!i.eventId) return;
+      const cur = map.get(i.eventId);
+      if (cur) cur.count++;
+      else {
+        const ev = byId.get(i.eventId);
+        map.set(i.eventId, { value: i.eventId, label: ev?.name || 'Sem evento', count: 1, dotColor: DOT[ev?.priority] });
+      }
+    });
+    return Array.from(map.values());
+  }, [...facetDeps, events]);
+
+  const typeFilterOptions = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    facetPool('type').forEach((i: any) => {
+      if (!i.type) return;
+      const cur = map.get(i.type);
+      if (cur) cur.count++;
+      else map.set(i.type, { value: i.type, label: i.type, count: 1 });
+    });
+    return Array.from(map.values());
+  }, facetDeps);
+
+  const sponsorFilterOptions = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    facetPool('sponsor').forEach((i: any) => (itemSponsorsMap[i.id] ?? []).forEach((s: any) => {
+      const cur = map.get(s.id);
+      if (cur) cur.count++;
+      else map.set(s.id, { value: s.id, label: s.name, count: 1, dotColor: s.color || '#a8a29e' });
+    }));
+    return Array.from(map.values());
+  }, facetDeps);
 
   // Itens filtrados para o modal de exportação PDF (filtros independentes da página)
   const exportItems = useMemo(() => {
@@ -846,134 +896,32 @@ export default function Atendimento() {
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          {/* Filtro Evento — combobox pesquisável */}
-          {(() => {
-            const _PRIO: Record<string, number> = { urgente: 0, alta: 1, media: 2, baixa: 3 };
-            const _PRIO_DOT: Record<string, string> = { urgente: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
-            const sortedEvents = [...events].sort((a: any, b: any) => {
-              const pa = _PRIO[a.priority] ?? 4, pb = _PRIO[b.priority] ?? 4;
-              return pa !== pb ? pa - pb : a.name.localeCompare(b.name, 'pt-BR');
-            });
-            const selectedEvent = sortedEvents.find((e: any) => e.id === eventFilter);
-            return (
-              <Popover open={eventComboOpen} onOpenChange={setEventComboOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    data-testid="select-event-filter"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
-                      fontSize: 14, fontWeight: 600, padding: '12px 16px',
-                      color: selectedEvent ? '#1c1917' : '#78716c',
-                      cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {selectedEvent ? selectedEvent.name : 'Todos os Eventos'}
-                    <ChevronsUpDown style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" style={{ width: 280 }} align="start">
-                  <Command>
-                    <CommandInput placeholder="Buscar evento..." />
-                    <CommandList>
-                      <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="all"
-                          onSelect={() => { setEventFilter("all"); setEventComboOpen(false); }}
-                        >
-                          <Check style={{ width: 14, height: 14, opacity: eventFilter === "all" ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
-                          Todos os Eventos
-                        </CommandItem>
-                        {sortedEvents.map((ev: any) => (
-                          <CommandItem
-                            key={ev.id}
-                            value={ev.name}
-                            onSelect={() => { setEventFilter(ev.id); setEventComboOpen(false); }}
-                          >
-                            <Check style={{ width: 14, height: 14, opacity: eventFilter === ev.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
-                            {ev.priority && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: _PRIO_DOT[ev.priority], display: 'inline-block', marginRight: 6, flexShrink: 0 }} />}
-                            {ev.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            );
-          })()}
+          <FilterSelect
+            variant="bare" showAllLabelWhenEmpty
+            label="Evento" allLabel="Todos os Eventos"
+            value={eventFilter} onChange={setEventFilter}
+            options={eventFilterOptions}
+            searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+            hideWhenEmpty={false} testId="select-event-filter"
+          />
 
-          {/* Filtro Tipo */}
-          <select
-            value={itemTypeFilter}
-            onChange={e => setItemTypeFilter(e.target.value)}
-            data-testid="select-type-filter"
-            style={{
-              backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
-              fontSize: 14, fontWeight: 600, padding: '12px 16px',
-              color: '#1c1917', cursor: 'pointer', outline: 'none',
-            }}
-          >
-            <option value="all">Tipo de Entrega</option>
-            {uniqueItemTypes.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <FilterSelect
+            variant="bare"
+            label="Tipo de Entrega" allLabel="Todos os tipos"
+            value={itemTypeFilter} onChange={setItemTypeFilter}
+            options={typeFilterOptions}
+            searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
+            testId="select-type-filter"
+          />
 
-          {/* Filtro Patrocinador — combobox pesquisável com cores */}
-          {(() => {
-            const sortedSponsors = [...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'));
-            const selectedSponsor = sortedSponsors.find((s: any) => s.id === sponsorFilter);
-            return (
-              <Popover open={sponsorComboOpen} onOpenChange={setSponsorComboOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    data-testid="select-sponsor-filter"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      backgroundColor: '#ffffff', border: 'none', borderRadius: 8,
-                      fontSize: 14, fontWeight: 600, padding: '12px 16px',
-                      color: selectedSponsor ? '#1c1917' : '#78716c',
-                      cursor: 'pointer', outline: 'none', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {selectedSponsor && (
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: selectedSponsor.color || '#a8a29e', flexShrink: 0, display: 'inline-block' }} />
-                    )}
-                    {selectedSponsor ? selectedSponsor.name : 'Patrocinador'}
-                    <ChevronsUpDown style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" style={{ width: 260 }} align="start">
-                  <Command>
-                    <CommandInput placeholder="Buscar patrocinador..." />
-                    <CommandList>
-                      <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="all"
-                          onSelect={() => { setSponsorFilter("all"); setSponsorComboOpen(false); }}
-                        >
-                          <Check style={{ width: 14, height: 14, opacity: sponsorFilter === "all" ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
-                          Todos os Patrocinadores
-                        </CommandItem>
-                        {sortedSponsors.map((s: any) => (
-                          <CommandItem
-                            key={s.id}
-                            value={s.name}
-                            onSelect={() => { setSponsorFilter(s.id); setSponsorComboOpen(false); }}
-                          >
-                            <Check style={{ width: 14, height: 14, opacity: sponsorFilter === s.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
-                            <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0, display: 'inline-block', marginRight: 6 }} />
-                            {s.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            );
-          })()}
+          <FilterSelect
+            variant="bare"
+            label="Patrocinador" allLabel="Todos os Patrocinadores"
+            value={sponsorFilter} onChange={setSponsorFilter}
+            options={sponsorFilterOptions} panelWidth={260}
+            searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+            testId="select-sponsor-filter"
+          />
 
           {/* Limpar filtros */}
           {(searchTerm || eventFilter !== "all" || itemTypeFilter !== "all" || sponsorFilter !== "all") && (
@@ -2455,41 +2403,42 @@ export default function Atendimento() {
                 {/* Grupo Pai */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Grupo pai</label>
-                  <select
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Grupo" allLabel="Todos os grupos"
                     value={expGroupFilter}
-                    onChange={e => { setExpGroupFilter(e.target.value); setExpTypeFilter("all"); }}
-                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
-                  >
-                    <option value="all">Todos os grupos</option>
-                    {uniqueItemGroups.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
+                    onChange={v => { setExpGroupFilter(v); setExpTypeFilter("all"); }}
+                    options={uniqueItemGroups.map(g => ({ value: g, label: g }))}
+                    searchPlaceholder="Buscar grupo..." emptyText="Nenhum grupo encontrado."
+                  />
                 </div>
 
                 {/* Tipo */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Tipo de peça</label>
-                  <select
-                    value={expTypeFilter}
-                    onChange={e => setExpTypeFilter(e.target.value)}
-                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
-                  >
-                    <option value="all">Todos os tipos</option>
-                    {(expGroupFilter === "all" ? uniqueItemTypes : uniqueItemTypes.filter(t => t.split(/[\s(]/)[0] === expGroupFilter)).map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Tipo" allLabel="Todos os tipos"
+                    value={expTypeFilter} onChange={setExpTypeFilter}
+                    options={(expGroupFilter === "all" ? uniqueItemTypes : uniqueItemTypes.filter(t => t.split(/[\s(]/)[0] === expGroupFilter)).map(t => ({ value: t, label: t }))}
+                    searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
+                  />
                 </div>
 
                 {/* Status de aprovação */}
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Status</label>
-                  <select
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Status" allLabel="Todos os status"
                     value={expStatusFilter}
-                    onChange={e => setExpStatusFilter(e.target.value as "all" | "pending" | "approved")}
-                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}
-                  >
-                    <option value="all">Todos os status</option>
-                    <option value="pending">Aguardando aprovação</option>
-                    <option value="approved">Aprovados</option>
-                  </select>
+                    onChange={v => setExpStatusFilter(v as "all" | "pending" | "approved")}
+                    options={[
+                      { value: "pending", label: "Aguardando aprovação", pinned: true },
+                      { value: "approved", label: "Aprovados", pinned: true },
+                    ]}
+                    searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
+                  />
                 </div>
 
                 {/* Divisor */}

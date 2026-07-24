@@ -35,6 +35,22 @@ interface FilterSelectProps {
   hideWhenEmpty?: boolean;
   panelWidth?: number;
   testId?: string;
+  /** Ocupa a largura do container — para uso dentro de formulários/modais. */
+  fullWidth?: boolean;
+  /**
+   * Aparência, para respeitar o layout de cada tela:
+   * - "pill": compacto com borda (barras de filtro da Arte, Gráfica, Eventos…)
+   * - "bare": maior e sem borda (cabeçalho do Atendimento)
+   */
+  variant?: "pill" | "bare";
+  /**
+   * Ajuste fino da aparência do botão, para casar com o layout da tela
+   * (ex.: fundo cinza da Gráfica). O comportamento continua padronizado.
+   */
+  triggerStyle?: React.CSSProperties;
+  /** Mostra sempre o allLabel no botão em vez do label curto (modo formulário). */
+  showAllLabelWhenEmpty?: boolean;
+  disabled?: boolean;
 }
 
 export function FilterSelect({
@@ -48,6 +64,11 @@ export function FilterSelect({
   hideWhenEmpty = true,
   panelWidth = 280,
   testId,
+  fullWidth = false,
+  variant = "pill",
+  triggerStyle,
+  showAllLabelWhenEmpty = false,
+  disabled = false,
 }: FilterSelectProps) {
   const [open, setOpen] = useState(false);
 
@@ -64,30 +85,55 @@ export function FilterSelect({
 
   const isActive = value !== "all";
   const selected = sorted.find(o => o.value === value);
-  const triggerText = isActive ? (selected?.label ?? label) : label;
+  const emptyText_ = showAllLabelWhenEmpty ? (allLabel || label) : label;
+  const triggerText = isActive ? (selected?.label ?? label) : emptyText_;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={o => !disabled && setOpen(o)}>
       <PopoverTrigger asChild>
         <button
           type="button"
+          disabled={disabled}
           data-testid={testId}
           title={isActive ? `${label}: ${triggerText}` : label}
           style={{
-            display: "flex", alignItems: "center", gap: 5,
-            height: 34, paddingLeft: 10, paddingRight: 8,
-            maxWidth: 210, borderRadius: 8,
-            border: `1px solid ${isActive ? "#f97316" : "#e7e5e4"}`,
-            background: isActive ? "#fff7ed" : "#ffffff",
-            color: isActive ? "#c2410c" : "#44403c",
-            fontSize: 12, fontWeight: 500, cursor: "pointer",
+            display: "flex", alignItems: "center",
+            gap: variant === "bare" ? 8 : 5,
+            borderRadius: 8,
+            cursor: disabled ? "not-allowed" : "pointer",
+            opacity: disabled ? 0.6 : 1,
+            outline: "none",
+            ...(variant === "bare"
+              ? {
+                  padding: "12px 16px",
+                  border: "none",
+                  background: isActive ? "#fff7ed" : "#ffffff",
+                  color: isActive ? "#c2410c" : "#1c1917",
+                  fontSize: 14, fontWeight: 600,
+                }
+              : {
+                  height: fullWidth ? 36 : 34,
+                  paddingLeft: 10, paddingRight: 8,
+                  border: `1px solid ${isActive ? "#f97316" : "#e7e5e4"}`,
+                  background: isActive ? "#fff7ed" : "#ffffff",
+                  color: isActive ? "#c2410c" : "#44403c",
+                  fontSize: 12, fontWeight: fullWidth ? 600 : 500,
+                }),
+            ...(fullWidth
+              ? { width: "100%", justifyContent: "space-between" }
+              : { maxWidth: variant === "bare" ? 260 : 210 }),
+            ...triggerStyle,
           }}
         >
           {isActive && selected?.dotColor && (
             <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: selected.dotColor, flexShrink: 0 }} />
           )}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{triggerText}</span>
-          <ChevronDown style={{ width: 10, height: 10, opacity: 0.5, flexShrink: 0 }} />
+          <ChevronDown
+            style={variant === "bare"
+              ? { width: 14, height: 14, color: "#a8a29e", flexShrink: 0 }
+              : { width: 10, height: 10, opacity: 0.5, flexShrink: 0 }}
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" style={{ width: panelWidth, padding: 0 }}>

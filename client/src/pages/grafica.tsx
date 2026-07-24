@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { FilterSelect } from "@/components/filter-select";
 import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -130,6 +131,50 @@ export default function Grafica() {
   const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort() as string[];
   const uniqueMaterials = Array.from(new Set(items.map((i: any) => i.material).filter(Boolean))).sort() as string[];
   const uniqueFinishes = Array.from(new Set(items.map((i: any) => i.finish).filter(Boolean))).sort() as string[];
+
+  // Filtros facetados: cada filtro lista só o que existe no recorte atual,
+  // aplicando os OUTROS filtros ativos (com contagem por opção).
+  const gFacetPool = (exclude: 'event' | 'status' | 'type' | 'material' | 'finish') =>
+    (items as any[]).filter((item: any) => {
+      if (exclude !== 'status' && statusFilter !== "all") {
+        const ok = statusFilter === "ready_for_production"
+          ? (item.status === "ready_for_production" || item.status === "pronto_para_producao" || item.status === "approved")
+          : item.status === statusFilter;
+        if (!ok) return false;
+      }
+      if (exclude !== 'event' && eventFilter !== "all" && item.eventId !== eventFilter) return false;
+      if (exclude !== 'type' && typeFilter !== "all" && item.type !== typeFilter) return false;
+      if (exclude !== 'material' && materialFilter !== "all" && item.material !== materialFilter) return false;
+      if (exclude !== 'finish' && finishFilter !== "all" && item.finish !== finishFilter) return false;
+      return true;
+    });
+
+  const countField = (exclude: any, key: 'type' | 'material' | 'finish') => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    gFacetPool(exclude).forEach((i: any) => {
+      const v = i[key];
+      if (!v) return;
+      const cur = map.get(v);
+      if (cur) cur.count++;
+      else map.set(v, { value: v, label: v, count: 1 });
+    });
+    return Array.from(map.values());
+  };
+
+  const eventFilterOptions = (() => {
+    const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    gFacetPool('event').forEach((i: any) => {
+      if (!i.eventId) return;
+      const cur = map.get(i.eventId);
+      if (cur) cur.count++;
+      else map.set(i.eventId, { value: i.eventId, label: i.event?.name || 'Sem evento', count: 1, dotColor: DOT[i.event?.priority] });
+    });
+    return Array.from(map.values());
+  })();
+  const typeFilterOptions = countField('type', 'type');
+  const materialFilterOptions = countField('material', 'material');
+  const finishFilterOptions = countField('finish', 'finish');
   const uniqueRecipients = Array.from(new Set(items.map((i: any) => i.receivedBy).filter(Boolean))).sort() as string[];
 
   const months = [
@@ -324,45 +369,43 @@ export default function Grafica() {
         </div>
 
         {/* Event */}
-        <select
-          value={eventFilter}
-          onChange={e => setEventFilter(e.target.value)}
-          data-testid="select-event-filter"
-          style={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, padding: "8px 12px", color: TI.text, outline: "none", cursor: "pointer" }}
-        >
-          <option value="all">Todos os eventos</option>
-          {(() => {
-            const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-            return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((ev:any) => (
-              <option key={ev.id} value={ev.id}>{ev.priority === 'urgente' ? `(!) ${ev.name}` : ev.priority === 'alta' ? `▲ ${ev.name}` : ev.name}</option>
-            ));
-          })()}
-        </select>
+        <FilterSelect
+          showAllLabelWhenEmpty hideWhenEmpty={false}
+          label="Evento" allLabel="Todos os eventos"
+          value={eventFilter} onChange={setEventFilter}
+          options={eventFilterOptions}
+          searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+          testId="select-event-filter"
+          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
+        />
 
         {/* Status */}
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          data-testid="select-status-filter"
-          style={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, padding: "8px 12px", color: TI.text, outline: "none", cursor: "pointer" }}
-        >
-          <option value="all">Todos os status</option>
-          <option value="ready_for_production">Pronto p/ Produção</option>
-          <option value="approved">Liberados</option>
-          <option value="inProduction">Em Produção</option>
-          <option value="produced">Produzidos</option>
-          <option value="delivered">Entregues</option>
-        </select>
+        <FilterSelect
+          showAllLabelWhenEmpty hideWhenEmpty={false}
+          label="Status" allLabel="Todos os status"
+          value={statusFilter} onChange={setStatusFilter}
+          options={[
+            { value: "ready_for_production", label: "Pronto p/ Produção", pinned: true },
+            { value: "approved", label: "Liberados", pinned: true },
+            { value: "inProduction", label: "Em Produção", pinned: true },
+            { value: "produced", label: "Produzidos", pinned: true },
+            { value: "delivered", label: "Entregues", pinned: true },
+          ]}
+          searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
+          testId="select-status-filter"
+          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
+        />
 
         {/* Mês */}
-        <select
-          value={monthFilter}
-          onChange={e => setMonthFilter(e.target.value)}
-          data-testid="select-month-filter"
-          style={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, padding: "8px 12px", color: TI.text, outline: "none", cursor: "pointer" }}
-        >
-          {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-        </select>
+        <FilterSelect
+          showAllLabelWhenEmpty hideWhenEmpty={false}
+          label="Mês" allLabel={months.find(m => m.value === "all")?.label || "Todos os meses"}
+          value={monthFilter} onChange={setMonthFilter}
+          options={months.filter(m => m.value !== "all").map(m => ({ value: m.value, label: m.label, pinned: true }))}
+          searchPlaceholder="Buscar mês..." emptyText="Nenhum mês encontrado."
+          testId="select-month-filter"
+          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
+        />
 
         {/* Toggle Próximos 10 dias */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, borderLeft: `1px solid ${TI.border}`, paddingLeft: 12, marginLeft: 4 }}>
@@ -398,14 +441,21 @@ export default function Grafica() {
         {showAdvancedFilters && (
           <div style={{ width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10, marginTop: 2 }}>
             {[
-              { label: "Tipo", value: typeFilter, onChange: setTypeFilter, options: uniqueTypes, testId: "select-type-filter" },
-              { label: "Material", value: materialFilter, onChange: setMaterialFilter, options: uniqueMaterials, testId: "select-material-filter" },
-              { label: "Acabamento", value: finishFilter, onChange: setFinishFilter, options: uniqueFinishes, testId: "select-finish-filter" },
+              { label: "Tipo", allLabel: "Todos os tipos", value: typeFilter, onChange: setTypeFilter, options: typeFilterOptions, testId: "select-type-filter" },
+              { label: "Material", allLabel: "Todos os materiais", value: materialFilter, onChange: setMaterialFilter, options: materialFilterOptions, testId: "select-material-filter" },
+              { label: "Acabamento", allLabel: "Todos os acabamentos", value: finishFilter, onChange: setFinishFilter, options: finishFilterOptions, testId: "select-finish-filter" },
             ].map(f => (
-              <select key={f.label} value={f.value} onChange={e => f.onChange(e.target.value)} data-testid={f.testId} style={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, padding: "8px 12px", color: TI.text, outline: "none", cursor: "pointer" }}>
-                <option value="all">Todos os {f.label.toLowerCase()}s</option>
-                {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
+              <FilterSelect
+                key={f.label}
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label={f.label} allLabel={f.allLabel}
+                value={f.value} onChange={f.onChange}
+                options={f.options}
+                searchPlaceholder={`Buscar ${f.label.toLowerCase()}...`}
+                emptyText="Nada encontrado."
+                testId={f.testId}
+                triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", fontSize: 13, color: TI.text }}
+              />
             ))}
             {(typeFilter !== "all" || materialFilter !== "all" || finishFilter !== "all") && (
               <div style={{ gridColumn: "1 / -1" }}>

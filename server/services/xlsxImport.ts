@@ -161,7 +161,13 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
           const vals = Object.values(cells).map(v => normHdr(v));
           const hasItem = vals.some(v => isItemCol(v) || isCodeCol(v));
           const hasQty  = vals.some(isQtyCol);
-          if (hasItem && hasQty) {
+          // Formato Norte "Arena" sem coluna "item"/"cód peça": reconhece pelo
+          // conjunto de colunas (material + acabamento/medida/visual). Nesses
+          // arquivos a descrição fica na coluna C e o grupo na B.
+          const hasArenaCols =
+            vals.some(v => v === "material") &&
+            vals.some(v => v === "acabamento" || v === "acab" || v.startsWith("medida") || v === "visual" || v === "visu");
+          if ((hasItem || hasArenaCols) && hasQty) {
             localHeaderRow = parseInt(rn);
             let codeColLetter: string | null = null;
             for (const [col, val] of Object.entries(cells)) {
@@ -180,6 +186,12 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
             if (!localColMap["item"] && codeColLetter) {
               const codeIdx = codeColLetter.charCodeAt(0) - 65;
               if (codeIdx > 0) localColMap["item"] = String.fromCharCode(65 + codeIdx - 1);
+            }
+            // Formato Arena sem coluna de item/cód: a descrição está em C
+            // (grupo em B). Só aplica quando reconhecemos as colunas do Arena,
+            // para não afetar planilhas com layout diferente.
+            if (!localColMap["item"] && hasArenaCols) {
+              localColMap["item"] = "C";
             }
             break;
           }

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
+import { FilterSelect } from "@/components/filter-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -482,6 +483,39 @@ export default function VincularPatrocinadores() {
     if (eventFilter === "all") return visibleItems;
     return visibleItems.filter(item => item.eventId === eventFilter);
   }, [visibleItems, eventFilter]);
+
+  // Opções dos filtros facetadas: só o que existe na lista, aplicando o OUTRO
+  // filtro ativo, com contagem por opção.
+  const eventFilterOptions = useMemo(() => {
+    const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    visibleItems
+      .filter(i => sponsorFilter === "all" || (itemSponsorsMap[i.id] ?? []).includes(sponsorFilter))
+      .forEach(i => {
+        if (!i.eventId) return;
+        const cur = map.get(i.eventId);
+        if (cur) cur.count++;
+        else {
+          const ev: any = eventById.get(i.eventId);
+          map.set(i.eventId, { value: i.eventId, label: ev?.name || 'Sem evento', count: 1, dotColor: DOT[ev?.priority] });
+        }
+      });
+    return Array.from(map.values());
+  }, [visibleItems, sponsorFilter, itemSponsorsMap, eventById]);
+
+  const sponsorFilterOptions = useMemo(() => {
+    const byId = new Map(sponsors.map((s: any) => [s.id, s]));
+    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    contextVisibleItems.forEach(i => (itemSponsorsMap[i.id] ?? []).forEach((sid: string) => {
+      const cur = map.get(sid);
+      if (cur) cur.count++;
+      else {
+        const s: any = byId.get(sid);
+        map.set(sid, { value: sid, label: s?.name || sid, count: 1, dotColor: s?.color || '#3b82f6' });
+      }
+    }));
+    return Array.from(map.values());
+  }, [contextVisibleItems, itemSponsorsMap, sponsors]);
 
   // Itens que passam em TODOS os filtros ativos (usado no bloco de progresso)
   const fullyFilteredItems = useMemo(() => {
@@ -1786,116 +1820,29 @@ export default function VincularPatrocinadores() {
             {/* Filtro por Evento */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Evento</label>
-              <Popover open={eventComboOpen} onOpenChange={setEventComboOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={eventComboOpen}
-                    data-testid="select-event-filter"
-                    className="w-full justify-between font-normal h-auto min-h-9 px-3 text-left py-2"
-                  >
-                    <span className="flex-1 overflow-hidden">
-                      {eventFilter === "all"
-                        ? <span className="text-muted-foreground">Todos os eventos</span>
-                        : <span className="whitespace-normal">{events.find(e => e.id === eventFilter)?.name ?? "Todos os eventos"}</span>
-                      }
-                    </span>
-                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0 w-72" align="start">
-                  <Command>
-                    <CommandInput placeholder="Buscar evento..." />
-                    <CommandList>
-                      <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="todos-os-eventos"
-                          onSelect={() => { setEventFilter("all"); setEventComboOpen(false); }}
-                        >
-                          <Check className={`mr-2 h-4 w-4 ${eventFilter === "all" ? "opacity-100" : "opacity-0"}`} />
-                          Todos os eventos
-                        </CommandItem>
-                        {(() => {
-                          const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-                          const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-                          return [...events].sort((a,b) => { const pa=P[(a as any).priority]??4,pb=P[(b as any).priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map(event => (
-                            <CommandItem
-                              key={event.id}
-                              value={event.name}
-                              onSelect={() => { setEventFilter(event.id); setEventComboOpen(false); }}
-                            >
-                              <Check className={`mr-2 h-4 w-4 ${eventFilter === event.id ? "opacity-100" : "opacity-0"}`} />
-                              {(event as any).priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[(event as any).priority], display:'inline-block', marginRight:6, flexShrink:0 }} />}
-                              {event.name}
-                            </CommandItem>
-                          ));
-                        })()}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <FilterSelect
+                showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Evento" allLabel="Todos os eventos"
+                value={eventFilter} onChange={setEventFilter}
+                options={eventFilterOptions}
+                searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+                panelWidth={288} testId="select-event-filter"
+                triggerClassName="w-full justify-between font-normal h-auto min-h-9 px-3 text-left py-2 border border-input bg-background rounded-md text-sm hover:bg-accent hover:text-accent-foreground"
+              />
             </div>
 
             {/* Filtro por Patrocinador — Combobox buscável com cor */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Patrocinador</label>
-              <Popover open={sponsorComboOpen} onOpenChange={setSponsorComboOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={sponsorComboOpen}
-                    data-testid="select-sponsor-filter"
-                    className="w-full justify-between font-normal h-9 px-3 text-left"
-                  >
-                    <span className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                      {sponsorFilter === "all" ? (
-                        <span className="text-muted-foreground truncate">Todos os patrocinadores</span>
-                      ) : (() => {
-                        const s = sponsors.find(sp => sp.id === sponsorFilter);
-                        return s ? (
-                          <>
-                            <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: s.color || '#3b82f6', flexShrink: 0, display: 'inline-block' }} />
-                            <span className="truncate">{s.name}</span>
-                          </>
-                        ) : <span className="text-muted-foreground truncate">Todos os patrocinadores</span>;
-                      })()}
-                    </span>
-                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0 w-64" align="start">
-                  <Command>
-                    <CommandInput placeholder="Buscar patrocinador..." />
-                    <CommandList>
-                      <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="todos-os-patrocinadores"
-                          onSelect={() => { setSponsorFilter("all"); setSponsorComboOpen(false); }}
-                        >
-                          <Check className={`mr-2 h-4 w-4 ${sponsorFilter === "all" ? "opacity-100" : "opacity-0"}`} />
-                          Todos os patrocinadores
-                        </CommandItem>
-                        {[...sponsors].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(sponsor => (
-                          <CommandItem
-                            key={sponsor.id}
-                            value={sponsor.name}
-                            onSelect={() => { setSponsorFilter(sponsor.id); setSponsorComboOpen(false); }}
-                          >
-                            <Check className={`mr-2 h-4 w-4 ${sponsorFilter === sponsor.id ? "opacity-100" : "opacity-0"}`} />
-                            <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0, display: 'inline-block', marginRight: 6 }} />
-                            {sponsor.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <FilterSelect
+                showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Patrocinador" allLabel="Todos os patrocinadores"
+                value={sponsorFilter} onChange={setSponsorFilter}
+                options={sponsorFilterOptions}
+                searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+                panelWidth={256} testId="select-sponsor-filter"
+                triggerClassName="w-full justify-between font-normal h-9 px-3 text-left border border-input bg-background rounded-md text-sm hover:bg-accent hover:text-accent-foreground"
+              />
             </div>
 
             {/* Filtro por Item (tipo) */}

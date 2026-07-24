@@ -50,6 +50,11 @@ interface FilterSelectProps {
    * (ex.: fundo cinza da Gráfica). O comportamento continua padronizado.
    */
   triggerStyle?: React.CSSProperties;
+  /**
+   * Classes do botão. Quando informado, o estilo inline da variante é
+   * desligado para que o Tailwind/shadcn controle a aparência.
+   */
+  triggerClassName?: string;
   /** Mostra sempre o allLabel no botão em vez do label curto (modo formulário). */
   showAllLabelWhenEmpty?: boolean;
   disabled?: boolean;
@@ -69,6 +74,7 @@ export function FilterSelect({
   fullWidth = false,
   variant = "pill",
   triggerStyle,
+  triggerClassName,
   showAllLabelWhenEmpty = false,
   disabled = false,
 }: FilterSelectProps) {
@@ -130,35 +136,38 @@ export function FilterSelect({
           type="button"
           disabled={disabled}
           data-testid={testId}
+          className={triggerClassName}
           title={isActive ? `${label}: ${triggerText}` : label}
-          style={{
-            display: "flex", alignItems: "center",
-            gap: variant === "bare" ? 8 : 5,
-            borderRadius: 8,
-            cursor: disabled ? "not-allowed" : "pointer",
-            opacity: disabled ? 0.6 : 1,
-            outline: "none",
-            ...(variant === "bare"
-              ? {
-                  padding: "12px 16px",
-                  border: "none",
-                  background: isActive ? "#fff7ed" : "#ffffff",
-                  color: isActive ? "#c2410c" : "#1c1917",
-                  fontSize: 14, fontWeight: 600,
-                }
-              : {
-                  height: fullWidth ? 36 : 34,
-                  paddingLeft: 10, paddingRight: 8,
-                  border: `1px solid ${isActive ? "#f97316" : "#e7e5e4"}`,
-                  background: isActive ? "#fff7ed" : "#ffffff",
-                  color: isActive ? "#c2410c" : "#44403c",
-                  fontSize: 12, fontWeight: fullWidth ? 600 : 500,
-                }),
-            ...(fullWidth
-              ? { width: "100%", justifyContent: "space-between" }
-              : { maxWidth: variant === "bare" ? 260 : 210 }),
-            ...triggerStyle,
-          }}
+          style={triggerClassName
+            ? { display: "flex", alignItems: "center", gap: 5, ...triggerStyle }
+            : {
+              display: "flex", alignItems: "center",
+              gap: variant === "bare" ? 8 : 5,
+              borderRadius: 8,
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.6 : 1,
+              outline: "none",
+              ...(variant === "bare"
+                ? {
+                    padding: "12px 16px",
+                    border: "none",
+                    background: isActive ? "#fff7ed" : "#ffffff",
+                    color: isActive ? "#c2410c" : "#1c1917",
+                    fontSize: 14, fontWeight: 600,
+                  }
+                : {
+                    height: fullWidth ? 36 : 34,
+                    paddingLeft: 10, paddingRight: 8,
+                    border: `1px solid ${isActive ? "#f97316" : "#e7e5e4"}`,
+                    background: isActive ? "#fff7ed" : "#ffffff",
+                    color: isActive ? "#c2410c" : "#44403c",
+                    fontSize: 12, fontWeight: fullWidth ? 600 : 500,
+                  }),
+              ...(fullWidth
+                ? { width: "100%", justifyContent: "space-between" }
+                : { maxWidth: variant === "bare" ? 260 : 210 }),
+              ...triggerStyle,
+            }}
         >
           {isActive && selected?.dotColor && (
             <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: selected.dotColor, flexShrink: 0 }} />

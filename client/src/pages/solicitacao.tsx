@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle } from "lucide-react";
+import { FilterSelect } from "@/components/filter-select";
 import { FilePreview } from "@/components/file-preview";
 import { parseDateLocal } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -185,6 +186,39 @@ export default function Solicitacao() {
     return events.filter(e => ids.has(e.id));
   }, [pendingItems, events]);
 
+  // Filtros facetados: cada filtro lista só o que existe aqui, aplicando o
+  // OUTRO filtro ativo, com contagem por opção.
+  const eventFilterOptions = useMemo(() => {
+    const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const byId = new Map(events.map((e: any) => [e.id, e]));
+    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    pendingItems
+      .filter(i => itemTypeFilter === "all" || i.type === itemTypeFilter)
+      .forEach((i: any) => {
+        if (!i.eventId) return;
+        const cur = map.get(i.eventId);
+        if (cur) cur.count++;
+        else {
+          const ev: any = byId.get(i.eventId);
+          map.set(i.eventId, { value: i.eventId, label: ev?.name || i.event?.name || 'Sem evento', count: 1, dotColor: DOT[ev?.priority] });
+        }
+      });
+    return Array.from(map.values());
+  }, [pendingItems, itemTypeFilter, events]);
+
+  const typeFilterOptions = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    pendingItems
+      .filter(i => eventFilter === "all" || i.eventId === eventFilter)
+      .forEach((i: any) => {
+        if (!i.type) return;
+        const cur = map.get(i.type);
+        if (cur) cur.count++;
+        else map.set(i.type, { value: i.type, label: i.type, count: 1 });
+      });
+    return Array.from(map.values());
+  }, [pendingItems, eventFilter]);
+
   const itemsByEvent = useMemo(() => {
     const map = new Map<string, any[]>();
     const sorted = [...filteredItems].sort((a, b) => {
@@ -367,31 +401,25 @@ export default function Solicitacao() {
           </div>
 
           {/* Event select */}
-          <select
-            value={eventFilter}
-            onChange={e => setEventFilter(e.target.value)}
-            data-testid="select-event-filter"
-            style={{ backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, padding: "9px 14px", color: TI.text, minWidth: 180, cursor: "pointer", outline: "none" }}
-          >
-            <option value="all">Todos os Eventos</option>
-            {(() => {
-              const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-              return [...eventsWithItems].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((ev:any) => (
-                <option key={ev.id} value={ev.id}>{ev.priority === 'urgente' ? `(!) ${ev.name}` : ev.priority === 'alta' ? `▲ ${ev.name}` : ev.name}</option>
-              ));
-            })()}
-          </select>
+          <FilterSelect
+            showAllLabelWhenEmpty hideWhenEmpty={false}
+            label="Evento" allLabel="Todos os Eventos"
+            value={eventFilter} onChange={setEventFilter}
+            options={eventFilterOptions}
+            searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+            testId="select-event-filter"
+            triggerStyle={{ backgroundColor: "#f3f4f3", border: "none", fontSize: 13, color: TI.text, minWidth: 180 }}
+          />
 
           {/* Type select */}
-          <select
-            value={itemTypeFilter}
-            onChange={e => setItemTypeFilter(e.target.value)}
-            data-testid="select-type-filter"
-            style={{ backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, padding: "9px 14px", color: TI.text, minWidth: 150, cursor: "pointer", outline: "none" }}
-          >
-            <option value="all">Tipo de Peça</option>
-            {uniqueItemTypes.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <FilterSelect
+            label="Tipo de Peça" allLabel="Todos os tipos"
+            value={itemTypeFilter} onChange={setItemTypeFilter}
+            options={typeFilterOptions}
+            searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
+            testId="select-type-filter"
+            triggerStyle={{ backgroundColor: "#f3f4f3", border: "none", fontSize: 13, color: TI.text, minWidth: 150 }}
+          />
 
           {(searchTerm || eventFilter !== "all" || itemTypeFilter !== "all") && (
             <button

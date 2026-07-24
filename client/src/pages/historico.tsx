@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { FilterSelect } from "@/components/filter-select";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
   ChevronLeft, ChevronRight, Link2,
@@ -490,47 +491,39 @@ export default function Historico() {
           </div>
 
           {/* Action type select */}
-          <select
-            value={actionFilter}
-            onChange={e => handleFilterChange(setActionFilter)(e.target.value)}
-            data-testid="select-action-filter"
-            style={selectStyle}
-          >
-            <option value="all">Todas as ações</option>
-            <optgroup label="─── Criação ───────────────">
-              <option value="event_created">Eventos criados</option>
-              <option value="item_created">Itens adicionados</option>
-              <option value="item_deleted">Itens excluídos</option>
-            </optgroup>
-            <optgroup label="─── Arte ───────────────────">
-              <option value="sponsor_linked">Vinculações</option>
-              <option value="thumb_uploaded">Thumbs enviados</option>
-              <option value="item_sent">Enviados p/ aprovação</option>
-              <option value="final_file_added">Arq. finais adicionados</option>
-              <option value="item_dispensed">Dispensados</option>
-            </optgroup>
-            <optgroup label="─── Aprovação ──────────────">
-              <option value="sponsor_approved">Pat. aprovou</option>
-              <option value="sponsor_rejected">Pat. reprovou</option>
-              <option value="item_released">Lib. p/ produção</option>
-            </optgroup>
-            <optgroup label="─── Produção ───────────────">
-              <option value="item_approved">Itens liberados</option>
-              <option value="production_started">Em produção</option>
-              <option value="item_delivered">Entregas</option>
-            </optgroup>
-          </select>
+          <FilterSelect
+            showAllLabelWhenEmpty hideWhenEmpty={false}
+            label="Ação" allLabel="Todas as ações"
+            value={actionFilter} onChange={handleFilterChange(setActionFilter)}
+            options={[
+              { value: "event_created", label: "Eventos criados", group: "Criação", pinned: true },
+              { value: "item_created", label: "Itens adicionados", group: "Criação", pinned: true },
+              { value: "item_deleted", label: "Itens excluídos", group: "Criação", pinned: true },
+              { value: "sponsor_linked", label: "Vinculações", group: "Arte", pinned: true },
+              { value: "thumb_uploaded", label: "Thumbs enviados", group: "Arte", pinned: true },
+              { value: "item_sent", label: "Enviados p/ aprovação", group: "Arte", pinned: true },
+              { value: "final_file_added", label: "Arq. finais adicionados", group: "Arte", pinned: true },
+              { value: "item_dispensed", label: "Dispensados", group: "Arte", pinned: true },
+              { value: "sponsor_approved", label: "Pat. aprovou", group: "Aprovação", pinned: true },
+              { value: "sponsor_rejected", label: "Pat. reprovou", group: "Aprovação", pinned: true },
+              { value: "item_released", label: "Lib. p/ produção", group: "Aprovação", pinned: true },
+              { value: "item_approved", label: "Itens liberados", group: "Produção", pinned: true },
+              { value: "production_started", label: "Em produção", group: "Produção", pinned: true },
+              { value: "item_delivered", label: "Entregas", group: "Produção", pinned: true },
+            ]}
+            searchPlaceholder="Buscar ação..." emptyText="Nenhuma ação encontrada."
+            testId="select-action-filter" triggerStyle={selectStyle}
+          />
 
           {/* Event select */}
-          <select
-            value={eventFilter}
-            onChange={e => handleFilterChange(setEventFilter)(e.target.value)}
-            data-testid="select-event-filter"
-            style={selectStyle}
-          >
-            <option value="all">Todos os eventos</option>
-            {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-          </select>
+          <FilterSelect
+            showAllLabelWhenEmpty hideWhenEmpty={false}
+            label="Evento" allLabel="Todos os eventos"
+            value={eventFilter} onChange={handleFilterChange(setEventFilter)}
+            options={events.map(ev => ({ value: ev.id, label: ev.name }))}
+            searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+            testId="select-event-filter" triggerStyle={selectStyle}
+          />
 
           {/* Counter chip */}
           <div style={{

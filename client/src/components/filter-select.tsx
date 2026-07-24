@@ -19,6 +19,8 @@ export interface FilterOption {
   dotColor?: string;
   /** Mantém a opção no topo, fora da ordenação alfabética. */
   pinned?: boolean;
+  /** Agrupa a opção sob um cabeçalho (equivale ao <optgroup>). */
+  group?: string;
 }
 
 interface FilterSelectProps {
@@ -81,10 +83,43 @@ export function FilterSelect({
     return [...pinned, ...rest];
   }, [options]);
 
+  const groupedEntries = useMemo(() => {
+    const map = new Map<string, FilterOption[]>();
+    sorted.forEach(o => {
+      const g = o.group || "";
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(o);
+    });
+    return Array.from(map.entries());
+  }, [sorted]);
+
+  // Todos os hooks acima desta linha — o retorno antecipado não pode ficar
+  // entre eles, sob pena de quebrar a ordem de hooks entre renders.
   if (hideWhenEmpty && sorted.length === 0) return null;
 
+  const hasGroups = sorted.some(o => o.group);
   const isActive = value !== "all";
   const selected = sorted.find(o => o.value === value);
+
+  const renderOption = (opt: FilterOption) => (
+    <CommandItem
+      key={opt.value}
+      // Inclui o label na busca (o value pode ser um id).
+      value={`${opt.label} ${opt.value}`}
+      onSelect={() => { onChange(opt.value); setOpen(false); }}
+    >
+      <Check className={cn("mr-2 h-4 w-4 flex-shrink-0", value === opt.value ? "opacity-100" : "opacity-0")} />
+      {opt.dotColor && (
+        <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: opt.dotColor, marginRight: 6, flexShrink: 0 }} />
+      )}
+      <span style={{ flex: 1, minWidth: 0, whiteSpace: "normal", wordBreak: "break-word" }}>{opt.label}</span>
+      {opt.count !== undefined && (
+        <span style={{ marginLeft: 8, flexShrink: 0, fontSize: 11, fontWeight: 700, color: "#78716c", backgroundColor: "#f5f4f2", borderRadius: 9999, padding: "1px 7px" }}>
+          {opt.count}
+        </span>
+      )}
+    </CommandItem>
+  );
   const emptyText_ = showAllLabelWhenEmpty ? (allLabel || label) : label;
   const triggerText = isActive ? (selected?.label ?? label) : emptyText_;
 
@@ -146,26 +181,13 @@ export function FilterSelect({
                 <Check className={cn("mr-2 h-4 w-4 flex-shrink-0", value === "all" ? "opacity-100" : "opacity-0")} />
                 <span style={{ flex: 1 }}>{allLabel || `Todos — ${label.toLowerCase()}`}</span>
               </CommandItem>
-              {sorted.map(opt => (
-                <CommandItem
-                  key={opt.value}
-                  // Inclui o label na busca (o value pode ser um id).
-                  value={`${opt.label} ${opt.value}`}
-                  onSelect={() => { onChange(opt.value); setOpen(false); }}
-                >
-                  <Check className={cn("mr-2 h-4 w-4 flex-shrink-0", value === opt.value ? "opacity-100" : "opacity-0")} />
-                  {opt.dotColor && (
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: opt.dotColor, marginRight: 6, flexShrink: 0 }} />
-                  )}
-                  <span style={{ flex: 1, minWidth: 0, whiteSpace: "normal", wordBreak: "break-word" }}>{opt.label}</span>
-                  {opt.count !== undefined && (
-                    <span style={{ marginLeft: 8, flexShrink: 0, fontSize: 11, fontWeight: 700, color: "#78716c", backgroundColor: "#f5f4f2", borderRadius: 9999, padding: "1px 7px" }}>
-                      {opt.count}
-                    </span>
-                  )}
-                </CommandItem>
-              ))}
+              {!hasGroups && sorted.map(renderOption)}
             </CommandGroup>
+            {hasGroups && groupedEntries.map(([groupName, opts]) => (
+              <CommandGroup key={groupName || "__sem__"} heading={groupName || undefined}>
+                {opts.map(renderOption)}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

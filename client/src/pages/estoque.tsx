@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { FilterSelect } from "@/components/filter-select";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -992,6 +993,54 @@ export default function Estoque() {
 
   const hasFilters = !!(search || filterStatus !== "all" || filterCondition !== "all" || filterAutoAdded !== "all" || filterEvent !== "all" || filterSponsor !== "all");
 
+  // Filtros facetados: cada filtro lista só o que existe no acervo já recortado
+  // pelos OUTROS filtros ativos, com a contagem de ativos por opção.
+  const eFacetPool = (exclude: 'status' | 'condition' | 'auto' | 'event' | 'sponsor') =>
+    acervoAssets.filter(a => {
+      if (exclude !== 'status') {
+        if (filterStatus === "all" && a.trackingStatus === "DESCARTADO") return false;
+        if (filterStatus !== "all" && a.trackingStatus !== filterStatus) return false;
+      }
+      if (exclude !== 'condition' && filterCondition !== "all" && a.condition !== filterCondition) return false;
+      if (exclude !== 'auto' && filterAutoAdded !== "all" && (filterAutoAdded === "auto" ? !a.autoAdded : a.autoAdded)) return false;
+      if (exclude !== 'event' && filterEvent !== "all" && assetEventMap[a.id]?.id !== filterEvent) return false;
+      if (exclude !== 'sponsor' && filterSponsor !== "all" && !(a.sponsorIds ?? []).includes(filterSponsor)) return false;
+      return true;
+    });
+
+  const tally = <T,>(rows: T[], key: (r: T) => { value: string; label: string } | null) => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    rows.forEach(r => {
+      const k = key(r);
+      if (!k) return;
+      const cur = map.get(k.value);
+      if (cur) cur.count++;
+      else map.set(k.value, { ...k, count: 1 });
+    });
+    return Array.from(map.values());
+  };
+
+  const eventFilterOptions = tally(eFacetPool('event'), a => {
+    const ev = assetEventMap[a.id];
+    return ev ? { value: ev.id, label: ev.name } : null;
+  });
+  const sponsorFilterOptions = (() => {
+    const byId = new Map(sponsors.map(s => [s.id, s.name]));
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    eFacetPool('sponsor').forEach(a => (a.sponsorIds ?? []).forEach(id => {
+      const cur = map.get(id);
+      if (cur) cur.count++;
+      else map.set(id, { value: id, label: byId.get(id) || id, count: 1 });
+    }));
+    return Array.from(map.values());
+  })();
+  const statusFilterOptions = tally(eFacetPool('status'), a =>
+    a.trackingStatus === "AGUARDANDO_TRIAGEM" ? null : { value: a.trackingStatus, label: STATUS_META[a.trackingStatus]?.label ?? a.trackingStatus });
+  const conditionFilterOptions = tally(eFacetPool('condition'), a =>
+    ({ value: a.condition, label: CONDITION_META[a.condition]?.label ?? a.condition }));
+  const originFilterOptions = tally(eFacetPool('auto'), a =>
+    ({ value: a.autoAdded ? "auto" : "manual", label: a.autoAdded ? "Gráfica" : "Manual" }));
+
   const TH: React.CSSProperties = {
     padding: "14px 20px", fontSize: 10, fontWeight: 800, letterSpacing: "0.14em",
     textTransform: "uppercase", color: "#fff", fontFamily: "Space Grotesk, sans-serif",
@@ -1094,47 +1143,66 @@ export default function Estoque() {
             {/* Evento */}
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Evento</label>
-              <select data-testid="select-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={SEL(filterEvent !== "all")}>
-                <option value="all">Todos os eventos</option>
-                {eventOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </select>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Evento" allLabel="Todos os eventos"
+                value={filterEvent} onChange={setFilterEvent}
+                options={eventFilterOptions}
+                searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+                testId="select-filter-event" triggerStyle={SEL(filterEvent !== "all")}
+              />
             </div>
 
             {/* Patrocinador */}
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 180px" }}>
               <label style={FL}>Patrocinador</label>
-              <select data-testid="select-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)} style={SEL(filterSponsor !== "all")}>
-                <option value="all">Todos os patrocinadores</option>
-                {sponsors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Patrocinador" allLabel="Todos os patrocinadores"
+                value={filterSponsor} onChange={setFilterSponsor}
+                options={sponsorFilterOptions}
+                searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+                testId="select-filter-sponsor" triggerStyle={SEL(filterSponsor !== "all")}
+              />
             </div>
 
             {/* Status */}
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 140px" }}>
               <label style={FL}>Status</label>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={SEL(filterStatus !== "all")}>
-                <option value="all">Qualquer status</option>
-                {ALL_STATUSES.filter(s => s !== "AGUARDANDO_TRIAGEM").map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-              </select>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Status" allLabel="Qualquer status"
+                value={filterStatus} onChange={setFilterStatus}
+                options={statusFilterOptions}
+                searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
+                testId="select-filter-status" triggerStyle={SEL(filterStatus !== "all")}
+              />
             </div>
 
             {/* Condição */}
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 130px" }}>
               <label style={FL}>Condição</label>
-              <select value={filterCondition} onChange={e => setFilterCondition(e.target.value)} style={SEL(filterCondition !== "all")}>
-                <option value="all">Todas as condições</option>
-                {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_META[c].label}</option>)}
-              </select>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Condição" allLabel="Todas as condições"
+                value={filterCondition} onChange={setFilterCondition}
+                options={conditionFilterOptions}
+                searchPlaceholder="Buscar condição..." emptyText="Nenhuma condição encontrada."
+                testId="select-filter-condition" triggerStyle={SEL(filterCondition !== "all")}
+              />
             </div>
 
             {/* Origem */}
             <div style={{ display: "flex", flexDirection: "column", flex: "0 1 110px" }}>
               <label style={FL}>Origem</label>
-              <select value={filterAutoAdded} onChange={e => setFilterAutoAdded(e.target.value)} style={SEL(filterAutoAdded !== "all")}>
-                <option value="all">Todas</option>
-                <option value="auto">Gráfica</option>
-                <option value="manual">Manual</option>
-              </select>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Origem" allLabel="Todas"
+                value={filterAutoAdded} onChange={setFilterAutoAdded}
+                options={originFilterOptions}
+                searchPlaceholder="Buscar origem..." emptyText="Nenhuma origem encontrada."
+                testId="select-filter-origin" triggerStyle={SEL(filterAutoAdded !== "all")}
+              />
             </div>
 
             {/* Busca */}

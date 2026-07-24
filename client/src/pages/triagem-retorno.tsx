@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { FilterSelect } from "@/components/filter-select";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor } from "@shared/schema";
@@ -419,13 +420,46 @@ export default function TriagemRetorno() {
     });
   }, [awaitingAssets, savedIds, filterEvent, filterSponsor, filterLocation, search]);
 
+  // Filtros facetados: cada filtro lista só o que existe na triagem, aplicando
+  // os OUTROS filtros ativos, com contagem por opção.
+  const tFacetPool = (exclude: 'event' | 'sponsor' | 'location') =>
+    awaitingAssets.filter(a => {
+      if (savedIds.has(a.id)) return false;
+      if (exclude !== 'event' && filterEvent !== "all" && a.eventName !== filterEvent) return false;
+      if (exclude !== 'sponsor' && filterSponsor !== "all" && !(a.sponsors ?? []).some(s => s.id === filterSponsor)) return false;
+      if (exclude !== 'location' && filterLocation !== "all" && a.location !== filterLocation) return false;
+      return true;
+    });
+  const tTally = (rows: any[], key: (r: any) => { value: string; label: string } | null) => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    rows.forEach(r => {
+      const k = key(r);
+      if (!k?.value) return;
+      const cur = map.get(k.value);
+      if (cur) cur.count++;
+      else map.set(k.value, { ...k, count: 1 });
+    });
+    return Array.from(map.values());
+  };
+  const eventFilterOptions = tTally(tFacetPool('event'), a => a.eventName ? { value: a.eventName, label: a.eventName } : null);
+  const locationFilterOptions = tTally(tFacetPool('location'), a => a.location ? { value: a.location, label: a.location } : null);
+  const sponsorFilterOptions = (() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    tFacetPool('sponsor').forEach(a => (a.sponsors ?? []).forEach((s: any) => {
+      const cur = map.get(s.id);
+      if (cur) cur.count++;
+      else map.set(s.id, { value: s.id, label: s.name, count: 1 });
+    }));
+    return Array.from(map.values());
+  })();
+
   const selectedIds = Object.entries(entries).filter(([, e]) => e.selected).map(([id]) => id);
 
   const handleBulk = async () => {
     if (selectedIds.length === 0 || savingIds.size > 0) return;
     setSavingIds(new Set(selectedIds));
     const results = await Promise.allSettled(
-      valid.map(id => {
+      selectedIds.map(id => {
         const asset = awaitingAssets.find(a => a.id === id);
         return doTriage(id, asset?.quantity ?? 1);
       })
@@ -536,29 +570,41 @@ export default function TriagemRetorno() {
             {/* Evento */}
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Evento</label>
-              <select data-testid="select-triage-filter-event" value={filterEvent} onChange={e => setFilterEvent(e.target.value)} style={SEL(filterEvent !== "all")}>
-                <option value="all">Todos os eventos</option>
-                {eventOptions.map(([val, label]) => <option key={val} value={val}>{label}</option>)}
-              </select>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Evento" allLabel="Todos os eventos"
+                value={filterEvent} onChange={setFilterEvent}
+                options={eventFilterOptions}
+                searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+                testId="select-triage-filter-event" triggerStyle={SEL(filterEvent !== "all")}
+              />
             </div>
 
             {/* Patrocinador */}
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 180px" }}>
               <label style={FL}>Patrocinador</label>
-              <select data-testid="select-triage-filter-sponsor" value={filterSponsor} onChange={e => setFilterSponsor(e.target.value)} style={SEL(filterSponsor !== "all")}>
-                <option value="all">Todos os patrocinadores</option>
-                {sponsorOptions.map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
-              </select>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Patrocinador" allLabel="Todos os patrocinadores"
+                value={filterSponsor} onChange={setFilterSponsor}
+                options={sponsorFilterOptions}
+                searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+                testId="select-triage-filter-sponsor" triggerStyle={SEL(filterSponsor !== "all")}
+              />
             </div>
 
             {/* Local */}
             {locationOptions.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", flex: "1 1 130px" }}>
                 <label style={FL}>Local</label>
-                <select data-testid="select-triage-filter-location" value={filterLocation} onChange={e => setFilterLocation(e.target.value)} style={SEL(filterLocation !== "all")}>
-                  <option value="all">Todos os locais</option>
-                  {locationOptions.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                </select>
+                <FilterSelect
+                  fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                  label="Local" allLabel="Todos os locais"
+                  value={filterLocation} onChange={setFilterLocation}
+                  options={locationFilterOptions}
+                  searchPlaceholder="Buscar local..." emptyText="Nenhum local encontrado."
+                  testId="select-triage-filter-location" triggerStyle={SEL(filterLocation !== "all")}
+                />
               </div>
             )}
 

@@ -362,6 +362,7 @@ export function registerSponsorRoutes(app: Express): void {
         sponsors: itemSponsorsData
       });
     } catch (error: any) {
+      console.error("[sponsors/sync] error:", error);
       res.status(500).json({ error: error.message });
     }
   });

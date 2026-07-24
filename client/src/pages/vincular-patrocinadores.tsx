@@ -712,9 +712,10 @@ export default function VincularPatrocinadores() {
           queryClient.setQueryData(["/api/items"], snapshot.itemsCache);
         }
       }
+      console.error("[vincular] save draft error:", _error);
       toast({
         title: "Erro ao salvar vinculação",
-        description: "Não foi possível salvar. Tente novamente.",
+        description: _error?.message || "Não foi possível salvar. Tente novamente.",
         variant: "destructive",
       });
     },

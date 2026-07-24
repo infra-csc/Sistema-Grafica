@@ -354,27 +354,49 @@ export default function EventDetail() {
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const fileWidth = parseFloat(data.fileWidth);
-      const fileHeight = parseFloat(data.fileHeight);
-      
-      const calculatedM2 = calculateM2(
-        data.quantity,
-        fileWidth,
-        fileHeight
-      ).toFixed(2);
-      
+      // Campo decimal vazio não pode virar "" (Postgres: invalid input syntax
+      // for type numeric). Coage vazio/invalido para null; mantém como string.
+      const toNumStr = (v: any): string | null => {
+        const s = String(v ?? "").trim().replace(",", ".");
+        if (s === "") return null;
+        const n = parseFloat(s);
+        return isNaN(n) ? null : s;
+      };
+      const toNum = (v: any): number | null => {
+        const s = String(v ?? "").trim().replace(",", ".");
+        if (s === "") return null;
+        const n = parseFloat(s);
+        return isNaN(n) ? null : n;
+      };
+
+      const fw = toNum(data.fileWidth);
+      const fh = toNum(data.fileHeight);
+      const calculatedM2 = (fw !== null && fh !== null)
+        ? calculateM2(data.quantity, fw, fh).toFixed(2)
+        : null;
+
       const itemData: any = {
         ...data,
-        area: parseFloat(data.visualWidth),  // Manter area para compatibilidade com backend
-        visual: parseFloat(data.visualHeight),  // Manter visual para compatibilidade com backend
+        visualWidth: toNumStr(data.visualWidth),
+        visualHeight: toNumStr(data.visualHeight),
+        fileWidth: toNumStr(data.fileWidth),
+        fileHeight: toNumStr(data.fileHeight),
+        area: toNum(data.visualWidth),   // Manter area para compatibilidade com backend
+        visual: toNum(data.visualHeight), // Manter visual para compatibilidade com backend
         calculatedM2,
       };
-      
+
+      // area/visual/calculatedM2 são colunas obrigatórias (notNull): se ficaram
+      // sem valor, omitir do update parcial em vez de enviar null.
+      if (itemData.area === null) delete itemData.area;
+      if (itemData.visual === null) delete itemData.visual;
+      if (itemData.calculatedM2 === null) delete itemData.calculatedM2;
+
       // Remover sponsorId se estiver vazio
       if (!data.sponsorId) {
         delete itemData.sponsorId;
       }
-      
+
       return await apiRequest("PATCH", `/api/items/${id}`, itemData);
     },
     onSuccess: () => {
@@ -2065,26 +2087,34 @@ export default function EventDetail() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Material</label>
                   <input
+                    list="edit-materials-list"
                     value={formData.material}
                     onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                    placeholder="Ex: Lona 440g"
+                    placeholder="Selecione ou escreva..."
                     data-testid="input-edit-material"
                     style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", transition: "box-shadow 0.15s" }}
                     onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                     onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                   />
+                  <datalist id="edit-materials-list">
+                    {materialOptions.map(m => <option key={m} value={m} />)}
+                  </datalist>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Acabamento</label>
                   <input
+                    list="edit-finishes-list"
                     value={formData.finish}
                     onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
-                    placeholder="Ex: Bainha e Ilhós"
+                    placeholder="Selecione ou escreva..."
                     data-testid="input-edit-finish"
                     style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", transition: "box-shadow 0.15s" }}
                     onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                     onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                   />
+                  <datalist id="edit-finishes-list">
+                    {finishOptions.map(f => <option key={f} value={f} />)}
+                  </datalist>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Patrocinador</label>

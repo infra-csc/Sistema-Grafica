@@ -319,6 +319,9 @@ export default function Arte() {
   // Peças desmarcadas manualmente na lista (por id) — o padrão é exportar tudo
   // que passa nos filtros; guardar as exclusões preserva a escolha ao filtrar.
   const [expExcludedIds, setExpExcludedIds] = useState<Set<string>>(new Set());
+  // Grupos que o usuário optou por NÃO agrupar (saem uma peça por página).
+  // Guardar as exceções mantém o padrão "agrupado" para grupos novos.
+  const [expUngroupedKeys, setExpUngroupedKeys] = useState<Set<string>>(new Set());
   const [expGroupFilter, setExpGroupFilter] = useState<string>("all");
   const [expTypeFilter, setExpTypeFilter] = useState<string>("all");
   const [expStatusFilter, setExpStatusFilter] = useState<string>("all");
@@ -622,6 +625,335 @@ export default function Arte() {
   // lista/ficha de itens abaixo. Se um grupo tiver muitas peças, pagina o grupo
   // em blocos preservando o cabeçalho.
   const MAX_ITEMS_PER_COMBINED_PAGE = 6;
+
+  /** Cabeçalho comum das páginas do PDF (logo + chip à direita). */
+  const pdfHeaderHtml = (logoUrl: string, rightChip: string) => `
+          <div class="doc-header">
+            <div class="hdr-left">
+              <img src="${logoUrl}" class="hdr-logo" alt="NORTE" />
+              <div class="hdr-brand">
+                <span class="hdr-norte">NORTE</span>
+                <span class="hdr-sub">Marketing Esportivo</span>
+              </div>
+            </div>
+            <div class="hdr-right"><span class="id-chip">${escapeHtml(rightChip)}</span></div>
+          </div>`;
+
+  const pdfFooterHtml = (nowStr: string, pageLabel: string) => `
+          <div class="doc-footer">
+            <span class="ft-gen">Gerado em ${nowStr}</span>
+            <span class="ft-pg">Página ${pageLabel}</span>
+          </div>`;
+
+  /** Uma página por peça (ficha técnica completa). */
+  const buildItemPage = (item: any, thumbDataUris: Record<string, string>, logoUrl: string, nowStr: string, pageLabel: string) => {
+    const thumbUrl = item.approvalThumbUrl || "";
+    const thumbDataUri = thumbDataUris[thumbUrl] || null;
+    const isImg = !!thumbDataUri;
+    const visualW = parseFloat(item.visualWidth) || 0;
+    const visualH = parseFloat(item.visualHeight) || 0;
+    const fileW = parseFloat(item.fileWidth) || 0;
+    const fileH = parseFloat(item.fileHeight) || 0;
+    const dimsVisual = visualW && visualH ? `${visualW} × ${visualH} m` : escapeHtml(item.measurement || "—");
+    const dimsSang = fileW && fileH ? `${fileW} × ${fileH} m` : "";
+    const m2Val = item.calculatedM2 ? parseFloat(item.calculatedM2).toFixed(2) : "";
+    const sponsorsHtml = item.sponsors?.length
+      ? item.sponsors.map((s: any) => {
+          const c = /^#[0-9a-fA-F]{3,8}$/.test(s.color || "") ? s.color : "#3b82f6";
+          return `<span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${escapeHtml(s.name)}</span>`;
+        }).join("")
+      : "";
+    return `
+        <div class="page">
+          ${pdfHeaderHtml(logoUrl, item.displayId || "#—")}
+          <div class="piece-title-bar">
+            <span class="piece-name">${escapeHtml(item.description || item.type || "Sem nome")}</span>
+            <span class="type-badge">${escapeHtml(item.type || "—")}</span>
+          </div>
+          <div class="body">
+            <div class="col-img">
+              <div class="img-frame">
+                ${isImg
+                  ? `<img src="${thumbDataUri}" alt="Referência" class="ref-img" />`
+                  : thumbUrl
+                    ? `<div class="no-img"><div class="no-img-icon">PDF</div><div class="no-img-sub">Arquivo PDF vinculado</div></div>`
+                    : `<div class="no-img"><div class="no-img-icon">—</div><div class="no-img-sub">Sem imagem de referência</div></div>`
+                }
+              </div>
+              <div class="img-caption">Foto de referência</div>
+            </div>
+            <div class="col-info">
+              <div class="info-card">
+                <div class="sec-label">Identificação</div>
+                ${item.description ? `
+                <div class="field">
+                  <div class="fld-lbl">Descrição</div>
+                  <div class="fld-val">${escapeHtml(item.description)}</div>
+                </div>` : ""}
+                <div class="field">
+                  <div class="fld-lbl">Quantidade</div>
+                  <div class="fld-val qty-val">${item.quantity ? item.quantity + " un." : "—"}</div>
+                </div>
+                <div class="sep"></div>
+                <div class="sec-label">Especificação Técnica</div>
+                <div class="field">
+                  <div class="fld-lbl">Medidas Visuais</div>
+                  <div class="fld-val dims-val">${dimsVisual}</div>
+                  ${dimsSang ? `<div class="fld-sub">Sangria: ${dimsSang}</div>` : ""}
+                </div>
+                ${m2Val ? `
+                <div class="field">
+                  <div class="fld-lbl">Área (m²)</div>
+                  <div class="fld-val"><span class="m2-badge">${m2Val} m²</span></div>
+                </div>` : ""}
+                ${item.material ? `
+                <div class="field">
+                  <div class="fld-lbl">Material</div>
+                  <div class="fld-val"><span class="mat-badge">${escapeHtml(item.material)}</span></div>
+                </div>` : ""}
+                ${item.finish ? `
+                <div class="field">
+                  <div class="fld-lbl">Acabamento</div>
+                  <div class="fld-val"><span class="mat-badge">${escapeHtml(item.finish)}</span></div>
+                </div>` : ""}
+                ${item.observations ? `
+                <div class="sep"></div>
+                <div class="sec-label">Observações</div>
+                <div class="obs-box">${escapeHtml(item.observations)}</div>` : ""}
+                ${sponsorsHtml ? `
+                <div class="sep"></div>
+                <div class="sec-label">Patrocinadores</div>
+                <div class="sponsors-wrap">${sponsorsHtml}</div>` : ""}
+              </div>
+            </div>
+          </div>
+          ${pdfFooterHtml(nowStr, pageLabel)}
+        </div>`;
+  };
+
+  /** Uma página com várias peças do mesmo grupo (galeria + lista). */
+  const buildGroupPage = (
+    chunk: { group: string; items: any[]; part: number; parts: number },
+    thumbDataUris: Record<string, string>, logoUrl: string, nowStr: string, pageLabel: string,
+  ) => {
+    const cards = chunk.items.map(item => {
+      const thumbUrl = item.approvalThumbUrl || "";
+      const thumbDataUri = thumbDataUris[thumbUrl] || null;
+      const inner = thumbDataUri
+        ? `<img src="${thumbDataUri}" alt="Referência" class="cg-img" />`
+        : thumbUrl
+          ? `<div class="cg-noimg"><div class="cg-noimg-ic">PDF</div></div>`
+          : `<div class="cg-noimg"><div class="cg-noimg-ic">—</div></div>`;
+      return `
+          <div class="cg-card">
+            <div class="cg-frame">${inner}</div>
+            <div class="cg-cap">
+              <span class="cg-id">${escapeHtml(item.displayId || "#—")}</span>
+              <span class="cg-name">${escapeHtml(item.description || item.type || "Sem nome")}</span>
+            </div>
+          </div>`;
+    }).join("");
+
+    const rows = chunk.items.map(item => {
+      const visualW = parseFloat(item.visualWidth) || 0;
+      const visualH = parseFloat(item.visualHeight) || 0;
+      const dims = visualW && visualH ? `${visualW} × ${visualH} m` : escapeHtml(item.measurement || "—");
+      const m2Val = item.calculatedM2 ? parseFloat(item.calculatedM2).toFixed(2) + " m²" : "—";
+      return `
+          <tr>
+            <td class="ct-mono">${escapeHtml(item.displayId || "—")}</td>
+            <td class="ct-desc">${escapeHtml(item.description || item.type || "—")}</td>
+            <td class="ct-c">${item.quantity ? item.quantity + " un." : "—"}</td>
+            <td class="ct-c">${dims}</td>
+            <td class="ct-c">${m2Val}</td>
+            <td class="ct-c">${escapeHtml(item.material || "—")}</td>
+          </tr>`;
+    }).join("");
+
+    const partLabel = chunk.parts > 1 ? ` <span class="cg-part">(${chunk.part}/${chunk.parts})</span>` : "";
+    return `
+        <div class="page page--group">
+          ${pdfHeaderHtml(logoUrl, chunk.group)}
+          <div class="piece-title-bar">
+            <span class="piece-name">${escapeHtml(chunk.group)}${partLabel}</span>
+            <span class="type-badge">${chunk.items.length} ${chunk.items.length === 1 ? "peça" : "peças"}</span>
+          </div>
+          <div class="cg-body">
+            <div class="cg-gallery">${cards}</div>
+            <table class="cg-table">
+              <thead>
+                <tr><th>ID</th><th class="ct-desc">Descrição</th><th class="ct-c">Qtd</th><th class="ct-c">Medidas</th><th class="ct-c">Área</th><th class="ct-c">Material</th></tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+          ${pdfFooterHtml(nowStr, pageLabel)}
+        </div>`;
+  };
+
+  /** Quebra um grupo em blocos que cabem numa página. */
+  const chunkGroup = (group: string, groupItems: any[]) => {
+    const parts = Math.ceil(groupItems.length / MAX_ITEMS_PER_COMBINED_PAGE);
+    return Array.from({ length: parts }, (_, p) => ({
+      group,
+      items: groupItems.slice(p * MAX_ITEMS_PER_COMBINED_PAGE, (p + 1) * MAX_ITEMS_PER_COMBINED_PAGE),
+      part: p + 1,
+      parts,
+    }));
+  };
+
+  /** CSS único, cobrindo páginas individuais e páginas de grupo. */
+  const PDF_STYLES = `
+        @page { size: A4 portrait; margin: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+        /* min-height (não height fixo) e sem overflow:hidden: conteúdo que exceder
+           a folha flui para a próxima em vez de ser cortado. */
+        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; }
+        .page:last-child { break-after: avoid; page-break-after: avoid; }
+        @media print { .page { width: 210mm; min-height: 297mm; } }
+
+        .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
+        .hdr-left { display: flex; align-items: center; gap: 12px; }
+        .hdr-logo { height: 34px; width: auto; object-fit: contain; display: block; flex-shrink: 0; }
+        .hdr-brand { display: flex; flex-direction: column; gap: 1px; }
+        .hdr-norte { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.04em; line-height: 1; }
+        .hdr-sub { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.55); line-height: 1; }
+        .hdr-right { flex-shrink: 0; }
+        .id-chip { font-family: 'DM Mono', 'Courier New', monospace; font-size: 16px; font-weight: 700; color: #ffffff; background: #f97316; padding: 6px 14px; border-radius: 8px; letter-spacing: 0.02em; }
+
+        .piece-title-bar { padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+        .piece-name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; letter-spacing: -0.02em; }
+        .type-badge { display: inline-block; margin-top: 6px; background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
+
+        /* Página de grupo: título e badge na mesma linha */
+        .page--group .piece-title-bar { padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; }
+        .page--group .piece-name { font-size: 20px; }
+        .page--group .type-badge { margin-top: 0; }
+
+        .body { display: flex; flex: 1; padding: 24px 32px; gap: 24px; min-height: 0; }
+        .col-img { flex: 0 0 58%; display: flex; flex-direction: column; }
+        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 320px; max-height: 420px; }
+        .ref-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
+        .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
+        .no-img-sub { font-size: 11px; color: #94a3b8; }
+        .img-caption { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 7px; }
+
+        .col-info { flex: 0 0 42%; display: flex; flex-direction: column; }
+        .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; flex: 1; }
+        .sec-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; }
+        .sep { height: 1px; background: #e2e8f0; margin: 14px 0; }
+        .field { margin-bottom: 12px; }
+        .field:last-child { margin-bottom: 0; }
+        .fld-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 2px; }
+        .fld-val { font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.3; }
+        .fld-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+        .qty-val { font-size: 16px; font-weight: 800; color: #f97316; }
+        .dims-val { font-size: 16px; font-weight: 800; color: #0f172a; }
+        .m2-badge { display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; border-radius: 6px; padding: 3px 10px; font-weight: 700; font-size: 13px; }
+        .mat-badge { display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+        .obs-box { font-size: 12px; color: #64748b; font-style: italic; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; line-height: 1.5; }
+        .sponsors-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+        .sp-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #1c1917; padding: 3px 8px; border-radius: 20px; border: 1px solid transparent; }
+        .sp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+        .cg-body { flex: 1; padding: 20px 32px; display: flex; flex-direction: column; gap: 18px; min-height: 0; }
+        .cg-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+        .cg-card { break-inside: avoid; display: flex; flex-direction: column; }
+        .cg-frame { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #f8fafc; height: 190px; display: flex; align-items: center; justify-content: center; }
+        .cg-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .cg-noimg { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+        .cg-noimg-ic { font-size: 24px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
+        .cg-cap { display: flex; align-items: baseline; gap: 8px; padding: 6px 2px 0; }
+        .cg-id { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; color: #f97316; flex-shrink: 0; }
+        .cg-name { font-size: 12px; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cg-part { font-size: 13px; font-weight: 600; color: #94a3b8; }
+        .cg-table { width: 100%; border-collapse: collapse; }
+        .cg-table thead tr { background: #f5f5f4; }
+        .cg-table th { padding: 6px 8px; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+        .cg-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 10px; color: #475569; vertical-align: middle; }
+        .ct-mono { font-family: 'DM Mono', monospace; font-weight: 700; color: #f97316; white-space: nowrap; }
+        .ct-desc { width: 40%; font-weight: 600; color: #0f172a; }
+        .ct-c { text-align: center; white-space: nowrap; }
+
+        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
+        .ft-gen { font-size: 9px; color: #94a3b8; }
+        .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }`;
+
+  const writePdfDoc = (win: Window, title: string, pages: string) => {
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
+      <meta charset="UTF-8"/>
+      <title>${escapeHtml(title)}</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com"/>
+      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+      <style>${PDF_STYLES}</style>
+    </head><body>${pages}<script>
+      window.addEventListener("load", function () {
+        var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+        fontsReady.then(function () { setTimeout(function () { window.print(); }, 100); });
+      });
+    </scr` + `ipt></body></html>`);
+    win.document.close();
+  };
+
+  /**
+   * Exportação mista: no MESMO arquivo, os grupos escolhidos saem agrupados
+   * (galeria + lista numa página) e o restante sai uma peça por página.
+   */
+  const exportMixedToPDF = async (items: any[], combinedGroups: Set<string>, title = "Arte — Peças") => {
+    if (items.length === 0) {
+      toast({ title: "Nenhum item para exportar", variant: "destructive" });
+      return;
+    }
+    const win = window.open("", "_blank");
+    if (!win) {
+      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para este site e tente novamente", variant: "destructive" });
+      return;
+    }
+    win.document.write(`<p style="font-family:sans-serif;color:#64748b;padding:24px">Preparando exportação…</p>`);
+
+    const thumbCount = items.filter(i => i.approvalThumbUrl && !/\.pdf$/i.test(i.approvalThumbUrl)).length;
+    if (thumbCount > 0) {
+      toast({ title: `Preparando ${thumbCount} imagem${thumbCount !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
+    }
+    const thumbDataUris = await prefetchThumbsAsDataUris(items);
+    win.document.open();
+
+    const nowStr = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const logoUrl = `${window.location.origin}/norte-logo.jpg`;
+
+    // Agrupa preservando a ordem de aparição
+    const groupsMap = new Map<string, any[]>();
+    items.forEach(item => {
+      const key = groupKeyOf(item);
+      if (!groupsMap.has(key)) groupsMap.set(key, []);
+      groupsMap.get(key)!.push(item);
+    });
+
+    // Monta a sequência de páginas: grupo agrupado vira 1+ páginas de galeria,
+    // grupo não agrupado vira uma página por peça.
+    type Page = { kind: 'group'; chunk: ReturnType<typeof chunkGroup>[number] } | { kind: 'item'; item: any };
+    const sequence: Page[] = [];
+    Array.from(groupsMap.entries()).forEach(([group, groupItems]) => {
+      if (combinedGroups.has(group)) {
+        chunkGroup(group, groupItems).forEach(chunk => sequence.push({ kind: 'group', chunk }));
+      } else {
+        groupItems.forEach(item => sequence.push({ kind: 'item', item }));
+      }
+    });
+
+    const total = sequence.length;
+    const pages = sequence.map((p, idx) => {
+      const label = `${idx + 1} / ${total}`;
+      return p.kind === 'group'
+        ? buildGroupPage(p.chunk, thumbDataUris, logoUrl, nowStr, label)
+        : buildItemPage(p.item, thumbDataUris, logoUrl, nowStr, label);
+    }).join("");
+
+    writePdfDoc(win, title, pages);
+  };
   const exportCombinedToPDF = async (items: any[], title = "Arte — Peças agrupadas") => {
     if (items.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
@@ -1003,6 +1335,32 @@ export default function Arte() {
     ];
   }, expFacetDeps);
 
+  /** Grupos presentes na seleção, com quantas peças cada um tem. */
+  const expGroupsInSelection = useMemo(() => {
+    const map = new Map<string, number>();
+    expSelectedItems.forEach((i: any) => {
+      const k = groupKeyOf(i);
+      map.set(k, (map.get(k) ?? 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => a.key.localeCompare(b.key, 'pt-BR'));
+  }, [expSelectedItems]);
+
+  /** Grupos que sairão agrupados numa página (padrão: todos). */
+  const expCombinedSet = useMemo(
+    () => new Set(expGroupsInSelection.map(g => g.key).filter(k => !expUngroupedKeys.has(k))),
+    [expGroupsInSelection, expUngroupedKeys],
+  );
+
+  /** Total de páginas do PDF conforme a escolha de agrupamento. */
+  const expPageCount = useMemo(
+    () => expGroupsInSelection.reduce((total, g) => total + (
+      expCombinedSet.has(g.key) ? Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE) : g.count
+    ), 0),
+    [expGroupsInSelection, expCombinedSet],
+  );
+
   const expClearFilters = () => {
     setExpEventFilter("all"); setExpSponsorFilter("all"); setExpGroupFilter("all");
     setExpTypeFilter("all"); setExpStatusFilter("all");
@@ -1014,15 +1372,14 @@ export default function Arte() {
     if (selectedItemIds.size > 0) {
       const allPoolItems = [...allItems, ...correcaoItems];
       const selected = allPoolItems.filter(i => selectedItemIds.has(i.id));
-      if (expCombine) {
-        void exportCombinedToPDF(selected, `Arte — ${selected.length} peça(s)`);
-      } else {
-        void exportItemsToPDF(selected, `Arte — ${selected.length} peça(s)`);
-      }
+      const groups = expCombine ? new Set(selected.map(groupKeyOf)) : new Set<string>();
+      void exportMixedToPDF(selected, groups, `Arte — ${selected.length} peça(s)`);
       return;
     }
-    // Abre sempre com tudo marcado — desmarcações anteriores não persistem.
+    // Abre sempre com tudo marcado e todos os grupos agrupados — escolhas
+    // anteriores não persistem entre exportações.
     setExpExcludedIds(new Set());
+    setExpUngroupedKeys(new Set());
     setShowExportModal(true);
   };
 
@@ -3204,17 +3561,46 @@ export default function Arte() {
                 <div style={{ borderTop: '1px solid #e7e5e4', marginBottom: 16 }} />
                 <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 12px' }}>Opções do PDF</p>
 
-                {/* Combinar peças na mesma página */}
-                <div onClick={() => setExpCombine(!expCombine)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${expCombine ? '#bfdbfe' : '#e7e5e4'}`, backgroundColor: expCombine ? '#f0f9ff' : '#ffffff', cursor: 'pointer', marginBottom: 8, transition: 'all 0.12s' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${expCombine ? '#2563eb' : '#d4d4d0'}`, backgroundColor: expCombine ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
-                    {expCombine && <CheckCircle style={{ width: 10, height: 10, color: '#fff' }} />}
+                {/* Agrupamento por grupo — no mesmo PDF, uns agrupados e outros não */}
+                {expGroupsInSelection.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#57534e', margin: 0 }}>Agrupar na mesma página</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button onClick={() => setExpUngroupedKeys(new Set())}
+                          style={{ background: 'none', border: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#7c3aed', cursor: 'pointer' }}>Todos</button>
+                        <span style={{ color: '#e7e5e4', fontSize: 10 }}>·</span>
+                        <button onClick={() => setExpUngroupedKeys(new Set(expGroupsInSelection.map(g => g.key)))}
+                          style={{ background: 'none', border: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#7c3aed', cursor: 'pointer' }}>Nenhum</button>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 10, color: '#a8a29e', margin: '0 0 8px' }}>
+                      Marcado = peças do grupo juntas numa página. Desmarcado = uma peça por página. Os dois modos convivem no mesmo PDF.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {expGroupsInSelection.map(g => {
+                        const on = expCombinedSet.has(g.key);
+                        return (
+                          <div key={g.key}
+                            onClick={() => setExpUngroupedKeys(prev => {
+                              const next = new Set(prev);
+                              if (next.has(g.key)) next.delete(g.key); else next.add(g.key);
+                              return next;
+                            })}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, border: `1px solid ${on ? '#bfdbfe' : '#e7e5e4'}`, backgroundColor: on ? '#f0f9ff' : '#ffffff', cursor: 'pointer', transition: 'all 0.12s' }}>
+                            <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${on ? '#2563eb' : '#d4d4d0'}`, backgroundColor: on ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {on && <CheckCircle style={{ width: 9, height: 9, color: '#fff' }} />}
+                            </div>
+                            <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.key}</span>
+                            <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, color: on ? '#2563eb' : '#a8a29e' }}>
+                              {on ? `${Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE)} pág.` : `${g.count} pág.`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0 }}>Combinar na mesma página</p>
-                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>Peças do mesmo grupo juntas (galeria + lista). Desligado = uma peça por página</p>
-                  </div>
-                </div>
+                )}
 
                 {/* Incluir sem thumb */}
                 <div onClick={() => setExpIncludeNoThumb(!expIncludeNoThumb)}
@@ -3256,8 +3642,7 @@ export default function Arte() {
                 </button>
                 <button
                   onClick={() => {
-                    if (expCombine) void exportCombinedToPDF(expSelectedItems, `Arte — ${expSelectedItems.length} peça(s)`);
-                    else void exportItemsToPDF(expSelectedItems, `Arte — ${expSelectedItems.length} peça(s)`);
+                    void exportMixedToPDF(expSelectedItems, expCombinedSet, `Arte — ${expSelectedItems.length} peça(s)`);
                     setShowExportModal(false);
                   }}
                   disabled={expSelectedItems.length === 0}
@@ -3274,6 +3659,7 @@ export default function Arte() {
                 >
                   <Printer style={{ width: 14, height: 14 }} />
                   Gerar PDF — {expSelectedItems.length} {expSelectedItems.length === 1 ? 'peça' : 'peças'}
+                  {expPageCount > 0 && ` · ${expPageCount} pág.`}
                 </button>
               </div>
             </div>

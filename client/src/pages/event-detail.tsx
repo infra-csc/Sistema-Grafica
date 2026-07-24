@@ -381,6 +381,7 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       setEditingItem(null);
       setOpen(false);
+      setEditDialogOpen(false);
       setBulkMode(false);
       toast({
         title: "Peça atualizada",

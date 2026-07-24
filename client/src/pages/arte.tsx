@@ -83,11 +83,26 @@ export default function Arte() {
     queryKey: ["/api/audit-logs"],
   });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
-  const typeToGroup = useMemo(() => {
-    const map: Record<string, string> = {};
-    (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
-    return map;
+  // Resolve o grupo pai (do catálogo de Modelos) para um item, tolerante a
+  // maiúscula/acento/espaço. Casa o type do item tanto com o NOME de um modelo
+  // (name → group) quanto diretamente com um NOME DE GRUPO do catálogo — assim
+  // itens importados da planilha (ex.: type "Rolo") caem no grupo "ROLO".
+  const normKey = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+  const groupMaps = useMemo(() => {
+    const byName: Record<string, string> = {};
+    const byGroup: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => {
+      if (s.group) {
+        byName[normKey(s.name)] = s.group;
+        byGroup[normKey(s.group)] = s.group; // recupera a grafia canônica do grupo
+      }
+    });
+    return { byName, byGroup };
   }, [standardItems]);
+  const groupOf = (type: string): string => {
+    const k = normKey(type);
+    return groupMaps.byName[k] || groupMaps.byGroup[k] || "";
+  };
 
   const submitForApprovalMutation = useMutation({
     mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
@@ -795,7 +810,7 @@ export default function Arte() {
     const groups: GroupEntry[] = [];
     items.forEach(item => {
       const event = item.event?.name || "Sem Evento";
-      const groupName = typeToGroup[item.type] || item.type;
+      const groupName = groupOf(item.type) || item.type;
       const typeName = item.type;
       const last = groups[groups.length - 1];
       if (last && last.event === event && last.typeName === typeName) {
@@ -1135,7 +1150,7 @@ export default function Arte() {
       .sort((a, b) => {
         const eA = a.event?.name || '', eB = b.event?.name || '';
         if (eA !== eB) return eA.localeCompare(eB, 'pt-BR');
-        const gA = typeToGroup[a.type] || '', gB = typeToGroup[b.type] || '';
+        const gA = groupOf(a.type) || '', gB = groupOf(b.type) || '';
         if (gA !== gB) return gA.localeCompare(gB, 'pt-BR');
         const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
         const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
@@ -1326,7 +1341,7 @@ export default function Arte() {
     items.forEach(item => {
       const eventName = item.event?.name || 'Sem Evento';
       const typeName = item.type;
-      const groupName = typeToGroup[typeName] || '';
+      const groupName = groupOf(typeName) || '';
       const last = groups[groups.length - 1];
       if (last && last.event === eventName && last.type === typeName) {
         last.items.push(item);
@@ -3568,7 +3583,7 @@ export default function Arte() {
                                   const isOpen = !!bulkThumbLinkOpenMap[entry.id];
                                   // Agrupar por grupo/tipo
                                   const grouped = pendingPool.reduce((acc: Record<string, any[]>, item: any) => {
-                                    const g = typeToGroup[item.type] || item.type;
+                                    const g = groupOf(item.type) || item.type;
                                     if (!acc[g]) acc[g] = [];
                                     acc[g].push(item);
                                     return acc;

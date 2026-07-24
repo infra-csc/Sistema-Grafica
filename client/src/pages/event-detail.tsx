@@ -680,16 +680,28 @@ export default function EventDetail() {
     );
   }
 
-  // Mapa tipo → grupo pai (a partir dos standardItems)
-  const typeToGroup: Record<string, string> = {};
+  // Mapa tipo → grupo pai (a partir dos standardItems). Resolve tolerante a
+  // maiúscula/acento/espaço, casando o type tanto com o NOME do modelo quanto
+  // com um NOME DE GRUPO do catálogo — assim itens importados da planilha
+  // (ex.: type "Rolo") caem no grupo "ROLO".
+  const normKey = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+  const groupByName: Record<string, string> = {};
+  const groupByGroup: Record<string, string> = {};
   (standardItems as any[]).forEach((s: any) => {
-    if (s.group) typeToGroup[s.name] = s.group;
+    if (s.group) {
+      groupByName[normKey(s.name)] = s.group;
+      groupByGroup[normKey(s.group)] = s.group;
+    }
   });
+  const groupOf = (type: string): string => {
+    const k = normKey(type);
+    return groupByName[k] || groupByGroup[k] || "";
+  };
 
   // Agrupar itens: Grupo Pai → Tipo → [itens]
   const groupMap: Record<string, Record<string, typeof items>> = {};
   items.forEach(item => {
-    const g = typeToGroup[item.type] || '';
+    const g = groupOf(item.type) || '';
     if (!groupMap[g]) groupMap[g] = {};
     if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
     groupMap[g][item.type].push(item);
@@ -1397,7 +1409,7 @@ export default function EventDetail() {
                 // Grupo Pai → Tipo → itens
                 const draftGroupMap: Record<string, Record<string, typeof draftItems>> = {};
                 draftItems.forEach(item => {
-                  const g = typeToGroup[item.type] || '';
+                  const g = groupOf(item.type) || '';
                   if (!draftGroupMap[g]) draftGroupMap[g] = {};
                   if (!draftGroupMap[g][item.type]) draftGroupMap[g][item.type] = [];
                   draftGroupMap[g][item.type].push(item);

@@ -24,3 +24,18 @@ export function toUTCDisplayDate(dateStr: string): Date {
   const d = new Date(dateStr);
   return new Date(d.getTime() + d.getTimezoneOffset() * 60000);
 }
+
+/**
+ * Executa tarefas assíncronas em lotes com concorrência limitada.
+ * Evita esgotar o pool de conexões do banco quando muitos itens (ex: 50)
+ * são salvos/enviados de uma vez — causa de falhas intermitentes em massa.
+ */
+export async function runInBatches<T>(
+  inputs: T[],
+  task: (input: T) => Promise<unknown>,
+  batchSize = 5,
+): Promise<void> {
+  for (let i = 0; i < inputs.length; i += batchSize) {
+    await Promise.all(inputs.slice(i, i + batchSize).map(task));
+  }
+}

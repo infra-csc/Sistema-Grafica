@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -658,10 +658,8 @@ export default function VincularPatrocinadores() {
   const saveLinkingMutation = useMutation({
     mutationFn: async (payloads: SavePayload[]) => {
       if (payloads.length === 0) return [] as string[];
-      await Promise.all(
-        payloads.map(({ itemId, sponsorIds, skipApproval }) =>
-          apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds, skipApproval })
-        )
+      await runInBatches(payloads, ({ itemId, sponsorIds, skipApproval }) =>
+        apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds, skipApproval })
       );
       return payloads.map(p => p.itemId);
     },
@@ -1144,8 +1142,8 @@ export default function VincularPatrocinadores() {
         return newOnes.some(id => !existing.includes(id));
       });
 
-      // Sincroniza em paralelo (antes era um for...of sequencial).
-      await Promise.all(itemsToSync.map(async (itemId) => {
+      // Sincroniza em lotes com concorrência limitada (evita esgotar o pool do banco).
+      await runInBatches(itemsToSync, async (itemId) => {
         const existing = originalSponsorsMap[itemId] || [];
         const merged = Array.from(new Set([...existing, ...(grouped[itemId] || [])]));
         await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
@@ -1155,7 +1153,7 @@ export default function VincularPatrocinadores() {
         // Atualizar estado local imediatamente
         setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
         setItemSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
-      }));
+      });
 
       // Abrir modal de confirmação em vez de enviar direto
       const itemsToSend = items.filter((i: any) => itemIds.includes(i.id));
@@ -1215,14 +1213,14 @@ export default function VincularPatrocinadores() {
     setIsSending(true);
 
     try {
-      // Sincroniza em PARALELO apenas os itens que ganharam novos patrocinadores
-      // (antes era um for...of sequencial — uma requisição por vez, lento).
+      // Sincroniza apenas os itens que ganharam novos patrocinadores,
+      // em lotes com concorrência limitada (evita esgotar o pool do banco).
       const toSync = items.filter(item => {
         const existing = originalSponsorsMap[item.id] || [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
         return newOnes.some(id => !existing.includes(id));
       });
-      await Promise.all(toSync.map(async (item) => {
+      await runInBatches(toSync, async (item) => {
         const existing = originalSponsorsMap[item.id] || [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
         const merged = Array.from(new Set([...existing, ...newOnes]));
@@ -1232,7 +1230,7 @@ export default function VincularPatrocinadores() {
         });
         setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
-      }));
+      });
       const itemIds = items.map(i => i.id);
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
       sendToArteMutation.mutate(itemIds);

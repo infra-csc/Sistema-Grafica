@@ -11,7 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn, parseDateLocal } from "@/lib/utils";
+import { cn, parseDateLocal, runInBatches } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -149,10 +149,11 @@ export default function Arte() {
 
   const submitBulkForApprovalMutation = useMutation({
     mutationFn: async ({ itemIds, pdfUrl }: { itemIds: string[]; pdfUrl: string }) => {
-      const promises = itemIds.map(itemId =>
+      // Em lotes com concorrência limitada — evita esgotar o pool do banco
+      // ao enviar muitos itens (ex: 50) de uma vez.
+      await runInBatches(itemIds, itemId =>
         apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, { approvalThumbUrl: pdfUrl })
       );
-      return await Promise.all(promises);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });

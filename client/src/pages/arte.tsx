@@ -791,6 +791,18 @@ export default function Arte() {
         </div>`;
   };
 
+  /** Página divisória de evento (abre a seção de cada evento no book). */
+  const buildEventDividerPage = (name: string, count: number, logoUrl: string, nowStr: string, pageLabel: string) => `
+        <div class="page page--divider">
+          ${pdfHeaderHtml(logoUrl, "EVENTO")}
+          <div class="dv-body">
+            <span class="dv-label">Evento</span>
+            <span class="dv-name">${escapeHtml(name)}</span>
+            <span class="dv-count">${count} ${count === 1 ? "peça" : "peças"}</span>
+          </div>
+          ${pdfFooterHtml(nowStr, pageLabel)}
+        </div>`;
+
   /** Quebra um grupo em blocos que cabem numa página. */
   const chunkGroup = (group: string, groupItems: any[]) => {
     const parts = Math.ceil(groupItems.length / MAX_ITEMS_PER_COMBINED_PAGE);
@@ -878,6 +890,12 @@ export default function Arte() {
         .ct-desc { width: 40%; font-weight: 600; color: #0f172a; }
         .ct-c { text-align: center; white-space: nowrap; }
 
+        /* Divisória de evento */
+        .dv-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 40px; }
+        .dv-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; color: #94a3b8; }
+        .dv-name { font-family: 'Space Grotesk', sans-serif; font-size: 40px; font-weight: 800; color: #0f172a; letter-spacing: -0.03em; text-align: center; line-height: 1.15; }
+        .dv-count { font-size: 13px; font-weight: 600; color: #f97316; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 100px; padding: 5px 16px; }
+
         .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
         .ft-gen { font-size: 9px; color: #94a3b8; }
         .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }`;
@@ -902,7 +920,12 @@ export default function Arte() {
    * Exportação mista: no MESMO arquivo, os grupos escolhidos saem agrupados
    * (galeria + lista numa página) e o restante sai uma peça por página.
    */
-  const exportMixedToPDF = async (items: any[], combinedGroups: Set<string>, title = "Arte — Peças") => {
+  const exportMixedToPDF = async (
+    items: any[],
+    combinedGroups: Set<string>,
+    title = "Arte — Peças",
+    groupByEvent = false,
+  ) => {
     if (items.length === 0) {
       toast({ title: "Nenhum item para exportar", variant: "destructive" });
       return;
@@ -924,29 +947,46 @@ export default function Arte() {
     const nowStr = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const logoUrl = `${window.location.origin}/norte-logo.jpg`;
 
-    // Agrupa preservando a ordem de aparição
-    const groupsMap = new Map<string, any[]>();
+    // Separa por evento primeiro (ordem de aparição). Sem isso, peças de eventos
+    // diferentes com o mesmo grupo (ex.: "Pórtico") cairiam na mesma página.
+    const eventsMap = new Map<string, { name: string; items: any[] }>();
     items.forEach(item => {
-      const key = groupKeyOf(item);
-      if (!groupsMap.has(key)) groupsMap.set(key, []);
-      groupsMap.get(key)!.push(item);
+      const key = item.eventId || "__sem_evento__";
+      if (!eventsMap.has(key)) eventsMap.set(key, { name: item.event?.name || "Sem evento", items: [] });
+      eventsMap.get(key)!.items.push(item);
     });
+    const eventEntries = Array.from(eventsMap.values());
 
-    // Monta a sequência de páginas: grupo agrupado vira 1+ páginas de galeria,
-    // grupo não agrupado vira uma página por peça.
-    type Page = { kind: 'group'; chunk: ReturnType<typeof chunkGroup>[number] } | { kind: 'item'; item: any };
+    // Monta a sequência: grupo marcado vira 1+ páginas de galeria, grupo não
+    // marcado vira uma página por peça — tudo dentro do respectivo evento.
+    type Page =
+      | { kind: 'group'; chunk: ReturnType<typeof chunkGroup>[number] }
+      | { kind: 'item'; item: any }
+      | { kind: 'event'; name: string; count: number };
     const sequence: Page[] = [];
-    Array.from(groupsMap.entries()).forEach(([group, groupItems]) => {
-      if (combinedGroups.has(group)) {
-        chunkGroup(group, groupItems).forEach(chunk => sequence.push({ kind: 'group', chunk }));
-      } else {
-        groupItems.forEach(item => sequence.push({ kind: 'item', item }));
+    eventEntries.forEach(ev => {
+      if (groupByEvent && eventEntries.length > 1) {
+        sequence.push({ kind: 'event', name: ev.name, count: ev.items.length });
       }
+      const groupsMap = new Map<string, any[]>();
+      ev.items.forEach(item => {
+        const key = groupKeyOf(item);
+        if (!groupsMap.has(key)) groupsMap.set(key, []);
+        groupsMap.get(key)!.push(item);
+      });
+      Array.from(groupsMap.entries()).forEach(([group, groupItems]) => {
+        if (combinedGroups.has(group)) {
+          chunkGroup(group, groupItems).forEach(chunk => sequence.push({ kind: 'group', chunk }));
+        } else {
+          groupItems.forEach(item => sequence.push({ kind: 'item', item }));
+        }
+      });
     });
 
     const total = sequence.length;
     const pages = sequence.map((p, idx) => {
       const label = `${idx + 1} / ${total}`;
+      if (p.kind === 'event') return buildEventDividerPage(p.name, p.count, logoUrl, nowStr, label);
       return p.kind === 'group'
         ? buildGroupPage(p.chunk, thumbDataUris, logoUrl, nowStr, label)
         : buildItemPage(p.item, thumbDataUris, logoUrl, nowStr, label);
@@ -1353,13 +1393,35 @@ export default function Arte() {
     [expGroupsInSelection, expUngroupedKeys],
   );
 
-  /** Total de páginas do PDF conforme a escolha de agrupamento. */
-  const expPageCount = useMemo(
-    () => expGroupsInSelection.reduce((total, g) => total + (
-      expCombinedSet.has(g.key) ? Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE) : g.count
-    ), 0),
-    [expGroupsInSelection, expCombinedSet],
+  /** Quantos eventos distintos há na seleção (define se vale separar por evento). */
+  const expEventCount = useMemo(
+    () => new Set(expSelectedItems.map((i: any) => i.eventId || "__sem_evento__")).size,
+    [expSelectedItems],
   );
+
+  /**
+   * Total de páginas do PDF conforme as escolhas. Os grupos são paginados
+   * dentro de cada evento, então um grupo presente em N eventos rende ao menos
+   * N páginas quando agrupado.
+   */
+  const expPageCount = useMemo(() => {
+    const perEvent = new Map<string, Map<string, number>>();
+    expSelectedItems.forEach((i: any) => {
+      const ev = i.eventId || "__sem_evento__";
+      if (!perEvent.has(ev)) perEvent.set(ev, new Map());
+      const g = groupKeyOf(i);
+      const m = perEvent.get(ev)!;
+      m.set(g, (m.get(g) ?? 0) + 1);
+    });
+    let total = 0;
+    perEvent.forEach(groups => {
+      groups.forEach((count, key) => {
+        total += expCombinedSet.has(key) ? Math.ceil(count / MAX_ITEMS_PER_COMBINED_PAGE) : count;
+      });
+    });
+    if (expGroupByEvent && perEvent.size > 1) total += perEvent.size; // divisórias
+    return total;
+  }, [expSelectedItems, expCombinedSet, expGroupByEvent]);
 
   const expClearFilters = () => {
     setExpEventFilter("all"); setExpSponsorFilter("all"); setExpGroupFilter("all");
@@ -3565,7 +3627,7 @@ export default function Arte() {
                 {expGroupsInSelection.length > 0 && (
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: '#57534e', margin: 0 }}>Agrupar na mesma página</p>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#57534e', margin: 0 }}>Várias peças por página</p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <button onClick={() => setExpUngroupedKeys(new Set())}
                           style={{ background: 'none', border: 'none', padding: 0, fontSize: 10, fontWeight: 700, color: '#7c3aed', cursor: 'pointer' }}>Todos</button>
@@ -3575,7 +3637,7 @@ export default function Arte() {
                       </div>
                     </div>
                     <p style={{ fontSize: 10, color: '#a8a29e', margin: '0 0 8px' }}>
-                      Marcado = peças do grupo juntas numa página. Desmarcado = uma peça por página. Os dois modos convivem no mesmo PDF.
+                      Marque os grupos que devem sair juntos numa página. Os desmarcados saem uma peça por página — os dois convivem no mesmo PDF.
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {expGroupsInSelection.map(g => {
@@ -3592,8 +3654,11 @@ export default function Arte() {
                               {on && <CheckCircle style={{ width: 9, height: 9, color: '#fff' }} />}
                             </div>
                             <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.key}</span>
-                            <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, color: on ? '#2563eb' : '#a8a29e' }}>
-                              {on ? `${Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE)} pág.` : `${g.count} pág.`}
+                            <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#a8a29e' }}>
+                              {g.count} {g.count === 1 ? 'peça' : 'peças'}
+                            </span>
+                            <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, color: on ? '#2563eb' : '#78716c' }}>
+                              → {on ? Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE) : g.count} pág.
                             </span>
                           </div>
                         );
@@ -3614,17 +3679,19 @@ export default function Arte() {
                   </div>
                 </div>
 
-                {/* Agrupar por evento */}
-                <div onClick={() => setExpGroupByEvent(!expGroupByEvent)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${expGroupByEvent ? '#bfdbfe' : '#e7e5e4'}`, backgroundColor: expGroupByEvent ? '#f0f9ff' : '#ffffff', cursor: 'pointer', marginBottom: 8, transition: 'all 0.12s' }}>
-                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${expGroupByEvent ? '#2563eb' : '#d4d4d0'}`, backgroundColor: expGroupByEvent ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
-                    {expGroupByEvent && <CheckCircle style={{ width: 10, height: 10, color: '#fff' }} />}
+                {/* Divisória de evento — só faz sentido com mais de um evento */}
+                {expEventCount > 1 && (
+                  <div onClick={() => setExpGroupByEvent(!expGroupByEvent)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${expGroupByEvent ? '#bfdbfe' : '#e7e5e4'}`, backgroundColor: expGroupByEvent ? '#f0f9ff' : '#ffffff', cursor: 'pointer', marginBottom: 8, transition: 'all 0.12s' }}>
+                    <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${expGroupByEvent ? '#2563eb' : '#d4d4d0'}`, backgroundColor: expGroupByEvent ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
+                      {expGroupByEvent && <CheckCircle style={{ width: 10, height: 10, color: '#fff' }} />}
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0 }}>Página divisória por evento</p>
+                      <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>Abre cada um dos {expEventCount} eventos com uma capa de seção</p>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0 }}>Agrupar por evento</p>
-                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>Separador de seção por evento no PDF</p>
-                  </div>
-                </div>
+                )}
 
                 {expHasFilters && (
                   <button
@@ -3642,7 +3709,7 @@ export default function Arte() {
                 </button>
                 <button
                   onClick={() => {
-                    void exportMixedToPDF(expSelectedItems, expCombinedSet, `Arte — ${expSelectedItems.length} peça(s)`);
+                    void exportMixedToPDF(expSelectedItems, expCombinedSet, `Arte — ${expSelectedItems.length} peça(s)`, expGroupByEvent);
                     setShowExportModal(false);
                   }}
                   disabled={expSelectedItems.length === 0}

@@ -23,6 +23,7 @@ import {
 import { Fragment, useState, useMemo, useEffect, useCallback, useDeferredValue } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploader } from "@/components/FileUploader";
+import { FilterSelect } from "@/components/filter-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
@@ -1037,6 +1038,72 @@ export default function Arte() {
     allItems.forEach((item: any) => (item.sponsors ?? []).forEach((s: any) => { if (!map.has(s.id)) map.set(s.id, s); }));
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [allItems]);
+
+  // Itens da fase/aba atual, sem aplicar os filtros de dropdown. É a base das
+  // opções de filtro: assim cada filtro lista só o que existe naquela fase, e
+  // escolher um filtro não esvazia as opções dos outros.
+  const tabPoolItems = useMemo(() => {
+    if (activeTab === "correcao") return correcaoItems as any[];
+    const byTab: Record<string, string[]> = {
+      "criar-aprovacoes": ['awaiting_submission'],
+      "aguardando-patrocinador": ['awaiting_sponsor_approval'],
+      "finalizar-layouts": ['sponsor_approved', 'awaiting_creator_review'],
+      "finalizados": ['awaiting_final_review', 'ready_for_production', 'pronto_para_producao', 'liberado', 'em_producao', 'produzido', 'entregue'],
+    };
+    const allowed = byTab[activeTab];
+    return allowed ? allItems.filter((i: any) => allowed.includes(i.status)) : allItems;
+  }, [allItems, correcaoItems, activeTab]);
+
+  // Filtros facetados: as opções de cada filtro são calculadas aplicando os
+  // OUTROS filtros ativos. Assim escolher um evento reduz os patrocinadores,
+  // tipos e materiais àquele evento (e as contagens acompanham a página), sem
+  // que um filtro esvazie a si mesmo.
+  const facetPool = (exclude: 'event' | 'sponsor' | 'type' | 'material') =>
+    tabPoolItems.filter((i: any) => {
+      if (exclude !== 'event' && eventFilter !== 'all' && i.eventId !== eventFilter) return false;
+      if (exclude !== 'sponsor' && sponsorFilter !== 'all' && !(i.sponsors ?? []).some((s: any) => s.id === sponsorFilter)) return false;
+      if (exclude !== 'type' && typeFilter !== 'all' && i.type !== typeFilter) return false;
+      if (exclude !== 'material' && materialFilter !== 'all' && i.material !== materialFilter) return false;
+      return true;
+    });
+
+  const facetDeps = [tabPoolItems, eventFilter, sponsorFilter, typeFilter, materialFilter];
+
+  const eventFilterOptions = useMemo(() => {
+    const C: Record<string, string> = { urgent: '#ef4444', urgente: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    facetPool('event').forEach((i: any) => {
+      if (!i.eventId) return;
+      const cur = map.get(i.eventId);
+      if (cur) cur.count++;
+      else map.set(i.eventId, { value: i.eventId, label: i.event?.name || 'Sem evento', count: 1, dotColor: C[i.event?.priority] });
+    });
+    return Array.from(map.values());
+  }, facetDeps);
+
+  const sponsorFilterOptions = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    facetPool('sponsor').forEach((i: any) => (i.sponsors ?? []).forEach((s: any) => {
+      const cur = map.get(s.id);
+      if (cur) cur.count++;
+      else map.set(s.id, { value: s.id, label: s.name, count: 1 });
+    }));
+    return Array.from(map.values());
+  }, facetDeps);
+
+  const countBy = (key: 'type' | 'material') => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    facetPool(key).forEach((i: any) => {
+      const v = i[key];
+      if (!v) return;
+      const cur = map.get(v);
+      if (cur) cur.count++;
+      else map.set(v, { value: v, label: v, count: 1 });
+    });
+    return Array.from(map.values());
+  };
+  const typeFilterOptions = useMemo(() => countBy('type'), facetDeps);
+  const materialFilterOptions = useMemo(() => countBy('material'), facetDeps);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -2103,75 +2170,37 @@ export default function Arte() {
               />
             </div>
 
-            <Popover open={openEventCombobox} onOpenChange={setOpenEventCombobox}>
-              <PopoverTrigger asChild>
-                <button
-                  data-testid="button-event-filter"
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, paddingLeft: 10, paddingRight: 8, borderRadius: 8, border: `1px solid ${eventFilter !== 'all' ? '#f97316' : '#e7e5e4'}`, background: eventFilter !== 'all' ? '#fff7ed' : '#ffffff', color: eventFilter !== 'all' ? '#c2410c' : '#44403c', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >
-                  {eventFilter === 'all' ? 'Evento' : (events as any[]).find((e: any) => e.id === eventFilter)?.name || 'Evento'}
-                  <ChevronDown style={{ width: 10, height: 10, opacity: 0.5 }} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent style={{ width: 280, padding: 0 }}>
-                <Command>
-                  <CommandInput placeholder="Buscar evento..." />
-                  <CommandList>
-                    <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem value="all" onSelect={() => { setEventFilter('all'); setOpenEventCombobox(false); }}>
-                        <Check className={cn('mr-2 h-4 w-4', eventFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
-                        Todos os eventos
-                      </CommandItem>
-                      {(() => {
-                        const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-                        const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-                        return [...(events as any[])].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((event:any) => (
-                          <CommandItem key={event.id} value={event.name} onSelect={() => { setEventFilter(event.id); setOpenEventCombobox(false); }}>
-                            <Check className={cn('mr-2 h-4 w-4', eventFilter === event.id ? 'opacity-100' : 'opacity-0')} />
-                            {event.priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[event.priority], display:'inline-block', marginRight:6, flexShrink:0 }} />}
-                            {event.name}
-                          </CommandItem>
-                        ));
-                      })()}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <FilterSelect
+              label="Evento" allLabel="Todos os eventos"
+              value={eventFilter} onChange={setEventFilter}
+              options={eventFilterOptions}
+              searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+              hideWhenEmpty={false} testId="button-event-filter"
+            />
 
-            {uniqueSponsors.length > 0 && (
-              <div style={{ position: 'relative' }}>
-                <select value={sponsorFilter} onChange={e => setSponsorFilter(e.target.value)} data-testid="select-sponsor-filter"
-                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${sponsorFilter !== 'all' ? '#f97316' : '#e7e5e4'}`, background: sponsorFilter !== 'all' ? '#fff7ed' : '#ffffff', color: sponsorFilter !== 'all' ? '#c2410c' : '#44403c', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
-                  <option value="all">Patrocinador</option>
-                  {(uniqueSponsors as any[]).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <ChevronDown style={{ width: 10, height: 10, color: '#a8a29e', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              </div>
-            )}
+            <FilterSelect
+              label="Patrocinador" allLabel="Todos os patrocinadores"
+              value={sponsorFilter} onChange={setSponsorFilter}
+              options={sponsorFilterOptions}
+              searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+              testId="select-sponsor-filter"
+            />
 
-            {uniqueTypes.length > 0 && (
-              <div style={{ position: 'relative' }}>
-                <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} data-testid="select-type-filter"
-                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${typeFilter !== 'all' ? '#f97316' : '#e7e5e4'}`, background: typeFilter !== 'all' ? '#fff7ed' : '#ffffff', color: typeFilter !== 'all' ? '#c2410c' : '#44403c', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
-                  <option value="all">Tipo de Peça</option>
-                  {(uniqueTypes as string[]).map((t: string) => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <ChevronDown style={{ width: 10, height: 10, color: '#a8a29e', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              </div>
-            )}
+            <FilterSelect
+              label="Tipo de Peça" allLabel="Todos os tipos"
+              value={typeFilter} onChange={setTypeFilter}
+              options={typeFilterOptions}
+              searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
+              testId="select-type-filter"
+            />
 
-            {uniqueMaterials.length > 0 && (
-              <div style={{ position: 'relative' }}>
-                <select value={materialFilter} onChange={e => setMaterialFilter(e.target.value)} data-testid="select-material-filter"
-                  style={{ height: 34, paddingLeft: 10, paddingRight: 26, borderRadius: 8, border: `1px solid ${materialFilter !== 'all' ? '#f97316' : '#e7e5e4'}`, background: materialFilter !== 'all' ? '#fff7ed' : '#ffffff', color: materialFilter !== 'all' ? '#c2410c' : '#44403c', fontSize: 12, cursor: 'pointer', outline: 'none', appearance: 'none' as any }}>
-                  <option value="all">Material</option>
-                  {(uniqueMaterials as string[]).map((m: string) => <option key={m} value={m}>{m}</option>)}
-                </select>
-                <ChevronDown style={{ width: 10, height: 10, color: '#a8a29e', position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              </div>
-            )}
+            <FilterSelect
+              label="Material" allLabel="Todos os materiais"
+              value={materialFilter} onChange={setMaterialFilter}
+              options={materialFilterOptions}
+              searchPlaceholder="Buscar material..." emptyText="Nenhum material encontrado."
+              testId="select-material-filter"
+            />
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
               {['Hoje', '7 dias', '15 dias', '30 dias', 'Todos'].map(p => (

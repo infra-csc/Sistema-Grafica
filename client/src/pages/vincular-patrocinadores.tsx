@@ -657,11 +657,32 @@ export default function VincularPatrocinadores() {
 
   const saveLinkingMutation = useMutation({
     mutationFn: async (payloads: SavePayload[]) => {
-      if (payloads.length === 0) return [] as string[];
-      await runInBatches(payloads, ({ itemId, sponsorIds, skipApproval }) =>
-        apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds, skipApproval })
-      );
-      return payloads.map(p => p.itemId);
+      const savedIds: string[] = [];
+      const failed: { itemId: string; message: string }[] = [];
+      if (payloads.length === 0) return { savedIds, failed };
+
+      // Lotes com concorrência limitada (evita esgotar o pool do banco), porém
+      // tolerando falha parcial: um item com erro não descarta os que já foram
+      // salvos nos lotes anteriores — senão o rollback marcaria como não salvo
+      // algo que já está gravado no servidor.
+      const batchSize = 5;
+      for (let i = 0; i < payloads.length; i += batchSize) {
+        const batch = payloads.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+          batch.map(({ itemId, sponsorIds, skipApproval }) =>
+            apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds, skipApproval })
+          )
+        );
+        results.forEach((r, idx) => {
+          const itemId = batch[idx].itemId;
+          if (r.status === "fulfilled") savedIds.push(itemId);
+          else failed.push({ itemId, message: (r.reason as Error)?.message || "erro desconhecido" });
+        });
+      }
+
+      // Nada salvou: propaga para o onError fazer o rollback completo.
+      if (savedIds.length === 0 && failed.length > 0) throw new Error(failed[0].message);
+      return { savedIds, failed };
     },
     onMutate: (payloads: SavePayload[]) => {
       const snapshot = {
@@ -686,20 +707,44 @@ export default function VincularPatrocinadores() {
       });
       return snapshot;
     },
-    onSuccess: (savedIds) => {
+    onSuccess: ({ savedIds, failed }, _vars: SavePayload[], snapshot: any) => {
       setPendingChanges(prev => {
         const next = { ...prev };
         savedIds.forEach(id => { delete next[id]; });
         return next;
       });
+
+      // Reverte localmente apenas os itens que falharam, preservando os salvos.
+      if (failed.length > 0 && snapshot) {
+        const restore = (prev: Record<string, string[]>, from: Record<string, string[]>) => {
+          const next = { ...prev };
+          failed.forEach(({ itemId }) => {
+            if (from[itemId] !== undefined) next[itemId] = from[itemId];
+            else delete next[itemId];
+          });
+          return next;
+        };
+        setItemSponsorsMap(prev => restore(prev, snapshot.itemSponsorsMap));
+        setOriginalSponsorsMap(prev => restore(prev, snapshot.originalSponsorsMap));
+      }
+
       // Sem invalidar /api/items: o onMutate já atualizou de forma otimista os
       // mapas de patrocinadores e o skipApproval no cache do React Query — que é
       // tudo que a UI lê. Invalidar aqui forçava um reload completo (N+1 no
       // backend) a cada salvamento, deixando a tela lenta.
-      toast({
-        title: "Vinculação salva!",
-        description: `${savedIds.length} item${savedIds.length !== 1 ? 's' : ''} pronto${savedIds.length !== 1 ? 's' : ''} para enviar.`,
-      });
+      if (failed.length === 0) {
+        toast({
+          title: "Vinculação salva!",
+          description: `${savedIds.length} item${savedIds.length !== 1 ? 's' : ''} pronto${savedIds.length !== 1 ? 's' : ''} para enviar.`,
+        });
+      } else {
+        console.error("[vincular] falhas ao salvar:", failed);
+        toast({
+          title: `${savedIds.length} salvo${savedIds.length !== 1 ? 's' : ''}, ${failed.length} com erro`,
+          description: `${failed[0].message}. Os itens com erro continuam pendentes — tente salvar de novo.`,
+          variant: "destructive",
+        });
+      }
     },
     onError: (_error: Error, _vars: SavePayload[], snapshot: any) => {
       if (snapshot) {

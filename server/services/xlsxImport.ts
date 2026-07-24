@@ -359,10 +359,12 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
         quantity: Number(item.quantity),
         area: Number(item.visualWidth) || Number(item.fileWidth) || 0,
         visual: Number(item.visualHeight) || Number(item.fileHeight) || 0,
-        visualWidth: item.visualWidth !== null && item.visualWidth !== undefined ? Number(item.visualWidth) : null,
-        visualHeight: item.visualHeight !== null && item.visualHeight !== undefined ? Number(item.visualHeight) : null,
-        fileWidth: item.fileWidth !== null && item.fileWidth !== undefined ? Number(item.fileWidth) : null,
-        fileHeight: item.fileHeight !== null && item.fileHeight !== undefined ? Number(item.fileHeight) : null,
+        // Colunas decimais: o schema espera string (ou null), como no fluxo
+        // normal de criação de item — enviar Number aqui causa erro de validação.
+        visualWidth: item.visualWidth !== null && item.visualWidth !== undefined ? String(item.visualWidth) : null,
+        visualHeight: item.visualHeight !== null && item.visualHeight !== undefined ? String(item.visualHeight) : null,
+        fileWidth: item.fileWidth !== null && item.fileWidth !== undefined ? String(item.fileWidth) : null,
+        fileHeight: item.fileHeight !== null && item.fileHeight !== undefined ? String(item.fileHeight) : null,
         calculatedM2: Number(item.calculatedM2) || 0,
         material: item.material || "Lona",
         finish: item.finish || "Ilhós",

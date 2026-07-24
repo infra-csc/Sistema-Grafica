@@ -124,6 +124,10 @@ export default function EventDetail() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: catalogOptions = [] } = useQuery<{ kind: string; value: string }[]>({
+    queryKey: ["/api/catalog-options"],
+  });
+
   // Buscar patrocinadores vinculados ao evento
   const { data: eventSponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/events", eventId, "sponsors"],
@@ -702,10 +706,12 @@ export default function EventDetail() {
     return groupByName[k] || groupByGroup[k] || "";
   };
 
-  // Materiais e acabamentos: padrão + os cadastrados nos Modelos, para que um
-  // material/acabamento criado em "Modelos" apareça também na edição de itens.
-  const materialOptions = Array.from(new Set([...materials, ...((standardItems as any[]).map(s => s.material).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const finishOptions = Array.from(new Set([...finishes, ...((standardItems as any[]).map(s => s.finish).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  // Materiais e acabamentos: padrão + catálogo cadastrado + os usados nos Modelos,
+  // para que um material/acabamento criado em "Modelos" apareça na edição de itens.
+  const catMats = catalogOptions.filter(o => o.kind === "material").map(o => o.value);
+  const catFinishes = catalogOptions.filter(o => o.kind === "finish").map(o => o.value);
+  const materialOptions = Array.from(new Set([...materials, ...catMats, ...((standardItems as any[]).map(s => s.material).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const finishOptions = Array.from(new Set([...finishes, ...catFinishes, ...((standardItems as any[]).map(s => s.finish).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   // Agrupar itens: Grupo Pai → Tipo → [itens]
   const groupMap: Record<string, Record<string, typeof items>> = {};

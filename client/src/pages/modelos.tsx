@@ -147,6 +147,29 @@ export default function Modelos() {
     queryKey: ["/api/standard-items"],
   });
 
+  const { data: catalogOptions = [] } = useQuery<{ kind: string; value: string }[]>({
+    queryKey: ["/api/catalog-options"],
+  });
+
+  const createCatalogOptionMutation = useMutation({
+    mutationFn: async ({ kind, value }: { kind: string; value: string }) =>
+      await apiRequest("POST", "/api/catalog-options", { kind, value }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/catalog-options"] });
+      toast({ title: "Adicionado", description: "Opção cadastrada com sucesso" });
+    },
+    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const deleteCatalogOptionMutation = useMutation({
+    mutationFn: async ({ kind, value }: { kind: string; value: string }) =>
+      await apiRequest("DELETE", "/api/catalog-options", { kind, value }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/catalog-options"] }),
+    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const [newCatValue, setNewCatValue] = useState("");
+
   const renameGroupMutation = useMutation({
     mutationFn: async ({ oldName, newName }: { oldName: string; newName: string }) =>
       await apiRequest("PATCH", "/api/standard-items/rename-group", { oldName, newName }),
@@ -311,11 +334,16 @@ export default function Modelos() {
     setFormData({ ...EMPTY_FORM });
   };
 
+  // Opções de catálogo cadastradas avulsas (material/acabamento/grupo)
+  const catMats = catalogOptions.filter(o => o.kind === "material").map(o => o.value);
+  const catFinishes = catalogOptions.filter(o => o.kind === "finish").map(o => o.value);
+  const catGroups = catalogOptions.filter(o => o.kind === "group").map(o => o.value);
+
   // Unique values for filter chips
-  const allGroups = [...new Set(standardItems.map((s: any) => s.group).filter(Boolean))].sort() as string[];
+  const allGroups = [...new Set([...catGroups, ...standardItems.map((s: any) => s.group).filter(Boolean)])].sort() as string[];
   const allTypes  = [...new Set(standardItems.map((s: any) => s.type).filter(Boolean))].sort() as string[];
-  const allMats     = [...new Set([...materials,  ...standardItems.map((s: any) => s.material).filter(Boolean)])].sort() as string[];
-  const allFinishes = [...new Set([...finishes,   ...standardItems.map((s: any) => s.finish).filter(Boolean)])].sort() as string[];
+  const allMats     = [...new Set([...materials,  ...catMats,     ...standardItems.map((s: any) => s.material).filter(Boolean)])].sort() as string[];
+  const allFinishes = [...new Set([...finishes,   ...catFinishes, ...standardItems.map((s: any) => s.finish).filter(Boolean)])].sort() as string[];
 
   const filteredItems = standardItems.filter((item) => {
     const q = searchTerm.toLowerCase();
@@ -1164,12 +1192,37 @@ export default function Modelos() {
                   finish:   { items: allFinishes,  color: "#065f46", bg: "#d1fae5", empty: "Nenhum acabamento cadastrado." },
                 }[manageTab];
 
-                if (tabCfg.items.length === 0) {
-                  return <p style={{ fontSize: 13, color: "#a8a29e", margin: "20px 0 0", textAlign: "center" }}>{tabCfg.empty}</p>;
-                }
+                const addLabel = manageTab === "group" ? "grupo" : manageTab === "material" ? "material" : "acabamento";
+                const submitNew = () => {
+                  const v = newCatValue.trim();
+                  if (!v) return;
+                  if (tabCfg.items.some(i => i.toLowerCase() === v.toLowerCase())) { setNewCatValue(""); return; }
+                  createCatalogOptionMutation.mutate({ kind: manageTab, value: v });
+                  setNewCatValue("");
+                };
 
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 4 }}>
+                    {/* Adicionar nova opção */}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                      <input
+                        value={newCatValue}
+                        onChange={e => setNewCatValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submitNew(); } }}
+                        placeholder={`Adicionar ${addLabel}...`}
+                        data-testid="input-new-catalog-option"
+                        style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#faf9f8", fontSize: 13, color: "#1c1917", outline: "none" }}
+                      />
+                      <button type="button" onClick={submitNew} disabled={createCatalogOptionMutation.isPending || !newCatValue.trim()}
+                        data-testid="button-add-catalog-option"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 14px", borderRadius: 8, border: "none", cursor: newCatValue.trim() ? "pointer" : "not-allowed", backgroundColor: newCatValue.trim() ? tabCfg.color : "#e7e5e4", color: "#fff", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
+                        <Plus style={{ width: 14, height: 14 }} /> Adicionar
+                      </button>
+                    </div>
+
+                    {tabCfg.items.length === 0 && (
+                      <p style={{ fontSize: 13, color: "#a8a29e", margin: "12px 0", textAlign: "center" }}>{tabCfg.empty}</p>
+                    )}
                     {tabCfg.items.map(name => {
                       const count = manageTab === "group"
                         ? (standardItems as any[]).filter(s => s.group === name).length
@@ -1183,7 +1236,7 @@ export default function Modelos() {
                           onEditConfirm={() => { const t = mgEditGroupValue.trim(); if (t && t !== name) renameGroupMutation.mutate({ oldName: name, newName: t }); else setMgEditingGroup(null); }}
                           onEditCancel={() => setMgEditingGroup(null)} isPendingRename={renameGroupMutation.isPending}
                           isDeleting={mgDeleteGroupConfirm === name}
-                          onDeleteConfirm={() => deleteGroupMutation.mutate(name)} onDeleteCancel={() => setMgDeleteGroupConfirm(null)} isPendingDelete={deleteGroupMutation.isPending}
+                          onDeleteConfirm={() => { deleteGroupMutation.mutate(name); deleteCatalogOptionMutation.mutate({ kind: "group", value: name }); }} onDeleteCancel={() => setMgDeleteGroupConfirm(null)} isPendingDelete={deleteGroupMutation.isPending}
                           onStartEdit={() => { setMgEditingGroup(name); setMgEditGroupValue(name); setMgDeleteGroupConfirm(null); }}
                           onStartDelete={() => { setMgDeleteGroupConfirm(name); setMgEditingGroup(null); }}
                         />
@@ -1194,7 +1247,7 @@ export default function Modelos() {
                           onEditConfirm={() => { const t = mgEditMaterialValue.trim(); if (t && t !== name) renameMaterialMutation.mutate({ oldName: name, newName: t }); else setMgEditingMaterial(null); }}
                           onEditCancel={() => setMgEditingMaterial(null)} isPendingRename={renameMaterialMutation.isPending}
                           isDeleting={mgDeleteMaterialConfirm === name}
-                          onDeleteConfirm={() => deleteMaterialMutation.mutate(name)} onDeleteCancel={() => setMgDeleteMaterialConfirm(null)} isPendingDelete={deleteMaterialMutation.isPending}
+                          onDeleteConfirm={() => { deleteMaterialMutation.mutate(name); deleteCatalogOptionMutation.mutate({ kind: "material", value: name }); }} onDeleteCancel={() => setMgDeleteMaterialConfirm(null)} isPendingDelete={deleteMaterialMutation.isPending}
                           onStartEdit={() => { setMgEditingMaterial(name); setMgEditMaterialValue(name); setMgDeleteMaterialConfirm(null); }}
                           onStartDelete={() => { setMgDeleteMaterialConfirm(name); setMgEditingMaterial(null); }}
                         />
@@ -1205,7 +1258,7 @@ export default function Modelos() {
                           onEditConfirm={() => { const t = mgEditFinishValue.trim(); if (t && t !== name) renameFinishMutation.mutate({ oldName: name, newName: t }); else setMgEditingFinish(null); }}
                           onEditCancel={() => setMgEditingFinish(null)} isPendingRename={renameFinishMutation.isPending}
                           isDeleting={mgDeleteFinishConfirm === name}
-                          onDeleteConfirm={() => deleteFinishMutation.mutate(name)} onDeleteCancel={() => setMgDeleteFinishConfirm(null)} isPendingDelete={deleteFinishMutation.isPending}
+                          onDeleteConfirm={() => { deleteFinishMutation.mutate(name); deleteCatalogOptionMutation.mutate({ kind: "finish", value: name }); }} onDeleteCancel={() => setMgDeleteFinishConfirm(null)} isPendingDelete={deleteFinishMutation.isPending}
                           onStartEdit={() => { setMgEditingFinish(name); setMgEditFinishValue(name); setMgDeleteFinishConfirm(null); }}
                           onStartDelete={() => { setMgDeleteFinishConfirm(name); setMgEditingFinish(null); }}
                         />

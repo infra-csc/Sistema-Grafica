@@ -2,7 +2,10 @@
 import { 
   events, 
   items, 
-  standardItems, 
+  standardItems,
+  catalogOptions,
+  type CatalogOption,
+  type InsertCatalogOption,
   notifications, 
   productionUpdates,
   comments,
@@ -77,6 +80,9 @@ export interface IStorage {
   getStandardItem(id: string): Promise<StandardItem | undefined>;
   getAllStandardItems(): Promise<StandardItem[]>;
   createStandardItem(item: InsertStandardItem): Promise<StandardItem>;
+  getCatalogOptions(kind?: string): Promise<CatalogOption[]>;
+  createCatalogOption(option: InsertCatalogOption): Promise<CatalogOption>;
+  deleteCatalogOption(kind: string, value: string): Promise<boolean>;
   renameStandardItemGroup(oldName: string, newName: string): Promise<number>;
   
   // Notifications
@@ -547,6 +553,32 @@ export class DatabaseStorage implements IStorage {
       .where(eq(standardItems.material, name))
       .returning();
     return result.length;
+  }
+
+  // Catálogo de opções avulsas (material/acabamento/grupo)
+  async getCatalogOptions(kind?: string): Promise<CatalogOption[]> {
+    const rows = kind
+      ? await db.select().from(catalogOptions).where(eq(catalogOptions.kind, kind))
+      : await db.select().from(catalogOptions);
+    return rows.sort((a, b) => a.value.localeCompare(b.value, "pt-BR"));
+  }
+
+  async createCatalogOption(option: InsertCatalogOption): Promise<CatalogOption> {
+    const value = option.value.trim();
+    // Evita duplicatas do mesmo tipo (case-insensitive)
+    const existing = await db.select().from(catalogOptions).where(eq(catalogOptions.kind, option.kind));
+    const dup = existing.find(o => o.value.trim().toLowerCase() === value.toLowerCase());
+    if (dup) return dup;
+    const [created] = await db.insert(catalogOptions).values({ kind: option.kind, value }).returning();
+    return created;
+  }
+
+  async deleteCatalogOption(kind: string, value: string): Promise<boolean> {
+    const result = await db
+      .delete(catalogOptions)
+      .where(and(eq(catalogOptions.kind, kind), eq(catalogOptions.value, value)))
+      .returning();
+    return result.length > 0;
   }
 
   // Notifications

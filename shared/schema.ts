@@ -141,6 +141,15 @@ export const standardItems = pgTable("standard_items", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Catálogo de opções (material, acabamento, grupo) — permite cadastrar valores
+// avulsos que existem por conta própria, sem depender de um modelo usá-los.
+export const catalogOptions = pgTable("catalog_options", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  kind: text("kind").notNull(), // "material" | "finish" | "group"
+  value: text("value").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // Notifications table
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -390,6 +399,14 @@ export const insertStandardItemSchema = createInsertSchema(standardItems).omit({
   visual: z.string().or(z.number()).optional().nullable(),
 });
 
+export const insertCatalogOptionSchema = createInsertSchema(catalogOptions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  kind: z.enum(["material", "finish", "group"]),
+  value: z.string().min(1),
+});
+
 export const insertNotificationSchema = createInsertSchema(notifications).omit({
   id: true,
   createdAt: true,
@@ -528,6 +545,9 @@ export type ItemStatus = typeof ITEM_STATUSES[number];
 
 export type StandardItem = typeof standardItems.$inferSelect;
 export type InsertStandardItem = z.infer<typeof insertStandardItemSchema>;
+
+export type CatalogOption = typeof catalogOptions.$inferSelect;
+export type InsertCatalogOption = z.infer<typeof insertCatalogOptionSchema>;
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;

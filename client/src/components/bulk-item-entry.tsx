@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 import { useToast } from "@/hooks/use-toast";
@@ -465,6 +466,9 @@ export function BulkItemEntry({
   } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { data: catalogOptions = [] } = useQuery<{ kind: string; value: string }[]>({
+    queryKey: ["/api/catalog-options"],
+  });
 
   const getReplicateCount = (id: string) => replicateCounts[id] ?? 1;
   const setReplicateCount = (id: string, n: number) =>
@@ -648,17 +652,19 @@ export function BulkItemEntry({
     return result;
   }, [standardItems]);
 
-  // Materiais e acabamentos: padrão + os que a pessoa cadastrou nos Modelos.
+  // Materiais e acabamentos: padrão + catálogo cadastrado + os usados nos Modelos.
   // Assim, criar um material/acabamento novo em "Modelos" reflete aqui.
+  const catMats = catalogOptions.filter(o => o.kind === 'material').map(o => o.value);
+  const catFinishes = catalogOptions.filter(o => o.kind === 'finish').map(o => o.value);
   const materialOptions = useMemo(
-    () => Array.from(new Set([...materials, ...(standardItems.map(s => s.material).filter(Boolean) as string[])]))
+    () => Array.from(new Set([...materials, ...catMats, ...(standardItems.map(s => s.material).filter(Boolean) as string[])]))
       .sort((a, b) => a.localeCompare(b, 'pt-BR')),
-    [standardItems],
+    [standardItems, catalogOptions],
   );
   const finishOptions = useMemo(
-    () => Array.from(new Set([...finishes, ...(standardItems.map(s => s.finish).filter(Boolean) as string[])]))
+    () => Array.from(new Set([...finishes, ...catFinishes, ...(standardItems.map(s => s.finish).filter(Boolean) as string[])]))
       .sort((a, b) => a.localeCompare(b, 'pt-BR')),
-    [standardItems],
+    [standardItems, catalogOptions],
   );
 
   const cols = [

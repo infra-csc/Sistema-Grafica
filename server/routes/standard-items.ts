@@ -1,7 +1,7 @@
 // Standard-item catalog routes. Extracted from server/routes.ts.
 import type { Express } from "express";
 import { storage } from "../storage";
-import { insertStandardItemSchema } from "@shared/schema";
+import { insertStandardItemSchema, insertCatalogOptionSchema } from "@shared/schema";
 import { requireAuth, broadcast, createAuditLog } from "./shared";
 
 export function registerStandardItemRoutes(app: Express): void {
@@ -13,6 +13,40 @@ export function registerStandardItemRoutes(app: Express): void {
       res.json(items);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ============ CATÁLOGO DE OPÇÕES (material/acabamento/grupo) ============
+
+  app.get("/api/catalog-options", requireAuth, async (req, res) => {
+    try {
+      const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
+      res.json(await storage.getCatalogOptions(kind));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/catalog-options", requireAuth, async (req, res) => {
+    try {
+      const validated = insertCatalogOptionSchema.parse(req.body);
+      const option = await storage.createCatalogOption(validated);
+      broadcast({ type: "catalog_option_created", option });
+      res.status(201).json(option);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/catalog-options", requireAuth, async (req, res) => {
+    try {
+      const { kind, value } = req.body ?? {};
+      if (!kind || !value) return res.status(400).json({ error: "kind e value são obrigatórios" });
+      const ok = await storage.deleteCatalogOption(kind, value);
+      broadcast({ type: "catalog_option_deleted", kind, value });
+      res.json({ deleted: ok });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
     }
   });
 

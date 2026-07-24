@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
-import { Fragment, useState, useEffect } from "react";
+import { Fragment, useState, useEffect, useRef } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
   Dialog,
@@ -63,6 +63,10 @@ export default function EventDetail() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState(true);
   const [editingItem, setEditingItem] = useState<any>(null);
+  // Controle do grid de adição em lote: tick avisa o grid que salvou (para ele
+  // soltar as linhas gravadas) e o ref guarda quantas linhas ficaram incompletas.
+  const [bulkSavedTick, setBulkSavedTick] = useState(0);
+  const bulkLeftoverRef = useRef(0);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
@@ -371,11 +375,21 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
 
-      // Fecha o dialog para dar a sensação clara de que salvou, alinhado com o
-      // resto do app. As peças já entraram na lista pela atualização otimista,
-      // então fechar não dispara busca extra nem deixa a tela vazia.
-      setOpen(false);
-      setBulkMode(false);
+      // Sinaliza ao grid para remover as linhas já gravadas (evita salvá-las
+      // de novo). As incompletas continuam lá.
+      setBulkSavedTick(t => t + 1);
+
+      // Fecha só quando não sobrou nada para terminar — assim o salvamento dá
+      // a sensação clara de concluído sem descartar linhas pela metade.
+      if (bulkLeftoverRef.current === 0) {
+        setOpen(false);
+        setBulkMode(false);
+      } else {
+        toast({
+          title: "Peças salvas",
+          description: `${bulkLeftoverRef.current} linha${bulkLeftoverRef.current !== 1 ? 's' : ''} incompleta${bulkLeftoverRef.current !== 1 ? 's' : ''} continua${bulkLeftoverRef.current !== 1 ? 'm' : ''} aberta${bulkLeftoverRef.current !== 1 ? 's' : ''} para você terminar.`,
+        });
+      }
     },
     onError: (error: any, newItems: any, context: any) => {
       // Se der erro, reverter para dados anteriores
@@ -952,7 +966,11 @@ export default function EventDetail() {
                     standardItems={standardItems}
                     sponsors={sponsors}
                     existingItems={items}
-                    onSubmit={(items) => createBulkItemsMutation.mutate(items)}
+                    savedTick={bulkSavedTick}
+                    onSubmit={(items, leftoverCount) => {
+                      bulkLeftoverRef.current = leftoverCount;
+                      createBulkItemsMutation.mutate(items);
+                    }}
                     onCancel={() => setOpen(false)}
                     isPending={createBulkItemsMutation.isPending}
                   />

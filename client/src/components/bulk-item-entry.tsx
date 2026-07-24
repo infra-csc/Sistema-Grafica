@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
@@ -70,7 +70,14 @@ interface BulkItemEntryProps {
   sponsors?: Sponsor[];
   existingItems?: ExistingItem[];
   onDeleteExistingItem?: (id: string) => void;
-  onSubmit: (items: any[]) => void;
+  /** leftoverCount = linhas incompletas que NÃO foram enviadas e seguem no grid. */
+  onSubmit: (items: any[], leftoverCount: number) => void;
+  /**
+   * Incrementado pelo pai a cada salvamento bem-sucedido. Ao mudar, as linhas
+   * já gravadas saem do grid (evitando reenvio duplicado) e as incompletas
+   * permanecem para serem finalizadas.
+   */
+  savedTick?: number;
   onCancel: () => void;
   isPending?: boolean;
 }
@@ -222,6 +229,14 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
+/** Linha pronta para virar peça — mesma regra usada no envio e no contador. */
+function isRowComplete(r: BulkItemRow): boolean {
+  return !!(r.type && parseFloat(r.quantity) > 0 &&
+    parseFloat(r.visualWidth) > 0 && parseFloat(r.visualHeight) > 0 &&
+    parseFloat(r.fileWidth) > 0 && parseFloat(r.fileHeight) > 0 &&
+    r.material && r.finish);
+}
+
 function createEmptyRow(): BulkItemRow {
   return {
     id: Math.random().toString(36).substring(7),
@@ -456,7 +471,7 @@ function isSameItem(
 /* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({
   eventId, standardItems = [], sponsors = [], existingItems = [],
-  onDeleteExistingItem, onSubmit, onCancel, isPending,
+  onDeleteExistingItem, onSubmit, onCancel, isPending, savedTick = 0,
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
@@ -465,7 +480,20 @@ export function BulkItemEntry({
     duplicates: Array<{ newItem: any; existingItem: ExistingItem }>;
   } | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const submittedIdsRef = useRef<string[]>([]);
   const { toast } = useToast();
+
+  // Quando o pai confirma o salvamento, tira do grid só as linhas gravadas.
+  // As incompletas ficam, para o usuário terminar sem perder o que digitou.
+  useEffect(() => {
+    if (savedTick === 0 || submittedIdsRef.current.length === 0) return;
+    const saved = new Set(submittedIdsRef.current);
+    submittedIdsRef.current = [];
+    setRows(prev => {
+      const rest = prev.filter(r => !saved.has(r.id));
+      return rest.length > 0 ? rest : [createEmptyRow()];
+    });
+  }, [savedTick]);
   const { data: catalogOptions = [] } = useQuery<{ kind: string; value: string }[]>({
     queryKey: ["/api/catalog-options"],
   });
@@ -559,11 +587,11 @@ export function BulkItemEntry({
   }
 
   function handleSubmit() {
-    const valid = rows
-      .filter(r => r.type && parseFloat(r.quantity) > 0 &&
-        parseFloat(r.visualWidth) > 0 && parseFloat(r.visualHeight) > 0 &&
-        parseFloat(r.fileWidth) > 0 && parseFloat(r.fileHeight) > 0 &&
-        r.material && r.finish)
+    const completeRows = rows.filter(isRowComplete);
+    // Guarda quais linhas foram enviadas para removê-las quando o pai confirmar
+    // o sucesso — assim elas não podem ser salvas duas vezes.
+    submittedIdsRef.current = completeRows.map(r => r.id);
+    const valid = completeRows
       .map(r => ({
         eventId, type: r.type, description: r.description || "",
         quantity: parseInt(r.quantity),
@@ -628,11 +656,9 @@ export function BulkItemEntry({
     setDuplicateConfirm({ valid, duplicates });
   }
 
-  const validCount = rows.filter(r =>
-    r.type && parseFloat(r.quantity) > 0 && parseFloat(r.visualWidth) > 0 &&
-    parseFloat(r.visualHeight) > 0 && parseFloat(r.fileWidth) > 0 &&
-    parseFloat(r.fileHeight) > 0 && r.material && r.finish
-  ).length;
+  const validCount = rows.filter(isRowComplete).length;
+  /** Linhas com algo digitado mas ainda incompletas — não vão no envio. */
+  const leftoverCount = rows.filter(r => !isRowComplete(r) && (r.type || r.description || r.material || r.finish)).length;
 
   const groupedTypeOptions = useMemo(() => {
     const groupMap: Record<string, string[]> = {};
@@ -994,7 +1020,7 @@ export function BulkItemEntry({
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setDuplicateConfirm(null); onSubmit(duplicateConfirm.valid); }}
+                  onClick={() => { setDuplicateConfirm(null); onSubmit(duplicateConfirm.valid, leftoverCount); }}
                   style={{
                     padding: '9px 22px',
                     background: 'linear-gradient(135deg, #2E2A26 0%, #1F1D1A 100%)',

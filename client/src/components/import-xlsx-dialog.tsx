@@ -177,7 +177,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
       </td>
 
       {/* Sponsor multi-select cell */}
-      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, minWidth: 190, verticalAlign: 'top' }}>
+      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, minWidth: 230, verticalAlign: 'top' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
           {/* Chips for each selected sponsor */}
           {(row.suggestedSponsorIds ?? []).map((sid: string) => {
@@ -211,6 +211,17 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
                 <option key={s.sponsorId} value={s.sponsorId}>{s.name}</option>
               ))}
             </select>
+          )}
+          {/* Select all event sponsors */}
+          {eventSponsorsList.length > 0 && (row.suggestedSponsorIds ?? []).length < eventSponsorsList.length && (
+            <button
+              type="button"
+              title="Vincular todos os patrocinadores do evento"
+              onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: eventSponsorsList.map(s => s.sponsorId) }); }}
+              style={{ fontSize: 10, fontWeight: 700, borderRadius: 5, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#16a34a', cursor: 'pointer', padding: '2px 7px', outline: 'none', whiteSpace: 'nowrap' }}
+            >
+              Todos
+            </button>
           )}
           {(row.suggestedSponsorIds ?? []).length === 0 && (
             <span style={{ fontSize: 11, color: '#d0cdc9', fontStyle: 'italic' }}>sem patrocinador</span>
@@ -281,7 +292,7 @@ export function ImportXlsxDialog({
     <Dialog open={open} onOpenChange={(v) => { if (!v) onOpenChangeClose(); }}>
       <DialogContent
         className="[&>button:last-child]:right-4 [&>button:last-child]:top-4 [&>button:last-child]:z-50"
-        style={{ maxWidth: '98vw', width: importPreviewItems ? 1200 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'visible', transition: 'width 0.3s' }}
+        style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'visible', transition: 'width 0.3s' }}
       >
         <div style={{ display: 'flex', flexDirection: 'row', height: '100%', maxHeight: '92vh', overflow: 'hidden', borderRadius: 14 }}>
         {/* ── Left sidebar ── */}
@@ -480,6 +491,24 @@ export function ImportXlsxDialog({
                   : `${importPreviewItems.length} peças`
                 }
               </span>
+              {eventSponsorsList.length > 0 && (
+                <button
+                  type="button"
+                  title="Vincular todos os patrocinadores do evento a todas as peças listadas"
+                  onClick={() => {
+                    const allIds = eventSponsorsList.map(s => s.sponsorId);
+                    const q = importSearch.toLowerCase();
+                    setImportPreviewItems(prev => prev ? prev.map(r =>
+                      (!q || r.description?.toLowerCase().includes(q) || r.type?.toLowerCase().includes(q))
+                        ? { ...r, suggestedSponsorIds: allIds }
+                        : r
+                    ) : prev);
+                  }}
+                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 7, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#16a34a', cursor: 'pointer', padding: '6px 11px', outline: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  + Todos patrocinadores
+                </button>
+              )}
             </div>
 
             {/* Table */}

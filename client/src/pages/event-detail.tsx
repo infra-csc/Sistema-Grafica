@@ -698,6 +698,11 @@ export default function EventDetail() {
     return groupByName[k] || groupByGroup[k] || "";
   };
 
+  // Materiais e acabamentos: padrão + os cadastrados nos Modelos, para que um
+  // material/acabamento criado em "Modelos" apareça também na edição de itens.
+  const materialOptions = Array.from(new Set([...materials, ...((standardItems as any[]).map(s => s.material).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const finishOptions = Array.from(new Set([...finishes, ...((standardItems as any[]).map(s => s.finish).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
+
   // Agrupar itens: Grupo Pai → Tipo → [itens]
   const groupMap: Record<string, Record<string, typeof items>> = {};
   items.forEach(item => {
@@ -1076,7 +1081,7 @@ export default function EventDetail() {
                                     </div>
                                   </CommandEmpty>
                                   <CommandGroup>
-                                    {materials.map(material => (
+                                    {materialOptions.map(material => (
                                       <CommandItem key={material} value={material} onSelect={() => { setFormData({ ...formData, material }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", formData.material === material ? "opacity-100" : "opacity-0")} />{material}
                                       </CommandItem>
@@ -1109,7 +1114,7 @@ export default function EventDetail() {
                                     </div>
                                   </CommandEmpty>
                                   <CommandGroup>
-                                    {finishes.map(finish => (
+                                    {finishOptions.map(finish => (
                                       <CommandItem key={finish} value={finish} onSelect={() => { setFormData({ ...formData, finish }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
                                         <Check className={cn("mr-2 h-4 w-4", formData.finish === finish ? "opacity-100" : "opacity-0")} />{finish}
                                       </CommandItem>

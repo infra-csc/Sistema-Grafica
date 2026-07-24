@@ -648,6 +648,19 @@ export function BulkItemEntry({
     return result;
   }, [standardItems]);
 
+  // Materiais e acabamentos: padrão + os que a pessoa cadastrou nos Modelos.
+  // Assim, criar um material/acabamento novo em "Modelos" reflete aqui.
+  const materialOptions = useMemo(
+    () => Array.from(new Set([...materials, ...(standardItems.map(s => s.material).filter(Boolean) as string[])]))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [standardItems],
+  );
+  const finishOptions = useMemo(
+    () => Array.from(new Set([...finishes, ...(standardItems.map(s => s.finish).filter(Boolean) as string[])]))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [standardItems],
+  );
+
   const cols = [
     { label: 'Tipo',       w: '134px', orange: false },
     { label: 'Descrição',  w: '126px', orange: false },
@@ -1153,7 +1166,10 @@ export function BulkItemEntry({
                       {...navHandlers(ri, 7)}
                     >
                       <option value="">Material</option>
-                      {materials.map(m => <option key={m} value={m}>{m}</option>)}
+                      {materialOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                      {row.material && !materialOptions.includes(row.material) && (
+                        <option value={row.material}>{row.material}</option>
+                      )}
                     </select>
                   </td>
 
@@ -1168,7 +1184,10 @@ export function BulkItemEntry({
                       {...navHandlers(ri, 8)}
                     >
                       <option value="">Acabamento</option>
-                      {finishes.map(f => <option key={f} value={f}>{f}</option>)}
+                      {finishOptions.map(f => <option key={f} value={f}>{f}</option>)}
+                      {row.finish && !finishOptions.includes(row.finish) && (
+                        <option value={row.finish}>{row.finish}</option>
+                      )}
                     </select>
                   </td>
 

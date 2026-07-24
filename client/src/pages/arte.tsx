@@ -314,7 +314,11 @@ export default function Arte() {
   const [bulkThumbEventComboOpen, setBulkThumbEventComboOpen] = useState(false);
   const [bulkThumbLinkOpenMap, setBulkThumbLinkOpenMap] = useState<Record<string, boolean>>({});
   const [showExportModal, setShowExportModal] = useState(false);
+  const [expEventFilter, setExpEventFilter] = useState<string>("all");
   const [expSponsorFilter, setExpSponsorFilter] = useState<string>("all");
+  // Peças desmarcadas manualmente na lista (por id) — o padrão é exportar tudo
+  // que passa nos filtros; guardar as exclusões preserva a escolha ao filtrar.
+  const [expExcludedIds, setExpExcludedIds] = useState<Set<string>>(new Set());
   const [expGroupFilter, setExpGroupFilter] = useState<string>("all");
   const [expTypeFilter, setExpTypeFilter] = useState<string>("all");
   const [expStatusFilter, setExpStatusFilter] = useState<string>("all");
@@ -921,20 +925,90 @@ export default function Arte() {
     [...new Set(arteItemsPool.map((i: any) => i.type).filter(Boolean))].sort(),
     [arteItemsPool]
   );
-  const expFilteredItems = useMemo(() => {
-    return arteItemsPool.filter((item: any) => {
-      if (expSponsorFilter !== "all" && !(item.sponsors ?? []).some((s: any) => s.id === expSponsorFilter)) return false;
-      if (expGroupFilter !== "all") {
-        const g = (item.type ?? "").split(/[\s(]/)[0];
-        if (g !== expGroupFilter) return false;
-      }
-      if (expTypeFilter !== "all" && item.type !== expTypeFilter) return false;
+  // Aplica os filtros da exportação, podendo pular um deles (para montar as
+  // opções facetadas: cada filtro lista o que sobra depois dos outros).
+  const expMatches = (item: any, skip?: 'event' | 'sponsor' | 'group' | 'type' | 'status') => {
+    if (skip !== 'event' && expEventFilter !== "all" && item.eventId !== expEventFilter) return false;
+    if (skip !== 'sponsor' && expSponsorFilter !== "all" && !(item.sponsors ?? []).some((s: any) => s.id === expSponsorFilter)) return false;
+    if (skip !== 'group' && expGroupFilter !== "all" && (item.type ?? "").split(/[\s(]/)[0] !== expGroupFilter) return false;
+    if (skip !== 'type' && expTypeFilter !== "all" && item.type !== expTypeFilter) return false;
+    if (skip !== 'status') {
       if (expStatusFilter === "pendente" && item.status !== "awaiting_sponsor_approval") return false;
-      if (expStatusFilter === "aprovado" && !["sponsor_approved","awaiting_creator_review"].includes(item.status)) return false;
-      if (!expIncludeNoThumb && !item.approvalThumbUrl) return false;
-      return true;
+      if (expStatusFilter === "aprovado" && !["sponsor_approved", "awaiting_creator_review"].includes(item.status)) return false;
+    }
+    if (!expIncludeNoThumb && !item.approvalThumbUrl) return false;
+    return true;
+  };
+
+  const expFilteredItems = useMemo(
+    () => arteItemsPool.filter((item: any) => expMatches(item)),
+    [arteItemsPool, expEventFilter, expSponsorFilter, expGroupFilter, expTypeFilter, expStatusFilter, expIncludeNoThumb],
+  );
+
+  /** Peças que realmente vão para o PDF (filtros + desmarcações manuais). */
+  const expSelectedItems = useMemo(
+    () => expFilteredItems.filter((i: any) => !expExcludedIds.has(i.id)),
+    [expFilteredItems, expExcludedIds],
+  );
+
+  const expFacetDeps = [arteItemsPool, expEventFilter, expSponsorFilter, expGroupFilter, expTypeFilter, expStatusFilter, expIncludeNoThumb];
+
+  const expCountOptions = (skip: 'event' | 'sponsor' | 'group' | 'type', keyOf: (i: any) => { value: string; label: string } | null) => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    arteItemsPool.forEach((i: any) => {
+      if (!expMatches(i, skip)) return;
+      const k = keyOf(i);
+      if (!k) return;
+      const cur = map.get(k.value);
+      if (cur) cur.count++;
+      else map.set(k.value, { value: k.value, label: k.label, count: 1 });
     });
-  }, [arteItemsPool, expSponsorFilter, expGroupFilter, expTypeFilter, expStatusFilter, expIncludeNoThumb]);
+    return Array.from(map.values());
+  };
+
+  const expEventOptions = useMemo(
+    () => expCountOptions('event', i => i.eventId ? { value: i.eventId, label: i.event?.name || 'Sem evento' } : null),
+    expFacetDeps,
+  );
+  const expSponsorOptions = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    arteItemsPool.forEach((i: any) => {
+      if (!expMatches(i, 'sponsor')) return;
+      (i.sponsors ?? []).forEach((s: any) => {
+        const cur = map.get(s.id);
+        if (cur) cur.count++;
+        else map.set(s.id, { value: s.id, label: s.name, count: 1 });
+      });
+    });
+    return Array.from(map.values());
+  }, expFacetDeps);
+  const expGroupOptions = useMemo(
+    () => expCountOptions('group', i => { const g = (i.type ?? "").split(/[\s(]/)[0]; return g ? { value: g, label: g } : null; }),
+    expFacetDeps,
+  );
+  const expTypeOptions = useMemo(
+    () => expCountOptions('type', i => i.type ? { value: i.type, label: i.type } : null),
+    expFacetDeps,
+  );
+  const expStatusOptions = useMemo(() => {
+    let pendente = 0, aprovado = 0;
+    arteItemsPool.forEach((i: any) => {
+      if (!expMatches(i, 'status')) return;
+      if (i.status === "awaiting_sponsor_approval") pendente++;
+      else if (["sponsor_approved", "awaiting_creator_review"].includes(i.status)) aprovado++;
+    });
+    return [
+      { value: "pendente", label: "Aguardando aprovação", count: pendente, pinned: true },
+      { value: "aprovado", label: "Aprovados pelo patrocinador", count: aprovado, pinned: true },
+    ];
+  }, expFacetDeps);
+
+  const expClearFilters = () => {
+    setExpEventFilter("all"); setExpSponsorFilter("all"); setExpGroupFilter("all");
+    setExpTypeFilter("all"); setExpStatusFilter("all");
+  };
+  const expHasFilters = expEventFilter !== "all" || expSponsorFilter !== "all" ||
+    expGroupFilter !== "all" || expTypeFilter !== "all" || expStatusFilter !== "all";
 
   const handleClickExportButton = () => {
     if (selectedItemIds.size > 0) {
@@ -947,6 +1021,8 @@ export default function Arte() {
       }
       return;
     }
+    // Abre sempre com tudo marcado — desmarcações anteriores não persistem.
+    setExpExcludedIds(new Set());
     setShowExportModal(true);
   };
 
@@ -3064,43 +3140,28 @@ export default function Arte() {
 
                 <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 10px' }}>Filtros</p>
 
+                {/* Evento */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Evento</label>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Evento" allLabel="Todos os eventos"
+                    value={expEventFilter} onChange={setExpEventFilter}
+                    options={expEventOptions}
+                    searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
+                  />
+                </div>
+
                 {/* Patrocinador */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Patrocinador</label>
-                  <Popover open={expSponsorComboOpen} onOpenChange={setExpSponsorComboOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" role="combobox" aria-expanded={expSponsorComboOpen}
-                        className="w-full justify-between font-normal h-9 px-3 text-left text-sm">
-                        <span className="flex-1 overflow-hidden truncate">
-                          {expSponsorFilter === "all"
-                            ? <span className="text-muted-foreground">Todos os patrocinadores</span>
-                            : <span>{expUniqueSponsors.find((s: any) => s.id === expSponsorFilter)?.name ?? "Todos os patrocinadores"}</span>
-                          }
-                        </span>
-                        <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 w-72" align="start">
-                      <Command>
-                        <CommandInput placeholder="Buscar patrocinador..." />
-                        <CommandList>
-                          <CommandEmpty>Nenhum encontrado.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem value="todos-os-patrocinadores" onSelect={() => { setExpSponsorFilter("all"); setExpSponsorComboOpen(false); }}>
-                              <Check className={`mr-2 h-4 w-4 ${expSponsorFilter === "all" ? "opacity-100" : "opacity-0"}`} />
-                              Todos os patrocinadores
-                            </CommandItem>
-                            {expUniqueSponsors.map((s: any) => (
-                              <CommandItem key={s.id} value={s.name} onSelect={() => { setExpSponsorFilter(s.id); setExpSponsorComboOpen(false); }}>
-                                <Check className={`mr-2 h-4 w-4 ${expSponsorFilter === s.id ? "opacity-100" : "opacity-0"}`} />
-                                {s.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Patrocinador" allLabel="Todos os patrocinadores"
+                    value={expSponsorFilter} onChange={setExpSponsorFilter}
+                    options={expSponsorOptions}
+                    searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+                  />
                 </div>
 
                 {/* Grupo Pai */}
@@ -3111,7 +3172,7 @@ export default function Arte() {
                     label="Grupo pai" allLabel="Todos os grupos"
                     value={expGroupFilter}
                     onChange={v => { setExpGroupFilter(v); setExpTypeFilter("all"); }}
-                    options={expUniqueGroups.map(g => ({ value: g, label: g }))}
+                    options={expGroupOptions}
                     searchPlaceholder="Buscar grupo..." emptyText="Nenhum grupo encontrado."
                   />
                 </div>
@@ -3123,7 +3184,7 @@ export default function Arte() {
                     fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
                     label="Tipo de peça" allLabel="Todos os tipos"
                     value={expTypeFilter} onChange={setExpTypeFilter}
-                    options={(expGroupFilter === "all" ? expUniqueTypes : expUniqueTypes.filter(t => t.split(/[\s(]/)[0] === expGroupFilter)).map(t => ({ value: t, label: t }))}
+                    options={expTypeOptions}
                     searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
                   />
                 </div>
@@ -3135,10 +3196,7 @@ export default function Arte() {
                     fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
                     label="Status" allLabel="Todos os status"
                     value={expStatusFilter} onChange={setExpStatusFilter}
-                    options={[
-                      { value: "pendente", label: "Aguardando aprovação", pinned: true },
-                      { value: "aprovado", label: "Aprovados pelo patrocinador", pinned: true },
-                    ]}
+                    options={expStatusOptions}
                     searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
                   />
                 </div>
@@ -3182,9 +3240,9 @@ export default function Arte() {
                   </div>
                 </div>
 
-                {(expSponsorFilter !== "all" || expTypeFilter !== "all" || expStatusFilter !== "all") && (
+                {expHasFilters && (
                   <button
-                    onClick={() => { setExpSponsorFilter("all"); setExpTypeFilter("all"); setExpStatusFilter("all"); }}
+                    onClick={expClearFilters}
                     style={{ width: '100%', height: 30, borderRadius: 6, background: 'none', border: '1px solid #e7e5e4', color: '#a8a29e', cursor: 'pointer', fontSize: 11, fontWeight: 600, marginTop: 4 }}
                   >Limpar filtros</button>
                 )}
@@ -3198,24 +3256,24 @@ export default function Arte() {
                 </button>
                 <button
                   onClick={() => {
-                    if (expCombine) void exportCombinedToPDF(expFilteredItems, `Arte — ${expFilteredItems.length} peça(s)`);
-                    else void exportItemsToPDF(expFilteredItems, `Arte — ${expFilteredItems.length} peça(s)`);
+                    if (expCombine) void exportCombinedToPDF(expSelectedItems, `Arte — ${expSelectedItems.length} peça(s)`);
+                    else void exportItemsToPDF(expSelectedItems, `Arte — ${expSelectedItems.length} peça(s)`);
                     setShowExportModal(false);
                   }}
-                  disabled={expFilteredItems.length === 0}
+                  disabled={expSelectedItems.length === 0}
                   data-testid="button-export-confirm"
                   style={{
                     width: '100%', height: 44, borderRadius: 8,
-                    backgroundColor: expFilteredItems.length === 0 ? '#e7e5e4' : '#7c3aed',
-                    border: 'none', color: expFilteredItems.length === 0 ? '#a8a29e' : '#ffffff',
+                    backgroundColor: expSelectedItems.length === 0 ? '#e7e5e4' : '#7c3aed',
+                    border: 'none', color: expSelectedItems.length === 0 ? '#a8a29e' : '#ffffff',
                     fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                    cursor: expFilteredItems.length === 0 ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+                    cursor: expSelectedItems.length === 0 ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                   }}
-                  onMouseEnter={e => { if (expFilteredItems.length > 0) e.currentTarget.style.filter = 'brightness(0.88)'; }}
+                  onMouseEnter={e => { if (expSelectedItems.length > 0) e.currentTarget.style.filter = 'brightness(0.88)'; }}
                   onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
                 >
                   <Printer style={{ width: 14, height: 14 }} />
-                  Gerar PDF — {expFilteredItems.length} {expFilteredItems.length === 1 ? 'peça' : 'peças'}
+                  Gerar PDF — {expSelectedItems.length} {expSelectedItems.length === 1 ? 'peça' : 'peças'}
                 </button>
               </div>
             </div>
@@ -3232,12 +3290,25 @@ export default function Arte() {
                 </div>
               ) : (
                 <>
-                  <div style={{ padding: '14px 24px 10px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c' }}>
-                      {expFilteredItems.length} {expFilteredItems.length === 1 ? 'peça selecionada' : 'peças selecionadas'}
-                    </span>
-                    <span style={{ fontSize: 10, color: '#a8a29e' }}>
-                      {expFilteredItems.filter((i: any) => i.approvalThumbUrl).length} com thumb · {expFilteredItems.filter((i: any) => !i.approvalThumbUrl).length} sem thumb
+                  <div style={{ padding: '14px 24px 10px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c', whiteSpace: 'nowrap' }}>
+                        {expSelectedItems.length} de {expFilteredItems.length} {expFilteredItems.length === 1 ? 'peça' : 'peças'}
+                      </span>
+                      <button
+                        onClick={() => setExpExcludedIds(new Set())}
+                        disabled={expSelectedItems.length === expFilteredItems.length}
+                        style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, cursor: expSelectedItems.length === expFilteredItems.length ? 'default' : 'pointer', color: expSelectedItems.length === expFilteredItems.length ? '#d4d4d0' : '#7c3aed' }}
+                      >Todas</button>
+                      <span style={{ color: '#e7e5e4' }}>·</span>
+                      <button
+                        onClick={() => setExpExcludedIds(new Set(expFilteredItems.map((i: any) => i.id)))}
+                        disabled={expSelectedItems.length === 0}
+                        style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, cursor: expSelectedItems.length === 0 ? 'default' : 'pointer', color: expSelectedItems.length === 0 ? '#d4d4d0' : '#7c3aed' }}
+                      >Nenhuma</button>
+                    </div>
+                    <span style={{ fontSize: 10, color: '#a8a29e', whiteSpace: 'nowrap' }}>
+                      {expSelectedItems.filter((i: any) => i.approvalThumbUrl).length} com thumb · {expSelectedItems.filter((i: any) => !i.approvalThumbUrl).length} sem thumb
                     </span>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -3245,8 +3316,21 @@ export default function Arte() {
                       const hasThumb = !!item.approvalThumbUrl;
                       const thumbSrc = hasThumb ? convertGCSUrlToLocalPath(item.approvalThumbUrl) : null;
                       const isApproved = ['sponsor_approved','awaiting_creator_review','ready_for_production','pronto_para_producao','liberado'].includes(item.status);
+                      const isPicked = !expExcludedIds.has(item.id);
                       return (
-                        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: '1px solid #f0ede8', backgroundColor: '#ffffff' }}>
+                        <div
+                          key={item.id}
+                          onClick={() => setExpExcludedIds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                            return next;
+                          })}
+                          title={isPicked ? 'Clique para tirar do PDF' : 'Clique para incluir no PDF'}
+                          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10, border: `1px solid ${isPicked ? '#f0ede8' : '#e7e5e4'}`, backgroundColor: isPicked ? '#ffffff' : '#fafaf9', opacity: isPicked ? 1 : 0.55, cursor: 'pointer', transition: 'all 0.12s' }}
+                        >
+                          <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${isPicked ? '#7c3aed' : '#d4d4d0'}`, backgroundColor: isPicked ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {isPicked && <CheckCircle style={{ width: 10, height: 10, color: '#fff' }} />}
+                          </div>
                           <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(0,0,0,0.06)', backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {hasThumb && thumbSrc
                               ? <img src={thumbSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />

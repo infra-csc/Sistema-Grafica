@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Plus, Layers, Search, Check, ChevronsUpDown, Pencil, Trash2, Ruler, Filter, MoreVertical, X, Settings } from "lucide-react";
+import { FilterSelect } from "@/components/filter-select";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -19,64 +20,37 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
+// Mantém o rótulo e o visual desta tela, mas delega o comportamento ao filtro
+// padrão do app (busca, ordem alfabética, contagem). Aqui o "sem filtro" é ""
+// em vez de "all", então traduzimos nas duas pontas.
 function SearchableSelect({
-  label, placeholder, value, options, onChange, testId,
+  label, placeholder, value, options, onChange, testId, counts,
 }: {
   label: string; placeholder: string; value: string;
   options: string[]; onChange: (v: string) => void; testId?: string;
+  counts?: Record<string, number>;
 }) {
-  const [open, setOpen] = useState(false);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</span>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            data-testid={testId}
-            style={{
-              height: 36, paddingLeft: 10, paddingRight: 10, minWidth: 160,
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6,
-              fontSize: 13, color: value ? "#1c1917" : "#78716c",
-              backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8,
-              cursor: "pointer", outline: "none", textAlign: "left",
-            }}
-          >
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {value || placeholder}
-            </span>
-            <ChevronsUpDown style={{ width: 13, height: 13, color: "#a8a29e", flexShrink: 0 }} />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent style={{ padding: 0, width: 220, borderRadius: 10, border: "1px solid #e7e5e4", boxShadow: "0 8px 24px rgba(0,0,0,0.10)" }} align="start">
-          <Command>
-            <CommandInput placeholder={`Buscar ${label.toLowerCase()}...`} style={{ fontSize: 13 }} />
-            <CommandList>
-              <CommandEmpty style={{ fontSize: 13, color: "#78716c", padding: "8px 12px" }}>Nenhuma opção</CommandEmpty>
-              <CommandGroup>
-                <CommandItem
-                  value=""
-                  onSelect={() => { onChange(""); setOpen(false); }}
-                  style={{ fontSize: 13, cursor: "pointer" }}
-                >
-                  <Check style={{ width: 13, height: 13, marginRight: 6, opacity: value === "" ? 1 : 0 }} />
-                  {placeholder}
-                </CommandItem>
-                {options.map(opt => (
-                  <CommandItem
-                    key={opt}
-                    value={opt}
-                    onSelect={() => { onChange(opt); setOpen(false); }}
-                    style={{ fontSize: 13, cursor: "pointer" }}
-                  >
-                    <Check style={{ width: 13, height: 13, marginRight: 6, opacity: value === opt ? 1 : 0 }} />
-                    {opt}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      <FilterSelect
+        label={label}
+        allLabel={placeholder}
+        showAllLabelWhenEmpty
+        hideWhenEmpty={false}
+        value={value === "" ? "all" : value}
+        onChange={v => onChange(v === "all" ? "" : v)}
+        options={options.map(o => ({ value: o, label: o, count: counts?.[o] }))}
+        searchPlaceholder={`Buscar ${label.toLowerCase()}...`}
+        emptyText="Nenhuma opção"
+        panelWidth={220}
+        testId={testId}
+        triggerStyle={{
+          height: 36, minWidth: 160, fontSize: 13,
+          backgroundColor: "#ffffff", border: "1px solid #d6d3d1",
+          justifyContent: "space-between",
+        }}
+      />
     </div>
   );
 }
@@ -361,6 +335,25 @@ export default function Modelos() {
 
   const activeFilters = [filterGroup, filterType, filterMaterial, filterFinish].filter(Boolean).length;
 
+  // Contagens facetadas: cada filtro conta aplicando os OUTROS filtros ativos.
+  const mFacetCounts = (field: 'group' | 'type' | 'material' | 'finish') => {
+    const out: Record<string, number> = {};
+    standardItems.forEach((item: any) => {
+      if (field !== 'group' && filterGroup && item.group !== filterGroup) return;
+      if (field !== 'type' && filterType && item.type !== filterType) return;
+      if (field !== 'material' && filterMaterial && item.material !== filterMaterial) return;
+      if (field !== 'finish' && filterFinish && item.finish !== filterFinish) return;
+      const v = item[field];
+      if (!v) return;
+      out[v] = (out[v] || 0) + 1;
+    });
+    return out;
+  };
+  const groupCounts = mFacetCounts('group');
+  const typeCounts = mFacetCounts('type');
+  const materialCounts = mFacetCounts('material');
+  const finishCounts = mFacetCounts('finish');
+
   const isAdmin = true; // all roles with page access can manage models
 
   /* ── shared field style ── */
@@ -432,16 +425,16 @@ export default function Modelos() {
         <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
 
           {allGroups.length > 0 && (
-            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} onChange={setFilterGroup} testId="filter-group-select" />
+            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} counts={groupCounts} onChange={setFilterGroup} testId="filter-group-select" />
           )}
           {allTypes.length > 0 && (
-            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} onChange={setFilterType} testId="filter-type-select" />
+            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} counts={typeCounts} onChange={setFilterType} testId="filter-type-select" />
           )}
           {allMats.length > 0 && (
-            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} onChange={setFilterMaterial} testId="filter-material-select" />
+            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} counts={materialCounts} onChange={setFilterMaterial} testId="filter-material-select" />
           )}
           {allFinishes.length > 0 && (
-            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} onChange={setFilterFinish} testId="filter-finish-select" />
+            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} counts={finishCounts} onChange={setFilterFinish} testId="filter-finish-select" />
           )}
 
           {/* Limpar filtros */}

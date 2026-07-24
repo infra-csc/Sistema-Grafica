@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { FilterSelect } from "@/components/filter-select";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -257,8 +258,10 @@ export default function DashboardAnalises() {
         const hasActive = period !== "all" || eventFilter !== "all" || statusFilter !== "all" || sponsorFilter !== "all";
         const activeCount = [period !== "all", eventFilter !== "all", statusFilter !== "all", sponsorFilter !== "all"].filter(Boolean).length;
 
-        const FilterSelect = ({ label, value, onChange, testId, children }: {
-          label: string; value: string; onChange: (v: string) => void; testId?: string; children: React.ReactNode;
+        // Rótulo + ponto de "ativo" desta tela, com o filtro padrão do app dentro.
+        const Fld = ({ label, allLabel, value, onChange, testId, options }: {
+          label: string; allLabel: string; value: string; onChange: (v: string) => void;
+          testId?: string; options: { value: string; label: string; count?: number; pinned?: boolean }[];
         }) => {
           const active = value !== "all";
           return (
@@ -271,31 +274,23 @@ export default function DashboardAnalises() {
                   <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: T.accent, flexShrink: 0 }} />
                 )}
               </div>
-              <div style={{ position: "relative" }}>
-                <select
-                  value={value}
-                  onChange={e => onChange(e.target.value)}
-                  data-testid={testId}
-                  style={{
-                    width: "100%",
-                    padding: "9px 28px 9px 10px",
-                    backgroundColor: active ? "#fff7ed" : T.low,
-                    border: `1px solid ${active ? "#fed7aa" : T.border}`,
-                    borderRadius: 6,
-                    fontSize: 11, fontWeight: active ? 700 : 600,
-                    color: active ? T.accent : T.text,
-                    cursor: "pointer", outline: "none",
-                    appearance: "none", WebkitAppearance: "none",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {children}
-                </select>
-                {/* chevron */}
-                <svg style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M2 3.5L5 6.5L8 3.5" stroke={active ? T.accent : T.muted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label={label} allLabel={allLabel}
+                value={value} onChange={onChange}
+                options={options}
+                searchPlaceholder={`Buscar ${label.toLowerCase()}...`}
+                emptyText="Nada encontrado."
+                testId={testId}
+                triggerStyle={{
+                  height: "auto", padding: "9px 10px",
+                  backgroundColor: active ? "#fff7ed" : T.low,
+                  border: `1px solid ${active ? "#fed7aa" : T.border}`,
+                  borderRadius: 6,
+                  fontSize: 11, fontWeight: active ? 700 : 600,
+                  color: active ? T.accent : T.text,
+                }}
+              />
             </div>
           );
         };
@@ -309,27 +304,32 @@ export default function DashboardAnalises() {
             marginBottom: 24,
             display: "flex", alignItems: "flex-end", gap: 16,
           }}>
-            <FilterSelect label="Período" value={period} onChange={setPeriod} testId="select-period">
-              {PERIODS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-            </FilterSelect>
+            <Fld
+              label="Período" allLabel={PERIODS.find(p => p.value === "all")?.label || "Todo o período"}
+              value={period} onChange={setPeriod} testId="select-period"
+              options={PERIODS.filter(p => p.value !== "all").map(p => ({ value: p.value, label: p.label, pinned: true }))}
+            />
 
             {/* divider */}
             <div style={{ width: 1, height: 40, backgroundColor: T.border, flexShrink: 0 }} />
 
-            <FilterSelect label="Evento" value={eventFilter} onChange={setEventFilter} testId="select-event">
-              <option value="all">Todos os eventos ({events.length})</option>
-              {events.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </FilterSelect>
+            <Fld
+              label="Evento" allLabel={`Todos os eventos (${events.length})`}
+              value={eventFilter} onChange={setEventFilter} testId="select-event"
+              options={events.map(e => ({ value: e.id, label: e.name }))}
+            />
 
-            <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} testId="select-status">
-              <option value="all">Todos os status</option>
-              {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </FilterSelect>
+            <Fld
+              label="Status" allLabel="Todos os status"
+              value={statusFilter} onChange={setStatusFilter} testId="select-status"
+              options={Object.entries(STATUS_LABELS).map(([v, l]) => ({ value: v, label: l as string }))}
+            />
 
-            <FilterSelect label="Patrocinador" value={sponsorFilter} onChange={setSponsorFilter} testId="select-sponsor">
-              <option value="all">Todos os patrocinadores</option>
-              {sponsors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </FilterSelect>
+            <Fld
+              label="Patrocinador" allLabel="Todos os patrocinadores"
+              value={sponsorFilter} onChange={setSponsorFilter} testId="select-sponsor"
+              options={sponsors.map(s => ({ value: s.id, label: s.name }))}
+            />
 
             {/* divider */}
             <div style={{ width: 1, height: 40, backgroundColor: T.border, flexShrink: 0 }} />

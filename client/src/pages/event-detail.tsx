@@ -238,6 +238,36 @@ export default function EventDetail() {
     return { method: "PUT" as const, url: data.uploadURL };
   };
 
+  // Ctrl+V: colar um print direto na referência ao editar a peça. Envia o
+  // arquivo original, sem compressão, mantendo a qualidade da imagem.
+  useEffect(() => {
+    if (!editDialogOpen) return;
+    const handler = async (e: ClipboardEvent) => {
+      const imgItem = Array.from(e.clipboardData?.items || []).find(i => i.type.startsWith("image/"));
+      if (!imgItem) return;
+      const file = imgItem.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      const reader = new FileReader();
+      reader.onload = ev => setLocalRefPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+      try {
+        const { url } = await getUploadUrl();
+        const put = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+        if (!put.ok) throw new Error("upload falhou");
+        const objectUrl = url.split("?")[0];
+        setFormData(f => ({ ...f, referenceUrl: objectUrl }));
+        setLocalRefPreview("");
+        toast({ title: "Print anexado", description: "Imagem colada como referência em alta qualidade." });
+      } catch {
+        setLocalRefPreview("");
+        toast({ title: "Erro ao colar imagem", description: "Não foi possível anexar o print.", variant: "destructive" });
+      }
+    };
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, [editDialogOpen]);
+
   const { updateReferenceUrlMutation, removeReferenceUrlMutation } = useEventReference({ eventId });
 
   const createItemMutation = useMutation({
@@ -2181,7 +2211,7 @@ export default function EventDetail() {
               {/* Linha 5: Referência (opcional) */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>
-                  Referência <span style={{ color: "#c9c4c0", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — imagem de demonstração da peça)</span>
+                  Referência <span style={{ color: "#c9c4c0", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
                 </label>
                 {(localRefPreview || formData.referenceUrl) ? (
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>

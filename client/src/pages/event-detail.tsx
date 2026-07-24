@@ -128,6 +128,12 @@ export default function EventDetail() {
     queryKey: ["/api/catalog-options"],
   });
 
+  const createCatalogOptionMutation = useMutation({
+    mutationFn: async ({ kind, value }: { kind: string; value: string }) =>
+      await apiRequest("POST", "/api/catalog-options", { kind, value }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/catalog-options"] }),
+  });
+
   // Buscar patrocinadores vinculados ao evento
   const { data: eventSponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/events", eventId, "sponsors"],
@@ -399,15 +405,35 @@ export default function EventDetail() {
 
       return await apiRequest("PATCH", `/api/items/${id}`, itemData);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+
+      // Se o usuário digitou um material/acabamento que ainda não existe,
+      // cadastra no catálogo (Modelos) para reutilizar depois.
+      const mat = (variables?.data?.material || "").trim();
+      const fin = (variables?.data?.finish || "").trim();
+      const has = (kind: string, v: string) =>
+        catalogOptions.some(o => o.kind === kind && o.value.toLowerCase() === v.toLowerCase()) ||
+        (standardItems as any[]).some(s => (kind === "material" ? s.material : s.finish)?.toLowerCase() === v.toLowerCase());
+      const criados: string[] = [];
+      if (mat && !materials.some(m => m.toLowerCase() === mat.toLowerCase()) && !has("material", mat)) {
+        createCatalogOptionMutation.mutate({ kind: "material", value: mat });
+        criados.push(`material "${mat}"`);
+      }
+      if (fin && !finishes.some(f => f.toLowerCase() === fin.toLowerCase()) && !has("finish", fin)) {
+        createCatalogOptionMutation.mutate({ kind: "finish", value: fin });
+        criados.push(`acabamento "${fin}"`);
+      }
+
       setEditingItem(null);
       setOpen(false);
       setEditDialogOpen(false);
       setBulkMode(false);
       toast({
         title: "Peça atualizada",
-        description: "A peça foi atualizada com sucesso",
+        description: criados.length
+          ? `Peça salva. Novo ${criados.join(" e ")} cadastrado no catálogo.`
+          : "A peça foi atualizada com sucesso",
       });
     },
     onError: (error: Error) => {
@@ -2099,6 +2125,11 @@ export default function EventDetail() {
                   <datalist id="edit-materials-list">
                     {materialOptions.map(m => <option key={m} value={m} />)}
                   </datalist>
+                  {formData.material.trim() && !materialOptions.some(m => m.toLowerCase() === formData.material.trim().toLowerCase()) && (
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#b45309", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+                      <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo material — será criado no catálogo ao salvar
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Acabamento</label>
@@ -2115,6 +2146,11 @@ export default function EventDetail() {
                   <datalist id="edit-finishes-list">
                     {finishOptions.map(f => <option key={f} value={f} />)}
                   </datalist>
+                  {formData.finish.trim() && !finishOptions.some(f => f.toLowerCase() === formData.finish.trim().toLowerCase()) && (
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#065f46", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+                      <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo acabamento — será criado no catálogo ao salvar
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Patrocinador</label>

@@ -370,9 +370,12 @@ export default function EventDetail() {
       // Atualizar com dados reais do servidor (substitui os temporários)
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      
-      // NÃO FECHA O DIALOG - deixa usuário fechar quando quiser
-      // Assim não causa re-fetches múltiplos e não fica tela branca
+
+      // Fecha o dialog para dar a sensação clara de que salvou, alinhado com o
+      // resto do app. As peças já entraram na lista pela atualização otimista,
+      // então fechar não dispara busca extra nem deixa a tela vazia.
+      setOpen(false);
+      setBulkMode(false);
     },
     onError: (error: any, newItems: any, context: any) => {
       // Se der erro, reverter para dados anteriores

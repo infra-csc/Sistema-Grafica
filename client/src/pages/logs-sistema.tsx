@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { FilterSelect } from "@/components/filter-select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Search, ChevronLeft, ChevronRight, X, Download } from "lucide-react";
@@ -201,36 +202,28 @@ export default function LogsSistema() {
 
         {/* Action filter */}
         <div style={{ position: "relative", flexShrink: 0 }}>
-          <select
+          <FilterSelect
+            label="Tipo de ação" allLabel="Todos os tipos de ação"
             value={actionFilter}
-            onChange={e => { setActionFilter(e.target.value); setPage(1); }}
-            data-testid="select-action-filter"
-            style={{ ...filterSel, paddingRight: 28, minWidth: 160 }}
-            onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-            onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-          >
-            <option value="all">Tipo de ação</option>
-            {allActions.map(a => (
-              <option key={a} value={a}>{getActionCfg(a).label}</option>
-            ))}
-          </select>
+            onChange={v => { setActionFilter(v); setPage(1); }}
+            options={allActions.map(a => ({ value: a, label: getActionCfg(a).label }))}
+            searchPlaceholder="Buscar ação..." emptyText="Nenhuma ação encontrada."
+            hideWhenEmpty={false} testId="select-action-filter"
+            triggerStyle={{ ...filterSel, minWidth: 160 }}
+          />
         </div>
 
         {/* Entity filter */}
         <div style={{ position: "relative", flexShrink: 0 }}>
-          <select
+          <FilterSelect
+            label="Entidade" allLabel="Todas as entidades"
             value={entityFilter}
-            onChange={e => { setEntityFilter(e.target.value); setPage(1); }}
-            data-testid="select-entity-filter"
-            style={{ ...filterSel, paddingRight: 28, minWidth: 140 }}
-            onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-            onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-          >
-            <option value="all">Entidade</option>
-            {allEntities.map(e => (
-              <option key={e} value={e}>{ENTITY_LABELS[e] ?? e}</option>
-            ))}
-          </select>
+            onChange={v => { setEntityFilter(v); setPage(1); }}
+            options={allEntities.map(e => ({ value: e, label: ENTITY_LABELS[e] ?? e }))}
+            searchPlaceholder="Buscar entidade..." emptyText="Nenhuma entidade encontrada."
+            hideWhenEmpty={false} testId="select-entity-filter"
+            triggerStyle={{ ...filterSel, minWidth: 140 }}
+          />
         </div>
 
         {activeFilters > 0 && (

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { FilterSelect } from "@/components/filter-select";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -228,14 +229,15 @@ export default function Usuarios() {
             onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
           />
         </div>
-        <select
-          value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
-          data-testid="select-role-filter"
-          style={filterSel}
-        >
-          <option value="all">Todos os perfis</option>
-          {Object.entries(ROLE_CFG).map(([v, c]) => <option key={v} value={v}>{c.label}</option>)}
-        </select>
+        <FilterSelect
+          label="Perfil" allLabel="Todos os perfis"
+          value={roleFilter}
+          onChange={v => { setRoleFilter(v); setPage(1); }}
+          options={Object.entries(ROLE_CFG).map(([v, c]) => ({ value: v, label: (c as any).label }))}
+          searchPlaceholder="Buscar perfil..." emptyText="Nenhum perfil encontrado."
+          hideWhenEmpty={false} testId="select-role-filter"
+          triggerStyle={filterSel}
+        />
         {(search || roleFilter !== "all") && (
           <button onClick={() => { setSearch(""); setRoleFilter("all"); setPage(1); }}
             style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase" }}>

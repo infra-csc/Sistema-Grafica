@@ -3106,32 +3106,41 @@ export default function Arte() {
                 {/* Grupo Pai */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Grupo pai</label>
-                  <select value={expGroupFilter} onChange={e => { setExpGroupFilter(e.target.value); setExpTypeFilter("all"); }}
-                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}>
-                    <option value="all">Todos os grupos</option>
-                    {expUniqueGroups.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Grupo pai" allLabel="Todos os grupos"
+                    value={expGroupFilter}
+                    onChange={v => { setExpGroupFilter(v); setExpTypeFilter("all"); }}
+                    options={expUniqueGroups.map(g => ({ value: g, label: g }))}
+                    searchPlaceholder="Buscar grupo..." emptyText="Nenhum grupo encontrado."
+                  />
                 </div>
 
                 {/* Tipo */}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Tipo de peça</label>
-                  <select value={expTypeFilter} onChange={e => setExpTypeFilter(e.target.value)}
-                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}>
-                    <option value="all">Todos os tipos</option>
-                    {(expGroupFilter === "all" ? expUniqueTypes : expUniqueTypes.filter(t => t.split(/[\s(]/)[0] === expGroupFilter)).map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Tipo de peça" allLabel="Todos os tipos"
+                    value={expTypeFilter} onChange={setExpTypeFilter}
+                    options={(expGroupFilter === "all" ? expUniqueTypes : expUniqueTypes.filter(t => t.split(/[\s(]/)[0] === expGroupFilter)).map(t => ({ value: t, label: t }))}
+                    searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
+                  />
                 </div>
 
                 {/* Status */}
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Status</label>
-                  <select value={expStatusFilter} onChange={e => setExpStatusFilter(e.target.value)}
-                    style={{ width: '100%', height: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600, color: '#1c1917', padding: '0 10px', cursor: 'pointer' }}>
-                    <option value="all">Todos os status</option>
-                    <option value="pendente">Aguardando aprovação</option>
-                    <option value="aprovado">Aprovados pelo patrocinador</option>
-                  </select>
+                  <FilterSelect
+                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                    label="Status" allLabel="Todos os status"
+                    value={expStatusFilter} onChange={setExpStatusFilter}
+                    options={[
+                      { value: "pendente", label: "Aguardando aprovação", pinned: true },
+                      { value: "aprovado", label: "Aprovados pelo patrocinador", pinned: true },
+                    ]}
+                    searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
+                  />
                 </div>
 
                 <div style={{ borderTop: '1px solid #e7e5e4', marginBottom: 16 }} />

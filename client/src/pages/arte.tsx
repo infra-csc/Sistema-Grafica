@@ -1337,6 +1337,20 @@ export default function Arte() {
       );
     }
 
+    // Resumo por evento: quantos itens desta aba cada evento tem, para saber
+    // rapidamente onde estão sem precisar rolar a lista toda.
+    const eventSummary: { id: string | null; name: string; count: number }[] = [];
+    const evSumMap = new Map<string, { id: string | null; name: string; count: number }>();
+    items.forEach(item => {
+      const name = item.event?.name || 'Sem Evento';
+      const id = item.eventId || null;
+      const key = id || name;
+      const cur = evSumMap.get(key);
+      if (cur) cur.count++;
+      else { const rec = { id, name, count: 1 }; evSumMap.set(key, rec); eventSummary.push(rec); }
+    });
+    eventSummary.sort((a, b) => b.count - a.count);
+
     const groups: { event: string; type: string; group: string; eventObj: any; items: any[] }[] = [];
     items.forEach(item => {
       const eventName = item.event?.name || 'Sem Evento';
@@ -1354,6 +1368,27 @@ export default function Arte() {
     let lastGroupName = '';
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Resumo por evento — chips clicáveis para filtrar/pular */}
+        {eventFilter === "all" && eventSummary.length > 1 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '12px 14px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>
+              {eventSummary.length} eventos
+            </span>
+            {eventSummary.map(ev => (
+              <button
+                key={ev.id || ev.name}
+                onClick={() => { if (ev.id) setEventFilter(ev.id); }}
+                title={ev.id ? `Filtrar por ${ev.name}` : ev.name}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 11px', borderRadius: 9999, border: '1px solid #fdba74', backgroundColor: '#fff7ed', color: '#c2410c', fontSize: 12, fontWeight: 600, cursor: ev.id ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+              >
+                {ev.name}
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 18, padding: '0 6px', borderRadius: 9999, backgroundColor: '#ea580c', color: '#ffffff', fontSize: 11, fontWeight: 800 }}>
+                  {ev.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {groups.map((group, gIdx) => {
           const showEventHeader = group.event !== lastEventName;
           if (showEventHeader) lastGroupName = '';

@@ -1777,6 +1777,33 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Update production (Gráfica module)
+  // Vincula um PDF de book (layout pronto) às peças selecionadas de um evento.
+  // Usado pela Arte para enviar o book aos patrocinadores enquanto a exportação
+  // automática não está 100%. Aceita { bookUrl, itemIds }.
+  app.post("/api/events/:eventId/book", requireAuth, async (req, res) => {
+    try {
+      const { bookUrl, itemIds } = req.body ?? {};
+      if (!Array.isArray(itemIds) || itemIds.length === 0) {
+        return res.status(400).json({ error: "Selecione ao menos uma peça" });
+      }
+      if (bookUrl !== null && (typeof bookUrl !== "string" || !bookUrl.trim())) {
+        return res.status(400).json({ error: "bookUrl inválido" });
+      }
+      const count = await storage.setItemsBookUrl(itemIds, bookUrl || null);
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'event',
+        req.params.eventId,
+        bookUrl ? `Book de aprovação vinculado a ${count} peça(s)` : `Book removido de ${count} peça(s)`
+      );
+      broadcast({ type: "items_book_updated", eventId: req.params.eventId, count });
+      res.json({ updated: count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/items/:id/production", requireAuth, async (req, res) => {
     try {
       const validatedData = insertProductionUpdateSchema.parse(req.body);

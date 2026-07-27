@@ -70,6 +70,7 @@ export interface IStorage {
   createItem(item: InsertItem): Promise<Item>;
   createBulkItems(items: InsertItem[]): Promise<Item[]>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
+  setItemsBookUrl(itemIds: string[], bookUrl: string | null): Promise<number>;
   updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null>;
   approveItem(id: string): Promise<Item | undefined>;
   startProduction(id: string, quantityProduced: number): Promise<Item | undefined>;
@@ -378,6 +379,17 @@ export class DatabaseStorage implements IStorage {
       .where(eq(items.id, id))
       .returning();
     return item || undefined;
+  }
+
+  // Vincula (ou remove) o PDF do book de aprovação nas peças informadas.
+  async setItemsBookUrl(itemIds: string[], bookUrl: string | null): Promise<number> {
+    if (itemIds.length === 0) return 0;
+    const res = await db
+      .update(items)
+      .set({ bookUrl, updatedAt: new Date() })
+      .where(inArray(items.id, itemIds))
+      .returning();
+    return res.length;
   }
 
   async updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null> {

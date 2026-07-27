@@ -314,6 +314,13 @@ export default function Arte() {
   const [bulkThumbEventComboOpen, setBulkThumbEventComboOpen] = useState(false);
   const [bulkThumbLinkOpenMap, setBulkThumbLinkOpenMap] = useState<Record<string, boolean>>({});
   const [showExportModal, setShowExportModal] = useState(false);
+  // Book pronto (PDF) subido pela Arte: escolhe o evento e as peças cobertas.
+  const [showBookModal, setShowBookModal] = useState(false);
+  const [bookEventId, setBookEventId] = useState<string>("");
+  const [bookFileUrl, setBookFileUrl] = useState<string>("");
+  const [bookFileName, setBookFileName] = useState<string>("");
+  const [bookUploading, setBookUploading] = useState(false);
+  const [bookSelectedIds, setBookSelectedIds] = useState<Set<string>>(new Set());
   const [expEventFilter, setExpEventFilter] = useState<string>("all");
   const [expSponsorFilter, setExpSponsorFilter] = useState<string>("all");
   // Peças desmarcadas manualmente na lista (por id) — o padrão é exportar tudo
@@ -856,6 +863,70 @@ export default function Arte() {
   const handleExportItemPDF = (item: any) => {
     void exportMixedToPDF([item], new Set(), `Prova — ${item.displayId || item.type}`);
   };
+
+  // ── Book pronto (PDF) enviado pela Arte para os patrocinadores ─────────────
+  const bookEventPieces = useMemo(
+    () => arteItemsPool
+      .filter((i: any) => i.eventId === bookEventId)
+      .sort((a: any, b: any) => String(a.displayId || "").localeCompare(String(b.displayId || ""), "pt-BR", { numeric: true })),
+    [arteItemsPool, bookEventId],
+  );
+  const bookEventOptions = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    arteItemsPool.forEach((i: any) => {
+      if (!i.eventId) return;
+      const cur = map.get(i.eventId);
+      if (cur) cur.count++;
+      else map.set(i.eventId, { value: i.eventId, label: i.event?.name || "Sem evento", count: 1 });
+    });
+    return Array.from(map.values());
+  }, [arteItemsPool]);
+
+  const openBookModal = () => {
+    const ev = eventFilter !== "all" ? eventFilter : (bookEventOptions[0]?.value || "");
+    setBookEventId(ev);
+    setBookFileUrl(""); setBookFileName("");
+    setShowBookModal(true);
+  };
+
+  // Ao abrir ou trocar o evento, pré-marca todas as peças daquele evento.
+  useEffect(() => {
+    if (!showBookModal) return;
+    setBookSelectedIds(new Set(arteItemsPool.filter((i: any) => i.eventId === bookEventId).map((i: any) => i.id)));
+  }, [bookEventId, showBookModal]);
+
+  const handleBookFile = async (file?: File | null) => {
+    if (!file) return;
+    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") {
+      toast({ title: "Envie um PDF", description: "O book precisa ser um arquivo .pdf", variant: "destructive" });
+      return;
+    }
+    setBookUploading(true);
+    try {
+      const url = await uploadFileRaw(file);
+      setBookFileUrl(url);
+      setBookFileName(file.name);
+      toast({ title: "Book anexado", description: file.name });
+    } catch (e: any) {
+      toast({ title: "Erro no upload", description: e.message, variant: "destructive" });
+    } finally {
+      setBookUploading(false);
+    }
+  };
+
+  const saveBookMutation = useMutation({
+    mutationFn: async () =>
+      await apiRequest("POST", `/api/events/${bookEventId}/book`, {
+        bookUrl: bookFileUrl,
+        itemIds: Array.from(bookSelectedIds),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setShowBookModal(false);
+      toast({ title: "Book salvo", description: `${bookSelectedIds.size} peça(s) vinculada(s) ao book.` });
+    },
+    onError: (e: any) => toast({ title: "Erro ao salvar book", description: e.message, variant: "destructive" }),
+  });
 
   // Upload sem alterar isPasteUploading (usado no bulk)
   const uploadFileRaw = useCallback(async (file: File): Promise<string> => {
@@ -1541,6 +1612,12 @@ export default function Arte() {
                                   Ref. visual
                                 </a>
                               )}
+                              {item.bookUrl && (
+                                <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#6d28d9', textDecoration: 'none', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 3, padding: '2px 6px' }} data-testid={`link-book-arte-${item.id}`}>
+                                  <FileText style={{ width: 9, height: 9 }} />
+                                  Book
+                                </a>
+                              )}
                             </div>
                           </td>
                           {/* Dimensões */}
@@ -1989,6 +2066,15 @@ export default function Arte() {
               >
                 <Printer style={{ width: 12, height: 12 }} />
                 {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
+              </button>
+              <button
+                onClick={openBookModal}
+                data-testid="button-upload-book"
+                title="Subir o PDF do book (layout pronto) e escolher as peças"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid #ddd6fe', background: '#f5f3ff', color: '#6d28d9', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                <FileText style={{ width: 12, height: 12 }} />
+                Subir book
               </button>
               {activeTab === "criar-aprovacoes" && (
                 <label
@@ -3228,6 +3314,94 @@ export default function Arte() {
                 </>
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL — SUBIR BOOK (PDF) e escolher as peças cobertas               */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={showBookModal} onOpenChange={setShowBookModal}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 620, width: '95vw', borderRadius: 14, overflow: 'hidden' }}>
+          <DialogTitle className="sr-only">Subir book de aprovação</DialogTitle>
+          <DialogDescription className="sr-only">Envie o PDF do book e selecione as peças que ele cobre</DialogDescription>
+
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0ede8' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1c1917', margin: 0, fontFamily: '"Space Grotesk", sans-serif' }}>Subir book (PDF)</h2>
+            <p style={{ fontSize: 12, color: '#a8a29e', margin: '2px 0 0' }}>Envie o book com o layout pronto e marque as peças que ele cobre — para mandar aos patrocinadores.</p>
+          </div>
+
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto' }}>
+            {/* Evento */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 6 }}>Evento</label>
+              <FilterSelect
+                fullWidth hideWhenEmpty={false} showAllLabelWhenEmpty
+                label="Evento" allLabel="Selecione um evento"
+                value={bookEventId || "all"} onChange={v => setBookEventId(v === "all" ? "" : v)}
+                options={bookEventOptions}
+                searchPlaceholder="Buscar evento..." emptyText="Nenhum evento com peças na Arte."
+              />
+            </div>
+
+            {/* Upload do PDF */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 6 }}>Arquivo do book</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 10, border: `1.5px dashed ${bookFileUrl ? '#a78bfa' : '#d4d4d0'}`, background: bookFileUrl ? '#f5f3ff' : '#fafaf9', cursor: 'pointer' }}>
+                <FileText style={{ width: 18, height: 18, color: bookFileUrl ? '#6d28d9' : '#a8a29e', flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: bookFileUrl ? '#6d28d9' : '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {bookUploading ? 'Enviando…' : bookFileName || 'Escolher PDF do book…'}
+                </span>
+                <input type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
+                  onChange={e => { handleBookFile(e.target.files?.[0]); e.target.value = ''; }} />
+              </label>
+            </div>
+
+            {/* Peças do evento */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e' }}>
+                  Peças no book — {bookSelectedIds.size} de {bookEventPieces.length}
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setBookSelectedIds(new Set(bookEventPieces.map((i: any) => i.id)))}
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: '#6d28d9', cursor: 'pointer' }}>Todas</button>
+                  <span style={{ color: '#e7e5e4' }}>·</span>
+                  <button onClick={() => setBookSelectedIds(new Set())}
+                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: '#6d28d9', cursor: 'pointer' }}>Nenhuma</button>
+                </div>
+              </div>
+              <div style={{ border: '1px solid #f0ede8', borderRadius: 10, maxHeight: 260, overflowY: 'auto' }}>
+                {bookEventPieces.length === 0 ? (
+                  <p style={{ fontSize: 12, color: '#a8a29e', textAlign: 'center', padding: 20, margin: 0 }}>Selecione um evento com peças.</p>
+                ) : bookEventPieces.map((item: any) => {
+                  const on = bookSelectedIds.has(item.id);
+                  return (
+                    <div key={item.id}
+                      onClick={() => setBookSelectedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; })}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: '1px solid #f5f4f2', cursor: 'pointer', background: on ? '#faf5ff' : '#fff' }}>
+                      <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${on ? '#7c3aed' : '#d4d4d0'}`, background: on ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {on && <Check style={{ width: 10, height: 10, color: '#fff' }} />}
+                      </div>
+                      <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#7c3aed', flexShrink: 0 }}>{item.displayId}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                      {item.bookUrl && <span title="Já tem book" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 9, fontWeight: 700, color: '#6d28d9', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 4, padding: '1px 5px' }}>BOOK</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0ede8', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={() => setShowBookModal(false)}
+              style={{ height: 38, padding: '0 16px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+            <button
+              onClick={() => saveBookMutation.mutate()}
+              disabled={!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending}
+              style={{ height: 38, padding: '0 18px', borderRadius: 8, border: 'none', background: (!bookFileUrl || bookSelectedIds.size === 0) ? '#e7e5e4' : '#7c3aed', color: (!bookFileUrl || bookSelectedIds.size === 0) ? '#a8a29e' : '#fff', fontSize: 13, fontWeight: 700, cursor: (!bookFileUrl || bookSelectedIds.size === 0) ? 'not-allowed' : 'pointer' }}>
+              {saveBookMutation.isPending ? 'Salvando…' : `Salvar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}
+            </button>
           </div>
         </DialogContent>
       </Dialog>

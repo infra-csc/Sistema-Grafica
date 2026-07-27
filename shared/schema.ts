@@ -119,6 +119,7 @@ export const items = pgTable("items", {
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
   referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
+  bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });

@@ -1,11 +1,11 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+import { parseDateLocal, toUTCDisplayDate, fileNameFromPath, folderFromPath } from "@/lib/utils";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
-  FileImage, FolderOpen, ExternalLink, Camera, Clock, ShieldCheck, Package, Paperclip,
+  FileImage, FolderOpen, ExternalLink, Camera, Clock, ShieldCheck, Package, Paperclip, AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -579,9 +579,26 @@ export function ItemDetailsDialog({
                         }}>
                           PRONTO PARA IMPRESSÃO
                         </p>
-                        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, wordBreak: "break-all", color: "#003554", margin: 0 }}>
-                          {item.finalFileUrl}
-                        </p>
+                        {fileNameFromPath(item.finalFileUrl) ? (
+                          <>
+                            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, wordBreak: "break-all", color: "#003554", margin: 0, lineHeight: 1.3 }}>
+                              {fileNameFromPath(item.finalFileUrl)}
+                            </p>
+                            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, wordBreak: "break-all", color: "#5a7a8c", margin: "4px 0 0" }}>
+                              {folderFromPath(item.finalFileUrl)}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, wordBreak: "break-all", color: "#003554", margin: 0 }}>
+                              {item.finalFileUrl}
+                            </p>
+                            <p style={{ display: "flex", alignItems: "flex-start", gap: 5, fontSize: 10, fontWeight: 600, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 4, padding: "6px 8px", margin: "8px 0 0" }}>
+                              <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />
+                              <span>Isto é uma <b>pasta</b> — confirme o arquivo exato com a Arte antes de imprimir.</span>
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

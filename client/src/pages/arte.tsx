@@ -11,7 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn, parseDateLocal, runInBatches } from "@/lib/utils";
+import { cn, parseDateLocal, runInBatches, fileNameFromPath } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -2630,13 +2630,27 @@ export default function Arte() {
                   <FolderOpen style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#16a34a' }} />
                   <Input
                     id="finalFilePath"
-                    placeholder="Cole o caminho ou link do servidor..."
+                    placeholder="Cole o caminho do ARQUIVO (com nome e extensão)…"
                     value={finalFileUrl}
                     onChange={(e) => setFinalFileUrl(e.target.value)}
                     data-testid="input-final-file-path"
                     style={{ paddingLeft: 36, paddingRight: 16, paddingTop: 12, paddingBottom: 12, background: '#ffffff', border: 'none', boxShadow: '0 0 0 1px #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 500 }}
                   />
                 </div>
+                {finalFileUrl.trim() && (
+                  fileNameFromPath(finalFileUrl)
+                    ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#15803d', paddingLeft: 4 }}>
+                        <FileCheck style={{ width: 13, height: 13, flexShrink: 0 }} />
+                        Arquivo: <span style={{ fontFamily: "'DM Mono', monospace" }}>{fileNameFromPath(finalFileUrl)}</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '7px 10px' }}>
+                        <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
+                        <span>Isto parece uma <b>pasta</b>. Cole o caminho do <b>arquivo específico</b> (com nome e extensão, ex.: …\Rolo_Ministerio.tif) para a gráfica não pegar o arquivo errado.</span>
+                      </div>
+                    )
+                )}
               </div>
 
               {/* CTA button */}

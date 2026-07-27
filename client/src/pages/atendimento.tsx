@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { FilterSelect } from "@/components/filter-select";
+import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -441,6 +442,19 @@ export default function Atendimento() {
   }, facetDeps);
 
   // Itens filtrados para o modal de exportação PDF (filtros independentes da página)
+  // Pool para o modal de exportação compartilhado: anexa os patrocinadores
+  // (que aqui vivem no itemSponsorsMap) e o evento a cada peça.
+  const exportPool = useMemo(() => {
+    const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
+    return pendingItems
+      .filter(item => (itemSponsorsMap[item.id]?.length ?? 0) > 0)
+      .map(item => ({
+        ...item,
+        sponsors: itemSponsorsMap[item.id] ?? [],
+        event: item.event ?? evById.get(item.eventId),
+      }));
+  }, [pendingItems, itemSponsorsMap, events]);
+
   const exportItems = useMemo(() => {
     return pendingItems.filter(item => {
       const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
@@ -2266,332 +2280,13 @@ export default function Atendimento() {
         </DialogContent>
       </Dialog>
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MODAL EXPORTAR PDF                                                   */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={showExportPDFModal} onOpenChange={(open) => { if (!open) { setShowExportPDFModal(false); } }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 960, width: '95vw', borderRadius: 14, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.18)' }}>
-          <DialogTitle className="sr-only">Exportar PDF de Aprovação</DialogTitle>
-          <DialogDescription className="sr-only">Configure os filtros e exporte os itens em PDF</DialogDescription>
-
-          {/* Header */}
-          <div style={{ padding: '24px 32px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', borderRadius: '14px 14px 0 0' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#9d4300', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Printer style={{ width: 16, height: 16, color: '#fff' }} />
-                </div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.04em', color: '#ffffff', margin: 0, fontFamily: '"Space Grotesk", sans-serif' }}>
-                  Exportar PDF de Aprovação
-                </h2>
-              </div>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0, paddingLeft: 42 }}>
-                Defina os filtros e opções antes de gerar o PDF
-              </p>
-            </div>
-            <button
-              onClick={() => setShowExportPDFModal(false)}
-              style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0 }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
-            >
-              <X style={{ width: 18, height: 18 }} />
-            </button>
-          </div>
-
-          {/* Body — 2 colunas */}
-          <div style={{ display: 'flex', height: 540, overflow: 'hidden' }}>
-
-            {/* Painel esquerdo — filtros e opções */}
-            <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', backgroundColor: '#fafaf9' }}>
-              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-
-                {/* Filtros */}
-                <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 10px' }}>Filtros</p>
-
-                {/* Evento — combobox buscável */}
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Evento</label>
-                  <Popover open={expEventComboOpen} onOpenChange={setExpEventComboOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={expEventComboOpen}
-                        className="w-full justify-between font-normal h-9 px-3 text-left text-sm"
-                      >
-                        <span className="flex-1 overflow-hidden truncate">
-                          {expEventFilter === "all"
-                            ? <span className="text-muted-foreground">Todos os eventos</span>
-                            : <span>{(events as any[]).find((e: any) => e.id === expEventFilter)?.name ?? "Todos os eventos"}</span>
-                          }
-                        </span>
-                        <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 w-72" align="start">
-                      <Command>
-                        <CommandInput placeholder="Buscar evento..." />
-                        <CommandList>
-                          <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem value="todos-os-eventos" onSelect={() => { setExpEventFilter("all"); setExpEventComboOpen(false); }}>
-                              <Check className={`mr-2 h-4 w-4 ${expEventFilter === "all" ? "opacity-100" : "opacity-0"}`} />
-                              Todos os eventos
-                            </CommandItem>
-                            {(() => {
-                              const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-                              const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-                              return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((ev:any) => (
-                                <CommandItem key={ev.id} value={ev.name} onSelect={() => { setExpEventFilter(ev.id); setExpEventComboOpen(false); }}>
-                                  <Check className={`mr-2 h-4 w-4 ${expEventFilter === ev.id ? "opacity-100" : "opacity-0"}`} />
-                                  {ev.priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[ev.priority], display:'inline-block', marginRight:6, flexShrink:0 }} />}
-                                  {ev.name}
-                                </CommandItem>
-                              ));
-                            })()}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Patrocinador — combobox buscável */}
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Patrocinador</label>
-                  <Popover open={expSponsorComboOpen} onOpenChange={setExpSponsorComboOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={expSponsorComboOpen}
-                        className="w-full justify-between font-normal h-9 px-3 text-left text-sm"
-                      >
-                        <span className="flex-1 overflow-hidden truncate">
-                          {expSponsorFilter === "all"
-                            ? <span className="text-muted-foreground">Todos os patrocinadores</span>
-                            : <span>{(sponsors as any[]).find((s: any) => s.id === expSponsorFilter)?.name ?? "Todos os patrocinadores"}</span>
-                          }
-                        </span>
-                        <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 w-72" align="start">
-                      <Command>
-                        <CommandInput placeholder="Buscar patrocinador..." />
-                        <CommandList>
-                          <CommandEmpty>Nenhum patrocinador encontrado.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem value="todos-os-patrocinadores" onSelect={() => { setExpSponsorFilter("all"); setExpSponsorComboOpen(false); }}>
-                              <Check className={`mr-2 h-4 w-4 ${expSponsorFilter === "all" ? "opacity-100" : "opacity-0"}`} />
-                              Todos os patrocinadores
-                            </CommandItem>
-                            {[...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR')).map((s: any) => (
-                              <CommandItem key={s.id} value={s.name} onSelect={() => { setExpSponsorFilter(s.id); setExpSponsorComboOpen(false); }}>
-                                <Check className={`mr-2 h-4 w-4 ${expSponsorFilter === s.id ? "opacity-100" : "opacity-0"}`} />
-                                {s.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Grupo Pai */}
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Grupo pai</label>
-                  <FilterSelect
-                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                    label="Grupo" allLabel="Todos os grupos"
-                    value={expGroupFilter}
-                    onChange={v => { setExpGroupFilter(v); setExpTypeFilter("all"); }}
-                    options={uniqueItemGroups.map(g => ({ value: g, label: g }))}
-                    searchPlaceholder="Buscar grupo..." emptyText="Nenhum grupo encontrado."
-                  />
-                </div>
-
-                {/* Tipo */}
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Tipo de peça</label>
-                  <FilterSelect
-                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                    label="Tipo" allLabel="Todos os tipos"
-                    value={expTypeFilter} onChange={setExpTypeFilter}
-                    options={(expGroupFilter === "all" ? uniqueItemTypes : uniqueItemTypes.filter(t => t.split(/[\s(]/)[0] === expGroupFilter)).map(t => ({ value: t, label: t }))}
-                    searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
-                  />
-                </div>
-
-                {/* Status de aprovação */}
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 4 }}>Status</label>
-                  <FilterSelect
-                    fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                    label="Status" allLabel="Todos os status"
-                    value={expStatusFilter}
-                    onChange={v => setExpStatusFilter(v as "all" | "pending" | "approved")}
-                    options={[
-                      { value: "pending", label: "Aguardando aprovação", pinned: true },
-                      { value: "approved", label: "Aprovados", pinned: true },
-                    ]}
-                    searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
-                  />
-                </div>
-
-                {/* Divisor */}
-                <div style={{ borderTop: '1px solid #e7e5e4', marginBottom: 16 }} />
-                <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 12px' }}>Opções do PDF</p>
-
-                {/* Incluir sem thumb */}
-                <div
-                  onClick={() => setExpIncludeNoThumb(!expIncludeNoThumb)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${expIncludeNoThumb ? '#bfdbfe' : '#e7e5e4'}`, backgroundColor: expIncludeNoThumb ? '#f0f9ff' : '#ffffff', cursor: 'pointer', marginBottom: 8, transition: 'all 0.12s' }}
-                >
-                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${expIncludeNoThumb ? '#2563eb' : '#d4d4d0'}`, backgroundColor: expIncludeNoThumb ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
-                    {expIncludeNoThumb && <CheckCircle style={{ width: 10, height: 10, color: '#fff' }} />}
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0 }}>Incluir sem thumb</p>
-                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>Peças sem imagem de aprovação</p>
-                  </div>
-                </div>
-
-                {/* Agrupar por evento */}
-                <div
-                  onClick={() => setExpGroupByEvent(!expGroupByEvent)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${expGroupByEvent ? '#bfdbfe' : '#e7e5e4'}`, backgroundColor: expGroupByEvent ? '#f0f9ff' : '#ffffff', cursor: 'pointer', marginBottom: 8, transition: 'all 0.12s' }}
-                >
-                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${expGroupByEvent ? '#2563eb' : '#d4d4d0'}`, backgroundColor: expGroupByEvent ? '#2563eb' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
-                    {expGroupByEvent && <CheckCircle style={{ width: 10, height: 10, color: '#fff' }} />}
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0 }}>Agrupar por evento</p>
-                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>Separador de seção por evento no PDF</p>
-                  </div>
-                </div>
-
-                {/* Limpar filtros */}
-                {(expEventFilter !== "all" || expSponsorFilter !== "all" || expTypeFilter !== "all" || expStatusFilter !== "all") && (
-                  <button
-                    onClick={() => { setExpEventFilter("all"); setExpSponsorFilter("all"); setExpTypeFilter("all"); setExpStatusFilter("all"); }}
-                    style={{ width: '100%', height: 30, borderRadius: 6, background: 'none', border: '1px solid #e7e5e4', color: '#a8a29e', cursor: 'pointer', fontSize: 11, fontWeight: 600, marginTop: 4 }}
-                  >
-                    Limpar filtros
-                  </button>
-                )}
-              </div>
-
-              {/* Rodapé com ações */}
-              <div style={{ padding: '16px 20px', borderTop: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <button
-                  onClick={() => setShowExportPDFModal(false)}
-                  style={{ width: '100%', height: 36, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                >Cancelar</button>
-                <button
-                  onClick={() => { void handleExportPDF(exportItems, expGroupByEvent); setShowExportPDFModal(false); }}
-                  disabled={exportItems.length === 0}
-                  data-testid="button-confirm-export-pdf"
-                  style={{
-                    width: '100%', height: 44, borderRadius: 8,
-                    backgroundColor: exportItems.length === 0 ? '#e7e5e4' : '#9d4300',
-                    border: 'none',
-                    color: exportItems.length === 0 ? '#a8a29e' : '#ffffff',
-                    fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                    cursor: exportItems.length === 0 ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { if (exportItems.length > 0) e.currentTarget.style.filter = 'brightness(0.88)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                >
-                  <Printer style={{ width: 14, height: 14 }} />
-                  Gerar PDF — {exportItems.length} {exportItems.length === 1 ? 'peça' : 'peças'}
-                </button>
-              </div>
-            </div>
-
-            {/* Painel direito — preview dos itens */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {exportItems.length === 0 ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-                  <div style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <FileText style={{ width: 28, height: 28, color: '#d4d4d0' }} />
-                  </div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#a8a29e', margin: 0 }}>Nenhum item encontrado</p>
-                  <p style={{ fontSize: 11, color: '#d4d4d0', margin: 0, textAlign: 'center', maxWidth: 220 }}>Ajuste os filtros à esquerda para encontrar itens</p>
-                </div>
-              ) : (
-                <>
-                  {/* Cabeçalho da lista */}
-                  <div style={{ padding: '14px 24px 10px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c' }}>
-                      {exportItems.length} {exportItems.length === 1 ? 'peça selecionada' : 'peças selecionadas'}
-                    </span>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <span style={{ fontSize: 10, color: '#a8a29e' }}>
-                        {exportItems.filter(i => i.approvalThumbUrl).length} com thumb ·{' '}
-                        {exportItems.filter(i => !i.approvalThumbUrl).length} sem thumb
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Lista scrollável */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {exportItems.map((item: any) => {
-                      const hasThumb = !!item.approvalThumbUrl;
-                      const isApproved = isItemFullyApproved(item);
-                      const itemSps = itemSponsorsMap[item.id] || [];
-                      return (
-                        <div key={item.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 10,
-                          border: '1px solid #f0ede8', backgroundColor: '#ffffff',
-                        }}>
-                          {/* Thumb preview */}
-                          <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(0,0,0,0.06)', backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {hasThumb
-                              ? <img src={item.approvalThumbUrl.startsWith("/objects/") ? item.approvalThumbUrl : item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : <ImageIcon style={{ width: 18, height: 18, color: '#d4d4d0' }} />
-                            }
-                          </div>
-
-                          {/* Info */}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                              <span style={{ fontSize: 11, fontWeight: 800, color: '#9d4300', fontFamily: 'monospace' }}>{item.displayId}</span>
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
-                            </div>
-                            <div style={{ fontSize: 10, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {item.event?.name || "Sem evento"}{item.description ? ` · ${item.description}` : ''}
-                            </div>
-                            {itemSps.length > 0 && (
-                              <div style={{ marginTop: 3 }}>
-                                <SponsorChips sponsors={itemSps} variant="gray" size="xs" />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Status badges */}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                            {isApproved
-                              ? <span style={{ fontSize: 9, fontWeight: 800, color: '#15803d', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Aprovado</span>
-                              : <span style={{ fontSize: 9, fontWeight: 800, color: '#b45309', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pendente</span>
-                            }
-                            {!hasThumb && (
-                              <span style={{ fontSize: 9, fontWeight: 700, color: '#a8a29e', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 4, padding: '2px 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sem thumb</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Exportar PDF — mesmo motor e opcoes da Arte */}
+      <ExportPdfDialog
+        open={showExportPDFModal}
+        onOpenChange={setShowExportPDFModal}
+        items={exportPool}
+        title="Aprovacao"
+      />
     </div>
   );
 }

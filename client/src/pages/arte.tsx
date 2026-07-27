@@ -383,32 +383,12 @@ export default function Arte() {
   // em blocos preservando o cabeçalho.
   const MAX_ITEMS_PER_COMBINED_PAGE = 6;
 
-  /** Cabeçalho comum das páginas do PDF (logo + chip à direita). */
-  const pdfHeaderHtml = (logoUrl: string, rightChip: string) => `
-          <div class="doc-header">
-            <div class="hdr-left">
-              <img src="${logoUrl}" class="hdr-logo" alt="NORTE" />
-              <div class="hdr-brand">
-                <span class="hdr-norte">NORTE</span>
-                <span class="hdr-sub">Marketing Esportivo</span>
-              </div>
-            </div>
-            <div class="hdr-right"><span class="id-chip">${escapeHtml(rightChip)}</span></div>
-          </div>`;
-
-  const pdfFooterHtml = (nowStr: string, pageLabel: string) => `
-          <div class="doc-footer">
-            <span class="ft-gen">Gerado em ${nowStr}</span>
-            <span class="ft-pg">Página ${pageLabel}</span>
-          </div>`;
-
-  /** Uma página por peça (ficha técnica completa). */
-  const buildItemPage = (item: any, thumbDataUris: Record<string, string>, eventName: string, nowStr: string, pageLabel: string) => {
+  /** Uma peça por página: arte grande + nome embaixo. Sem cabeçalho/rodapé. */
+  const buildItemPage = (item: any, thumbDataUris: Record<string, string>) => {
     const thumbUrl = item.approvalThumbUrl || "";
     const thumbDataUri = thumbDataUris[thumbUrl] || null;
     const isImg = !!thumbDataUri;
     const title = escapeHtml(item.type || item.description || "Sem nome");
-    const subtitle = item.description && item.description !== item.type ? escapeHtml(item.description) : "";
     const art = isImg
       ? `<img src="${thumbDataUri}" alt="Arte" class="ap-img" />`
       : thumbUrl
@@ -417,25 +397,14 @@ export default function Arte() {
     return `
         <div class="page ap-page">
           <div class="ap-stage">${art}</div>
-          <div class="ap-caption">
-            <div class="ap-cap-main">
-              <span class="ap-title">${title}</span>
-              ${subtitle ? `<span class="ap-sub">${subtitle}</span>` : ""}
-            </div>
-            <span class="ap-id">${escapeHtml(item.displayId || "")}</span>
-          </div>
-          <div class="ap-foot">
-            <span>${escapeHtml(eventName)}</span>
-            <span>NORTE · Marketing Esportivo</span>
-            <span>${pageLabel}</span>
-          </div>
+          <div class="ap-caption">${title}</div>
         </div>`;
   };
 
-  /** Página com várias artes do mesmo grupo lado a lado (aprovação). */
+  /** Várias artes do mesmo grupo na mesma página. Título em cima, sem rodapé. */
   const buildGroupPage = (
     chunk: { group: string; items: any[]; part: number; parts: number },
-    thumbDataUris: Record<string, string>, eventName: string, nowStr: string, pageLabel: string,
+    thumbDataUris: Record<string, string>,
   ) => {
     // Grade adaptativa: até 2 → 1 col, até 6 → 2 col, senão 3 col.
     const cols = chunk.items.length <= 2 ? chunk.items.length : chunk.items.length <= 6 ? 2 : 3;
@@ -450,10 +419,7 @@ export default function Arte() {
       return `
           <div class="ap-g-card">
             <div class="ap-g-frame">${inner}</div>
-            <div class="ap-g-cap">
-              <span class="ap-g-name">${escapeHtml(item.description || item.type || "Sem nome")}</span>
-              <span class="ap-g-id">${escapeHtml(item.displayId || "")}</span>
-            </div>
+            <div class="ap-g-cap">${escapeHtml(item.description || item.type || "Sem nome")}</div>
           </div>`;
     }).join("");
 
@@ -462,30 +428,13 @@ export default function Arte() {
         <div class="page ap-page">
           <div class="ap-grouptitle">${escapeHtml(chunk.group)}${partLabel}</div>
           <div class="ap-grid" style="grid-template-columns: repeat(${cols}, 1fr)">${cards}</div>
-          <div class="ap-foot">
-            <span>${escapeHtml(eventName)}</span>
-            <span>NORTE · Marketing Esportivo</span>
-            <span>${pageLabel}</span>
-          </div>
         </div>`;
   };
 
-  /** Capa de aprovação — abre o book (ou cada evento quando há vários). */
-  const buildCoverPage = (name: string, count: number, logoUrl: string, nowStr: string) => `
+  /** Capa: apenas o nome do evento centralizado. Sem marca. */
+  const buildCoverPage = (name: string) => `
         <div class="page ap-cover">
-          <div class="ap-cover-top">
-            <img src="${logoUrl}" class="ap-cover-logo" alt="NORTE" />
-            <div class="ap-cover-brandtext">
-              <span class="ap-cover-norte">NORTE</span>
-              <span class="ap-cover-sub">Marketing Esportivo</span>
-            </div>
-          </div>
-          <div class="ap-cover-mid">
-            <span class="ap-cover-kicker">Book de Peças</span>
-            <span class="ap-cover-event">${escapeHtml(name)}</span>
-            <span class="ap-cover-count">${count} ${count === 1 ? "peça" : "peças"}</span>
-          </div>
-          <div class="ap-cover-foot">Gerado em ${nowStr}</div>
+          <span class="ap-cover-event">${escapeHtml(name)}</span>
         </div>`;
 
   /** Quebra um grupo em blocos que cabem numa página. */
@@ -511,47 +460,27 @@ export default function Arte() {
         .page:last-child { break-after: avoid; page-break-after: avoid; }
         @media print { .page { width: 297mm; height: 210mm; min-height: 210mm; } }
 
-        /* ── Página de arte (uma peça) ── */
-        .ap-page { padding: 22px 30px 0; }
-        .ap-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #f7f8fa; border: 1px solid #eef1f4; border-radius: 14px; overflow: hidden; }
+        /* ── Página de arte (uma peça): arte grande + nome centralizado ── */
+        .ap-page { padding: 26px 34px; }
+        .ap-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .ap-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
         .ap-noimg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
         .ap-noimg-ic { font-size: 34px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
         .ap-noimg-sub { font-size: 12px; color: #94a3b8; }
-
-        .ap-caption { flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 14px 4px 8px; }
-        .ap-cap-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-        .ap-title { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; line-height: 1.1; }
-        .ap-sub { font-size: 12px; color: #64748b; }
-        .ap-id { flex-shrink: 0; font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 700; color: #ffffff; background: #f97316; padding: 5px 12px; border-radius: 7px; }
+        .ap-caption { flex-shrink: 0; text-align: center; padding-top: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #1c1917; }
 
         /* ── Página de grupo (várias artes) ── */
-        .ap-grouptitle { flex-shrink: 0; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; padding: 2px 4px 12px; }
-        .ap-grid { flex: 1; min-height: 0; display: grid; gap: 14px; grid-auto-rows: 1fr; }
+        .ap-grouptitle { flex-shrink: 0; text-align: center; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #1c1917; padding: 2px 4px 16px; }
+        .ap-grid { flex: 1; min-height: 0; display: grid; gap: 18px; grid-auto-rows: 1fr; }
         .ap-g-card { min-height: 0; display: flex; flex-direction: column; }
-        .ap-g-frame { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #f7f8fa; border: 1px solid #eef1f4; border-radius: 10px; overflow: hidden; }
+        .ap-g-frame { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .ap-g-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
         .ap-g-noimg { font-size: 22px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .ap-g-cap { flex-shrink: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 5px 2px 0; }
-        .ap-g-name { font-size: 12px; font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ap-g-id { flex-shrink: 0; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700; color: #f97316; }
+        .ap-g-cap { flex-shrink: 0; text-align: center; padding-top: 8px; font-size: 13px; font-weight: 600; color: #1c1917; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* ── Rodapé discreto ── */
-        .ap-foot { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 8px 4px 12px; border-top: 1px solid #eef1f4; margin-top: 8px; font-size: 9px; color: #94a3b8; }
-        .ap-foot span:nth-child(2) { font-weight: 600; letter-spacing: 0.04em; }
-
-        /* ── Capa ── */
-        .ap-cover { background: #1c1917; color: #ffffff; justify-content: space-between; padding: 44px 54px; }
-        .ap-cover-top { display: flex; align-items: center; gap: 14px; }
-        .ap-cover-logo { height: 40px; width: auto; object-fit: contain; }
-        .ap-cover-brandtext { display: flex; flex-direction: column; gap: 2px; }
-        .ap-cover-norte { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: 0.05em; line-height: 1; }
-        .ap-cover-sub { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1; }
-        .ap-cover-mid { display: flex; flex-direction: column; gap: 14px; }
-        .ap-cover-kicker { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.22em; color: #fb923c; }
-        .ap-cover-event { font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; max-width: 90%; }
-        .ap-cover-count { font-size: 15px; color: rgba(255,255,255,0.7); }
-        .ap-cover-foot { font-size: 11px; color: rgba(255,255,255,0.4); font-family: 'DM Mono', monospace; }`;
+        /* ── Capa: nome do evento centralizado ── */
+        .ap-cover { align-items: center; justify-content: center; padding: 60px; }
+        .ap-cover-event { font-family: 'Space Grotesk', sans-serif; font-size: 52px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; color: #1c1917; text-align: center; max-width: 85%; }`;
 
   const writePdfDoc = (win: Window, title: string, pages: string) => {
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
@@ -597,9 +526,6 @@ export default function Arte() {
     const thumbDataUris = await prefetchThumbsAsDataUris(items);
     win.document.open();
 
-    const nowStr = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const logoUrl = `${window.location.origin}/norte-logo.jpg`;
-
     // Separa por evento primeiro (ordem de aparição). Sem isso, peças de eventos
     // diferentes com o mesmo grupo (ex.: "Pórtico") cairiam na mesma página.
     const eventsMap = new Map<string, { name: string; items: any[] }>();
@@ -610,25 +536,24 @@ export default function Arte() {
     });
     const eventEntries = Array.from(eventsMap.values());
 
-    // Monta a sequência de páginas. Cada peça carrega o nome do seu evento
-    // (aparece no rodapé). Grupo marcado vira 1+ páginas de galeria; o restante,
-    // uma peça por página.
+    // Monta a sequência de páginas. Grupo marcado vira 1+ páginas de galeria;
+    // o restante, uma peça por página.
     type Page =
-      | { kind: 'cover'; name: string; count: number }
-      | { kind: 'group'; chunk: ReturnType<typeof chunkGroup>[number]; eventName: string }
-      | { kind: 'item'; item: any; eventName: string };
+      | { kind: 'cover'; name: string }
+      | { kind: 'group'; chunk: ReturnType<typeof chunkGroup>[number] }
+      | { kind: 'item'; item: any };
     const sequence: Page[] = [];
 
     const multiEvent = eventEntries.length > 1;
-    // Capa geral no início. Com vários eventos e sem divisória por evento, a
-    // capa usa o título do book; senão, o nome do (único) evento.
+    // Capa no início. Com vários eventos e sem divisória por evento, usa o
+    // título do book; senão, o nome do (único) evento.
     if (!(multiEvent && groupByEvent)) {
-      sequence.push({ kind: 'cover', name: multiEvent ? title : eventEntries[0].name, count: items.length });
+      sequence.push({ kind: 'cover', name: multiEvent ? title : eventEntries[0].name });
     }
 
     eventEntries.forEach(ev => {
       if (multiEvent && groupByEvent) {
-        sequence.push({ kind: 'cover', name: ev.name, count: ev.items.length });
+        sequence.push({ kind: 'cover', name: ev.name });
       }
       const groupsMap = new Map<string, any[]>();
       ev.items.forEach(item => {
@@ -638,22 +563,18 @@ export default function Arte() {
       });
       Array.from(groupsMap.entries()).forEach(([group, groupItems]) => {
         if (combinedGroups.has(group)) {
-          chunkGroup(group, groupItems).forEach(chunk => sequence.push({ kind: 'group', chunk, eventName: ev.name }));
+          chunkGroup(group, groupItems).forEach(chunk => sequence.push({ kind: 'group', chunk }));
         } else {
-          groupItems.forEach(item => sequence.push({ kind: 'item', item, eventName: ev.name }));
+          groupItems.forEach(item => sequence.push({ kind: 'item', item }));
         }
       });
     });
 
-    // Numeração só nas páginas de conteúdo (capas não contam).
-    const contentTotal = sequence.filter(p => p.kind !== 'cover').length;
-    let contentIdx = 0;
     const pages = sequence.map(p => {
-      if (p.kind === 'cover') return buildCoverPage(p.name, p.count, logoUrl, nowStr);
-      const label = `${++contentIdx} / ${contentTotal}`;
+      if (p.kind === 'cover') return buildCoverPage(p.name);
       return p.kind === 'group'
-        ? buildGroupPage(p.chunk, thumbDataUris, p.eventName, nowStr, label)
-        : buildItemPage(p.item, thumbDataUris, p.eventName, nowStr, label);
+        ? buildGroupPage(p.chunk, thumbDataUris)
+        : buildItemPage(p.item, thumbDataUris);
     }).join("");
 
     writePdfDoc(win, title, pages);

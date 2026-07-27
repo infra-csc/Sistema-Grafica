@@ -372,249 +372,6 @@ export default function Arte() {
   };
 
   // ── Modo único: uma prova por página ────────────────────────────────────────
-  const exportItemsToPDF = async (items: any[], title = "Arte — Peças") => {
-    if (items.length === 0) {
-      toast({ title: "Nenhum item para exportar", variant: "destructive" });
-      return;
-    }
-
-    // Abrir a janela ainda dentro do gesto do usuário (senão o bloqueador de
-    // pop-ups a bloqueia após o await do prefetch) e só depois buscar as imagens
-    const win = window.open("", "_blank");
-    if (!win) {
-      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para este site e tente novamente", variant: "destructive" });
-      return;
-    }
-    win.document.write(`<p style="font-family:sans-serif;color:#64748b;padding:24px">Preparando exportação…</p>`);
-
-    const thumbCount = items.filter(i => i.approvalThumbUrl && !/\.pdf$/i.test(i.approvalThumbUrl)).length;
-    if (thumbCount > 0) {
-      toast({ title: `Preparando ${thumbCount} imagem${thumbCount !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
-    }
-    const thumbDataUris = await prefetchThumbsAsDataUris(items);
-    win.document.open();
-
-    const now = new Date();
-    const nowStr = now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const logoUrl = `${window.location.origin}/norte-logo.jpg`;
-
-    const pages = items.map((item, idx) => {
-      const thumbUrl = item.approvalThumbUrl || "";
-      // Use pre-fetched data URI when available; fall back only for truly external/PDF URLs
-      const thumbDataUri = thumbDataUris[thumbUrl] || null;
-      const isImg = !!thumbDataUri;
-      const resolvedThumb = thumbDataUri || "";
-
-      const visualW = parseFloat(item.visualWidth) || 0;
-      const visualH = parseFloat(item.visualHeight) || 0;
-      const fileW   = parseFloat(item.fileWidth)   || 0;
-      const fileH   = parseFloat(item.fileHeight)  || 0;
-
-      const dimsVisual = visualW && visualH ? `${visualW} × ${visualH} m` : escapeHtml(item.measurement || "—");
-      const dimsSang   = fileW && fileH ? `${fileW} × ${fileH} m` : "";
-      const m2Val = item.calculatedM2 ? parseFloat(item.calculatedM2).toFixed(2) : "";
-
-      const sponsorsHtml = item.sponsors?.length
-        ? item.sponsors.map((s: any) => {
-            const c = /^#[0-9a-fA-F]{3,8}$/.test(s.color || "") ? s.color : "#3b82f6";
-            return `<span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${escapeHtml(s.name)}</span>`;
-          }).join("")
-        : "";
-
-      const pageNum = `${idx + 1} / ${items.length}`;
-      const itemName = escapeHtml(item.description || item.type || "Sem nome");
-      const typeLabel = escapeHtml(item.type || "—");
-
-      return `
-        <div class="page">
-
-          <!-- HEADER -->
-          <div class="doc-header">
-            <div class="hdr-left">
-              <img src="${logoUrl}" class="hdr-logo" alt="NORTE" />
-              <div class="hdr-brand">
-                <span class="hdr-norte">NORTE</span>
-                <span class="hdr-sub">Marketing Esportivo</span>
-              </div>
-            </div>
-            <div class="hdr-right">
-              <span class="id-chip">${escapeHtml(item.displayId || "#—")}</span>
-            </div>
-          </div>
-
-          <!-- TÍTULO DA PEÇA -->
-          <div class="piece-title-bar">
-            <span class="piece-name">${itemName}</span>
-            <span class="type-badge">${typeLabel}</span>
-          </div>
-
-          <!-- CORPO -->
-          <div class="body">
-
-            <!-- Coluna esquerda: imagem -->
-            <div class="col-img">
-              <div class="img-frame">
-                ${isImg
-                  ? `<img src="${resolvedThumb}" alt="Referência" class="ref-img" />`
-                  : thumbUrl
-                    ? `<div class="no-img"><div class="no-img-icon">PDF</div><div class="no-img-sub">Arquivo PDF vinculado</div></div>`
-                    : `<div class="no-img"><div class="no-img-icon">—</div><div class="no-img-sub">Sem imagem de referência</div></div>`
-                }
-              </div>
-              <div class="img-caption">Foto de referência</div>
-            </div>
-
-            <!-- Coluna direita: ficha técnica -->
-            <div class="col-info">
-              <div class="info-card">
-
-                <!-- Identificação -->
-                <div class="sec-label">Identificação</div>
-                ${item.description ? `
-                <div class="field">
-                  <div class="fld-lbl">Descrição</div>
-                  <div class="fld-val">${escapeHtml(item.description)}</div>
-                </div>` : ""}
-                <div class="field">
-                  <div class="fld-lbl">Quantidade</div>
-                  <div class="fld-val qty-val">${item.quantity ? item.quantity + " un." : "—"}</div>
-                </div>
-
-                <div class="sep"></div>
-
-                <!-- Especificação Técnica -->
-                <div class="sec-label">Especificação Técnica</div>
-                <div class="field">
-                  <div class="fld-lbl">Medidas Visuais</div>
-                  <div class="fld-val dims-val">${dimsVisual}</div>
-                  ${dimsSang ? `<div class="fld-sub">Sangria: ${dimsSang}</div>` : ""}
-                </div>
-                ${m2Val ? `
-                <div class="field">
-                  <div class="fld-lbl">Área (m²)</div>
-                  <div class="fld-val"><span class="m2-badge">${m2Val} m²</span></div>
-                </div>` : ""}
-                ${item.material ? `
-                <div class="field">
-                  <div class="fld-lbl">Material</div>
-                  <div class="fld-val"><span class="mat-badge">${escapeHtml(item.material)}</span></div>
-                </div>` : ""}
-                ${item.finish ? `
-                <div class="field">
-                  <div class="fld-lbl">Acabamento</div>
-                  <div class="fld-val"><span class="mat-badge">${escapeHtml(item.finish)}</span></div>
-                </div>` : ""}
-
-                ${item.observations ? `
-                <div class="sep"></div>
-                <div class="sec-label">Observações</div>
-                <div class="obs-box">${escapeHtml(item.observations)}</div>
-                ` : ""}
-
-                ${sponsorsHtml ? `
-                <div class="sep"></div>
-                <div class="sec-label">Patrocinadores</div>
-                <div class="sponsors-wrap">${sponsorsHtml}</div>
-                ` : ""}
-
-              </div>
-            </div>
-
-          </div>
-
-          <!-- RODAPÉ -->
-          <div class="doc-footer">
-            <span class="ft-gen">Gerado em ${nowStr}</span>
-            <span class="ft-pg">Página ${pageNum}</span>
-          </div>
-
-        </div>
-      `;
-    }).join("");
-
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
-      <meta charset="UTF-8"/>
-      <title>${escapeHtml(title)}</title>
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
-      <style>
-        @page { size: A4 portrait; margin: 0; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-        /* ── Page container ── */
-        /* min-height (não height fixo) + sem overflow:hidden: se a ficha da peça
-           for mais alta que a folha, o conteúdo flui para a próxima página em vez
-           de ser cortado. */
-        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; }
-        .page:last-child { break-after: avoid; page-break-after: avoid; }
-        @media print { .page { width: 210mm; min-height: 297mm; } }
-
-        /* ── HEADER ── */
-        .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
-        .hdr-left { display: flex; align-items: center; gap: 12px; }
-        .hdr-logo { height: 34px; width: auto; object-fit: contain; display: block; flex-shrink: 0; }
-        .hdr-brand { display: flex; flex-direction: column; gap: 1px; }
-        .hdr-norte { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.04em; line-height: 1; }
-        .hdr-sub { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.55); line-height: 1; }
-        .hdr-right { flex-shrink: 0; }
-        .id-chip { font-family: 'DM Mono', 'Courier New', monospace; font-size: 16px; font-weight: 700; color: #ffffff; background: #f97316; padding: 6px 14px; border-radius: 8px; letter-spacing: 0.02em; }
-
-        /* ── TÍTULO DA PEÇA ── */
-        .piece-title-bar { padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
-        .piece-name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; letter-spacing: -0.02em; }
-        .type-badge { display: inline-block; margin-top: 6px; background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
-
-        /* ── CORPO ── */
-        .body { display: flex; gap: 0; flex: 1; padding: 24px 32px; gap: 24px; min-height: 0; }
-
-        /* ── Coluna imagem ── */
-        .col-img { flex: 0 0 58%; display: flex; flex-direction: column; gap: 0; }
-        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 320px; max-height: 420px; }
-        .ref-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-        .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
-        .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .no-img-sub { font-size: 11px; color: #94a3b8; }
-        .img-caption { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 7px; }
-
-        /* ── Coluna info ── */
-        .col-info { flex: 0 0 42%; display: flex; flex-direction: column; }
-        .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; flex: 1; }
-
-        .sec-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; }
-        .sep { height: 1px; background: #e2e8f0; margin: 14px 0; }
-
-        .field { margin-bottom: 12px; }
-        .field:last-child { margin-bottom: 0; }
-        .fld-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 2px; }
-        .fld-val { font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.3; }
-        .fld-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
-
-        .qty-val { font-size: 16px; font-weight: 800; color: #f97316; }
-        .dims-val { font-size: 16px; font-weight: 800; color: #0f172a; }
-
-        .m2-badge { display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; border-radius: 6px; padding: 3px 10px; font-weight: 700; font-size: 13px; }
-        .mat-badge { display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
-
-        .obs-box { font-size: 12px; color: #64748b; font-style: italic; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; line-height: 1.5; margin-bottom: 0; }
-
-        .sponsors-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
-        .sp-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #1c1917; padding: 3px 8px; border-radius: 20px; border: 1px solid transparent; }
-        .sp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-
-        /* ── RODAPÉ ── */
-        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
-        .ft-gen { font-size: 9px; color: #94a3b8; }
-        .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }
-      </style>
-    </head><body>${pages}<script>
-      window.addEventListener("load", function () {
-        var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
-        fontsReady.then(function () { setTimeout(function () { window.print(); }, 100); });
-      });
-    </scr` + `ipt></body></html>`);
-    win.document.close();
-  };
 
   // Chave de grupo de uma peça (ex.: "Pórtico (Frontal)" → "Pórtico").
   // Mesma regra usada pelos filtros de exportação (expUniqueGroups/expGroupFilter).
@@ -646,161 +403,89 @@ export default function Arte() {
           </div>`;
 
   /** Uma página por peça (ficha técnica completa). */
-  const buildItemPage = (item: any, thumbDataUris: Record<string, string>, logoUrl: string, nowStr: string, pageLabel: string) => {
+  const buildItemPage = (item: any, thumbDataUris: Record<string, string>, eventName: string, nowStr: string, pageLabel: string) => {
     const thumbUrl = item.approvalThumbUrl || "";
     const thumbDataUri = thumbDataUris[thumbUrl] || null;
     const isImg = !!thumbDataUri;
-    const visualW = parseFloat(item.visualWidth) || 0;
-    const visualH = parseFloat(item.visualHeight) || 0;
-    const fileW = parseFloat(item.fileWidth) || 0;
-    const fileH = parseFloat(item.fileHeight) || 0;
-    const dimsVisual = visualW && visualH ? `${visualW} × ${visualH} m` : escapeHtml(item.measurement || "—");
-    const dimsSang = fileW && fileH ? `${fileW} × ${fileH} m` : "";
-    const m2Val = item.calculatedM2 ? parseFloat(item.calculatedM2).toFixed(2) : "";
-    const sponsorsHtml = item.sponsors?.length
-      ? item.sponsors.map((s: any) => {
-          const c = /^#[0-9a-fA-F]{3,8}$/.test(s.color || "") ? s.color : "#3b82f6";
-          return `<span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${escapeHtml(s.name)}</span>`;
-        }).join("")
-      : "";
+    const title = escapeHtml(item.type || item.description || "Sem nome");
+    const subtitle = item.description && item.description !== item.type ? escapeHtml(item.description) : "";
+    const art = isImg
+      ? `<img src="${thumbDataUri}" alt="Arte" class="ap-img" />`
+      : thumbUrl
+        ? `<div class="ap-noimg"><div class="ap-noimg-ic">PDF</div><div class="ap-noimg-sub">Arquivo PDF vinculado</div></div>`
+        : `<div class="ap-noimg"><div class="ap-noimg-ic">—</div><div class="ap-noimg-sub">Sem arte enviada</div></div>`;
     return `
-        <div class="page">
-          ${pdfHeaderHtml(logoUrl, item.displayId || "#—")}
-          <div class="piece-title-bar">
-            <span class="piece-name">${escapeHtml(item.description || item.type || "Sem nome")}</span>
-            <span class="type-badge">${escapeHtml(item.type || "—")}</span>
-          </div>
-          <div class="body">
-            <div class="col-img">
-              <div class="img-frame">
-                ${isImg
-                  ? `<img src="${thumbDataUri}" alt="Referência" class="ref-img" />`
-                  : thumbUrl
-                    ? `<div class="no-img"><div class="no-img-icon">PDF</div><div class="no-img-sub">Arquivo PDF vinculado</div></div>`
-                    : `<div class="no-img"><div class="no-img-icon">—</div><div class="no-img-sub">Sem imagem de referência</div></div>`
-                }
-              </div>
-              <div class="img-caption">Foto de referência</div>
+        <div class="page ap-page">
+          <div class="ap-stage">${art}</div>
+          <div class="ap-caption">
+            <div class="ap-cap-main">
+              <span class="ap-title">${title}</span>
+              ${subtitle ? `<span class="ap-sub">${subtitle}</span>` : ""}
             </div>
-            <div class="col-info">
-              <div class="info-card">
-                <div class="sec-label">Identificação</div>
-                ${item.description ? `
-                <div class="field">
-                  <div class="fld-lbl">Descrição</div>
-                  <div class="fld-val">${escapeHtml(item.description)}</div>
-                </div>` : ""}
-                <div class="field">
-                  <div class="fld-lbl">Quantidade</div>
-                  <div class="fld-val qty-val">${item.quantity ? item.quantity + " un." : "—"}</div>
-                </div>
-                <div class="sep"></div>
-                <div class="sec-label">Especificação Técnica</div>
-                <div class="field">
-                  <div class="fld-lbl">Medidas Visuais</div>
-                  <div class="fld-val dims-val">${dimsVisual}</div>
-                  ${dimsSang ? `<div class="fld-sub">Sangria: ${dimsSang}</div>` : ""}
-                </div>
-                ${m2Val ? `
-                <div class="field">
-                  <div class="fld-lbl">Área (m²)</div>
-                  <div class="fld-val"><span class="m2-badge">${m2Val} m²</span></div>
-                </div>` : ""}
-                ${item.material ? `
-                <div class="field">
-                  <div class="fld-lbl">Material</div>
-                  <div class="fld-val"><span class="mat-badge">${escapeHtml(item.material)}</span></div>
-                </div>` : ""}
-                ${item.finish ? `
-                <div class="field">
-                  <div class="fld-lbl">Acabamento</div>
-                  <div class="fld-val"><span class="mat-badge">${escapeHtml(item.finish)}</span></div>
-                </div>` : ""}
-                ${item.observations ? `
-                <div class="sep"></div>
-                <div class="sec-label">Observações</div>
-                <div class="obs-box">${escapeHtml(item.observations)}</div>` : ""}
-                ${sponsorsHtml ? `
-                <div class="sep"></div>
-                <div class="sec-label">Patrocinadores</div>
-                <div class="sponsors-wrap">${sponsorsHtml}</div>` : ""}
-              </div>
-            </div>
+            <span class="ap-id">${escapeHtml(item.displayId || "")}</span>
           </div>
-          ${pdfFooterHtml(nowStr, pageLabel)}
+          <div class="ap-foot">
+            <span>${escapeHtml(eventName)}</span>
+            <span>NORTE · Marketing Esportivo</span>
+            <span>${pageLabel}</span>
+          </div>
         </div>`;
   };
 
-  /** Uma página com várias peças do mesmo grupo (galeria + lista). */
+  /** Página com várias artes do mesmo grupo lado a lado (aprovação). */
   const buildGroupPage = (
     chunk: { group: string; items: any[]; part: number; parts: number },
-    thumbDataUris: Record<string, string>, logoUrl: string, nowStr: string, pageLabel: string,
+    thumbDataUris: Record<string, string>, eventName: string, nowStr: string, pageLabel: string,
   ) => {
+    // Grade adaptativa: até 2 → 1 col, até 6 → 2 col, senão 3 col.
+    const cols = chunk.items.length <= 2 ? chunk.items.length : chunk.items.length <= 6 ? 2 : 3;
     const cards = chunk.items.map(item => {
       const thumbUrl = item.approvalThumbUrl || "";
       const thumbDataUri = thumbDataUris[thumbUrl] || null;
       const inner = thumbDataUri
-        ? `<img src="${thumbDataUri}" alt="Referência" class="cg-img" />`
+        ? `<img src="${thumbDataUri}" alt="Arte" class="ap-g-img" />`
         : thumbUrl
-          ? `<div class="cg-noimg"><div class="cg-noimg-ic">PDF</div></div>`
-          : `<div class="cg-noimg"><div class="cg-noimg-ic">—</div></div>`;
+          ? `<div class="ap-g-noimg">PDF</div>`
+          : `<div class="ap-g-noimg">—</div>`;
       return `
-          <div class="cg-card">
-            <div class="cg-frame">${inner}</div>
-            <div class="cg-cap">
-              <span class="cg-id">${escapeHtml(item.displayId || "#—")}</span>
-              <span class="cg-name">${escapeHtml(item.description || item.type || "Sem nome")}</span>
+          <div class="ap-g-card">
+            <div class="ap-g-frame">${inner}</div>
+            <div class="ap-g-cap">
+              <span class="ap-g-name">${escapeHtml(item.description || item.type || "Sem nome")}</span>
+              <span class="ap-g-id">${escapeHtml(item.displayId || "")}</span>
             </div>
           </div>`;
     }).join("");
 
-    const rows = chunk.items.map(item => {
-      const visualW = parseFloat(item.visualWidth) || 0;
-      const visualH = parseFloat(item.visualHeight) || 0;
-      const dims = visualW && visualH ? `${visualW} × ${visualH} m` : escapeHtml(item.measurement || "—");
-      const m2Val = item.calculatedM2 ? parseFloat(item.calculatedM2).toFixed(2) + " m²" : "—";
-      return `
-          <tr>
-            <td class="ct-mono">${escapeHtml(item.displayId || "—")}</td>
-            <td class="ct-desc">${escapeHtml(item.description || item.type || "—")}</td>
-            <td class="ct-c">${item.quantity ? item.quantity + " un." : "—"}</td>
-            <td class="ct-c">${dims}</td>
-            <td class="ct-c">${m2Val}</td>
-            <td class="ct-c">${escapeHtml(item.material || "—")}</td>
-          </tr>`;
-    }).join("");
-
-    const partLabel = chunk.parts > 1 ? ` <span class="cg-part">(${chunk.part}/${chunk.parts})</span>` : "";
+    const partLabel = chunk.parts > 1 ? ` (${chunk.part}/${chunk.parts})` : "";
     return `
-        <div class="page page--group">
-          ${pdfHeaderHtml(logoUrl, chunk.group)}
-          <div class="piece-title-bar">
-            <span class="piece-name">${escapeHtml(chunk.group)}${partLabel}</span>
-            <span class="type-badge">${chunk.items.length} ${chunk.items.length === 1 ? "peça" : "peças"}</span>
+        <div class="page ap-page">
+          <div class="ap-grouptitle">${escapeHtml(chunk.group)}${partLabel}</div>
+          <div class="ap-grid" style="grid-template-columns: repeat(${cols}, 1fr)">${cards}</div>
+          <div class="ap-foot">
+            <span>${escapeHtml(eventName)}</span>
+            <span>NORTE · Marketing Esportivo</span>
+            <span>${pageLabel}</span>
           </div>
-          <div class="cg-body">
-            <div class="cg-gallery">${cards}</div>
-            <table class="cg-table">
-              <thead>
-                <tr><th>ID</th><th class="ct-desc">Descrição</th><th class="ct-c">Qtd</th><th class="ct-c">Medidas</th><th class="ct-c">Área</th><th class="ct-c">Material</th></tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-          ${pdfFooterHtml(nowStr, pageLabel)}
         </div>`;
   };
 
-  /** Página divisória de evento (abre a seção de cada evento no book). */
-  const buildEventDividerPage = (name: string, count: number, logoUrl: string, nowStr: string, pageLabel: string) => `
-        <div class="page page--divider">
-          ${pdfHeaderHtml(logoUrl, "EVENTO")}
-          <div class="dv-body">
-            <span class="dv-label">Evento</span>
-            <span class="dv-name">${escapeHtml(name)}</span>
-            <span class="dv-count">${count} ${count === 1 ? "peça" : "peças"}</span>
+  /** Capa de aprovação — abre o book (ou cada evento quando há vários). */
+  const buildCoverPage = (name: string, count: number, logoUrl: string, nowStr: string) => `
+        <div class="page ap-cover">
+          <div class="ap-cover-top">
+            <img src="${logoUrl}" class="ap-cover-logo" alt="NORTE" />
+            <div class="ap-cover-brandtext">
+              <span class="ap-cover-norte">NORTE</span>
+              <span class="ap-cover-sub">Marketing Esportivo</span>
+            </div>
           </div>
-          ${pdfFooterHtml(nowStr, pageLabel)}
+          <div class="ap-cover-mid">
+            <span class="ap-cover-kicker">Book de Peças</span>
+            <span class="ap-cover-event">${escapeHtml(name)}</span>
+            <span class="ap-cover-count">${count} ${count === 1 ? "peça" : "peças"}</span>
+          </div>
+          <div class="ap-cover-foot">Gerado em ${nowStr}</div>
         </div>`;
 
   /** Quebra um grupo em blocos que cabem numa página. */
@@ -815,90 +500,58 @@ export default function Arte() {
   };
 
   /** CSS único, cobrindo páginas individuais e páginas de grupo. */
+  // Estilo "book de aprovação": A4 paisagem, arte grande centralizada e legenda
+  // discreta — inspirado nos PDFs de aprovação enviados por e-mail hoje.
   const PDF_STYLES = `
-        @page { size: A4 portrait; margin: 0; }
+        @page { size: A4 landscape; margin: 0; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-        /* min-height (não height fixo) e sem overflow:hidden: conteúdo que exceder
-           a folha flui para a próxima em vez de ser cortado. */
-        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; }
+        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; overflow: hidden; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
-        @media print { .page { width: 210mm; min-height: 297mm; } }
+        @media print { .page { width: 297mm; height: 210mm; min-height: 210mm; } }
 
-        .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
-        .hdr-left { display: flex; align-items: center; gap: 12px; }
-        .hdr-logo { height: 34px; width: auto; object-fit: contain; display: block; flex-shrink: 0; }
-        .hdr-brand { display: flex; flex-direction: column; gap: 1px; }
-        .hdr-norte { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.04em; line-height: 1; }
-        .hdr-sub { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.55); line-height: 1; }
-        .hdr-right { flex-shrink: 0; }
-        .id-chip { font-family: 'DM Mono', 'Courier New', monospace; font-size: 16px; font-weight: 700; color: #ffffff; background: #f97316; padding: 6px 14px; border-radius: 8px; letter-spacing: 0.02em; }
+        /* ── Página de arte (uma peça) ── */
+        .ap-page { padding: 22px 30px 0; }
+        .ap-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #f7f8fa; border: 1px solid #eef1f4; border-radius: 14px; overflow: hidden; }
+        .ap-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+        .ap-noimg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+        .ap-noimg-ic { font-size: 34px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
+        .ap-noimg-sub { font-size: 12px; color: #94a3b8; }
 
-        .piece-title-bar { padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
-        .piece-name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; letter-spacing: -0.02em; }
-        .type-badge { display: inline-block; margin-top: 6px; background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
+        .ap-caption { flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 14px 4px 8px; }
+        .ap-cap-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .ap-title { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; line-height: 1.1; }
+        .ap-sub { font-size: 12px; color: #64748b; }
+        .ap-id { flex-shrink: 0; font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 700; color: #ffffff; background: #f97316; padding: 5px 12px; border-radius: 7px; }
 
-        /* Página de grupo: título e badge na mesma linha */
-        .page--group .piece-title-bar { padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; }
-        .page--group .piece-name { font-size: 20px; }
-        .page--group .type-badge { margin-top: 0; }
+        /* ── Página de grupo (várias artes) ── */
+        .ap-grouptitle { flex-shrink: 0; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; padding: 2px 4px 12px; }
+        .ap-grid { flex: 1; min-height: 0; display: grid; gap: 14px; grid-auto-rows: 1fr; }
+        .ap-g-card { min-height: 0; display: flex; flex-direction: column; }
+        .ap-g-frame { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #f7f8fa; border: 1px solid #eef1f4; border-radius: 10px; overflow: hidden; }
+        .ap-g-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+        .ap-g-noimg { font-size: 22px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
+        .ap-g-cap { flex-shrink: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 5px 2px 0; }
+        .ap-g-name { font-size: 12px; font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ap-g-id { flex-shrink: 0; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700; color: #f97316; }
 
-        .body { display: flex; flex: 1; padding: 24px 32px; gap: 24px; min-height: 0; }
-        .col-img { flex: 0 0 58%; display: flex; flex-direction: column; }
-        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 320px; max-height: 420px; }
-        .ref-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-        .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
-        .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .no-img-sub { font-size: 11px; color: #94a3b8; }
-        .img-caption { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 7px; }
+        /* ── Rodapé discreto ── */
+        .ap-foot { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 8px 4px 12px; border-top: 1px solid #eef1f4; margin-top: 8px; font-size: 9px; color: #94a3b8; }
+        .ap-foot span:nth-child(2) { font-weight: 600; letter-spacing: 0.04em; }
 
-        .col-info { flex: 0 0 42%; display: flex; flex-direction: column; }
-        .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; flex: 1; }
-        .sec-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; }
-        .sep { height: 1px; background: #e2e8f0; margin: 14px 0; }
-        .field { margin-bottom: 12px; }
-        .field:last-child { margin-bottom: 0; }
-        .fld-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 2px; }
-        .fld-val { font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.3; }
-        .fld-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
-        .qty-val { font-size: 16px; font-weight: 800; color: #f97316; }
-        .dims-val { font-size: 16px; font-weight: 800; color: #0f172a; }
-        .m2-badge { display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; border-radius: 6px; padding: 3px 10px; font-weight: 700; font-size: 13px; }
-        .mat-badge { display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
-        .obs-box { font-size: 12px; color: #64748b; font-style: italic; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; line-height: 1.5; }
-        .sponsors-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
-        .sp-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #1c1917; padding: 3px 8px; border-radius: 20px; border: 1px solid transparent; }
-        .sp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-
-        .cg-body { flex: 1; padding: 20px 32px; display: flex; flex-direction: column; gap: 18px; min-height: 0; }
-        .cg-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-        .cg-card { break-inside: avoid; display: flex; flex-direction: column; }
-        .cg-frame { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #f8fafc; height: 190px; display: flex; align-items: center; justify-content: center; }
-        .cg-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-        .cg-noimg { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
-        .cg-noimg-ic { font-size: 24px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .cg-cap { display: flex; align-items: baseline; gap: 8px; padding: 6px 2px 0; }
-        .cg-id { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; color: #f97316; flex-shrink: 0; }
-        .cg-name { font-size: 12px; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .cg-part { font-size: 13px; font-weight: 600; color: #94a3b8; }
-        .cg-table { width: 100%; border-collapse: collapse; }
-        .cg-table thead tr { background: #f5f5f4; }
-        .cg-table th { padding: 6px 8px; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-        .cg-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 10px; color: #475569; vertical-align: middle; }
-        .ct-mono { font-family: 'DM Mono', monospace; font-weight: 700; color: #f97316; white-space: nowrap; }
-        .ct-desc { width: 40%; font-weight: 600; color: #0f172a; }
-        .ct-c { text-align: center; white-space: nowrap; }
-
-        /* Divisória de evento */
-        .dv-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 40px; }
-        .dv-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; color: #94a3b8; }
-        .dv-name { font-family: 'Space Grotesk', sans-serif; font-size: 40px; font-weight: 800; color: #0f172a; letter-spacing: -0.03em; text-align: center; line-height: 1.15; }
-        .dv-count { font-size: 13px; font-weight: 600; color: #f97316; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 100px; padding: 5px 16px; }
-
-        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
-        .ft-gen { font-size: 9px; color: #94a3b8; }
-        .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }`;
+        /* ── Capa ── */
+        .ap-cover { background: #1c1917; color: #ffffff; justify-content: space-between; padding: 44px 54px; }
+        .ap-cover-top { display: flex; align-items: center; gap: 14px; }
+        .ap-cover-logo { height: 40px; width: auto; object-fit: contain; }
+        .ap-cover-brandtext { display: flex; flex-direction: column; gap: 2px; }
+        .ap-cover-norte { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 800; letter-spacing: 0.05em; line-height: 1; }
+        .ap-cover-sub { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1; }
+        .ap-cover-mid { display: flex; flex-direction: column; gap: 14px; }
+        .ap-cover-kicker { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.22em; color: #fb923c; }
+        .ap-cover-event { font-family: 'Space Grotesk', sans-serif; font-size: 56px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; max-width: 90%; }
+        .ap-cover-count { font-size: 15px; color: rgba(255,255,255,0.7); }
+        .ap-cover-foot { font-size: 11px; color: rgba(255,255,255,0.4); font-family: 'DM Mono', monospace; }`;
 
   const writePdfDoc = (win: Window, title: string, pages: string) => {
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
@@ -957,16 +610,25 @@ export default function Arte() {
     });
     const eventEntries = Array.from(eventsMap.values());
 
-    // Monta a sequência: grupo marcado vira 1+ páginas de galeria, grupo não
-    // marcado vira uma página por peça — tudo dentro do respectivo evento.
+    // Monta a sequência de páginas. Cada peça carrega o nome do seu evento
+    // (aparece no rodapé). Grupo marcado vira 1+ páginas de galeria; o restante,
+    // uma peça por página.
     type Page =
-      | { kind: 'group'; chunk: ReturnType<typeof chunkGroup>[number] }
-      | { kind: 'item'; item: any }
-      | { kind: 'event'; name: string; count: number };
+      | { kind: 'cover'; name: string; count: number }
+      | { kind: 'group'; chunk: ReturnType<typeof chunkGroup>[number]; eventName: string }
+      | { kind: 'item'; item: any; eventName: string };
     const sequence: Page[] = [];
+
+    const multiEvent = eventEntries.length > 1;
+    // Capa geral no início. Com vários eventos e sem divisória por evento, a
+    // capa usa o título do book; senão, o nome do (único) evento.
+    if (!(multiEvent && groupByEvent)) {
+      sequence.push({ kind: 'cover', name: multiEvent ? title : eventEntries[0].name, count: items.length });
+    }
+
     eventEntries.forEach(ev => {
-      if (groupByEvent && eventEntries.length > 1) {
-        sequence.push({ kind: 'event', name: ev.name, count: ev.items.length });
+      if (multiEvent && groupByEvent) {
+        sequence.push({ kind: 'cover', name: ev.name, count: ev.items.length });
       }
       const groupsMap = new Map<string, any[]>();
       ev.items.forEach(item => {
@@ -976,205 +638,25 @@ export default function Arte() {
       });
       Array.from(groupsMap.entries()).forEach(([group, groupItems]) => {
         if (combinedGroups.has(group)) {
-          chunkGroup(group, groupItems).forEach(chunk => sequence.push({ kind: 'group', chunk }));
+          chunkGroup(group, groupItems).forEach(chunk => sequence.push({ kind: 'group', chunk, eventName: ev.name }));
         } else {
-          groupItems.forEach(item => sequence.push({ kind: 'item', item }));
+          groupItems.forEach(item => sequence.push({ kind: 'item', item, eventName: ev.name }));
         }
       });
     });
 
-    const total = sequence.length;
-    const pages = sequence.map((p, idx) => {
-      const label = `${idx + 1} / ${total}`;
-      if (p.kind === 'event') return buildEventDividerPage(p.name, p.count, logoUrl, nowStr, label);
+    // Numeração só nas páginas de conteúdo (capas não contam).
+    const contentTotal = sequence.filter(p => p.kind !== 'cover').length;
+    let contentIdx = 0;
+    const pages = sequence.map(p => {
+      if (p.kind === 'cover') return buildCoverPage(p.name, p.count, logoUrl, nowStr);
+      const label = `${++contentIdx} / ${contentTotal}`;
       return p.kind === 'group'
-        ? buildGroupPage(p.chunk, thumbDataUris, logoUrl, nowStr, label)
-        : buildItemPage(p.item, thumbDataUris, logoUrl, nowStr, label);
+        ? buildGroupPage(p.chunk, thumbDataUris, p.eventName, nowStr, label)
+        : buildItemPage(p.item, thumbDataUris, p.eventName, nowStr, label);
     }).join("");
 
     writePdfDoc(win, title, pages);
-  };
-  const exportCombinedToPDF = async (items: any[], title = "Arte — Peças agrupadas") => {
-    if (items.length === 0) {
-      toast({ title: "Nenhum item para exportar", variant: "destructive" });
-      return;
-    }
-
-    const win = window.open("", "_blank");
-    if (!win) {
-      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para este site e tente novamente", variant: "destructive" });
-      return;
-    }
-    win.document.write(`<p style="font-family:sans-serif;color:#64748b;padding:24px">Preparando exportação…</p>`);
-
-    const thumbCount = items.filter(i => i.approvalThumbUrl && !/\.pdf$/i.test(i.approvalThumbUrl)).length;
-    if (thumbCount > 0) {
-      toast({ title: `Preparando ${thumbCount} imagem${thumbCount !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
-    }
-    const thumbDataUris = await prefetchThumbsAsDataUris(items);
-    win.document.open();
-
-    // Agrupa preservando a ordem em que os grupos aparecem
-    const groupsMap = new Map<string, any[]>();
-    items.forEach(item => {
-      const key = groupKeyOf(item);
-      if (!groupsMap.has(key)) groupsMap.set(key, []);
-      groupsMap.get(key)!.push(item);
-    });
-
-    // Quebra cada grupo em blocos de no máximo MAX_ITEMS_PER_COMBINED_PAGE
-    type Chunk = { group: string; items: any[]; part: number; parts: number };
-    const chunks: Chunk[] = [];
-    Array.from(groupsMap.entries()).forEach(([group, groupItems]) => {
-      const parts = Math.ceil(groupItems.length / MAX_ITEMS_PER_COMBINED_PAGE);
-      for (let p = 0; p < parts; p++) {
-        chunks.push({
-          group,
-          items: groupItems.slice(p * MAX_ITEMS_PER_COMBINED_PAGE, (p + 1) * MAX_ITEMS_PER_COMBINED_PAGE),
-          part: p + 1,
-          parts,
-        });
-      }
-    });
-
-    const now = new Date();
-    const nowStr = now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const logoUrl = `${window.location.origin}/norte-logo.jpg`;
-
-    const pages = chunks.map((chunk, idx) => {
-      const cards = chunk.items.map(item => {
-        const thumbUrl = item.approvalThumbUrl || "";
-        const thumbDataUri = thumbDataUris[thumbUrl] || null;
-        const inner = thumbDataUri
-          ? `<img src="${thumbDataUri}" alt="Referência" class="cg-img" />`
-          : thumbUrl
-            ? `<div class="cg-noimg"><div class="cg-noimg-ic">PDF</div></div>`
-            : `<div class="cg-noimg"><div class="cg-noimg-ic">—</div></div>`;
-        return `
-          <div class="cg-card">
-            <div class="cg-frame">${inner}</div>
-            <div class="cg-cap">
-              <span class="cg-id">${escapeHtml(item.displayId || "#—")}</span>
-              <span class="cg-name">${escapeHtml(item.description || item.type || "Sem nome")}</span>
-            </div>
-          </div>`;
-      }).join("");
-
-      const rows = chunk.items.map(item => {
-        const visualW = parseFloat(item.visualWidth) || 0;
-        const visualH = parseFloat(item.visualHeight) || 0;
-        const dims = visualW && visualH ? `${visualW} × ${visualH} m` : escapeHtml(item.measurement || "—");
-        const m2Val = item.calculatedM2 ? parseFloat(item.calculatedM2).toFixed(2) + " m²" : "—";
-        return `
-          <tr>
-            <td class="ct-mono">${escapeHtml(item.displayId || "—")}</td>
-            <td class="ct-desc">${escapeHtml(item.description || item.type || "—")}</td>
-            <td class="ct-c">${item.quantity ? item.quantity + " un." : "—"}</td>
-            <td class="ct-c">${dims}</td>
-            <td class="ct-c">${m2Val}</td>
-            <td class="ct-c">${escapeHtml(item.material || "—")}</td>
-          </tr>`;
-      }).join("");
-
-      const partLabel = chunk.parts > 1 ? ` <span class="cg-part">(${chunk.part}/${chunk.parts})</span>` : "";
-
-      return `
-        <div class="page">
-          <div class="doc-header">
-            <div class="hdr-left">
-              <img src="${logoUrl}" class="hdr-logo" alt="NORTE" />
-              <div class="hdr-brand">
-                <span class="hdr-norte">NORTE</span>
-                <span class="hdr-sub">Marketing Esportivo</span>
-              </div>
-            </div>
-            <div class="hdr-right"><span class="id-chip">${escapeHtml(chunk.group)}</span></div>
-          </div>
-
-          <div class="piece-title-bar">
-            <span class="piece-name">${escapeHtml(chunk.group)}${partLabel}</span>
-            <span class="type-badge">${chunk.items.length} ${chunk.items.length === 1 ? "peça" : "peças"}</span>
-          </div>
-
-          <div class="cg-body">
-            <div class="cg-gallery">${cards}</div>
-            <table class="cg-table">
-              <thead>
-                <tr><th>ID</th><th class="ct-desc">Descrição</th><th class="ct-c">Qtd</th><th class="ct-c">Medidas</th><th class="ct-c">Área</th><th class="ct-c">Material</th></tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-
-          <div class="doc-footer">
-            <span class="ft-gen">Gerado em ${nowStr}</span>
-            <span class="ft-pg">Página ${idx + 1} / ${chunks.length}</span>
-          </div>
-        </div>`;
-    }).join("");
-
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
-      <meta charset="UTF-8"/>
-      <title>${escapeHtml(title)}</title>
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
-      <style>
-        @page { size: A4 portrait; margin: 0; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-        /* min-height + sem overflow:hidden: quando um grupo tem muitas peças, o
-           conteúdo que exceder a folha flui para a próxima em vez de ser cortado. */
-        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #fff; }
-        .page:last-child { break-after: avoid; page-break-after: avoid; }
-        @media print { .page { width: 210mm; min-height: 297mm; } }
-
-        .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
-        .hdr-left { display: flex; align-items: center; gap: 12px; }
-        .hdr-logo { height: 34px; width: auto; object-fit: contain; display: block; flex-shrink: 0; }
-        .hdr-brand { display: flex; flex-direction: column; gap: 1px; }
-        .hdr-norte { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 800; color: #fff; letter-spacing: 0.04em; line-height: 1; }
-        .hdr-sub { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.55); line-height: 1; }
-        .id-chip { font-family: 'DM Mono', 'Courier New', monospace; font-size: 15px; font-weight: 700; color: #fff; background: #f97316; padding: 6px 14px; border-radius: 8px; }
-
-        .piece-title-bar { padding: 14px 32px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; }
-        .piece-name { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
-        .cg-part { font-size: 13px; font-weight: 600; color: #94a3b8; }
-        .type-badge { background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
-
-        .cg-body { flex: 1; padding: 20px 32px; display: flex; flex-direction: column; gap: 18px; min-height: 0; }
-
-        /* Galeria: imagens das peças juntas */
-        .cg-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-        .cg-card { break-inside: avoid; display: flex; flex-direction: column; }
-        .cg-frame { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #f8fafc; height: 190px; display: flex; align-items: center; justify-content: center; }
-        .cg-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-        .cg-noimg { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
-        .cg-noimg-ic { font-size: 24px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .cg-cap { display: flex; align-items: baseline; gap: 8px; padding: 6px 2px 0; }
-        .cg-id { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 700; color: #f97316; flex-shrink: 0; }
-        .cg-name { font-size: 12px; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-        /* Lista de itens do grupo */
-        .cg-table { width: 100%; border-collapse: collapse; }
-        .cg-table thead tr { background: #f5f5f4; }
-        .cg-table th { padding: 6px 8px; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-        .cg-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 10px; color: #475569; vertical-align: middle; }
-        .ct-mono { font-family: 'DM Mono', monospace; font-weight: 700; color: #f97316; white-space: nowrap; }
-        .ct-desc { width: 40%; font-weight: 600; color: #0f172a; }
-        .ct-c { text-align: center; white-space: nowrap; }
-
-        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
-        .ft-gen { font-size: 9px; color: #94a3b8; }
-        .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }
-      </style>
-    </head><body>${pages}<script>
-      window.addEventListener("load", function () {
-        var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
-        fontsReady.then(function () { setTimeout(function () { window.print(); }, 100); });
-      });
-    </scr` + `ipt></body></html>`);
-    win.document.close();
   };
 
   // ── Modo 2: tabela resumo agrupada por Evento › Grupo ───────────────────────
@@ -1446,7 +928,7 @@ export default function Arte() {
   };
 
   const handleExportItemPDF = (item: any) => {
-    void exportItemsToPDF([item], `Prova — ${item.displayId || item.type}`);
+    void exportMixedToPDF([item], new Set(), `Prova — ${item.displayId || item.type}`);
   };
 
   // Upload sem alterar isPasteUploading (usado no bulk)

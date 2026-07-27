@@ -467,7 +467,7 @@ export default function Arte() {
         .ap-noimg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
         .ap-noimg-ic { font-size: 34px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
         .ap-noimg-sub { font-size: 12px; color: #94a3b8; }
-        .ap-caption { flex-shrink: 0; text-align: center; padding-top: 16px; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #1c1917; }
+        .ap-caption { flex-shrink: 0; text-align: center; padding-top: 14px; font-family: 'DM Sans', Arial, sans-serif; font-size: 13pt; font-weight: 600; color: #1c1917; }
 
         /* ── Página de grupo (várias artes) ── */
         .ap-grouptitle { flex-shrink: 0; text-align: center; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #1c1917; padding: 2px 4px 16px; }

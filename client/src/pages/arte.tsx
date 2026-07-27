@@ -431,10 +431,13 @@ export default function Arte() {
         </div>`;
   };
 
-  /** Capa: apenas o nome do evento centralizado. Sem marca. */
+  /** Capa: apenas o nome do evento, com layout cuidado. Sem marca. */
   const buildCoverPage = (name: string) => `
         <div class="page ap-cover">
-          <span class="ap-cover-event">${escapeHtml(name)}</span>
+          <div class="ap-cover-inner">
+            <span class="ap-cover-rule"></span>
+            <span class="ap-cover-event">${escapeHtml(name)}</span>
+          </div>
         </div>`;
 
   /** Quebra um grupo em blocos que cabem numa página. */
@@ -478,9 +481,11 @@ export default function Arte() {
         .ap-g-noimg { font-size: 22px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
         .ap-g-cap { flex-shrink: 0; text-align: center; padding-top: 8px; font-size: 13px; font-weight: 600; color: #1c1917; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* ── Capa: nome do evento centralizado ── */
-        .ap-cover { align-items: center; justify-content: center; padding: 60px; }
-        .ap-cover-event { font-family: 'Space Grotesk', sans-serif; font-size: 52px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; color: #1c1917; text-align: center; max-width: 85%; }`;
+        /* ── Capa: apenas o nome do evento, layout centrado e elegante ── */
+        .ap-cover { align-items: center; justify-content: center; padding: 64px; background: #1c1917; }
+        .ap-cover-inner { display: flex; flex-direction: column; align-items: center; gap: 26px; max-width: 82%; }
+        .ap-cover-rule { width: 56px; height: 4px; border-radius: 4px; background: #f97316; }
+        .ap-cover-event { font-family: 'Space Grotesk', sans-serif; font-size: 58px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.06; color: #ffffff; text-align: center; }`;
 
   const writePdfDoc = (win: Window, title: string, pages: string) => {
     win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>

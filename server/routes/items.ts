@@ -1102,13 +1102,16 @@ export function registerItemRoutes(app: Express): void {
         });
       }
       
+      // 1ª versão: marca como "já confirmada" (acked = updated) para NÃO disparar
+      // o alerta de rebaixa. Só atualizações posteriores alertam a Gráfica.
+      const now = new Date();
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_final_review",
         finalFileUrl: validatedData.finalFileUrl,
         finalPreviewUrl: validatedData.finalPreviewUrl || null,
         finalFileName: validatedData.finalFileName || null,
-        finalFileUpdatedAt: new Date(),
-        finalFileAckedAt: null,
+        finalFileUpdatedAt: now,
+        finalFileAckedAt: now,
       });
 
       if (!item) {
@@ -1743,14 +1746,19 @@ export function registerItemRoutes(app: Express): void {
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
 
+      // NÃO reseta finalFileAckedAt: o novo finalFileUpdatedAt fica mais recente
+      // que o ack anterior → dispara o alerta de rebaixa na Gráfica em qualquer
+      // atualização (2ª versão em diante).
       const item = await storage.updateItem(req.params.id, {
         finalFileUrl,
         finalPreviewUrl: finalPreviewUrl || null,
         finalFileName: finalFileName || null,
         finalFileUpdatedAt: new Date(),
-        finalFileAckedAt: null,
       });
-      await createAuditLog((req as any).userName, 'updated', 'item', req.params.id, `Arquivo final atualizado (nova versão)`);
+      // Registra a versão ANTERIOR no histórico (nunca se perde).
+      const prevName = current.finalFileName || current.finalFileUrl || "—";
+      await createAuditLog((req as any).userName, 'updated', 'item', req.params.id,
+        `Arquivo final atualizado (nova versão). Versão anterior: ${prevName} → nova: ${finalFileName || finalFileUrl}`);
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {

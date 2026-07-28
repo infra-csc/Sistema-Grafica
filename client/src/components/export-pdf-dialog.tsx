@@ -203,9 +203,25 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             </div>
 
             <div style={{ padding: "16px 20px", borderTop: "1px solid #f0ede8", display: "flex", flexDirection: "column", gap: 8 }}>
+              {selected.some(i => i.bookUrl) && (
+                <p style={{ fontSize: 10, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 6, padding: "6px 8px", margin: 0 }}>
+                  {selected.filter(i => i.bookUrl).length} peça(s) já têm book da Arte — o PDF do book abre junto; o restante sai no PDF gerado.
+                </p>
+              )}
               <button onClick={() => onOpenChange(false)} style={{ width: "100%", height: 36, borderRadius: 8, background: "#f5f5f4", border: "1px solid #e7e5e4", color: "#78716c", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Cancelar</button>
               <button
-                onClick={() => { void exportMixedToPDF(selected, combinedSet, `${title} — ${selected.length} peça(s)`, groupByEvent); onOpenChange(false); }}
+                onClick={() => {
+                  // Peças cobertas por um book (PDF pronto subido pela Arte) usam o
+                  // próprio book; as demais saem no PDF gerado automaticamente.
+                  const withBook = selected.filter(i => i.bookUrl);
+                  const withoutBook = selected.filter(i => !i.bookUrl);
+                  const bookUrls = Array.from(new Set(withBook.map(i => i.bookUrl as string)));
+                  bookUrls.forEach(url => window.open(url, "_blank", "noopener,noreferrer"));
+                  if (withoutBook.length > 0) {
+                    void exportMixedToPDF(withoutBook, combinedSet, `${title} — ${withoutBook.length} peça(s)`, groupByEvent);
+                  }
+                  onOpenChange(false);
+                }}
                 disabled={selected.length === 0}
                 data-testid="button-export-confirm"
                 style={{ width: "100%", height: 44, borderRadius: 8, backgroundColor: selected.length === 0 ? "#e7e5e4" : "#7c3aed", border: "none", color: selected.length === 0 ? "#a8a29e" : "#fff", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, cursor: selected.length === 0 ? "not-allowed" : "pointer" }}>

@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, Fragment } from "react";
-import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2 } from "lucide-react";
+import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -606,6 +606,12 @@ export default function PainelGeral() {
                                           <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 3, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
                                             <Paperclip style={{ width: 9, height: 9 }} />
                                             Ref. visual
+                                          </a>
+                                        )}
+                                        {item.bookUrl && (
+                                          <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#6d28d9", textDecoration: "none", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 3, padding: "2px 6px", width: "fit-content" }} data-testid={`link-book-painel-${item.id}`}>
+                                            <FileText style={{ width: 9, height: 9 }} />
+                                            Book
                                           </a>
                                         )}
                                       </div>

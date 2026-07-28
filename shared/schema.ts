@@ -121,7 +121,15 @@ export const items = pgTable("items", {
   isReuse: boolean("is_reuse").notNull().default(false), // Se true, peça é reaproveitamento (não precisa de produção)
   approvalThumbUrl: text("approval_thumb_url"), // Thumb/link leve para aprovação
   hasModifiedData: boolean("has_modified_data").notNull().default(false), // Flag: tem dados modificados para notificar Arte
-  finalFileUrl: text("final_file_url"), // Link do arquivo final (Drive, S3, etc)
+  finalFileUrl: text("final_file_url"), // Arquivo de impressão final (AI/PDF) — upload no app
+  finalFileName: text("final_file_name"), // Nome original do arquivo enviado (preserva a extensão p/ download)
+  finalPreviewUrl: text("final_preview_url"), // Preview JPG do arquivo final (conferência visual)
+  finalFileUpdatedAt: timestamp("final_file_updated_at"), // Quando o arquivo final foi enviado/atualizado pela Arte
+  finalFileAckedAt: timestamp("final_file_acked_at"), // Quando a Gráfica confirmou que baixou a versão atual
+  conferencePhotoUrl: text("conference_photo_url"), // Foto da conferência (entre Produzido e Entregue)
+  conferredAt: timestamp("conferred_at"), // Quando a Gráfica terminou de conferir tudo
+  conferredQty: integer("conferred_qty").notNull().default(0), // Quantidade já conferida (conferência parcial)
+  deliveredQty: integer("delivered_qty").notNull().default(0), // Quantidade já entregue (entrega parcial)
   sponsorApprovedBy: text("sponsor_approved_by"), // Nome do aprovador do patrocinador
   sponsorApprovedAt: timestamp("sponsor_approved_at"), // Quando foi aprovado pelo patrocinador
   creatorReviewedAt: timestamp("creator_reviewed_at"), // Quando criador do evento revisou
@@ -547,6 +555,7 @@ export const ITEM_STATUSES = [
   "approved",
   "inProduction",
   "produced",
+  "conferred",
   "delivered",
   "canceled",
   "archived",

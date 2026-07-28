@@ -1,11 +1,11 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+import { parseDateLocal, toUTCDisplayDate, fileNameFromPath, folderFromPath } from "@/lib/utils";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
-  FileImage, FolderOpen, ExternalLink, Camera, Clock, ShieldCheck, Package, Paperclip,
+  FileImage, FolderOpen, ExternalLink, Camera, Clock, ShieldCheck, Package, Paperclip, AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -38,7 +38,7 @@ const STATUS_STEP: Record<string, number> = {
   awaiting_finalization: 3, sponsor_approved: 3, awaiting_creator_review: 3,
   awaiting_final_review: 4,
   ready_for_production: 5, approved: 5, inproduction: 5, inProduction: 5,
-  produced: 6, delivered: 6,
+  produced: 6, conferred: 6, delivered: 6,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +55,7 @@ const STATUS_LABELS: Record<string, string> = {
   approved: "Liberado",
   inProduction: "Em Produção",
   produced: "Produzido",
+  conferred: "Conferido",
   delivered: "Entregue",
 };
 
@@ -64,6 +65,50 @@ export function ItemDetailsDialog({
 }: ItemDetailsDialogProps) {
   const [editMode, setEditMode]     = useState(false);
   const [editedItem, setEditedItem] = useState(item);
+  // Confirmação local de que a Gráfica baixou a versão atual do arquivo final.
+  const [ackedNow, setAckedNow] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const fmtDateTime = (d?: string | null) => d ? new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+
+  // Arquivo atualizado e ainda não confirmado pela Gráfica?
+  const finalFileNeedsRedownload = !!item?.finalFileUpdatedAt && !ackedNow &&
+    (!item?.finalFileAckedAt || new Date(item.finalFileUpdatedAt).getTime() > new Date(item.finalFileAckedAt).getTime());
+
+  // Baixa o arquivo final com nome carimbado pelo ID da peça (evita erro na Gráfica).
+  const downloadFinalFile = async () => {
+    if (!item?.finalFileUrl) return;
+    setDownloading(true);
+    try {
+      const norm = (u: string) => u.startsWith("/") ? `${window.location.origin}${u}` : u;
+      const resp = await fetch(norm(item.finalFileUrl), { credentials: "include" });
+      if (!resp.ok) throw new Error("Falha ao baixar");
+      const blob = await resp.blob();
+      // Extensão: preferir o nome original salvo (o URL /objects/ não tem extensão).
+      const ext = (item.finalFileName?.match(/\.([a-z0-9]+)$/i)?.[1]
+        || item.finalFileUrl.match(/\.([a-z0-9]+)(?:\?|$)/i)?.[1]
+        || "dat").toLowerCase();
+      const safe = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      const name = `${item.displayId || "#"}_${safe(item.event?.name)}_${safe(item.type)}.${ext}`.replace(/^#/, "");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch {
+      window.open(item.finalFileUrl, "_blank");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const ackFinalFile = async () => {
+    if (!item?.id) return;
+    try {
+      await fetch(`/api/items/${item.id}/ack-final-file`, { method: "POST", credentials: "include" });
+      setAckedNow(true);
+    } catch { /* silencioso */ }
+  };
 
   if (!item) return null;
 
@@ -568,42 +613,61 @@ export function ItemDetailsDialog({
 
               {item.finalFileUrl ? (
                 <>
-                  <div style={{ padding: 16, backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 2, border: "1px solid rgba(0,99,152,0.15)" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                      <FolderOpen style={{ width: 20, height: 20, color: "#006398", marginTop: 2, flexShrink: 0 }} />
-                      <div style={{ overflow: "hidden" }}>
-                        <p style={{
-                          fontSize: 9, fontWeight: 700, backgroundColor: "#006398", color: "#ffffff",
-                          padding: "2px 8px", borderRadius: 2, display: "inline-block",
-                          marginBottom: 8, textTransform: "uppercase", letterSpacing: "-0.04em",
-                        }}>
-                          PRONTO PARA IMPRESSÃO
-                        </p>
-                        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, wordBreak: "break-all", color: "#003554", margin: 0 }}>
-                          {item.finalFileUrl}
-                        </p>
+                  {/* ALERTA BEM VISUAL: arquivo atualizado, rebaixar */}
+                  {finalFileNeedsRedownload && (
+                    <div style={{ marginBottom: 12, padding: "14px 16px", background: "#dc2626", borderRadius: 4, color: "#fff", boxShadow: "0 6px 16px rgba(220,38,38,0.35)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 900, fontSize: 14, letterSpacing: "0.02em" }}>
+                        <AlertTriangle style={{ width: 18, height: 18, flexShrink: 0 }} />
+                        ARQUIVO ATUALIZADO — REBAIXE ANTES DE IMPRIMIR
                       </div>
+                      <p style={{ margin: "4px 0 0", fontSize: 12, color: "rgba(255,255,255,0.9)" }}>
+                        A Arte enviou uma nova versão em {fmtDateTime(item.finalFileUpdatedAt)}. Baixe de novo e confirme abaixo.
+                      </p>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
+                    {/* Preview do arquivo final */}
+                    {item.finalPreviewUrl && (
+                      <a href={item.finalPreviewUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, width: 92, height: 92, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(0,99,152,0.2)", background: "#fff" }}>
+                        <img src={item.finalPreviewUrl} alt="Preview do arquivo final" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      </a>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0, padding: 14, backgroundColor: "rgba(255,255,255,0.5)", borderRadius: 6, border: "1px solid rgba(0,99,152,0.15)" }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, backgroundColor: finalFileNeedsRedownload ? "#dc2626" : "#006398", color: "#fff", padding: "2px 8px", borderRadius: 2, display: "inline-block", marginBottom: 8, textTransform: "uppercase" }}>
+                        {finalFileNeedsRedownload ? "Nova versão" : "Pronto para impressão"}
+                      </p>
+                      <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, wordBreak: "break-all", color: "#003554", margin: 0, lineHeight: 1.3 }}>
+                        {item.finalFileName || fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl.startsWith("/objects/") ? "arquivo enviado" : item.finalFileUrl)}
+                      </p>
+                      {item.finalFileUpdatedAt && (
+                        <p style={{ fontSize: 10, color: "#5a7a8c", margin: "4px 0 0" }}>
+                          Enviado em {fmtDateTime(item.finalFileUpdatedAt)}
+                          {item.finalFileAckedAt && !finalFileNeedsRedownload ? ` · baixado em ${fmtDateTime(item.finalFileAckedAt)}` : ""}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  {item.finalFileUrl.startsWith("http") && (
-                    <a
-                      href={item.finalFileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        width: "100%", marginTop: 12, padding: "12px 0",
-                        backgroundColor: "#006398", color: "#ffffff", borderRadius: 2,
-                        fontWeight: 700, fontSize: 11, textTransform: "uppercase",
-                        letterSpacing: "0.1em", textDecoration: "none",
-                        transition: "filter 0.15s",
-                      }}
-                      onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1.1)"}
-                      onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1)"}
+
+                  <button
+                    onClick={downloadFinalFile}
+                    disabled={downloading}
+                    data-testid="button-download-final"
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", marginTop: 12, padding: "12px 0", backgroundColor: "#006398", color: "#fff", border: "none", borderRadius: 4, fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", cursor: downloading ? "wait" : "pointer" }}
+                  >
+                    <ExternalLink style={{ width: 15, height: 15, marginRight: 8 }} />
+                    {downloading ? "Baixando…" : "Baixar arquivo de impressão"}
+                  </button>
+
+                  {finalFileNeedsRedownload && (
+                    <button
+                      onClick={ackFinalFile}
+                      data-testid="button-ack-final"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", marginTop: 8, padding: "10px 0", backgroundColor: "#fff", color: "#16a34a", border: "1.5px solid #16a34a", borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: "pointer" }}
                     >
-                      <ExternalLink style={{ width: 14, height: 14, marginRight: 8 }} />
-                      Abrir Arquivo Final
-                    </a>
+                      <Check style={{ width: 15, height: 15, marginRight: 8 }} />
+                      Baixei a versão atual
+                    </button>
                   )}
                 </>
               ) : (

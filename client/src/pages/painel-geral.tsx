@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, Fragment } from "react";
-import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText } from "lucide-react";
+import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText, Printer } from "lucide-react";
+import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -79,6 +80,7 @@ export default function PainelGeral() {
   const [dateFilter, setDateFilter]     = useState<string>("all");
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
+  const [showExportPDFModal, setShowExportPDFModal] = useState(false);
 
   // Sem placeholderData: no TanStack v5 ele zera o isLoading e o spinner nunca
   // aparece — o usuário via "Nenhum item" e KPIs zerados durante o carregamento.
@@ -234,20 +236,30 @@ export default function PainelGeral() {
     <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24, height: "100%", overflowY: "auto" }}>
 
       {/* ── Header ── */}
-      <header style={{ display: "flex", flexDirection: "column" }}>
-        <h1
-          data-testid="title-painel-geral"
-          style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 28, fontWeight: 700, letterSpacing: "-0.04em",
-            textTransform: "uppercase", color: "#1c1917", margin: 0,
-          }}
+      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <h1
+            data-testid="title-painel-geral"
+            style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 28, fontWeight: 700, letterSpacing: "-0.04em",
+              textTransform: "uppercase", color: "#1c1917", margin: 0,
+            }}
+          >
+            Painel de Status Geral
+          </h1>
+          <p style={{ fontSize: 13, color: "#78716c", fontWeight: 500, margin: "4px 0 0 0" }}>
+            Acompanhamento em tempo real de todos os itens em produção
+          </p>
+        </div>
+        <button
+          onClick={() => setShowExportPDFModal(true)}
+          data-testid="button-export-pdf-painel"
+          style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 8, backgroundColor: "#7c3aed", border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
         >
-          Painel de Status Geral
-        </h1>
-        <p style={{ fontSize: 13, color: "#78716c", fontWeight: 500, margin: "4px 0 0 0" }}>
-          Acompanhamento em tempo real de todos os itens em produção
-        </p>
+          <Printer style={{ width: 14, height: 14 }} />
+          Exportar PDF
+        </button>
       </header>
 
       {/* ── Status cards ── */}
@@ -729,6 +741,14 @@ export default function PainelGeral() {
           })
         )}
       </section>
+
+      {/* ── Exportar PDF — mesmo modal da Arte e do Atendimento ── */}
+      <ExportPdfDialog
+        open={showExportPDFModal}
+        onOpenChange={setShowExportPDFModal}
+        items={items}
+        title="Peças"
+      />
 
       {/* ── Item details modal ── */}
       <ItemDetailsDialog

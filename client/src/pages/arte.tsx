@@ -3197,13 +3197,40 @@ export default function Arte() {
 
               {/* Rodapé ações */}
               <div style={{ padding: '16px 20px', borderTop: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {expSelectedItems.some((i: any) => i.bookUrl) && (() => {
+                  const nBook = expSelectedItems.filter((i: any) => i.bookUrl).length;
+                  const all = nBook === expSelectedItems.length;
+                  return (
+                    <div style={{ backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '8px 10px' }}>
+                      <p style={{ fontSize: 11, fontWeight: 800, color: '#6d28d9', margin: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <FileText style={{ width: 11, height: 11 }} />
+                        {all ? 'Todas as peças têm book' : `Book cobre ${nBook} de ${expSelectedItems.length} peças`}
+                      </p>
+                      <div style={{ height: 4, borderRadius: 999, backgroundColor: '#ddd6fe', margin: '6px 0', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.round((nBook / expSelectedItems.length) * 100)}%`, backgroundColor: '#7c3aed' }} />
+                      </div>
+                      <p style={{ fontSize: 10, color: '#6d28d9', margin: 0 }}>
+                        {all
+                          ? 'Ao gerar, abre o PDF do book pronto.'
+                          : `O book abre pronto; as outras ${expSelectedItems.length - nBook} peça(s) saem no PDF gerado.`}
+                      </p>
+                    </div>
+                  );
+                })()}
                 <button onClick={() => setShowExportModal(false)}
                   style={{ width: '100%', height: 36, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                   Cancelar
                 </button>
                 <button
                   onClick={() => {
-                    void exportMixedToPDF(expSelectedItems, expCombinedSet, `Arte — ${expSelectedItems.length} peça(s)`, expGroupByEvent);
+                    // Peças cobertas por book usam o PDF pronto; as demais saem no PDF gerado.
+                    const withBook = expSelectedItems.filter((i: any) => i.bookUrl);
+                    const withoutBook = expSelectedItems.filter((i: any) => !i.bookUrl);
+                    Array.from(new Set(withBook.map((i: any) => i.bookUrl as string)))
+                      .forEach(url => window.open(url, '_blank', 'noopener,noreferrer'));
+                    if (withoutBook.length > 0) {
+                      void exportMixedToPDF(withoutBook, expCombinedSet, `Arte — ${withoutBook.length} peça(s)`, expGroupByEvent);
+                    }
                     setShowExportModal(false);
                   }}
                   disabled={expSelectedItems.length === 0}
@@ -3255,7 +3282,7 @@ export default function Arte() {
                       >Nenhuma</button>
                     </div>
                     <span style={{ fontSize: 10, color: '#a8a29e', whiteSpace: 'nowrap' }}>
-                      {expSelectedItems.filter((i: any) => i.approvalThumbUrl).length} com thumb · {expSelectedItems.filter((i: any) => !i.approvalThumbUrl).length} sem thumb
+                      {expSelectedItems.filter((i: any) => i.approvalThumbUrl).length} com thumb · {expSelectedItems.filter((i: any) => !i.approvalThumbUrl).length} sem thumb{expSelectedItems.some((i: any) => i.bookUrl) ? ` · ${expSelectedItems.filter((i: any) => i.bookUrl).length} com book` : ''}
                     </span>
                   </div>
                   <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -3288,6 +3315,12 @@ export default function Arte() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                               <span style={{ fontSize: 11, fontWeight: 800, color: '#7c3aed', fontFamily: 'monospace' }}>{item.displayId}</span>
                               <span style={{ fontSize: 11, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                              {item.bookUrl && (
+                                <span title="Peça coberta por book — o PDF do book abre na exportação" style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 800, color: '#6d28d9', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 3, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }} data-testid={`badge-book-export-arte-${item.id}`}>
+                                  <FileText style={{ width: 8, height: 8 }} />
+                                  Book
+                                </span>
+                              )}
                             </div>
                             <div style={{ fontSize: 10, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {item.event?.name || "Sem evento"}{item.description ? ` · ${item.description}` : ''}

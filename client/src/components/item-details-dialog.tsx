@@ -71,9 +71,10 @@ export function ItemDetailsDialog({
 
   const fmtDateTime = (d?: string | null) => d ? new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 
-  // Arquivo atualizado e ainda não confirmado pela Gráfica?
-  const finalFileNeedsRedownload = !!item?.finalFileUpdatedAt && !ackedNow &&
-    (!item?.finalFileAckedAt || new Date(item.finalFileUpdatedAt).getTime() > new Date(item.finalFileAckedAt).getTime());
+  // Alerta de "rebaixe" só quando é uma ATUALIZAÇÃO: a Gráfica já confirmou uma
+  // versão antes e a Arte enviou outra mais nova. Na 1ª versão não aparece.
+  const finalFileNeedsRedownload = !ackedNow && !!item?.finalFileAckedAt && !!item?.finalFileUpdatedAt &&
+    new Date(item.finalFileUpdatedAt).getTime() > new Date(item.finalFileAckedAt).getTime();
 
   // Baixa o arquivo final com nome carimbado pelo ID da peça (evita erro na Gráfica).
   const downloadFinalFile = async () => {

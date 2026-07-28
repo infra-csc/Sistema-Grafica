@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare, Filter, SlidersHorizontal, Palette } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare, Filter, SlidersHorizontal, Palette, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1146,12 +1146,11 @@ export default function Arte() {
         } else if (tab === "finalizados") {
           matchesView = [
             'awaiting_final_review',
-            'ready_for_production',
-            'pronto_para_producao',
-            'liberado',
-            'em_producao',
-            'produzido',
-            'entregue',
+            'ready_for_production', 'approved', 'pronto_para_producao', 'liberado',
+            'inProduction', 'em_producao',
+            'produced', 'produzido',
+            'conferred',
+            'delivered', 'entregue',
           ].includes(item.status);
         }
         const matchesType = typeFilter === "all" || item.type === typeFilter;
@@ -2667,49 +2666,62 @@ export default function Arte() {
                   Arquivo Final {selectedItem.finalFileUrl ? '· atualizar versão' : ''}
                 </label>
 
-                {/* Arquivo de impressão */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: `1.5px dashed ${finalFileUrl ? '#16a34a' : '#d4d0cc'}`, background: finalFileUrl ? '#f0fdf4' : '#ffffff', cursor: 'pointer' }}>
-                  <FileText style={{ width: 16, height: 16, color: finalFileUrl ? '#16a34a' : '#a8a29e', flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: finalFileUrl ? '#15803d' : '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {finalUploading === 'file' ? 'Enviando…' : finalFileName || 'Arquivo de impressão (.ai/.pdf/.eps/.cdr/.tif)'}
-                  </span>
-                  <input type="file" accept=".ai,.pdf,.eps,.cdr,.tif,.tiff,.svg,.indd,application/pdf,application/postscript" style={{ display: 'none' }}
-                    onChange={e => { handleFinalUpload('file', e.target.files?.[0]); e.target.value = ''; }} />
-                </label>
+                {/* Arquivo de impressão — travado enquanto qualquer upload roda */}
+                {(() => {
+                  const busy = !!finalUploading; const me = finalUploading === 'file';
+                  return (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: `1.5px dashed ${me ? '#fd761a' : finalFileUrl ? '#16a34a' : '#d4d0cc'}`, background: finalFileUrl ? '#f0fdf4' : '#ffffff', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy && !me ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
+                      {me ? <Loader2 className="animate-spin" style={{ width: 16, height: 16, color: '#fd761a', flexShrink: 0 }} /> : <FileText style={{ width: 16, height: 16, color: finalFileUrl ? '#16a34a' : '#a8a29e', flexShrink: 0 }} />}
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: me ? '#c2410c' : finalFileUrl ? '#15803d' : '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {me ? 'Enviando arquivo…' : finalFileName || 'Arquivo de impressão (.ai/.pdf/.eps/.cdr/.tif)'}
+                      </span>
+                      <input type="file" disabled={busy} accept=".ai,.pdf,.eps,.cdr,.tif,.tiff,.svg,.indd,application/pdf,application/postscript" style={{ display: 'none' }}
+                        onChange={e => { handleFinalUpload('file', e.target.files?.[0]); e.target.value = ''; }} />
+                    </label>
+                  );
+                })()}
 
                 {/* Preview JPG */}
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: `1.5px dashed ${finalPreviewUrl ? '#16a34a' : '#d4d0cc'}`, background: finalPreviewUrl ? '#f0fdf4' : '#ffffff', cursor: 'pointer' }}>
-                  <FileImage style={{ width: 16, height: 16, color: finalPreviewUrl ? '#16a34a' : '#a8a29e', flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: finalPreviewUrl ? '#15803d' : '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {finalUploading === 'preview' ? 'Enviando…' : finalPreviewName || 'Preview do arquivo (.jpg) — para conferência'}
-                  </span>
-                  <input type="file" accept="image/*,.jpg,.jpeg,.png" style={{ display: 'none' }}
-                    onChange={e => { handleFinalUpload('preview', e.target.files?.[0]); e.target.value = ''; }} />
-                </label>
+                {(() => {
+                  const busy = !!finalUploading; const me = finalUploading === 'preview';
+                  return (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: `1.5px dashed ${me ? '#fd761a' : finalPreviewUrl ? '#16a34a' : '#d4d0cc'}`, background: finalPreviewUrl ? '#f0fdf4' : '#ffffff', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy && !me ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
+                      {me ? <Loader2 className="animate-spin" style={{ width: 16, height: 16, color: '#fd761a', flexShrink: 0 }} /> : <FileImage style={{ width: 16, height: 16, color: finalPreviewUrl ? '#16a34a' : '#a8a29e', flexShrink: 0 }} />}
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: me ? '#c2410c' : finalPreviewUrl ? '#15803d' : '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {me ? 'Enviando preview…' : finalPreviewName || 'Preview do arquivo (.jpg) — para conferência'}
+                      </span>
+                      <input type="file" disabled={busy} accept="image/*,.jpg,.jpeg,.png" style={{ display: 'none' }}
+                        onChange={e => { handleFinalUpload('preview', e.target.files?.[0]); e.target.value = ''; }} />
+                    </label>
+                  );
+                })()}
               </div>
 
               {/* CTA button */}
-              <button
-                onClick={handleSubmitFinalFile}
-                disabled={submitFinalFileMutation.isPending || !finalFileUrl}
-                data-testid="button-submit-final"
-                style={{
-                  width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
-                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl) ? '#fcd9b7' : '#fd761a',
-                  color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
-                  fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.15em',
-                  cursor: (submitFinalFileMutation.isPending || !finalFileUrl) ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: '0 4px 16px rgba(253,118,26,0.2)', transition: 'filter 0.15s, transform 0.1s'
-                }}
-                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
-                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-              >
-                {submitFinalFileMutation.isPending ? 'Enviando...' : (selectedItem.finalFileUrl ? 'Revisar e atualizar arquivo' : 'Revisar e enviar')}
-                {!submitFinalFileMutation.isPending && <ArrowRight style={{ width: 16, height: 16 }} />}
-              </button>
+              {(() => {
+                const blocked = submitFinalFileMutation.isPending || !finalFileUrl || !!finalUploading;
+                return (
+                  <button
+                    onClick={handleSubmitFinalFile}
+                    disabled={blocked}
+                    data-testid="button-submit-final"
+                    style={{
+                      width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: blocked ? '#fcd9b7' : '#fd761a',
+                      color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
+                      fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.15em',
+                      cursor: blocked ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      boxShadow: '0 4px 16px rgba(253,118,26,0.2)', transition: 'filter 0.15s, transform 0.1s'
+                    }}
+                    onMouseEnter={e => { if (blocked) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                  >
+                    {finalUploading ? 'Aguarde o upload…' : submitFinalFileMutation.isPending ? 'Enviando...' : (selectedItem.finalFileUrl ? 'Revisar e atualizar arquivo' : 'Revisar e enviar')}
+                    {!finalUploading && !submitFinalFileMutation.isPending && <ArrowRight style={{ width: 16, height: 16 }} />}
+                  </button>
+                );
+              })()}
             </div>
           </section>
         ) : null}

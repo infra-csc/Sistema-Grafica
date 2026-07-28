@@ -40,6 +40,8 @@ export default function Arte() {
   const [finalPreviewName, setFinalPreviewName] = useState<string>("");
   const [finalUploading, setFinalUploading] = useState<"" | "file" | "preview">("");
   const [finalConfirmOpen, setFinalConfirmOpen] = useState(false);
+  // true quando a Arte trocou o arquivo nesta sessão (evita "atualizar" sem mudar).
+  const [finalDirty, setFinalDirty] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
@@ -1222,9 +1224,10 @@ export default function Arte() {
     setApprovalThumbPreview(item.approvalThumbUrl || "");
     setFinalFileUrl(item.finalFileUrl || "");
     setFinalPreviewUrl(item.finalPreviewUrl || "");
-    setFinalFileName(fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl ? "arquivo enviado" : ""));
+    setFinalFileName(item.finalFileName || fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl ? "arquivo enviado" : ""));
     setFinalPreviewName(item.finalPreviewUrl ? "preview enviado" : "");
     setFinalConfirmOpen(false);
+    setFinalDirty(false);
   };
 
   const handleSubmitForApproval = () => {
@@ -1258,6 +1261,7 @@ export default function Arte() {
       const url = await uploadFileRaw(file);
       if (kind === "file") { setFinalFileUrl(url); setFinalFileName(file.name); }
       else { setFinalPreviewUrl(url); setFinalPreviewName(file.name); }
+      setFinalDirty(true);
       toast({ title: "Arquivo anexado", description: file.name });
     } catch (e: any) {
       toast({ title: "Erro no upload", description: e.message, variant: "destructive" });
@@ -2617,15 +2621,20 @@ export default function Arte() {
         auditLogs={selectedItem ? auditLogs.filter((log: any) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
-        topActions={selectedItem && ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? (
+        topActions={selectedItem && [
+          'sponsor_approved', 'awaiting_creator_review',
+          // Já finalizado: permite a Arte reabrir e enviar uma nova versão do arquivo.
+          'awaiting_final_review', 'ready_for_production', 'approved', 'pronto_para_producao', 'liberado',
+          'inProduction', 'em_producao', 'produced', 'produzido', 'conferred', 'delivered', 'entregue',
+        ].includes(selectedItem.status) ? (
           <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Section header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', color: '#1c1917', margin: 0 }}>
-                Finalização de Layout
+                {selectedItem.finalFileUrl ? 'Atualizar Arquivo Final' : 'Finalização de Layout'}
               </h3>
-              <span style={{ fontSize: 10, backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                FASE FINAL
+              <span style={{ fontSize: 10, backgroundColor: selectedItem.finalFileUrl ? '#fef3c7' : '#dcfce7', color: selectedItem.finalFileUrl ? '#b45309' : '#15803d', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                {selectedItem.finalFileUrl ? 'NOVA VERSÃO' : 'FASE FINAL'}
               </span>
             </div>
 
@@ -2699,7 +2708,8 @@ export default function Arte() {
 
               {/* CTA button */}
               {(() => {
-                const blocked = submitFinalFileMutation.isPending || !finalFileUrl || !!finalUploading;
+                const isUpdate = !!selectedItem.finalFileUrl;
+                const blocked = submitFinalFileMutation.isPending || !finalFileUrl || !!finalUploading || (isUpdate && !finalDirty);
                 return (
                   <button
                     onClick={handleSubmitFinalFile}
@@ -2717,8 +2727,12 @@ export default function Arte() {
                     onMouseEnter={e => { if (blocked) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
                     onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
                   >
-                    {finalUploading ? 'Aguarde o upload…' : submitFinalFileMutation.isPending ? 'Enviando...' : (selectedItem.finalFileUrl ? 'Revisar e atualizar arquivo' : 'Revisar e enviar')}
-                    {!finalUploading && !submitFinalFileMutation.isPending && <ArrowRight style={{ width: 16, height: 16 }} />}
+                    {finalUploading ? 'Aguarde o upload…'
+                      : submitFinalFileMutation.isPending ? 'Enviando...'
+                      : (isUpdate && !finalDirty) ? 'Anexe o novo arquivo para atualizar'
+                      : isUpdate ? 'Revisar e enviar nova versão'
+                      : 'Revisar e enviar'}
+                    {!finalUploading && !submitFinalFileMutation.isPending && !(isUpdate && !finalDirty) && <ArrowRight style={{ width: 16, height: 16 }} />}
                   </button>
                 );
               })()}

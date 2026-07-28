@@ -2,6 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate, fileNameFromPath, folderFromPath } from "@/lib/utils";
+import { queryClient } from "@/lib/queryClient";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -109,6 +110,8 @@ export function ItemDetailsDialog({
     try {
       await fetch(`/api/items/${item.id}/ack-final-file`, { method: "POST", credentials: "include" });
       setAckedNow(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
     } catch { /* silencioso */ }
   };
 

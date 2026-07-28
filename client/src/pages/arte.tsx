@@ -3384,7 +3384,12 @@ export default function Arte() {
                         {on && <Check style={{ width: 10, height: 10, color: '#fff' }} />}
                       </div>
                       <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#7c3aed', flexShrink: 0 }}>{item.displayId}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                        {item.description && item.description !== item.type && (
+                          <span style={{ fontSize: 10, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
+                        )}
+                      </span>
                       {item.bookUrl && <span title="Já tem book" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 9, fontWeight: 700, color: '#6d28d9', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 4, padding: '1px 5px' }}>BOOK</span>}
                     </div>
                   );

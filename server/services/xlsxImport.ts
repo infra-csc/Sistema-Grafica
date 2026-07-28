@@ -6,6 +6,21 @@ import { storage } from "../storage";
 import { insertItemSchema } from "@shared/schema";
 import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
 
+// Valores conhecidos (normalizados) para detectar as colunas de material e
+// acabamento pelo CONTEÚDO — o Arena é semi-padrão, então mesmo sem cabeçalho
+// ou com colunas trocadas dá para reconhecer pela lista de valores comuns.
+const KNOWN_MATERIALS = new Set([
+  "adesivo", "lona", "madeira", "sanett", "sannet", "tecido", "tecido pet", "vinil",
+  "banner", "backlight", "frontlight", "blackout", "tela", "mdf", "acrilico", "ps",
+  "sintetico", "couche", "papel", "napa", "carpete", "hellerman", "imantada", "ima",
+  "adesivo perfurado", "adesivo blackout", "lona backlight", "lona frontlight",
+]);
+const KNOWN_FINISHES = new Set([
+  "ilhos", "ilhoses", "refile", "recorte", "impresso", "impressao uv", "uv",
+  "dupla face", "bainha", "bainha e ilhos", "ilhos e bainha", "corte", "corte especial",
+  "laminado", "verniz", "sem acabamento", "acabamento", "costura", "solda", "overloque",
+]);
+
 
   // ── Preview Excel items (parse without saving) ───────────────────────────
   export async function handlePreviewXlsx(req: Request, res: Response) {
@@ -239,6 +254,49 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
             const cand = String.fromCharCode(65 + fi - 1);
             const used = new Set(Object.values(localColMap));
             if (!used.has(cand)) localColMap["material"] = cand;
+          }
+        }
+
+        // --- Detecção por CONTEÚDO (robusta a colunas fora do lugar) ---
+        // Se material/acabamento ainda não foram achados pelo cabeçalho/posição,
+        // varre as linhas de dados e escolhe a coluna cujos valores mais batem
+        // com materiais/acabamentos conhecidos. Também casa material↔acabamento
+        // adjacentes quando um dos dois foi achado.
+        if (!localColMap["material"] || !localColMap["finish"]) {
+          const dataRows = Object.keys(candidate).map(Number).filter(r => r > localHeaderRow).slice(0, 60);
+          const matScore: Record<string, number> = {};
+          const finScore: Record<string, number> = {};
+          for (const r of dataRows) {
+            const row = candidate[r];
+            if (!row) continue;
+            for (const [col, val] of Object.entries(row)) {
+              const v = normHdr(val);
+              if (!v) continue;
+              if (KNOWN_MATERIALS.has(v)) matScore[col] = (matScore[col] || 0) + 1;
+              if (KNOWN_FINISHES.has(v)) finScore[col] = (finScore[col] || 0) + 1;
+            }
+          }
+          const pickBest = (score: Record<string, number>) => {
+            const used = new Set(Object.values(localColMap));
+            let best: string | null = null, bestN = 0;
+            for (const [col, n] of Object.entries(score)) {
+              if (used.has(col)) continue;
+              if (n > bestN) { bestN = n; best = col; }
+            }
+            return bestN >= 2 ? best : null; // exige ao menos 2 acertos
+          };
+          if (!localColMap["material"]) { const c = pickBest(matScore); if (c) localColMap["material"] = c; }
+          if (!localColMap["finish"])   { const c = pickBest(finScore); if (c) localColMap["finish"]   = c; }
+          // Se achou um por conteúdo e o vizinho (material↔acabamento) está livre,
+          // preenche o outro pela adjacência padrão do Arena.
+          const usedNow = new Set(Object.values(localColMap));
+          if (localColMap["material"] && !localColMap["finish"]) {
+            const mi = localColMap["material"].charCodeAt(0) - 65;
+            const cand = String.fromCharCode(65 + mi + 1);
+            if (!usedNow.has(cand)) localColMap["finish"] = cand;
+          } else if (localColMap["finish"] && !localColMap["material"]) {
+            const fi = localColMap["finish"].charCodeAt(0) - 65;
+            if (fi > 0) { const cand = String.fromCharCode(65 + fi - 1); if (!usedNow.has(cand)) localColMap["material"] = cand; }
           }
         }
 

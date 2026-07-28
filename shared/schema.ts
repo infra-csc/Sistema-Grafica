@@ -108,7 +108,8 @@ export const items = pgTable("items", {
   isReuse: boolean("is_reuse").notNull().default(false), // Se true, peça é reaproveitamento (não precisa de produção)
   approvalThumbUrl: text("approval_thumb_url"), // Thumb/link leve para aprovação
   hasModifiedData: boolean("has_modified_data").notNull().default(false), // Flag: tem dados modificados para notificar Arte
-  finalFileUrl: text("final_file_url"), // Link/arquivo final de impressão (upload no app)
+  finalFileUrl: text("final_file_url"), // Arquivo de impressão final (AI/PDF) — upload no app
+  finalPreviewUrl: text("final_preview_url"), // Preview JPG do arquivo final (conferência visual)
   finalFileUpdatedAt: timestamp("final_file_updated_at"), // Quando o arquivo final foi enviado/atualizado pela Arte
   finalFileAckedAt: timestamp("final_file_acked_at"), // Quando a Gráfica confirmou que baixou a versão atual
   conferencePhotoUrl: text("conference_photo_url"), // Foto da conferência (entre Produzido e Entregue)

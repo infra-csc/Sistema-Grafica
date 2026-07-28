@@ -1082,8 +1082,9 @@ export function registerItemRoutes(app: Express): void {
       // Validate request body with Zod
       const finalFileSchema = z.object({
         finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio"),
+        finalPreviewUrl: z.string().optional().nullable(),
       });
-      
+
       const validatedData = finalFileSchema.parse(req.body);
       
       // Validate current status
@@ -1103,6 +1104,7 @@ export function registerItemRoutes(app: Express): void {
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_final_review",
         finalFileUrl: validatedData.finalFileUrl,
+        finalPreviewUrl: validatedData.finalPreviewUrl || null,
         finalFileUpdatedAt: new Date(),
         finalFileAckedAt: null,
       });
@@ -1732,7 +1734,7 @@ export function registerItemRoutes(app: Express): void {
       if ((req as any).userRole !== "arte" && (req as any).userRole !== "admin") {
         return res.status(403).json({ error: "Apenas Arte pode atualizar o arquivo final" });
       }
-      const { finalFileUrl } = req.body ?? {};
+      const { finalFileUrl, finalPreviewUrl } = req.body ?? {};
       if (!finalFileUrl || typeof finalFileUrl !== "string") {
         return res.status(400).json({ error: "finalFileUrl é obrigatório" });
       }
@@ -1741,6 +1743,7 @@ export function registerItemRoutes(app: Express): void {
 
       const item = await storage.updateItem(req.params.id, {
         finalFileUrl,
+        finalPreviewUrl: finalPreviewUrl || null,
         finalFileUpdatedAt: new Date(),
         finalFileAckedAt: null,
       });

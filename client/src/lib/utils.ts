@@ -39,23 +39,3 @@ export async function runInBatches<T>(
     await Promise.all(inputs.slice(i, i + batchSize).map(task));
   }
 }
-
-// Extrai o nome do arquivo de um caminho (rede/URL) quando ele aponta para um
-// ARQUIVO (tem extensão conhecida). Retorna null quando é uma PASTA — assim a
-// UI pode avisar a Arte para colar o caminho do arquivo específico, evitando
-// que a Gráfica pegue o arquivo errado dentro da pasta.
-const FINAL_FILE_EXT_RE = /\.(ai|pdf|tiff?|jpe?g|png|psd|eps|cdr|svg|indd|zip|rar|bmp|gif|webp)$/i;
-
-export function fileNameFromPath(p?: string | null): string | null {
-  if (!p) return null;
-  const seg = String(p).trim().replace(/[\/]+$/, "").split(/[\/]/).pop() || "";
-  return FINAL_FILE_EXT_RE.test(seg) ? seg : null;
-}
-
-/** Pasta que contém o arquivo (tudo antes do último separador), ou o próprio caminho. */
-export function folderFromPath(p?: string | null): string {
-  if (!p) return "";
-  const s = String(p).trim().replace(/[\/]+$/, "");
-  const idx = Math.max(s.lastIndexOf("\\"), s.lastIndexOf("/"));
-  return idx > 0 ? s.slice(0, idx) : s;
-}

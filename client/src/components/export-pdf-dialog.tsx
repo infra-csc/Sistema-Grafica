@@ -203,11 +203,26 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             </div>
 
             <div style={{ padding: "16px 20px", borderTop: "1px solid #f0ede8", display: "flex", flexDirection: "column", gap: 8 }}>
-              {selected.some(i => i.bookUrl) && (
-                <p style={{ fontSize: 10, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 6, padding: "6px 8px", margin: 0 }}>
-                  {selected.filter(i => i.bookUrl).length} peça(s) já têm book da Arte — o PDF do book abre junto; o restante sai no PDF gerado.
-                </p>
-              )}
+              {selected.some(i => i.bookUrl) && (() => {
+                const nBook = selected.filter(i => i.bookUrl).length;
+                const all = nBook === selected.length;
+                return (
+                  <div style={{ backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 8, padding: "8px 10px" }}>
+                    <p style={{ fontSize: 11, fontWeight: 800, color: "#6d28d9", margin: 0, display: "flex", alignItems: "center", gap: 5 }}>
+                      <FileText style={{ width: 11, height: 11 }} />
+                      {all ? "Todas as peças têm book" : `Book cobre ${nBook} de ${selected.length} peças`}
+                    </p>
+                    <div style={{ height: 4, borderRadius: 999, backgroundColor: "#ddd6fe", margin: "6px 0", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${Math.round((nBook / selected.length) * 100)}%`, backgroundColor: "#7c3aed" }} />
+                    </div>
+                    <p style={{ fontSize: 10, color: "#6d28d9", margin: 0 }}>
+                      {all
+                        ? "Ao gerar, abre o PDF do book pronto da Arte."
+                        : `O book abre pronto; as outras ${selected.length - nBook} peça(s) saem no PDF gerado.`}
+                    </p>
+                  </div>
+                );
+              })()}
               <button onClick={() => onOpenChange(false)} style={{ width: "100%", height: 36, borderRadius: 8, background: "#f5f5f4", border: "1px solid #e7e5e4", color: "#78716c", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Cancelar</button>
               <button
                 onClick={() => {
@@ -250,7 +265,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                     <span style={{ color: "#e7e5e4" }}>·</span>
                     <button onClick={() => setExcludedIds(new Set(filtered.map(i => i.id)))} disabled={selected.length === 0} style={{ background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 700, cursor: selected.length === 0 ? "default" : "pointer", color: selected.length === 0 ? "#d4d4d0" : "#7c3aed" }}>Nenhuma</button>
                   </div>
-                  <span style={{ fontSize: 10, color: "#a8a29e", whiteSpace: "nowrap" }}>{selected.filter(i => i.approvalThumbUrl).length} com thumb · {selected.filter(i => !i.approvalThumbUrl).length} sem thumb</span>
+                  <span style={{ fontSize: 10, color: "#a8a29e", whiteSpace: "nowrap" }}>{selected.filter(i => i.approvalThumbUrl).length} com thumb · {selected.filter(i => !i.approvalThumbUrl).length} sem thumb{selected.some(i => i.bookUrl) ? ` · ${selected.filter(i => i.bookUrl).length} com book` : ""}</span>
                 </div>
                 <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
                   {filtered.map((item: any) => {
@@ -271,6 +286,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                             <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", fontFamily: "monospace" }}>{item.displayId}</span>
                             <span style={{ fontSize: 11, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.type}</span>
+                            {item.bookUrl && (
+                              <span title="Peça coberta por book da Arte — o PDF do book abre na exportação" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 3, padding: "1px 6px", textTransform: "uppercase", letterSpacing: "0.04em" }} data-testid={`badge-book-export-${item.id}`}>
+                                <FileText style={{ width: 8, height: 8 }} />
+                                Book
+                              </span>
+                            )}
                           </div>
                           <div style={{ fontSize: 10, color: "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.event?.name || ""}{item.description ? ` · ${item.description}` : ""}</div>
                         </div>

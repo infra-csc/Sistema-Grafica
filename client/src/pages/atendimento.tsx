@@ -1590,12 +1590,6 @@ export default function Atendimento() {
                                   Ref. visual
                                 </a>
                               )}
-                              {item.bookUrl && (
-                                <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#6d28d9', textDecoration: 'none', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 3, padding: '2px 6px', marginTop: 4, marginLeft: item.referenceUrl ? 6 : 0 }} data-testid={`link-book-atendimento-${item.id}`}>
-                                  <FileText style={{ width: 9, height: 9 }} />
-                                  Book
-                                </a>
-                              )}
                             </div>
 
                             {/* Col 2: Patrocinadores */}

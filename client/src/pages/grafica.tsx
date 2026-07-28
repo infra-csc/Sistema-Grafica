@@ -88,6 +88,8 @@ export default function Grafica() {
   const [openRecipientCombobox, setOpenRecipientCombobox] = useState(false);
   const [productionData, setProductionData] = useState({ quantityProduced: 0 });
   const [deliveryData, setDeliveryData] = useState({ photoUrl: "", receivedBy: "" });
+  const [conferQty, setConferQty] = useState(0);   // conferência parcial
+  const [deliverQty, setDeliverQty] = useState(0); // entrega parcial
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string>("");
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>("");
   const [isPhotoUploaded, setIsPhotoUploaded] = useState(false);
@@ -130,8 +132,8 @@ export default function Grafica() {
   });
 
   const conferMutation = useMutation({
-    mutationFn: async ({ itemId, conferencePhotoUrl }: { itemId: string; conferencePhotoUrl: string }) =>
-      await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl }),
+    mutationFn: async ({ itemId, conferencePhotoUrl, qty }: { itemId: string; conferencePhotoUrl: string; qty: number }) =>
+      await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl, qty }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -272,7 +274,7 @@ export default function Grafica() {
         return;
       }
     }
-    markDeliveredMutation.mutate({ itemId: selectedItem.id, data: deliveryData });
+    markDeliveredMutation.mutate({ itemId: selectedItem.id, data: { ...deliveryData, qty: deliverQty } });
   };
 
   const handleSubmitConference = async (e: React.FormEvent) => {
@@ -282,13 +284,24 @@ export default function Grafica() {
       toast({ title: "Foto obrigatória", description: "Envie a foto da conferência da peça.", variant: "destructive" });
       return;
     }
-    conferMutation.mutate({ itemId: selectedItem.id, conferencePhotoUrl: uploadedPhotoUrl });
+    conferMutation.mutate({ itemId: selectedItem.id, conferencePhotoUrl: uploadedPhotoUrl, qty: conferQty });
   };
 
   const isDelivered = (item: any) => item.status === "delivered" || item.status === "entregue";
   const isConferred = (item: any) => item.status === "conferred";
   const isProduced = (item: any) => item.status === "produced" || item.status === "produzido";
   const isInProd = (item: any) => item.status === "inProduction" || item.status === "em_producao";
+
+  // Quantidades para conferência/entrega parcial.
+  const qtyOf = (item: any) => Number(item.quantity) || 0;
+  const conferredOf = (item: any) => Number(item.conferredQty) || 0;
+  const deliveredOf = (item: any) => Number(item.deliveredQty) || 0;
+  const remainingConfer = (item: any) => qtyOf(item) - conferredOf(item);
+  const remainingDeliver = (item: any) => (item.isReuse ? qtyOf(item) : conferredOf(item)) - deliveredOf(item);
+  // Botões parciais: dá pra conferir enquanto falta conferir (e já produziu);
+  // dá pra entregar enquanto há conferido não entregue.
+  const canConfer = (item: any) => !isDelivered(item) && !item.isReuse && (isProduced(item)) && remainingConfer(item) > 0;
+  const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
 
   const openProductionModal = (item: any) => {
     setSelectedItem(item);
@@ -301,6 +314,7 @@ export default function Grafica() {
     setModalType("conference");
     setUploadedPhotoUrl(""); setPhotoPreviewUrl("");
     setIsPhotoUploaded(false);
+    setConferQty(remainingConfer(item)); // padrão: o que falta conferir
   };
 
   const openDeliveryModal = (item: any) => {
@@ -309,6 +323,7 @@ export default function Grafica() {
     setUploadedPhotoUrl(""); setPhotoPreviewUrl("");
     setIsPhotoUploaded(false);
     setDeliveryData({ photoUrl: "", receivedBy: "" });
+    setDeliverQty(remainingDeliver(item)); // padrão: o que falta entregar
   };
 
   return (
@@ -717,10 +732,10 @@ export default function Grafica() {
                           )}
 
                           {/* Conferir — etapa entre Produzido e Entregue (com foto) */}
-                          {isProduced(item) && !item.isReuse && (
+                          {canConfer(item) && (
                             <button
                               onClick={() => openConferenceModal(item)}
-                              title="Conferir a peça produzida (com foto)"
+                              title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}
                               data-testid={`button-confer-${item.id}`}
                               style={{
                                 backgroundColor: "#0891b2", color: "#ffffff",
@@ -733,15 +748,15 @@ export default function Grafica() {
                               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#0891b2"}
                             >
                               <CheckCircle style={{ width: 11, height: 11 }} />
-                              Conferir
+                              {conferredOf(item) > 0 ? `Conferir ${remainingConfer(item)}` : "Conferir"}
                             </button>
                           )}
 
-                          {/* Entregar — reaproveitamento: sempre ativo; normal: só depois de conferido */}
-                          {!isDelivered(item) && (item.isReuse || isConferred(item)) && (
+                          {/* Entregar — reaproveitamento: direto; normal: o que já foi conferido */}
+                          {canDeliver(item) && (
                             <button
                               onClick={() => openDeliveryModal(item)}
-                              title={item.isReuse ? "Entregar reaproveitamento" : "Marcar Entrega"}
+                              title={item.isReuse ? "Entregar reaproveitamento" : `Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}
                               data-testid={`button-deliver-${item.id}`}
                               style={{
                                 backgroundColor: TI.accent, color: "#ffffff",
@@ -754,7 +769,7 @@ export default function Grafica() {
                               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent}
                             >
                               <Truck style={{ width: 11, height: 11 }} />
-                              Entregar
+                              {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : "Entregar"}
                             </button>
                           )}
 
@@ -955,6 +970,18 @@ export default function Grafica() {
                   </Popover>
                 </div>
 
+                {/* Quantidade a entregar (entrega parcial) */}
+                {qtyOf(selectedItem) > 1 && (
+                  <div>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
+                      Quantidade a entregar agora <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já entregue {deliveredOf(selectedItem)}/{qtyOf(selectedItem)}, disponível {remainingDeliver(selectedItem)}</span>
+                    </label>
+                    <input type="number" min={1} max={remainingDeliver(selectedItem)} value={deliverQty}
+                      onChange={e => setDeliverQty(Math.max(1, Math.min(remainingDeliver(selectedItem), parseInt(e.target.value) || 1)))}
+                      style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text, outline: "none" }} />
+                  </div>
+                )}
+
                 {/* Comprovante fotográfico */}
                 <div>
                   <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
@@ -1050,8 +1077,18 @@ export default function Grafica() {
             {selectedItem && modalType === "conference" && (
               <form onSubmit={handleSubmitConference} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <p style={{ fontSize: 12, color: "#57534e", margin: 0 }}>
-                  Confira a peça produzida e anexe a foto. Depois de conferida, ela fica pronta para entrega.
+                  Confira a peça produzida e anexe a foto. Pode conferir parcialmente — depois é só conferir o restante.
                 </p>
+                {qtyOf(selectedItem) > 1 && (
+                  <div>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
+                      Quantidade a conferir agora <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já conferido {conferredOf(selectedItem)}/{qtyOf(selectedItem)}, faltam {remainingConfer(selectedItem)}</span>
+                    </label>
+                    <input type="number" min={1} max={remainingConfer(selectedItem)} value={conferQty}
+                      onChange={e => setConferQty(Math.max(1, Math.min(remainingConfer(selectedItem), parseInt(e.target.value) || 1)))}
+                      style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text, outline: "none" }} />
+                  </div>
+                )}
                 <div>
                   <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
                     Foto da Conferência *

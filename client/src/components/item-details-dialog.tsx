@@ -84,7 +84,10 @@ export function ItemDetailsDialog({
       const resp = await fetch(norm(item.finalFileUrl), { credentials: "include" });
       if (!resp.ok) throw new Error("Falha ao baixar");
       const blob = await resp.blob();
-      const ext = (item.finalFileUrl.match(/\.([a-z0-9]+)(?:\?|$)/i)?.[1] || "dat").toLowerCase();
+      // Extensão: preferir o nome original salvo (o URL /objects/ não tem extensão).
+      const ext = (item.finalFileName?.match(/\.([a-z0-9]+)$/i)?.[1]
+        || item.finalFileUrl.match(/\.([a-z0-9]+)(?:\?|$)/i)?.[1]
+        || "dat").toLowerCase();
       const safe = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
       const name = `${item.displayId || "#"}_${safe(item.event?.name)}_${safe(item.type)}.${ext}`.replace(/^#/, "");
       const a = document.createElement("a");
@@ -635,7 +638,7 @@ export function ItemDetailsDialog({
                         {finalFileNeedsRedownload ? "Nova versão" : "Pronto para impressão"}
                       </p>
                       <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, wordBreak: "break-all", color: "#003554", margin: 0, lineHeight: 1.3 }}>
-                        {fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl.startsWith("/objects/") ? "arquivo enviado" : item.finalFileUrl)}
+                        {item.finalFileName || fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl.startsWith("/objects/") ? "arquivo enviado" : item.finalFileUrl)}
                       </p>
                       {item.finalFileUpdatedAt && (
                         <p style={{ fontSize: 10, color: "#5a7a8c", margin: "4px 0 0" }}>

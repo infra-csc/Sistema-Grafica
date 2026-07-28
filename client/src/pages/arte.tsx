@@ -187,10 +187,9 @@ export default function Arte() {
   const submitFinalFileMutation = useMutation({
     // Já enviado antes? Usa update-final-file (nova versão, sem mexer no status);
     // senão, submit-final-file (primeiro envio, avança o status).
-    mutationFn: async ({ itemId, finalFileUrl, finalPreviewUrl, isUpdate }: { itemId: string; finalFileUrl: string; finalPreviewUrl: string; isUpdate: boolean }) => {
+    mutationFn: async ({ itemId, finalFileUrl, finalPreviewUrl, finalFileName, isUpdate }: { itemId: string; finalFileUrl: string; finalPreviewUrl: string; finalFileName: string; isUpdate: boolean }) => {
       const route = isUpdate ? `update-final-file` : `submit-final-file`;
-      const method = isUpdate ? "PATCH" : "PATCH";
-      return await apiRequest(method, `/api/items/${itemId}/${route}`, { finalFileUrl, finalPreviewUrl });
+      return await apiRequest("PATCH", `/api/items/${itemId}/${route}`, { finalFileUrl, finalPreviewUrl, finalFileName });
     },
     onSuccess: (_d, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -1281,7 +1280,7 @@ export default function Arte() {
   const confirmSubmitFinalFile = () => {
     if (!selectedItem || !finalFileUrl) return;
     const isUpdate = !!selectedItem.finalFileUrl; // já tinha arquivo → é atualização
-    submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl, finalPreviewUrl, isUpdate });
+    submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl, finalPreviewUrl, finalFileName, isUpdate });
   };
 
   const toggleItemSelection = (itemId: string) => {
@@ -3501,7 +3500,12 @@ export default function Arte() {
                         {on && <Check style={{ width: 10, height: 10, color: '#fff' }} />}
                       </div>
                       <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#7c3aed', flexShrink: 0 }}>{item.displayId}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                        {item.description && item.description !== item.type && (
+                          <span style={{ fontSize: 10, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
+                        )}
+                      </span>
                       {item.bookUrl && <span title="Já tem book" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 9, fontWeight: 700, color: '#6d28d9', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 4, padding: '1px 5px' }}>BOOK</span>}
                     </div>
                   );

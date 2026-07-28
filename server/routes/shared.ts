@@ -55,6 +55,7 @@ export function translateStatus(status: string): string {
     approved: "Liberado",
     inProduction: "Em Produção",
     produced: "Produzido",
+    conferred: "Conferido",
     delivered: "Entregue",
     canceled: "Cancelado",
     archived: "Arquivado",

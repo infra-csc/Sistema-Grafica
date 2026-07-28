@@ -50,6 +50,7 @@ const statusConfig: Record<string, { label: string; bg: string; color: string; b
   approved:               { label: "Liberado",           bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
   inProduction:           { label: "Em Produção",        bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
   produced:               { label: "Produzido",          bg: "#dcfce7", color: "#15803d", border: "#86efac" },
+  conferred:              { label: "Conferido",          bg: "#ecfeff", color: "#0e7490", border: "#a5f3fc" },
   delivered:              { label: "Entregue",           bg: "#f0fdf4", color: "#166534", border: "#6ee7b7" },
 };
 
@@ -73,7 +74,7 @@ function StatusPill({ status }: { status: string }) {
 export default function Grafica() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [modalType, setModalType] = useState<"production" | "delivery" | null>(null);
+  const [modalType, setModalType] = useState<"production" | "delivery" | "conference" | null>(null);
   const [viewDetailsItem, setViewDetailsItem] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
@@ -126,6 +127,19 @@ export default function Grafica() {
       toast({ title: "Entrega confirmada", description: "O item foi marcado como entregue com sucesso" });
     },
     onError: (error: Error) => toast({ title: "Erro ao confirmar entrega", description: error.message, variant: "destructive" }),
+  });
+
+  const conferMutation = useMutation({
+    mutationFn: async ({ itemId, conferencePhotoUrl }: { itemId: string; conferencePhotoUrl: string }) =>
+      await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItem(null); setModalType(null);
+      setUploadedPhotoUrl(""); setPhotoPreviewUrl(""); setIsPhotoUploaded(false);
+      toast({ title: "Conferido", description: "A peça foi conferida e está pronta para entrega." });
+    },
+    onError: (error: Error) => toast({ title: "Erro ao conferir", description: error.message, variant: "destructive" }),
   });
 
   const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort() as string[];
@@ -229,6 +243,7 @@ export default function Grafica() {
     liberados:    (itemsForEvent as any[]).filter(i => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao:   (itemsForEvent as any[]).filter(i => i.status === 'inProduction').length,
     produzidos:   (itemsForEvent as any[]).filter(i => i.status === 'produced').length,
+    conferidos:   (itemsForEvent as any[]).filter(i => i.status === 'conferred').length,
     entregues:    (itemsForEvent as any[]).filter(i => i.status === 'delivered').length,
     total:        itemsForEvent.length,
   };
@@ -260,7 +275,18 @@ export default function Grafica() {
     markDeliveredMutation.mutate({ itemId: selectedItem.id, data: deliveryData });
   };
 
+  const handleSubmitConference = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedItem) return;
+    if (!uploadedPhotoUrl) {
+      toast({ title: "Foto obrigatória", description: "Envie a foto da conferência da peça.", variant: "destructive" });
+      return;
+    }
+    conferMutation.mutate({ itemId: selectedItem.id, conferencePhotoUrl: uploadedPhotoUrl });
+  };
+
   const isDelivered = (item: any) => item.status === "delivered" || item.status === "entregue";
+  const isConferred = (item: any) => item.status === "conferred";
   const isProduced = (item: any) => item.status === "produced" || item.status === "produzido";
   const isInProd = (item: any) => item.status === "inProduction" || item.status === "em_producao";
 
@@ -268,6 +294,13 @@ export default function Grafica() {
     setSelectedItem(item);
     setModalType("production");
     setProductionData({ quantityProduced: item.quantity });
+  };
+
+  const openConferenceModal = (item: any) => {
+    setSelectedItem(item);
+    setModalType("conference");
+    setUploadedPhotoUrl(""); setPhotoPreviewUrl("");
+    setIsPhotoUploaded(false);
   };
 
   const openDeliveryModal = (item: any) => {
@@ -304,7 +337,8 @@ export default function Grafica() {
         {[
           { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", borderColor: "#0369a1", numColor: "#0369a1", testId: "stat-approved",    filterVal: "ready_for_production" },
           { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",             borderColor: "#f97316", numColor: "#ea580c", testId: "stat-production",  filterVal: "inProduction" },
-          { label: "Produzidos",   value: stats.produzidos, sub: "Não entregue",      borderColor: "#16a34a", numColor: "#15803d", testId: "stat-produced",    filterVal: "produced" },
+          { label: "Produzidos",   value: stats.produzidos, sub: "Aguard. conferência", borderColor: "#16a34a", numColor: "#15803d", testId: "stat-produced",    filterVal: "produced" },
+          { label: "Conferidos",   value: stats.conferidos, sub: "Aguard. entrega",   borderColor: "#0891b2", numColor: "#0e7490", testId: "stat-conferred",   filterVal: "conferred" },
           { label: "Entregues",    value: stats.entregues,  sub: "Concluído",         borderColor: "#0284c7", numColor: "#166534", testId: "stat-delivered",   filterVal: "delivered" },
         ].map(kpi => {
           const isActive = statusFilter === kpi.filterVal;
@@ -389,6 +423,7 @@ export default function Grafica() {
             { value: "approved", label: "Liberados", pinned: true },
             { value: "inProduction", label: "Em Produção", pinned: true },
             { value: "produced", label: "Produzidos", pinned: true },
+            { value: "conferred", label: "Conferidos", pinned: true },
             { value: "delivered", label: "Entregues", pinned: true },
           ]}
           searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
@@ -681,24 +716,42 @@ export default function Grafica() {
                             </button>
                           )}
 
-                          {/* Entregar — reaproveitamento: sempre ativo; normal: só quando produzido */}
-                          {!isDelivered(item) && (
+                          {/* Conferir — etapa entre Produzido e Entregue (com foto) */}
+                          {isProduced(item) && !item.isReuse && (
                             <button
-                              onClick={() => (item.isReuse || isProduced(item)) ? openDeliveryModal(item) : undefined}
-                              title={item.isReuse ? "Entregar reaproveitamento" : isProduced(item) ? "Marcar Entrega" : "Produza todos os itens antes de entregar"}
-                              data-testid={`button-deliver-${item.id}`}
-                              disabled={!item.isReuse && !isProduced(item)}
+                              onClick={() => openConferenceModal(item)}
+                              title="Conferir a peça produzida (com foto)"
+                              data-testid={`button-confer-${item.id}`}
                               style={{
-                                backgroundColor: (item.isReuse || isProduced(item)) ? TI.accent : "#e7e5e4",
-                                color: (item.isReuse || isProduced(item)) ? "#ffffff" : "#a8a29e",
+                                backgroundColor: "#0891b2", color: "#ffffff",
                                 border: "none", borderRadius: 6, height: 30, padding: "0 12px",
                                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                                cursor: (item.isReuse || isProduced(item)) ? "pointer" : "not-allowed",
-                                display: "flex", alignItems: "center", gap: 4,
+                                cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
                                 transition: "background-color 0.15s",
                               }}
-                              onMouseEnter={e => { if (item.isReuse || isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accentDark; }}
-                              onMouseLeave={e => { if (item.isReuse || isProduced(item)) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent; }}
+                              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#0e7490"}
+                              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#0891b2"}
+                            >
+                              <CheckCircle style={{ width: 11, height: 11 }} />
+                              Conferir
+                            </button>
+                          )}
+
+                          {/* Entregar — reaproveitamento: sempre ativo; normal: só depois de conferido */}
+                          {!isDelivered(item) && (item.isReuse || isConferred(item)) && (
+                            <button
+                              onClick={() => openDeliveryModal(item)}
+                              title={item.isReuse ? "Entregar reaproveitamento" : "Marcar Entrega"}
+                              data-testid={`button-deliver-${item.id}`}
+                              style={{
+                                backgroundColor: TI.accent, color: "#ffffff",
+                                border: "none", borderRadius: 6, height: 30, padding: "0 12px",
+                                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                                cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                transition: "background-color 0.15s",
+                              }}
+                              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accentDark}
+                              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent}
                             >
                               <Truck style={{ width: 11, height: 11 }} />
                               Entregar
@@ -762,10 +815,13 @@ export default function Grafica() {
             <h2 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#ffffff", textTransform: "uppercase", letterSpacing: "-0.02em", lineHeight: 1 }}>
               {modalType === "production"
                 ? (selectedItem?.quantityProduced > 0 ? "Continuar Produção" : "Iniciar Produção")
+                : modalType === "conference" ? "Conferir Peça"
                 : "Confirmar Entrega"}
             </h2>
             <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>
-              {modalType === "production" ? "Registre a quantidade produzida" : "Registre a entrega do material"}
+              {modalType === "production" ? "Registre a quantidade produzida"
+                : modalType === "conference" ? "Anexe a foto da conferência"
+                : "Registre a entrega do material"}
             </p>
           </div>
 
@@ -986,6 +1042,74 @@ export default function Grafica() {
                     onMouseLeave={e => { if (!markDeliveredMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#15803d"; }}
                   >
                     {markDeliveredMutation.isPending ? "Salvando..." : "Confirmar Entrega"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {selectedItem && modalType === "conference" && (
+              <form onSubmit={handleSubmitConference} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <p style={{ fontSize: 12, color: "#57534e", margin: 0 }}>
+                  Confira a peça produzida e anexe a foto. Depois de conferida, ela fica pronta para entrega.
+                </p>
+                <div>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
+                    Foto da Conferência *
+                  </label>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <ObjectUploader
+                        maxFileSize={10485760}
+                        buttonVariant="ghost"
+                        buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+                        onFileSelect={(_file, previewUrl) => setPhotoPreviewUrl(previewUrl)}
+                        onGetUploadParameters={async () => {
+                          const res = await fetch("/api/objects/upload", { method: "POST" });
+                          const data = await res.json();
+                          return { method: "PUT" as const, url: data.uploadURL };
+                        }}
+                        onComplete={async (result) => {
+                          setUploadedPhotoUrl(result.url);
+                          setIsPhotoUploaded(true);
+                          toast({ title: "Foto carregada", description: "Foto da conferência anexada" });
+                        }}
+                        onError={(error) => { setPhotoPreviewUrl(""); toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
+                      >
+                        <div style={{ width: "100%", aspectRatio: "1", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}>
+                          <Camera style={{ width: 24, height: 24, color: "#a8a29e" }} />
+                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#a8a29e" }}>
+                            {photoPreviewUrl ? "Trocar Foto" : "Anexar Foto"}
+                          </span>
+                        </div>
+                      </ObjectUploader>
+                    </div>
+                    <div style={{ flex: 1, aspectRatio: "1", position: "relative", borderRadius: 8, overflow: "hidden", backgroundColor: "#f4f3f0", border: `1px solid ${TI.border}` }}>
+                      {photoPreviewUrl ? (
+                        <>
+                          <img src={photoPreviewUrl} alt="Preview da conferência" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          {isPhotoUploaded && (
+                            <div style={{ position: "absolute", top: 8, right: 8, backgroundColor: "#0e7490", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>
+                              <Check style={{ width: 12, height: 12, color: "#ffffff" }} />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Camera style={{ width: 24, height: 24, color: "#d6d3d1" }} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
+                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8 }}>
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={conferMutation.isPending || !uploadedPhotoUrl}
+                    data-testid="button-confirm-conference"
+                    style={{ flex: 2, padding: "12px 0", backgroundColor: (!uploadedPhotoUrl) ? "#a5f3fc" : "#0891b2", border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", cursor: (conferMutation.isPending || !uploadedPhotoUrl) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1 }}>
+                    {conferMutation.isPending ? "Salvando..." : "Confirmar Conferência"}
                   </button>
                 </div>
               </form>

@@ -1103,12 +1103,14 @@ export function registerItemRoutes(app: Express): void {
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_final_review",
         finalFileUrl: validatedData.finalFileUrl,
+        finalFileUpdatedAt: new Date(),
+        finalFileAckedAt: null,
       });
-      
+
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
-      
+
       const event = await storage.getEvent(item.eventId);
       
       await createAuditLog(
@@ -1722,10 +1724,75 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Mark item as delivered (Gráfica module)
+  // Arte atualiza o arquivo final DEPOIS de já ter enviado (nova versão), sem
+  // mexer no status. Marca finalFileUpdatedAt e zera o ack para a Gráfica ver
+  // que precisa rebaixar.
+  app.patch("/api/items/:id/update-final-file", requireAuth, async (req, res) => {
+    try {
+      if ((req as any).userRole !== "arte" && (req as any).userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas Arte pode atualizar o arquivo final" });
+      }
+      const { finalFileUrl } = req.body ?? {};
+      if (!finalFileUrl || typeof finalFileUrl !== "string") {
+        return res.status(400).json({ error: "finalFileUrl é obrigatório" });
+      }
+      const current = await storage.getItem(req.params.id);
+      if (!current) return res.status(404).json({ error: "Item not found" });
+
+      const item = await storage.updateItem(req.params.id, {
+        finalFileUrl,
+        finalFileUpdatedAt: new Date(),
+        finalFileAckedAt: null,
+      });
+      await createAuditLog((req as any).userName, 'updated', 'item', req.params.id, `Arquivo final atualizado (nova versão)`);
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Gráfica confirma que baixou a versão atual do arquivo → limpa o alerta.
+  app.post("/api/items/:id/ack-final-file", requireAuth, async (req, res) => {
+    try {
+      const item = await storage.updateItem(req.params.id, { finalFileAckedAt: new Date() });
+      if (!item) return res.status(404).json({ error: "Item not found" });
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Conferência: etapa da Gráfica entre Produzido e Entregue, com foto.
+  app.post("/api/items/:id/confer", requireAuth, async (req, res) => {
+    try {
+      if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas a Gráfica pode conferir" });
+      }
+      const { conferencePhotoUrl } = req.body ?? {};
+      const current = await storage.getItem(req.params.id);
+      if (!current) return res.status(404).json({ error: "Item not found" });
+      if (current.status !== "produced") {
+        return res.status(409).json({ error: `Só é possível conferir peças Produzidas. Status atual: ${translateStatus(current.status)}` });
+      }
+      const item = await storage.updateItem(req.params.id, {
+        status: "conferred",
+        conferencePhotoUrl: conferencePhotoUrl || null,
+        conferredAt: new Date(),
+      });
+      await createAuditLog((req as any).userName, 'updated', 'item', req.params.id, `Status alterado: ${translateStatus("produced")} → ${translateStatus("conferred")}`);
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.patch("/api/items/:id/deliver", requireAuth, async (req, res) => {
     try {
       const { receivedBy, photoUrl } = req.body;
-      
+
       if (!receivedBy) {
         return res.status(400).json({ error: "receivedBy is required" });
       }

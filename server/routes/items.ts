@@ -1082,8 +1082,10 @@ export function registerItemRoutes(app: Express): void {
       // Validate request body with Zod
       const finalFileSchema = z.object({
         finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio"),
+        finalPreviewUrl: z.string().optional().nullable(),
+        finalFileName: z.string().optional().nullable(),
       });
-      
+
       const validatedData = finalFileSchema.parse(req.body);
       
       // Validate current status
@@ -1103,12 +1105,16 @@ export function registerItemRoutes(app: Express): void {
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_final_review",
         finalFileUrl: validatedData.finalFileUrl,
+        finalPreviewUrl: validatedData.finalPreviewUrl || null,
+        finalFileName: validatedData.finalFileName || null,
+        finalFileUpdatedAt: new Date(),
+        finalFileAckedAt: null,
       });
-      
+
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
-      
+
       const event = await storage.getEvent(item.eventId);
       
       await createAuditLog(
@@ -1722,10 +1728,87 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Mark item as delivered (Gráfica module)
+  // Arte atualiza o arquivo final DEPOIS de já ter enviado (nova versão), sem
+  // mexer no status. Marca finalFileUpdatedAt e zera o ack para a Gráfica ver
+  // que precisa rebaixar.
+  app.patch("/api/items/:id/update-final-file", requireAuth, async (req, res) => {
+    try {
+      if ((req as any).userRole !== "arte" && (req as any).userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas Arte pode atualizar o arquivo final" });
+      }
+      const { finalFileUrl, finalPreviewUrl, finalFileName } = req.body ?? {};
+      if (!finalFileUrl || typeof finalFileUrl !== "string") {
+        return res.status(400).json({ error: "finalFileUrl é obrigatório" });
+      }
+      const current = await storage.getItem(req.params.id);
+      if (!current) return res.status(404).json({ error: "Item not found" });
+
+      const item = await storage.updateItem(req.params.id, {
+        finalFileUrl,
+        finalPreviewUrl: finalPreviewUrl || null,
+        finalFileName: finalFileName || null,
+        finalFileUpdatedAt: new Date(),
+        finalFileAckedAt: null,
+      });
+      await createAuditLog((req as any).userName, 'updated', 'item', req.params.id, `Arquivo final atualizado (nova versão)`);
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Gráfica confirma que baixou a versão atual do arquivo → limpa o alerta.
+  app.post("/api/items/:id/ack-final-file", requireAuth, async (req, res) => {
+    try {
+      const item = await storage.updateItem(req.params.id, { finalFileAckedAt: new Date() });
+      if (!item) return res.status(404).json({ error: "Item not found" });
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Conferência: etapa da Gráfica entre Produzido e Entregue, com foto.
+  app.post("/api/items/:id/confer", requireAuth, async (req, res) => {
+    try {
+      if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas a Gráfica pode conferir" });
+      }
+      const { conferencePhotoUrl, qty } = req.body ?? {};
+      const current = await storage.getItem(req.params.id);
+      if (!current) return res.status(404).json({ error: "Item not found" });
+      // Conferência acontece a partir de Produzido (e continua enquanto parcial).
+      const alreadyConferred = current.conferredQty || 0;
+      const remaining = current.quantity - alreadyConferred;
+      if (current.status !== "produced" || remaining <= 0) {
+        return res.status(409).json({ error: `Nada a conferir. Status: ${translateStatus(current.status)} (${alreadyConferred}/${current.quantity})` });
+      }
+      // Quantidade desta conferência (padrão: o que falta). Limita ao restante.
+      const n = Math.min(remaining, Math.max(1, Number(qty) || remaining));
+      const newConferred = alreadyConferred + n;
+      const isFull = newConferred >= current.quantity;
+      const item = await storage.updateItem(req.params.id, {
+        conferredQty: newConferred,
+        conferencePhotoUrl: conferencePhotoUrl || current.conferencePhotoUrl || null,
+        conferredAt: isFull ? new Date() : current.conferredAt,
+        // Status só vira "conferred" quando conferiu tudo; parcial continua "produced".
+        ...(isFull ? { status: "conferred" as const } : {}),
+      });
+      await createAuditLog((req as any).userName, 'updated', 'item', req.params.id,
+        isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`);
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.patch("/api/items/:id/deliver", requireAuth, async (req, res) => {
     try {
       const { receivedBy, photoUrl } = req.body;
-      
+
       if (!receivedBy) {
         return res.status(400).json({ error: "receivedBy is required" });
       }
@@ -1735,8 +1818,26 @@ export function registerItemRoutes(app: Express): void {
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
       }
-      
-      const item = await storage.markItemAsDelivered(req.params.id, receivedBy, photoUrl);
+
+      // Entrega parcial: acumula deliveredQty; só vira "delivered" quando entrega
+      // tudo. Reaproveitamento (isReuse) não passa por conferência → pode entregar
+      // o total direto; caso normal, só entrega o que já foi conferido.
+      const alreadyDelivered = currentItem.deliveredQty || 0;
+      const maxDeliverable = currentItem.isReuse ? currentItem.quantity : (currentItem.conferredQty || 0);
+      const remaining = maxDeliverable - alreadyDelivered;
+      if (remaining <= 0) {
+        return res.status(409).json({ error: `Nada a entregar. Entregue ${alreadyDelivered}/${currentItem.quantity}${currentItem.isReuse ? "" : ` (conferido ${currentItem.conferredQty || 0})`}.` });
+      }
+      const n = Math.min(remaining, Math.max(1, Number(req.body.qty) || remaining));
+      const newDelivered = alreadyDelivered + n;
+      const isFullDelivery = newDelivered >= currentItem.quantity;
+
+      const item = await storage.updateItem(req.params.id, {
+        deliveredQty: newDelivered,
+        receivedBy,
+        deliveryPhotoUrl: photoUrl || currentItem.deliveryPhotoUrl || null,
+        ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date() } : {}),
+      });
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
@@ -1749,9 +1850,11 @@ export function registerItemRoutes(app: Express): void {
         'delivered',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("delivered")} (Recebido por: ${receivedBy})`
+        isFullDelivery
+          ? `Entrega concluída (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
+          : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
       );
-      
+
       // Recalculate event status - might become "completed"
       const previousStatus = event?.status;
       await updateEventStatus(item.eventId);

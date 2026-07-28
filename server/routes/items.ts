@@ -1157,8 +1157,10 @@ export function registerItemRoutes(app: Express): void {
         });
       }
       
+      // Peças de reaproveitamento não passam pela produção: já entram como produzidas
+      const nextStatus = currentItem.isReuse ? "produced" : "ready_for_production";
       const item = await storage.updateItem(req.params.id, {
-        status: "ready_for_production",
+        status: nextStatus,
         creatorReviewedAt: new Date(),
         hasModifiedData: false, // Reset flag - Gráfica vê como dados novos
       });
@@ -1174,7 +1176,9 @@ export function registerItemRoutes(app: Express): void {
         'approved',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`
+        currentItem.isReuse
+          ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("produced")} (reaproveitamento — não precisa produzir)`
+          : `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`
       );
       
       // Notifica Arte e Gráfica que o item está liberado para produção
@@ -1721,6 +1725,47 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  // Gráfica confere a peça produzida (com foto). Suporta conferência parcial.
+  app.post("/api/items/:id/confer", requireAuth, async (req, res) => {
+    try {
+      if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas a Gráfica pode conferir" });
+      }
+      const { conferencePhotoUrl, qty } = req.body ?? {};
+      const current = await storage.getItem(req.params.id);
+      if (!current) return res.status(404).json({ error: "Item not found" });
+      if (current.isReuse) {
+        return res.status(409).json({ error: "Peças de reaproveitamento não passam por conferência" });
+      }
+      if (!conferencePhotoUrl && !current.conferencePhotoUrl) {
+        return res.status(400).json({ error: "Foto da conferência é obrigatória" });
+      }
+      // Conferência acontece a partir de Produzido (e continua enquanto parcial).
+      const alreadyConferred = current.conferredQty || 0;
+      const remaining = current.quantity - alreadyConferred;
+      if (current.status !== "produced" || remaining <= 0) {
+        return res.status(409).json({ error: `Nada a conferir. Status: ${translateStatus(current.status)} (${alreadyConferred}/${current.quantity})` });
+      }
+      // Quantidade desta conferência (padrão: o que falta). Limita ao restante.
+      const n = Math.min(remaining, Math.max(1, Number(qty) || remaining));
+      const newConferred = alreadyConferred + n;
+      const isFull = newConferred >= current.quantity;
+      const item = await storage.updateItem(req.params.id, {
+        conferredQty: newConferred,
+        conferencePhotoUrl: conferencePhotoUrl || current.conferencePhotoUrl || null,
+        conferredAt: isFull ? new Date() : current.conferredAt,
+        // Status só vira "conferred" quando conferiu tudo; parcial continua "produced".
+        ...(isFull ? { status: "conferred" as const } : {}),
+      });
+      await createAuditLog((req as any).userName, 'updated', 'item', req.params.id,
+        isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`);
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Mark item as delivered (Gráfica module)
   app.patch("/api/items/:id/deliver", requireAuth, async (req, res) => {
     try {
@@ -1736,7 +1781,25 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
-      const item = await storage.markItemAsDelivered(req.params.id, receivedBy, photoUrl);
+      // Entrega parcial: acumula deliveredQty; só vira "delivered" quando entrega
+      // tudo. Reaproveitamento (isReuse) não passa por conferência → pode entregar
+      // o total direto; caso normal, só entrega o que já foi conferido.
+      const alreadyDelivered = currentItem.deliveredQty || 0;
+      const maxDeliverable = currentItem.isReuse ? currentItem.quantity : (currentItem.conferredQty || 0);
+      const remaining = maxDeliverable - alreadyDelivered;
+      if (remaining <= 0) {
+        return res.status(409).json({ error: `Nada a entregar. Entregue ${alreadyDelivered}/${currentItem.quantity}${currentItem.isReuse ? "" : ` (conferido ${currentItem.conferredQty || 0})`}.` });
+      }
+      const n = Math.min(remaining, Math.max(1, Number(req.body.qty) || remaining));
+      const newDelivered = alreadyDelivered + n;
+      const isFullDelivery = newDelivered >= currentItem.quantity;
+
+      const item = await storage.updateItem(req.params.id, {
+        deliveredQty: newDelivered,
+        receivedBy,
+        deliveryPhotoUrl: photoUrl || currentItem.deliveryPhotoUrl || null,
+        ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date() } : {}),
+      });
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
@@ -1749,7 +1812,9 @@ export function registerItemRoutes(app: Express): void {
         'delivered',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("delivered")} (Recebido por: ${receivedBy})`
+        isFullDelivery
+          ? `Entrega concluída (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
+          : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
       );
       
       // Recalculate event status - might become "completed"

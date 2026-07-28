@@ -112,6 +112,14 @@ const statusConfig = {
     border: "#e9d5ff",
     icon: CheckCircle,
   },
+  conferred: {
+    label: "Conferido",
+    shortLabel: "Conferido",
+    bg: "#ecfeff",
+    text: "#0e7490",
+    border: "#a5f3fc",
+    icon: CheckCircle,
+  },
   delivered: {
     label: "Entregue",
     shortLabel: "Entregue",

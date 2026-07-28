@@ -38,7 +38,7 @@ const STATUS_STEP: Record<string, number> = {
   awaiting_finalization: 3, sponsor_approved: 3, awaiting_creator_review: 3,
   awaiting_final_review: 4,
   ready_for_production: 5, approved: 5, inproduction: 5, inProduction: 5,
-  produced: 6, delivered: 6,
+  produced: 6, conferred: 6, delivered: 6,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +55,7 @@ const STATUS_LABELS: Record<string, string> = {
   approved: "Liberado",
   inProduction: "Em Produção",
   produced: "Produzido",
+  conferred: "Conferido",
   delivered: "Entregue",
 };
 

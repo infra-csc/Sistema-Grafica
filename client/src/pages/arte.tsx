@@ -1022,7 +1022,7 @@ export default function Arte() {
       "criar-aprovacoes": ['awaiting_submission'],
       "aguardando-patrocinador": ['awaiting_sponsor_approval'],
       "finalizar-layouts": ['sponsor_approved', 'awaiting_creator_review'],
-      "finalizados": ['awaiting_final_review', 'ready_for_production', 'pronto_para_producao', 'liberado', 'em_producao', 'produzido', 'entregue'],
+      "finalizados": ['awaiting_final_review', 'ready_for_production', 'pronto_para_producao', 'liberado', 'inProduction', 'em_producao', 'produced', 'produzido', 'conferred', 'delivered', 'entregue'],
     };
     const allowed = byTab[activeTab];
     return allowed ? allItems.filter((i: any) => allowed.includes(i.status)) : allItems;
@@ -1141,8 +1141,12 @@ export default function Arte() {
             'ready_for_production',
             'pronto_para_producao',
             'liberado',
+            'inProduction',
             'em_producao',
+            'produced',
             'produzido',
+            'conferred',
+            'delivered',
             'entregue',
           ].includes(item.status);
         }
@@ -1351,7 +1355,7 @@ export default function Arte() {
     },
     {
       label: "Prontos p/ Prod.",
-      value: itemsForEvent.filter(i => ['ready_for_production','approved'].includes(i.status)).length,
+      value: itemsForEvent.filter(i => ['awaiting_final_review', 'ready_for_production', 'pronto_para_producao', 'liberado', 'approved', 'inProduction', 'em_producao', 'produced', 'produzido', 'conferred', 'delivered', 'entregue'].includes(i.status)).length,
       sub: "liberado",
       subColor: "#16a34a",
       iconBg: "#f0fdf4",

@@ -37,6 +37,7 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; co
   approved:              { label: "Liberado",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
   inProduction:          { label: "Em Produção",        dot: "#f59e0b", bg: "#fff7ed", color: "#f59e0b", border: "#fef3c7" },
   produced:              { label: "Produzido",          dot: "#ec4899", bg: "#fdf2f8", color: "#ec4899", border: "#fce7f3" },
+  conferred:             { label: "Conferido",          dot: "#0e7490", bg: "#ecfeff", color: "#0e7490", border: "#a5f3fc" },
   delivered:             { label: "Entregue",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
   canceled:              { label: "Cancelado",          dot: "#ef4444", bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
 };
@@ -180,6 +181,7 @@ export default function PainelGeral() {
     approved:              statsItems.filter(i => i.status === "approved").length,
     inProduction:          statsItems.filter(i => i.status === "inProduction").length,
     produced:              statsItems.filter(i => i.status === "produced").length,
+    conferred:             statsItems.filter(i => i.status === "conferred").length,
     delivered:             statsItems.filter(i => i.status === "delivered").length,
   };
 
@@ -295,6 +297,7 @@ export default function PainelGeral() {
         <StatusCard label="Pronto Produção"    value={stats.readyForProduction}   dot="#10b981" color="#10b981" filterKey="ready_for_production" />
         <StatusCard label="Em Produção"        value={stats.inProduction}         dot="#f59e0b" color="#f59e0b" filterKey="inProduction" />
         <StatusCard label="Produzido"          value={stats.produced}             dot="#ec4899" color="#ec4899" filterKey="produced" />
+        <StatusCard label="Conferido"          value={stats.conferred}            dot="#0e7490" color="#0e7490" filterKey="conferred" />
         <StatusCard label="Entregue"           value={stats.delivered}            dot="#15803d" color="#15803d" filterKey="delivered" />
       </section>
 
@@ -398,6 +401,7 @@ export default function PainelGeral() {
                 <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
                 <SelectItem value="inProduction">Em Produção</SelectItem>
                 <SelectItem value="produced">Produzido</SelectItem>
+                <SelectItem value="conferred">Conferido</SelectItem>
                 <SelectItem value="delivered">Entregue</SelectItem>
               </SelectContent>
             </Select>

@@ -2,7 +2,7 @@
 name: Partial-publish branch juggling
 description: How main is kept "book-only" while full features live on a backup branch
 ---
-User publishes only approved features. Main currently holds the published base + book feature (badges in atendimento/painel-geral + book-aware PDF export); everything else (arquivo final, conferência parcial, melhorias de importação, alertas em tempo real) lives on branch `todas-mudancas-completas` (superset of origin/main).
+User publishes only approved features. Main currently holds the published base + book feature (badges/PDF export) + conferência parcial & entrega parcial (ported from branch on 2026-07-28, WITHOUT the arquivo-final versioning/ack bits) + reaproveitamento→produced on creator-review. Remaining branch-only features (arquivo final upload/versioning/ack, melhorias de importação, alertas em tempo real) live on `todas-mudancas-completas` (superset of origin/main).
 
 **Why:** user wants to test big features before they go live; publish deploys the whole repl.
 

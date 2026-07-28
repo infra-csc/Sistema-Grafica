@@ -224,6 +224,23 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
           const hIdx = localColMap["height"].charCodeAt(0) - 65;
           if (hIdx > 0) localColMap["width"] = String.fromCharCode(65 + hIdx - 1);
         }
+        // Altura visual costuma ser a coluna imediatamente após a largura visual
+        // (no Arena: G=largura, H=altura). Sem isso, a peça vem sem altura.
+        if (localColMap["width"] && !localColMap["height"]) {
+          const wIdx = localColMap["width"].charCodeAt(0) - 65;
+          localColMap["height"] = String.fromCharCode(65 + wIdx + 1);
+        }
+        // Material sem cabeçalho: no Arena é a coluna imediatamente ANTES do
+        // acabamento (G/H visual → I material → J acabamento). Só usa a coluna
+        // se ela ainda não estiver mapeada para outra coisa.
+        if (localColMap["finish"] && !localColMap["material"]) {
+          const fi = localColMap["finish"].charCodeAt(0) - 65;
+          if (fi > 0) {
+            const cand = String.fromCharCode(65 + fi - 1);
+            const used = new Set(Object.values(localColMap));
+            if (!used.has(cand)) localColMap["material"] = cand;
+          }
+        }
 
         // --- Item extraction ---
         if (!localColMap["item"]) continue;

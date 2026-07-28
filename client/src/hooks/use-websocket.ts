@@ -69,10 +69,6 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
             }
             queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-            // A Gráfica lista por /api/items/approved — invalidar para o alerta de
-            // "arquivo atualizado"/ack refletir em tempo real na lista.
-            queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             break;
 

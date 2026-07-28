@@ -302,6 +302,9 @@ export default function Grafica() {
   // dá pra entregar enquanto há conferido não entregue.
   const canConfer = (item: any) => !isDelivered(item) && !item.isReuse && (isProduced(item)) && remainingConfer(item) > 0;
   const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
+  // Arte enviou uma versão nova do arquivo depois do último download confirmado?
+  const fileNeedsRedownload = (item: any) => !!item.finalFileUpdatedAt &&
+    (!item.finalFileAckedAt || new Date(item.finalFileUpdatedAt).getTime() > new Date(item.finalFileAckedAt).getTime());
 
   const openProductionModal = (item: any) => {
     setSelectedItem(item);
@@ -700,6 +703,12 @@ export default function Grafica() {
                       {/* Status */}
                       <td style={{ padding: "13px 16px" }}>
                         <StatusPill status={item.status} />
+                        {fileNeedsRedownload(item) && (
+                          <div title="A Arte enviou uma nova versão do arquivo — rebaixe antes de imprimir"
+                            style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 4, background: "#dc2626", color: "#fff", fontSize: 9, fontWeight: 800, padding: "3px 8px", borderRadius: 9999, textTransform: "uppercase", letterSpacing: "0.04em", boxShadow: "0 2px 6px rgba(220,38,38,0.35)" }}>
+                            <AlertCircle style={{ width: 11, height: 11 }} /> Arquivo atualizado
+                          </div>
+                        )}
                       </td>
                       {/* Ações */}
                       <td style={{ padding: "13px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>

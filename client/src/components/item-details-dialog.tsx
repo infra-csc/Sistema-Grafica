@@ -2,6 +2,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate, fileNameFromPath, folderFromPath } from "@/lib/utils";
+import { queryClient } from "@/lib/queryClient";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -71,8 +72,10 @@ export function ItemDetailsDialog({
 
   const fmtDateTime = (d?: string | null) => d ? new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 
-  // Arquivo atualizado e ainda não confirmado pela Gráfica?
-  const finalFileNeedsRedownload = !!item?.finalFileUpdatedAt && !ackedNow &&
+  // Alerta de "rebaixe": aparece quando o arquivo foi ATUALIZADO depois do último
+  // download confirmado. A 1ª versão já entra como confirmada (updated == acked),
+  // então não alerta; qualquer atualização posterior deixa updated > acked → alerta.
+  const finalFileNeedsRedownload = !ackedNow && !!item?.finalFileUpdatedAt &&
     (!item?.finalFileAckedAt || new Date(item.finalFileUpdatedAt).getTime() > new Date(item.finalFileAckedAt).getTime());
 
   // Baixa o arquivo final com nome carimbado pelo ID da peça (evita erro na Gráfica).
@@ -107,6 +110,8 @@ export function ItemDetailsDialog({
     try {
       await fetch(`/api/items/${item.id}/ack-final-file`, { method: "POST", credentials: "include" });
       setAckedNow(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
     } catch { /* silencioso */ }
   };
 

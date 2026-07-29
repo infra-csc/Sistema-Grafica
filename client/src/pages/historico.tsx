@@ -304,15 +304,24 @@ export default function Historico() {
 
     const item = itemMap.get(itemId);
     const event = item ? events.find(e => e.id === item.eventId) : null;
-    const eventName = event?.name || "Evento desconhecido";
+
+    // Extrai nome do evento e tipo da peça dos detalhes do log quando o item foi deletado
+    const eventNameFromDetails = details.match(/(?:do|no) evento "(.+?)"/i)?.[1];
+    const itemTypeFromDetails  = details.match(/(?:Peça|Item|peça) "(.+?)"/i)?.[1]
+                               || details.match(/^"(.+?)"/)?.[1];
+    const displayIdFromDetails = details.match(/#(\d+)/)?.[1];
+
+    const eventName    = event?.name || eventNameFromDetails || "Evento desconhecido";
+    const resolvedType = item?.type  || itemTypeFromDetails;
+    const resolvedId   = item?.displayId || (displayIdFromDetails ? `#${displayIdFromDetails}` : undefined);
 
     const base = {
       timestamp: new Date(ts),
       eventName,
       eventId: item?.eventId || "",
-      itemType: item?.type,
-      itemId: item?.id,
-      itemDisplayId: item?.displayId,
+      itemType: resolvedType,
+      itemId: itemId,
+      itemDisplayId: resolvedId,
       quantity: item?.quantity,
       userName,
       logDetails: details,
@@ -320,7 +329,7 @@ export default function Historico() {
 
     // Sponsor linking
     if (action === "updated" && detailsLower.includes("patrocinadores atualizados")) {
-      if (!item) return;
+      if (!item) return; // só exibe se item ainda existe (sponsor linking sem item é raro/irrelevante)
       const match = details.match(/(\d+)\s+patrocinador/i);
       const sponsorCount = match ? parseInt(match[1], 10) : undefined;
       timeline.push({ id: `sponsor-linked-${log.id ?? itemId + ts}`, type: "sponsor_linked", ...base, sponsorCount });
@@ -341,17 +350,14 @@ export default function Historico() {
       return;
     }
 
-    // Item sent for sponsor approval (details: "Status alterado: X → Aguardando Aprovação")
-    // translateStatus("awaiting_sponsor_approval") = "Aguardando Aprovação"
+    // Item sent for sponsor approval
     if (action === "updated" && detailsLower.includes("status alterado") && details.includes("→ Aguardando Aprovação")) {
-      if (!item) return;
       timeline.push({ id: `sent-${log.id ?? itemId + ts}`, type: "item_sent", ...base });
       return;
     }
 
     // Sponsor approved (individual or all)
     if (action === "approved" && (detailsLower.includes("patrocinador") || detailsLower.includes("aprovou"))) {
-      if (!item) return;
       // Skip "liberado para produção" — that's item_released
       if (detailsLower.includes("liberado para produção")) return;
       timeline.push({ id: `sp-approved-${log.id ?? itemId + ts}`, type: "sponsor_approved", ...base });
@@ -360,34 +366,40 @@ export default function Historico() {
 
     // Sponsor rejected
     if (action === "rejected") {
-      if (!item) return;
       timeline.push({ id: `sp-rejected-${log.id ?? itemId + ts}`, type: "sponsor_rejected", ...base });
       return;
     }
 
     // Item released for production (creator review)
     if (action === "approved" && detailsLower.includes("liberado para produção")) {
-      if (!item) return;
       timeline.push({ id: `released-${log.id ?? itemId + ts}`, type: "item_released", ...base });
       return;
     }
 
     // Item dispensed
     if (action === "dispensed") {
-      if (!item) return;
       timeline.push({ id: `dispensed-${log.id ?? itemId + ts}`, type: "item_dispensed", ...base });
       return;
     }
 
-    // Item deleted
-    if (action === "deleted" && (entityType === "item" || item)) {
-      // For deleted items, use log details for type name since item may not exist
-      const itemTypeFallback = details.match(/Item "(.+?)"/)?.[1] || "Peça";
+    // Item deleted — sempre exibe, mesmo sem o item na tabela
+    if (action === "deleted") {
       timeline.push({
         id: `deleted-${log.id ?? itemId + ts}`,
         type: "item_deleted",
         ...base,
-        itemType: item?.type || itemTypeFallback,
+        itemType: resolvedType || "Peça",
+      });
+      return;
+    }
+
+    // Item criado (log de auditoria, sem item na tabela = item foi criado e deletado)
+    if (action === "created" && !item) {
+      timeline.push({
+        id: `item-created-log-${log.id ?? itemId + ts}`,
+        type: "item_created",
+        ...base,
+        itemType: resolvedType || "Peça",
       });
       return;
     }

@@ -130,7 +130,8 @@ export default function Atendimento() {
     ), [items]
   );
 
-  // Carregar patrocinadores e aprovações de items pendentes
+  // Carregar patrocinadores e aprovações de items pendentes — uma única chamada
+  // batch em vez de N*2 chamadas individuais.
   useEffect(() => {
     requestIdRef.current += 1;
     const currentRequestId = requestIdRef.current;
@@ -144,38 +145,18 @@ export default function Atendimento() {
 
     setLoadingSponsors(true);
 
-    Promise.all(
-      awaitingItems.map(async (item) => {
-        try {
-          const [sponsorsRes, approvalsRes] = await Promise.all([
-            apiRequest("GET", `/api/items/${item.id}/sponsors`),
-            apiRequest("GET", `/api/items/${item.id}/sponsor-approvals`)
-          ]);
-          const itemSponsors = await sponsorsRes.json();
-          const itemApprovals = await approvalsRes.json();
-          return { itemId: item.id, sponsors: itemSponsors, approvals: itemApprovals };
-        } catch (error) {
-          console.error(`Erro ao carregar dados do item ${item.id}:`, error);
-          return { itemId: item.id, sponsors: [], approvals: [] };
-        }
-      })
-    ).then(results => {
-      if (currentRequestId === requestIdRef.current) {
-        const sponsorsMap = results.reduce((acc, { itemId, sponsors }) => ({
-          ...acc,
-          [itemId]: sponsors
-        }), {});
-
-        const approvalsMap = results.reduce((acc, { itemId, approvals }) => ({
-          ...acc,
-          [itemId]: approvals
-        }), {});
-
-        setItemSponsorsMap(sponsorsMap);
-        setItemApprovalsMap(approvalsMap);
+    apiRequest("GET", "/api/items/batch-approval-data")
+      .then(res => res.json())
+      .then(({ sponsorsByItem, approvalsByItem }) => {
+        if (currentRequestId !== requestIdRef.current) return;
+        setItemSponsorsMap(sponsorsByItem);
+        setItemApprovalsMap(approvalsByItem);
         setLoadingSponsors(false);
-      }
-    });
+      })
+      .catch(err => {
+        console.error("Erro ao carregar dados de aprovação em lote:", err);
+        if (currentRequestId === requestIdRef.current) setLoadingSponsors(false);
+      });
   }, [awaitingItems]);
 
   // Carregar aprovações individuais de patrocinadores quando o dialog é aberto

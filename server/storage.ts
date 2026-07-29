@@ -139,6 +139,7 @@ export interface IStorage {
   bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void>;
   
   // Item Sponsor Approvals (individual sponsor approval tracking)
+  getAllItemSponsorApprovals(): Promise<ItemSponsorApproval[]>;
   getItemSponsorApprovals(itemId: string): Promise<ItemSponsorApproval[]>;
   getItemSponsorApproval(itemId: string, sponsorId: string): Promise<ItemSponsorApproval | undefined>;
   createItemSponsorApproval(approval: InsertItemSponsorApproval): Promise<ItemSponsorApproval>;
@@ -903,6 +904,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Item Sponsor Approvals
+  async getAllItemSponsorApprovals(): Promise<ItemSponsorApproval[]> {
+    return await db
+      .select()
+      .from(itemSponsorApprovals)
+      .orderBy(desc(itemSponsorApprovals.createdAt));
+  }
+
   async getItemSponsorApprovals(itemId: string): Promise<ItemSponsorApproval[]> {
     return await db
       .select()

@@ -748,7 +748,40 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // ========== Individual Sponsor Approval Endpoints ==========
-  
+
+  // Batch: retorna sponsors + approvals de todos os itens aguardando aprovação
+  // em 3 queries totais, evitando o N*2 de chamadas individuais da página de atendimento.
+  app.get("/api/items/batch-approval-data", requireAuth, async (req, res) => {
+    try {
+      const [allSponsors, allItemSponsors, allApprovals] = await Promise.all([
+        storage.getAllSponsors(),
+        storage.getAllItemSponsors(),
+        storage.getAllItemSponsorApprovals(),
+      ]);
+
+      const sponsorById = new Map(allSponsors.map(s => [s.id, s]));
+
+      // agrupa vínculos por item
+      const sponsorsByItem: Record<string, any[]> = {};
+      for (const is of allItemSponsors) {
+        const sponsor = sponsorById.get(is.sponsorId);
+        if (!sponsor) continue;
+        (sponsorsByItem[is.itemId] ??= []).push(sponsor);
+      }
+
+      // agrupa approvals por item, enriquecendo com sponsor
+      const approvalsByItem: Record<string, any[]> = {};
+      for (const a of allApprovals) {
+        const enriched = { ...a, sponsor: sponsorById.get(a.sponsorId) || null };
+        (approvalsByItem[a.itemId] ??= []).push(enriched);
+      }
+
+      res.json({ sponsorsByItem, approvalsByItem });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Get sponsor approvals for an item
   app.get("/api/items/:id/sponsor-approvals", requireAuth, async (req, res) => {
     try {

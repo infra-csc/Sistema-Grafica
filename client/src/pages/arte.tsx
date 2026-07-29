@@ -2595,15 +2595,15 @@ export default function Arte() {
         auditLogs={selectedItem ? auditLogs.filter((log: any) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
-        topActions={selectedItem && ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? (
+        topActions={selectedItem && (['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) || (selectedItem.finalFileUrl && !['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status))) ? (
           <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Section header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', color: '#1c1917', margin: 0 }}>
-                Finalização de Layout
+                {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'Finalização de Layout' : 'Substituir Arquivo Final'}
               </h3>
-              <span style={{ fontSize: 10, backgroundColor: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                FASE FINAL
+              <span style={{ fontSize: 10, backgroundColor: ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? '#dcfce7' : '#fef9c3', color: ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? '#15803d' : '#a16207', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'FASE FINAL' : 'CORREÇÃO'}
               </span>
             </div>
 

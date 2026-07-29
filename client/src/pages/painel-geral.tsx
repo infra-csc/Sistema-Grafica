@@ -12,7 +12,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FilterSelect } from "@/components/filter-select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
@@ -226,14 +226,6 @@ export default function PainelGeral() {
     boxSizing: "border-box",
   };
 
-  const selectTriggerStyle: React.CSSProperties = {
-    backgroundColor: "#ffffff",
-    border: "1px solid #e7e5e4",
-    borderRadius: 0,
-    height: 40,
-    fontSize: 13,
-    color: "#1c1917",
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24, height: "100%", overflowY: "auto" }}>
@@ -344,77 +336,73 @@ export default function PainelGeral() {
           {/* Tipo */}
           <div>
             <label style={filterLabel}>Tipo</label>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger style={selectTriggerStyle} data-testid="select-type-filter">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                {uniqueTypes.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              label="Tipo" allLabel="Todos os tipos"
+              value={typeFilter} onChange={setTypeFilter}
+              hideWhenEmpty={false}
+              options={uniqueTypes.map((t: string) => ({ value: t, label: t }))}
+              testId="select-type-filter"
+              fullWidth
+            />
           </div>
 
           {/* Patrocinador */}
           <div>
             <label style={filterLabel}>Patrocinador</label>
-            <Select value={sponsorFilter} onValueChange={setSponsorFilter}>
-              <SelectTrigger style={selectTriggerStyle} data-testid="select-sponsor-filter">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os patrocinadores</SelectItem>
-                {[...sponsors].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              label="Patrocinador" allLabel="Todos os patrocinadores"
+              value={sponsorFilter} onChange={setSponsorFilter}
+              hideWhenEmpty={false}
+              options={(sponsors as any[]).map((s: any) => ({ value: s.id, label: s.name }))}
+              testId="select-sponsor-filter"
+              fullWidth
+            />
           </div>
 
           {/* Status */}
           <div>
             <label style={filterLabel}>Status</label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger style={selectTriggerStyle} data-testid="select-status-filter">
-                <SelectValue placeholder="Qualquer" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Qualquer status</SelectItem>
-                <SelectItem value="requested">Rascunho</SelectItem>
-                <SelectItem value="awaiting_linking">Aguard. Vinculação</SelectItem>
-                <SelectItem value="awaiting_submission">Aguard. Envio</SelectItem>
-                <SelectItem value="awaiting_approval">Aguard. Aprovação</SelectItem>
-                <SelectItem value="awaiting_finalization">Aguard. Finalização</SelectItem>
-                <SelectItem value="awaiting_final_review">Aguard. Revisão</SelectItem>
-                <SelectItem value="ready_for_production">Pronto p/ Produção</SelectItem>
-                <SelectItem value="inProduction">Em Produção</SelectItem>
-                <SelectItem value="produced">Produzido</SelectItem>
-                <SelectItem value="conferred">Conferido</SelectItem>
-                <SelectItem value="delivered">Entregue</SelectItem>
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              label="Status" allLabel="Qualquer status"
+              value={statusFilter} onChange={setStatusFilter}
+              hideWhenEmpty={false}
+              options={[
+                { value: "requested",              label: "Rascunho",           pinned: true },
+                { value: "awaiting_linking",        label: "Aguard. Vinculação", pinned: true },
+                { value: "awaiting_submission",     label: "Aguard. Envio",      pinned: true },
+                { value: "awaiting_approval",       label: "Aguard. Aprovação",  pinned: true },
+                { value: "awaiting_finalization",   label: "Aguard. Finalização",pinned: true },
+                { value: "awaiting_final_review",   label: "Aguard. Revisão",    pinned: true },
+                { value: "ready_for_production",    label: "Pronto p/ Produção", pinned: true },
+                { value: "inProduction",            label: "Em Produção",        pinned: true },
+                { value: "produced",                label: "Produzido",          pinned: true },
+                { value: "conferred",               label: "Conferido",          pinned: true },
+                { value: "delivered",               label: "Entregue",           pinned: true },
+              ]}
+              testId="select-status-filter"
+              fullWidth
+            />
           </div>
 
           {/* Data */}
           <div>
             <label style={filterLabel}>Data</label>
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger style={selectTriggerStyle} data-testid="select-date-filter">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as datas</SelectItem>
-                <SelectItem value="overdue">Atrasados</SelectItem>
-                <SelectItem value="today">Hoje</SelectItem>
-                <SelectItem value="next3days">Próximos 3 dias</SelectItem>
-                <SelectItem value="next7days">Próximos 7 dias</SelectItem>
-                <SelectItem value="next10days">Próximos 10 dias</SelectItem>
-                <SelectItem value="next15days">Próximos 15 dias</SelectItem>
-                <SelectItem value="next30days">Próximos 30 dias</SelectItem>
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              label="Data" allLabel="Todas as datas"
+              value={dateFilter} onChange={setDateFilter}
+              hideWhenEmpty={false}
+              options={[
+                { value: "overdue",    label: "Atrasados",         pinned: true },
+                { value: "today",      label: "Hoje",              pinned: true },
+                { value: "next3days",  label: "Próximos 3 dias",   pinned: true },
+                { value: "next7days",  label: "Próximos 7 dias",   pinned: true },
+                { value: "next10days", label: "Próximos 10 dias",  pinned: true },
+                { value: "next15days", label: "Próximos 15 dias",  pinned: true },
+                { value: "next30days", label: "Próximos 30 dias",  pinned: true },
+              ]}
+              testId="select-date-filter"
+              fullWidth
+            />
           </div>
         </div>
       </section>

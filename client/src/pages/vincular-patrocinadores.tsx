@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ChevronsUpDown } from "lucide-react";
@@ -1845,36 +1844,32 @@ export default function VincularPatrocinadores() {
             {/* Filtro por Item (tipo) */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Peça</label>
-              <Select value={itemFilter} onValueChange={setItemFilter}>
-                <SelectTrigger data-testid="select-item-filter" className="h-auto min-h-9 [&>span]:whitespace-normal [&>span]:text-left">
-                  <SelectValue placeholder="Selecione tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os tipos</SelectItem>
-                  {itemTypes.map(type => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                label="Peça" allLabel="Todos os tipos"
+                value={itemFilter} onChange={setItemFilter}
+                hideWhenEmpty={false}
+                options={itemTypes.map(t => ({ value: t, label: t }))}
+                testId="select-item-filter"
+                fullWidth
+              />
             </div>
 
             {/* Filtro por Status */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger data-testid="select-status-filter" className="h-auto min-h-9 [&>span]:whitespace-normal [&>span]:text-left">
-                  <SelectValue placeholder="Todos os status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="PENDENTE">Pendente</SelectItem>
-                  <SelectItem value="RASCUNHO">Rascunho</SelectItem>
-                  <SelectItem value="PRONTO">Pronto</SelectItem>
-                  <SelectItem value="ENVIADO">Enviado</SelectItem>
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                label="Status" allLabel="Todos os status"
+                value={statusFilter} onChange={setStatusFilter}
+                hideWhenEmpty={false}
+                options={[
+                  { value: "PENDENTE", label: "Pendente" },
+                  { value: "RASCUNHO", label: "Rascunho" },
+                  { value: "PRONTO", label: "Pronto" },
+                  { value: "ENVIADO", label: "Enviado" },
+                ]}
+                testId="select-status-filter"
+                fullWidth
+              />
             </div>
 
             {/* Busca */}

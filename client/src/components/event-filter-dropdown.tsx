@@ -39,9 +39,13 @@ export function EventFilterDropdown({
   }, [open]);
 
   const selected = options.find(o => o.value === value);
+  // Ordenação alfabética pt-BR
+  const sortedOptions = [...options].sort((a, b) =>
+    a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" })
+  );
   const filtered = search.trim()
-    ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
-    : options;
+    ? sortedOptions.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+    : sortedOptions;
 
   const triggerLabel = selected ? selected.label : allLabel;
   const isFiltered = value !== "all";

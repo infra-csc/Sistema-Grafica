@@ -35,12 +35,9 @@ export default function Arte() {
   const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
   useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
-  const [finalPreviewUrl, setFinalPreviewUrl] = useState<string>("");
+  const [finalPreviewUrl] = useState<string>(""); // reservado para uso futuro (sem upload por ora)
   const [finalFileName, setFinalFileName] = useState<string>("");
-  const [finalPreviewName, setFinalPreviewName] = useState<string>("");
-  const [finalUploading, setFinalUploading] = useState<"" | "file" | "preview">("");
-  const [finalConfirmOpen, setFinalConfirmOpen] = useState(false);
-  // true quando a Arte trocou o arquivo nesta sessão (evita "atualizar" sem mudar).
+  // true quando a Arte trocou o caminho nesta sessão (evita "atualizar" sem mudar).
   const [finalDirty, setFinalDirty] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");
@@ -183,7 +180,7 @@ export default function Arte() {
   });
 
   const resetFinalFileState = () => {
-    setFinalFileUrl(""); setFinalPreviewUrl(""); setFinalFileName(""); setFinalPreviewName(""); setFinalConfirmOpen(false);
+    setFinalFileUrl(""); setFinalFileName(""); setFinalDirty(false);
   };
 
   const submitFinalFileMutation = useMutation({
@@ -1223,10 +1220,7 @@ export default function Arte() {
     setApprovalThumbUrl(item.approvalThumbUrl || "");
     setApprovalThumbPreview(item.approvalThumbUrl || "");
     setFinalFileUrl(item.finalFileUrl || "");
-    setFinalPreviewUrl(item.finalPreviewUrl || "");
     setFinalFileName(item.finalFileName || fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl ? "arquivo enviado" : ""));
-    setFinalPreviewName(item.finalPreviewUrl ? "preview enviado" : "");
-    setFinalConfirmOpen(false);
     setFinalDirty(false);
   };
 
@@ -1250,40 +1244,14 @@ export default function Arte() {
   };
 
   // Upload do arquivo de impressão (.ai/.pdf…) ou do preview (.jpg).
-  const handleFinalUpload = async (kind: "file" | "preview", file?: File | null) => {
-    if (!file) return;
-    if (kind === "preview" && !file.type.startsWith("image/") && !/\.(jpe?g|png)$/i.test(file.name)) {
-      toast({ title: "Preview inválido", description: "O preview deve ser uma imagem (JPG/PNG).", variant: "destructive" });
-      return;
-    }
-    setFinalUploading(kind);
-    try {
-      const url = await uploadFileRaw(file);
-      if (kind === "file") { setFinalFileUrl(url); setFinalFileName(file.name); }
-      else { setFinalPreviewUrl(url); setFinalPreviewName(file.name); }
-      setFinalDirty(true);
-      toast({ title: "Arquivo anexado", description: file.name });
-    } catch (e: any) {
-      toast({ title: "Erro no upload", description: e.message, variant: "destructive" });
-    } finally {
-      setFinalUploading("");
-    }
-  };
-
-  // Abre o modal de confirmação (comparação com a arte aprovada) antes de enviar.
+  // Envia (ou atualiza) o caminho do arquivo final.
   const handleSubmitFinalFile = () => {
     if (!selectedItem || !finalFileUrl) {
-      toast({ title: "Falta o arquivo", description: "Anexe o arquivo de impressão antes de enviar.", variant: "destructive" });
+      toast({ title: "Erro", description: "É necessário informar o caminho do arquivo final", variant: "destructive" });
       return;
     }
-    setFinalConfirmOpen(true);
-  };
-
-  // Confirmação final: envia (ou atualiza) o arquivo.
-  const confirmSubmitFinalFile = () => {
-    if (!selectedItem || !finalFileUrl) return;
     const isUpdate = !!selectedItem.finalFileUrl; // já tinha arquivo → é atualização
-    submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl, finalPreviewUrl, finalFileName, isUpdate });
+    submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl, finalPreviewUrl: "", finalFileName: fileNameFromPath(finalFileUrl) || "", isUpdate });
   };
 
   const toggleItemSelection = (itemId: string) => {
@@ -2669,73 +2637,58 @@ export default function Arte() {
                 );
               })()}
 
-              {/* Uploads: arquivo de impressão + preview */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Caminho do arquivo final (rede) */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(20,83,45,0.6)', paddingLeft: 4 }}>
-                  Arquivo Final {selectedItem.finalFileUrl ? '· atualizar versão' : ''}
+                  Caminho do Arquivo Final
                 </label>
-
-                {/* Arquivo de impressão — travado enquanto qualquer upload roda */}
-                {(() => {
-                  const busy = !!finalUploading; const me = finalUploading === 'file';
-                  return (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: `1.5px dashed ${me ? '#fd761a' : finalFileUrl ? '#16a34a' : '#d4d0cc'}`, background: finalFileUrl ? '#f0fdf4' : '#ffffff', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy && !me ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
-                      {me ? <Loader2 className="animate-spin" style={{ width: 16, height: 16, color: '#fd761a', flexShrink: 0 }} /> : <FileText style={{ width: 16, height: 16, color: finalFileUrl ? '#16a34a' : '#a8a29e', flexShrink: 0 }} />}
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: me ? '#c2410c' : finalFileUrl ? '#15803d' : '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {me ? 'Enviando arquivo…' : finalFileName || 'Arquivo de impressão (.ai/.pdf/.eps/.cdr/.tif)'}
-                      </span>
-                      <input type="file" disabled={busy} accept=".ai,.pdf,.eps,.cdr,.tif,.tiff,.svg,.indd,application/pdf,application/postscript" style={{ display: 'none' }}
-                        onChange={e => { handleFinalUpload('file', e.target.files?.[0]); e.target.value = ''; }} />
-                    </label>
-                  );
-                })()}
-
-                {/* Preview JPG */}
-                {(() => {
-                  const busy = !!finalUploading; const me = finalUploading === 'preview';
-                  return (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 8, border: `1.5px dashed ${me ? '#fd761a' : finalPreviewUrl ? '#16a34a' : '#d4d0cc'}`, background: finalPreviewUrl ? '#f0fdf4' : '#ffffff', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy && !me ? 0.5 : 1, pointerEvents: busy ? 'none' : 'auto' }}>
-                      {me ? <Loader2 className="animate-spin" style={{ width: 16, height: 16, color: '#fd761a', flexShrink: 0 }} /> : <FileImage style={{ width: 16, height: 16, color: finalPreviewUrl ? '#16a34a' : '#a8a29e', flexShrink: 0 }} />}
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: me ? '#c2410c' : finalPreviewUrl ? '#15803d' : '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {me ? 'Enviando preview…' : finalPreviewName || 'Preview do arquivo (.jpg) — para conferência'}
-                      </span>
-                      <input type="file" disabled={busy} accept="image/*,.jpg,.jpeg,.png" style={{ display: 'none' }}
-                        onChange={e => { handleFinalUpload('preview', e.target.files?.[0]); e.target.value = ''; }} />
-                    </label>
-                  );
-                })()}
+                <div style={{ position: 'relative' }}>
+                  <FolderOpen style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#16a34a' }} />
+                  <Input
+                    id="finalFilePath"
+                    placeholder="Cole o caminho do ARQUIVO (com nome e extensão)…"
+                    value={finalFileUrl}
+                    onChange={(e) => { setFinalFileUrl(e.target.value); setFinalDirty(true); }}
+                    data-testid="input-final-file-path"
+                    style={{ paddingLeft: 36, paddingRight: 16, paddingTop: 12, paddingBottom: 12, background: '#ffffff', border: 'none', boxShadow: '0 0 0 1px #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 500 }}
+                  />
+                </div>
+                {finalFileUrl.trim() && (
+                  fileNameFromPath(finalFileUrl)
+                    ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#15803d', paddingLeft: 4 }}>
+                        <FileCheck style={{ width: 13, height: 13, flexShrink: 0 }} />
+                        Arquivo: <span style={{ fontFamily: "'DM Mono', monospace" }}>{fileNameFromPath(finalFileUrl)}</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '7px 10px' }}>
+                        <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
+                        <span>Isto parece uma <b>pasta</b>. Cole o caminho do <b>arquivo específico</b> (com nome e extensão, ex.: …\Rolo_Ministerio.tif) para a gráfica não pegar o arquivo errado.</span>
+                      </div>
+                    )
+                )}
               </div>
 
               {/* CTA button */}
-              {(() => {
-                const isUpdate = !!selectedItem.finalFileUrl;
-                const blocked = submitFinalFileMutation.isPending || !finalFileUrl || !!finalUploading || (isUpdate && !finalDirty);
-                return (
-                  <button
-                    onClick={handleSubmitFinalFile}
-                    disabled={blocked}
-                    data-testid="button-submit-final"
-                    style={{
-                      width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
-                      backgroundColor: blocked ? '#fcd9b7' : '#fd761a',
-                      color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
-                      fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.15em',
-                      cursor: blocked ? 'not-allowed' : 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      boxShadow: '0 4px 16px rgba(253,118,26,0.2)', transition: 'filter 0.15s, transform 0.1s'
-                    }}
-                    onMouseEnter={e => { if (blocked) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                  >
-                    {finalUploading ? 'Aguarde o upload…'
-                      : submitFinalFileMutation.isPending ? 'Enviando...'
-                      : (isUpdate && !finalDirty) ? 'Anexe o novo arquivo para atualizar'
-                      : isUpdate ? 'Revisar e enviar nova versão'
-                      : 'Revisar e enviar'}
-                    {!finalUploading && !submitFinalFileMutation.isPending && !(isUpdate && !finalDirty) && <ArrowRight style={{ width: 16, height: 16 }} />}
-                  </button>
-                );
-              })()}
+              <button
+                onClick={handleSubmitFinalFile}
+                disabled={submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)}
+                data-testid="button-submit-final"
+                style={{
+                  width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
+                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#fcd9b7' : '#fd761a',
+                  color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
+                  fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.15em',
+                  cursor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: '0 4px 16px rgba(253,118,26,0.2)', transition: 'filter 0.15s, transform 0.1s'
+                }}
+                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
+                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+              >
+                {submitFinalFileMutation.isPending ? 'Enviando...' : (selectedItem.finalFileUrl ? 'Atualizar arquivo' : 'Enviar para Revisão')}
+                {!submitFinalFileMutation.isPending && <ArrowRight style={{ width: 16, height: 16 }} />}
+              </button>
             </div>
           </section>
         ) : null}
@@ -3389,73 +3342,6 @@ export default function Arte() {
                 </>
               )}
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MODAL — CONFIRMAR ARQUIVO FINAL (comparação com a arte aprovada)     */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={finalConfirmOpen} onOpenChange={setFinalConfirmOpen}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 720, width: '95vw', borderRadius: 14, overflow: 'hidden' }}>
-          <DialogTitle className="sr-only">Confirmar arquivo final</DialogTitle>
-          <DialogDescription className="sr-only">Compare o arquivo final com a arte aprovada antes de enviar</DialogDescription>
-
-          <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0ede8' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1c1917', margin: 0, fontFamily: '"Space Grotesk", sans-serif' }}>
-              {selectedItem?.finalFileUrl ? 'Confirmar atualização do arquivo' : 'Confirmar arquivo final'}
-            </h2>
-            <p style={{ fontSize: 12, color: '#a8a29e', margin: '2px 0 0' }}>Compare com a arte aprovada. Está certo mesmo?</p>
-          </div>
-
-          <div style={{ padding: 24 }}>
-            {/* Comparação lado a lado */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              {[
-                { title: 'Arte aprovada', url: selectedItem?.approvalThumbUrl, tint: '#16a34a' },
-                { title: 'Arquivo final (preview)', url: finalPreviewUrl, tint: '#fd761a' },
-              ].map((col, i) => {
-                const src = col.url ? convertGCSUrlToLocalPath(col.url) : '';
-                return (
-                  <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: col.tint }}>{col.title}</span>
-                    <div style={{ aspectRatio: '1', borderRadius: 10, overflow: 'hidden', border: `1px solid ${col.tint}33`, background: '#f7f8fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {src
-                        ? <img src={src} alt={col.title} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                        : <span style={{ fontSize: 11, color: '#a8a29e', textAlign: 'center', padding: 12 }}>{i === 1 ? 'Sem preview enviado' : 'Sem thumb aprovado'}</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {!finalPreviewUrl && (
-              <p style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 10px', margin: '14px 0 0' }}>
-                <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
-                Sem o preview (.jpg) não dá pra comparar visualmente. Recomendo anexar o preview antes de enviar.
-              </p>
-            )}
-
-            {/* Arquivo de impressão */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, padding: '10px 12px', borderRadius: 8, background: '#f5f5f4' }}>
-              <FileText style={{ width: 15, height: 15, color: '#57534e', flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                Arquivo de impressão: {finalFileName || 'anexado'}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0ede8', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button onClick={() => setFinalConfirmOpen(false)}
-              style={{ height: 38, padding: '0 16px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              Revisar de novo
-            </button>
-            <button onClick={confirmSubmitFinalFile} disabled={submitFinalFileMutation.isPending}
-              data-testid="button-confirm-final-file"
-              style={{ height: 38, padding: '0 18px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <FileCheck style={{ width: 15, height: 15 }} />
-              {submitFinalFileMutation.isPending ? 'Enviando…' : 'Está certo — enviar'}
-            </button>
           </div>
         </DialogContent>
       </Dialog>

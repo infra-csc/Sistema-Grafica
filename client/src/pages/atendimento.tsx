@@ -432,7 +432,13 @@ export default function Atendimento() {
     return Array.from(map.values());
   }, facetDeps);
 
+  // Enquanto o mapa ainda carrega, mostra todos os patrocinadores da API
+  // (sem contagem) para que o filtro apareça imediatamente. Assim que o mapa
+  // ficar pronto, troca para as opções facetadas com contagem.
   const sponsorFilterOptions = useMemo(() => {
+    if (loadingSponsors) {
+      return (sponsors as any[]).map((s: any) => ({ value: s.id, label: s.name }));
+    }
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     facetPool('sponsor').forEach((i: any) => (itemSponsorsMap[i.id] ?? []).forEach((s: any) => {
       const cur = map.get(s.id);
@@ -440,7 +446,7 @@ export default function Atendimento() {
       else map.set(s.id, { value: s.id, label: s.name, count: 1, dotColor: s.color || '#a8a29e' });
     }));
     return Array.from(map.values());
-  }, facetDeps);
+  }, [...facetDeps, sponsors, loadingSponsors]);
 
   // Itens filtrados para o modal de exportação PDF (filtros independentes da página)
   // Pool para o modal de exportação compartilhado: anexa os patrocinadores
@@ -918,19 +924,18 @@ export default function Atendimento() {
           />
 
           <FilterSelect
-            variant="bare"
             label="Tipo de Entrega" allLabel="Todos os tipos"
             values={itemTypeFilter} onValuesChange={setItemTypeFilter}
-            options={typeFilterOptions}
+            options={typeFilterOptions} showAllLabelWhenEmpty
             searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
             testId="select-type-filter"
           />
 
           <FilterSelect
-            variant="bare"
             label="Patrocinador" allLabel="Todos os Patrocinadores"
             values={sponsorFilter} onValuesChange={setSponsorFilter}
             options={sponsorFilterOptions} panelWidth={260}
+            showAllLabelWhenEmpty
             searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
             testId="select-sponsor-filter"
           />

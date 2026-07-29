@@ -1791,6 +1791,50 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  // Gráfica marca a peça como reaproveitamento (pula produção → vai direto para "Produzido")
+  app.post("/api/items/:id/mark-reuse", requireAuth, async (req, res) => {
+    try {
+      if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas a Gráfica pode marcar reaproveitamento" });
+      }
+      const current = await storage.getItem(req.params.id);
+      if (!current) return res.status(404).json({ error: "Item not found" });
+      if (current.isReuse) {
+        return res.status(409).json({ error: "Esta peça já está marcada como reaproveitamento" });
+      }
+      if (current.status === "delivered" || current.status === "entregue") {
+        return res.status(409).json({ error: "Não é possível reaproveitar uma peça já entregue" });
+      }
+      // Permite marcar como reaproveitamento enquanto a peça ainda está no fluxo de produção
+      const allowedStatuses = [
+        "ready_for_production", "pronto_para_producao", "approved",
+        "inProduction", "em_producao",
+      ];
+      if (!allowedStatuses.includes(current.status)) {
+        return res.status(409).json({ error: `Status atual não permite reaproveitamento: ${translateStatus(current.status)}` });
+      }
+
+      const item = await storage.updateItem(req.params.id, {
+        isReuse: true,
+        status: "produced", // pula conferência e vai direto para produzido
+      });
+      if (!item) return res.status(404).json({ error: "Item not found" });
+
+      await createAuditLog(
+        (req as any).userName!,
+        'updated',
+        'item',
+        item.id,
+        `Marcado como reaproveitamento pela Gráfica (status: ${translateStatus(current.status)} → Produzido)`
+      );
+
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Gráfica confere a peça produzida (com foto). Suporta conferência parcial.
   app.post("/api/items/:id/confer", requireAuth, async (req, res) => {
     try {

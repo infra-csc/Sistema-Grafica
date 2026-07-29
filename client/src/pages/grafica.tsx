@@ -93,6 +93,7 @@ export default function Grafica() {
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string>("");
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>("");
   const [isPhotoUploaded, setIsPhotoUploaded] = useState(false);
+  const [reuseConfirmItemId, setReuseConfirmItemId] = useState<string | null>(null);
 
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
@@ -142,6 +143,21 @@ export default function Grafica() {
       toast({ title: "Conferido", description: "A peça foi conferida e está pronta para entrega." });
     },
     onError: (error: Error) => toast({ title: "Erro ao conferir", description: error.message, variant: "destructive" }),
+  });
+
+  const markReuseMutation = useMutation({
+    mutationFn: async (itemId: string) =>
+      await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setReuseConfirmItemId(null);
+      toast({ title: "Reaproveitamento marcado", description: "A peça foi marcada como reaproveitamento e está pronta para entrega." });
+    },
+    onError: (error: Error) => {
+      setReuseConfirmItemId(null);
+      toast({ title: "Erro ao marcar reaproveitamento", description: error.message, variant: "destructive" });
+    },
   });
 
   const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort() as string[];
@@ -729,6 +745,43 @@ export default function Grafica() {
                               <Play style={{ width: 11, height: 11 }} />
                               {isInProd(item) ? "Continuar" : "Produzir"}
                             </button>
+                          )}
+
+                          {/* Reaproveitar — disponível enquanto ainda em produção/pronto */}
+                          {!isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
+                            reuseConfirmItemId === item.id ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ fontSize: 10, color: "#065f46", fontWeight: 700 }}>Confirmar?</span>
+                                <button
+                                  onClick={() => markReuseMutation.mutate(item.id)}
+                                  disabled={markReuseMutation.isPending}
+                                  title="Confirmar reaproveitamento"
+                                  style={{ backgroundColor: "#059669", color: "#fff", border: "none", borderRadius: 6, height: 28, padding: "0 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}
+                                >
+                                  <RotateCcw style={{ width: 10, height: 10 }} />
+                                  Sim
+                                </button>
+                                <button
+                                  onClick={() => setReuseConfirmItemId(null)}
+                                  title="Cancelar"
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 28, padding: "0 8px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                >
+                                  Não
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setReuseConfirmItemId(item.id)}
+                                title="Marcar como reaproveitamento (pula produção)"
+                                data-testid={`button-reuse-${item.id}`}
+                                style={{ backgroundColor: "#d1fae5", color: "#065f46", border: "1px solid #6ee7b7", borderRadius: 6, height: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "background-color 0.15s" }}
+                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#a7f3d0")}
+                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d1fae5")}
+                              >
+                                <RotateCcw style={{ width: 11, height: 11 }} />
+                                Reaproveitar
+                              </button>
+                            )
                           )}
 
                           {/* Conferir — etapa entre Produzido e Entregue (com foto) */}

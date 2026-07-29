@@ -1243,7 +1243,6 @@ export default function Arte() {
     saveThumbDraftMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
   };
 
-  // Upload do arquivo de impressão (.ai/.pdf…) ou do preview (.jpg).
   // Envia (ou atualiza) o caminho do arquivo final.
   const handleSubmitFinalFile = () => {
     if (!selectedItem || !finalFileUrl) {

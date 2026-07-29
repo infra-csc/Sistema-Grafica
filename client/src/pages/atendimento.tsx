@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { SponsorChips } from "@/components/sponsor-chips";
@@ -1989,14 +1990,14 @@ export default function Atendimento() {
                           item.sponsorApprovedAt && { dot: '#15803d', label: 'Todos aprovaram', date: fmtDt(item.sponsorApprovedAt) },
                           item.approvedAt && { dot: '#7c3aed', label: 'Liberado', date: fmtDt(item.approvedAt) },
                         ].filter(Boolean).map((m: any, i: number, arr: any[]) => (
-                          <React.Fragment key={i}>
+                          <Fragment key={i}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                               <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.dot, flexShrink: 0 }} />
                               <span style={{ fontSize: 10, fontWeight: 600, color: '#57534e' }}>{m.label}</span>
                               <span style={{ fontSize: 10, color: '#a8a29e' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>
                             </div>
                             {i < arr.length - 1 && <span style={{ width: 20, height: 1, background: '#e5e7eb', margin: '0 6px', flexShrink: 0 }} />}
-                          </React.Fragment>
+                          </Fragment>
                         ))}
                       </div>
 

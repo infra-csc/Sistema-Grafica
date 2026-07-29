@@ -2595,7 +2595,7 @@ export default function Arte() {
         auditLogs={selectedItem ? auditLogs.filter((log: any) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
-        topActions={selectedItem && (['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) || (selectedItem.finalFileUrl && !['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status))) ? (
+        topActions={selectedItem && (['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) || (selectedItem.finalFileUrl && ['awaiting_final_review', 'ready_for_production', 'inProduction', 'produced', 'conferred', 'delivered'].includes(selectedItem.status))) ? (
           <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Section header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

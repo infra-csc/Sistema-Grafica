@@ -2003,35 +2003,47 @@ export default function Atendimento() {
 
                       {/* ── Grade de patrocinadores ── */}
                       {sponsorApprovals.length > 0 && (
-                        <div style={{ padding: '10px 16px 14px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        <div style={{ padding: '8px 16px 14px', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                           {sponsorApprovals.map(({ sponsor, appr }) => {
                             const isApproved = appr?.status === 'approved';
                             const isRejected = appr?.status === 'rejected';
+                            const isNewVersion = appr?.status === 'new_version_pending';
+                            const stateLabel = isApproved ? null : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando';
+                            const dotColor = isApproved ? '#15803d' : isRejected ? '#dc2626' : isNewVersion ? '#d97706' : '#9ca3af';
+                            const bg = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
+                            const border = isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e5e7eb';
+                            const nameColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#57534e';
                             return (
                               <div key={sponsor.id} style={{
-                                display: 'flex', alignItems: 'center', gap: 5,
-                                padding: '4px 10px 4px 6px', borderRadius: 20,
-                                background: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#f5f5f4',
-                                border: `1px solid ${isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : '#e5e7eb'}`,
-                                flexShrink: 0,
+                                display: 'flex', flexDirection: 'column', gap: 1,
+                                padding: '5px 9px 5px 7px', borderRadius: 8,
+                                background: bg, border: `1px solid ${border}`,
+                                flexShrink: 0, minWidth: 90,
                               }}>
-                                <span style={{
-                                  width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
-                                  background: isApproved ? '#dcfce7' : isRejected ? '#fecaca' : '#e5e7eb',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                  {isApproved
-                                    ? <CheckCircle style={{ width: 9, height: 9, color: '#15803d' }} />
-                                    : <span style={{ width: 5, height: 5, borderRadius: '50%', background: isRejected ? '#dc2626' : '#9ca3af', display: 'block' }} />}
-                                </span>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: isApproved ? '#15803d' : isRejected ? '#dc2626' : '#57534e' }}>
-                                  {sponsor.name}
-                                </span>
-                                {isApproved && appr?.approvedAt && (
-                                  <span style={{ fontSize: 9, color: '#86efac', fontWeight: 500 }}>{fmtDt(appr.approvedAt, true)}</span>
-                                )}
-                                {isRejected && (
-                                  <span style={{ fontSize: 9, color: '#fca5a5', fontWeight: 500 }}>Reprovado</span>
+                                {/* linha 1: indicador + nome */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  <span style={{
+                                    width: 7, height: 7, borderRadius: '50%',
+                                    background: dotColor, flexShrink: 0,
+                                  }} />
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: nameColor, lineHeight: 1.2 }}>
+                                    {sponsor.name}
+                                  </span>
+                                </div>
+                                {/* linha 2: estado / quem aprovou + data */}
+                                {isApproved ? (
+                                  <div style={{ paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 0 }}>
+                                    {appr?.approvedBy && (
+                                      <span style={{ fontSize: 9, color: '#4ade80', fontWeight: 600, lineHeight: 1.3 }}>{appr.approvedBy}</span>
+                                    )}
+                                    {appr?.approvedAt && (
+                                      <span style={{ fontSize: 9, color: '#86efac', lineHeight: 1.3 }}>{fmtDt(appr.approvedAt)}</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div style={{ paddingLeft: 12 }}>
+                                    <span style={{ fontSize: 9, fontWeight: 600, color: dotColor, opacity: 0.8, lineHeight: 1.3 }}>{stateLabel}</span>
+                                  </div>
                                 )}
                               </div>
                             );

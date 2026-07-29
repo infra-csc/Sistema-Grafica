@@ -53,9 +53,9 @@ export function EventFilterDropdown({
         onClick={() => setOpen(v => !v)}
         style={{
           display: "flex", alignItems: "center", gap: 6,
-          height: 34, padding: "0 10px 0 12px",
+          height: 36, padding: "0 10px 0 12px",
           backgroundColor: open || isFiltered ? "#FFF7ED" : "#ffffff",
-          border: open || isFiltered ? "1.5px solid #FB923C" : "1.5px solid transparent",
+          border: isFiltered ? "1.5px solid #FB923C" : open ? "1.5px solid #FB923C" : "1px solid #e2e8f0",
           borderRadius: 7, cursor: "pointer",
           fontSize: 13, fontWeight: isFiltered ? 600 : 400,
           color: isFiltered ? "#C2410C" : "#1c1917",

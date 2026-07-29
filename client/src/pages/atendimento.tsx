@@ -4,7 +4,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
-import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, ChevronsUpDown, Check } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, PlusCircle, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, ChevronsUpDown, Check, FileCheck } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
@@ -1934,6 +1934,25 @@ export default function Atendimento() {
                   const approvedOnes = sponsorApprovals.filter(x => x.appr?.status === 'approved');
                   const pendingOnes  = sponsorApprovals.filter(x => !x.appr || x.appr.status !== 'approved');
 
+                  // Mini-timeline helpers
+                  const fmtDt = (d: string | null | undefined) => {
+                    if (!d) return null;
+                    const dt = new Date(d);
+                    return format(dt, "dd/MM/yy 'às' HH:mm", { locale: ptBR });
+                  };
+                  const lastApprovedAt = approvedOnes.length > 0
+                    ? approvedOnes.map(x => x.appr?.approvedAt).filter(Boolean).sort().reverse()[0]
+                    : null;
+                  const lastApprovedBy = approvedOnes.length > 0
+                    ? approvedOnes.sort((a, b) => (b.appr?.approvedAt || '') > (a.appr?.approvedAt || '') ? 1 : -1)[0]?.appr?.approvedBy
+                    : null;
+
+                  const milestones: { icon: React.ReactNode; label: string; date: string; by?: string | null; color: string }[] = [];
+                  if (item.createdAt) milestones.push({ icon: <PlusCircle style={{ width: 10, height: 10 }} />, label: 'Criado', date: fmtDt(item.createdAt)!, color: '#2563eb' });
+                  if (item.sponsorApprovedAt) milestones.push({ icon: <CheckCircle style={{ width: 10, height: 10 }} />, label: 'Todos aprovaram', date: fmtDt(item.sponsorApprovedAt)!, color: '#15803d' });
+                  else if (lastApprovedAt) milestones.push({ icon: <CheckCircle style={{ width: 10, height: 10 }} />, label: `Última aprovação (${approvedOnes.length})`, date: fmtDt(lastApprovedAt)!, by: lastApprovedBy, color: '#15803d' });
+                  if (item.approvedAt) milestones.push({ icon: <FileCheck style={{ width: 10, height: 10 }} />, label: 'Liberado p/ produção', date: fmtDt(item.approvedAt)!, color: '#7c3aed' });
+
                   return (
                     <div key={item.id} style={{
                       display: 'grid', gridTemplateColumns: '52px 1fr 140px 1fr 100px 36px',
@@ -1950,11 +1969,22 @@ export default function Atendimento() {
                             </div>}
                       </div>
 
-                      {/* Tipo + ID + Evento */}
+                      {/* Tipo + ID + Evento + mini-timeline */}
                       <div style={{ paddingTop: 2 }}>
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', margin: 0 }}>{item.type}</p>
                         <p style={{ fontSize: 11, color: '#a8a29e', margin: '1px 0 0' }}>{item.displayId}</p>
                         <p style={{ fontSize: 11, color: '#57534e', margin: '3px 0 0', fontWeight: 500 }}>{ev?.name || '—'}</p>
+                        {milestones.length > 0 && (
+                          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {milestones.map((m, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <span style={{ color: m.color, display: 'flex', alignItems: 'center', flexShrink: 0 }}>{m.icon}</span>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: '#78716c', whiteSpace: 'nowrap' }}>{m.label}:</span>
+                                <span style={{ fontSize: 10, color: '#a8a29e' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Status atual */}

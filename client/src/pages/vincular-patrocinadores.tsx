@@ -3147,12 +3147,17 @@ export default function VincularPatrocinadores() {
               )}
             </div>
 
-            {/* Lista de patrocinadores */}
-            {sponsors.length === 0 ? (
-              <p style={{ fontSize: 13, textAlign: 'center', padding: '24px 0', color: '#625d5b' }}>
-                Nenhum patrocinador cadastrado
-              </p>
-            ) : sponsors.map((sponsor) => {
+            {/* Lista de patrocinadores — filtrada pelo evento selecionado */}
+            {(() => {
+              const bulkSponsors = eventFilter !== 'all'
+                ? getEventSponsors(eventFilter)
+                : sponsors;
+              if (bulkSponsors.length === 0) return (
+                <p style={{ fontSize: 13, textAlign: 'center', padding: '24px 0', color: '#625d5b' }}>
+                  Nenhum patrocinador cadastrado para este evento
+                </p>
+              );
+              return bulkSponsors.map((sponsor) => {
               const isSelected = bulkSelectedSponsors.includes(sponsor.id);
               return (
                 <div
@@ -3191,7 +3196,7 @@ export default function VincularPatrocinadores() {
                   )}
                 </div>
               );
-            })}
+            });})()}
           </div>
 
           <div style={{ padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>

@@ -26,6 +26,15 @@ async function fixSsoMustChangePassword() {
   await pool.query("UPDATE users SET must_change_password = false WHERE must_change_password = true");
 }
 
+// Itens padrão de Adesivo Pódio foram cadastrados sem material — corrige em prod
+async function fixStandardItemsMissingMaterial() {
+  await pool.query(
+    `UPDATE standard_items SET material = 'Adesivo'
+     WHERE name IN ('Adesivo Pódio', 'Adesivo Pódio nº 1', 'Adesivo Pódio nº 2', 'Adesivo Pódio nº 3', 'Adesivo')
+       AND (material IS NULL OR material = '')`
+  );
+}
+
 // Seed default users only if they don't already exist. Never overwrite an
 // existing user's password_hash on restart — that would silently reset
 // credentials for accounts that may have since changed their password.
@@ -194,6 +203,7 @@ app.use((req, res, next) => {
 (async () => {
   await seedUsers();
   await fixSsoMustChangePassword();
+  await fixStandardItemsMissingMaterial();
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -44,7 +44,10 @@ export default function Atendimento() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Filtros
+  // Aba ativa: pendentes ou histórico
+  const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
+
+  // Filtros — aba Pendentes
   const [searchTerm, setSearchTerm] = useState("");
   // Adia o termo usado na filtragem (input segue responsivo, tabela não engasga).
   const deferredSearchTerm = useDeferredValue(searchTerm);
@@ -55,6 +58,11 @@ export default function Atendimento() {
   const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
   const [eventComboOpen, setEventComboOpen] = useState(false);
   const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
+
+  // Filtros — aba Histórico
+  const [histEventFilter, setHistEventFilter] = useState<string[]>([]);
+  const [histSponsorFilter, setHistSponsorFilter] = useState<string[]>([]);
+  const [histPeriodFilter, setHistPeriodFilter] = useState<string>("all");
 
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
@@ -130,13 +138,14 @@ export default function Atendimento() {
     ), [items]
   );
 
-  // Carregar patrocinadores e aprovações de items pendentes — uma única chamada
-  // batch em vez de N*2 chamadas individuais.
+  // Carregar patrocinadores e aprovações — uma única chamada batch.
+  // Carrega sempre (não só quando há itens pendentes) para alimentar também
+  // a aba Histórico, que mostra itens já aprovados em qualquer status.
   useEffect(() => {
     requestIdRef.current += 1;
     const currentRequestId = requestIdRef.current;
 
-    if (awaitingItems.length === 0) {
+    if (items.length === 0) {
       setItemSponsorsMap({});
       setItemApprovalsMap({});
       setLoadingSponsors(false);
@@ -540,6 +549,62 @@ export default function Atendimento() {
 
   const batchItemCount = batchEligibleItems.length;
 
+  // ── Aba Histórico ───────────────────────────────────────────────────────
+  // Itens que têm pelo menos uma aprovação de patrocinador com status 'approved',
+  // independente do status atual (podem estar em produção, entregues, etc.)
+  const HIST_STATUS: Record<string, { label: string; bg: string; color: string }> = {
+    awaiting_finalization:    { label: 'Aguard. Finalização', bg: '#fff7ed', color: '#c2410c' },
+    awaiting_final_review:    { label: 'Aguard. Revisão',    bg: '#fff7ed', color: '#c2410c' },
+    awaiting_creator_review:  { label: 'Aguard. Revisão',    bg: '#fff7ed', color: '#c2410c' },
+    ready_for_production:     { label: 'Pronto p/ Produção', bg: '#eff6ff', color: '#1d4ed8' },
+    inProduction:             { label: 'Em Produção',        bg: '#fffbeb', color: '#b45309' },
+    produced:                 { label: 'Produzido',          bg: '#e0e7ff', color: '#4338ca' },
+    conferred:                { label: 'Conferido',          bg: '#ecfdf5', color: '#065f46' },
+    delivered:                { label: 'Entregue',           bg: '#ede9fe', color: '#7c3aed' },
+    awaiting_submission:      { label: 'Nova versão',        bg: '#fef2f2', color: '#b91c1c' },
+    awaiting_sponsor_approval:{ label: 'Aguard. Aprovação',  bg: '#fefce8', color: '#a16207' },
+  };
+
+  const historyItems = useMemo(() => {
+    if (loadingSponsors) return [];
+    const now = new Date();
+    const cutoff = histPeriodFilter === "7d"  ? new Date(now.getTime() - 7  * 86400000)
+                 : histPeriodFilter === "30d" ? new Date(now.getTime() - 30 * 86400000)
+                 : histPeriodFilter === "90d" ? new Date(now.getTime() - 90 * 86400000)
+                 : null;
+
+    return (items as any[]).filter(item => {
+      const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+      if (!approvals.some(a => a.status === 'approved')) return false;
+
+      if (histEventFilter.length > 0 && !histEventFilter.includes(item.eventId)) return false;
+
+      if (histSponsorFilter.length > 0) {
+        const itemSps = itemSponsorsMap[item.id] || [];
+        if (!itemSps.some((s: any) => histSponsorFilter.includes(s.id))) return false;
+      }
+
+      if (cutoff) {
+        const approvedAt = approvals
+          .filter(a => a.status === 'approved' && a.approvedAt)
+          .map(a => new Date(a.approvedAt!))
+          .sort((a, b) => b.getTime() - a.getTime())[0];
+        if (!approvedAt || approvedAt < cutoff) return false;
+      }
+
+      return true;
+    }).sort((a: any, b: any) => {
+      // Ordena pela aprovação mais recente
+      const latestApproval = (item: any) => {
+        const times = (itemApprovalsMap[item.id] || [])
+          .filter((a: SponsorApproval) => a.status === 'approved' && a.approvedAt)
+          .map((a: SponsorApproval) => new Date(a.approvedAt!).getTime());
+        return times.length ? Math.max(...times) : 0;
+      };
+      return latestApproval(b) - latestApproval(a);
+    });
+  }, [items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter]);
+
   // Group pendingGroup by event - must be before any early return
   const itemsByEvent = useMemo(() => {
     const map = new Map<string, any[]>();
@@ -865,8 +930,42 @@ export default function Atendimento() {
         </div>
       </header>
 
+      {/* ─── ABAS ─────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid #e7e5e4', paddingBottom: 0 }}>
+        {([
+          { key: 'pending', label: 'Pendentes', count: actionableCount },
+          { key: 'history', label: 'Histórico', count: null },
+        ] as const).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              padding: '10px 20px', border: 'none', cursor: 'pointer',
+              backgroundColor: 'transparent',
+              borderBottom: activeTab === tab.key ? '2px solid #f97316' : '2px solid transparent',
+              fontSize: 14, fontWeight: activeTab === tab.key ? 700 : 500,
+              color: activeTab === tab.key ? '#c2410c' : '#78716c',
+              display: 'flex', alignItems: 'center', gap: 8,
+              marginBottom: -1, transition: 'color 0.15s',
+            }}
+          >
+            {tab.label}
+            {tab.count != null && (
+              <span style={{
+                backgroundColor: activeTab === tab.key ? '#c2410c' : '#e7e5e4',
+                color: activeTab === tab.key ? '#fff' : '#78716c',
+                fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 10,
+                minWidth: 18, textAlign: 'center',
+              }}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* ─── FILTROS ─────────────────────────────────────────────── */}
-      <section style={{
+      {activeTab === "pending" && <section style={{
         marginBottom: 32, backgroundColor: '#f3f4f3',
         padding: 24, borderRadius: 12,
         border: '1px solid rgba(224,192,177,0.15)',
@@ -956,10 +1055,10 @@ export default function Atendimento() {
             Exportar PDF
           </button>
         </div>
-      </section>
+      </section>}
 
       {/* ─── PAINEL DE LOTE ───────────────────────────────── */}
-      {!loadingSponsors && batchEligibleSponsors.length > 0 && (
+      {activeTab === "pending" && !loadingSponsors && batchEligibleSponsors.length > 0 && (
         <section
           data-testid="section-batch-sponsor"
           style={{ marginBottom: 32, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 14, overflow: 'hidden' }}
@@ -1400,7 +1499,7 @@ export default function Atendimento() {
       )}
 
       {/* ─── GRID DE CARDS (bento-style) ─────────────────────────── */}
-      {filteredItems.length === 0 ? (
+      {activeTab === "pending" && (filteredItems.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '64px 0' }}>
           <CheckCircle style={{ width: 48, height: 48, color: '#86efac', margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>
@@ -1737,7 +1836,189 @@ export default function Atendimento() {
             </div>
           )}
         </div>
-      )}
+      ))}
+
+      {/* ─── ABA HISTÓRICO ──────────────────────────────────────── */}
+      {activeTab === "history" && (() => {
+        const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
+        const FL: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };
+        const SEL = (active: boolean): React.CSSProperties => ({
+          height: 38, border: `1.5px solid ${active ? '#c2610c' : '#e2e8f0'}`,
+          borderRadius: 8, fontSize: 13, fontWeight: 500, background: '#fff',
+          color: active ? '#c2610c' : '#374151', cursor: 'pointer', outline: 'none',
+        });
+        const periodOptions = [
+          { value: '7d',  label: 'Últimos 7 dias' },
+          { value: '30d', label: 'Últimos 30 dias' },
+          { value: '90d', label: 'Últimos 90 dias' },
+        ];
+        const histSponsorOptions = (sponsors as any[]).map((s: any) => ({ value: s.id, label: s.name }));
+        const histEventOptions = (() => {
+          const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+          const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
+          return [...(events as any[])].sort((a,b) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e: any) => ({ value: e.id, label: e.name, dotColor: C[e.priority] }));
+        })();
+        const hasHistFilters = histEventFilter.length > 0 || histSponsorFilter.length > 0 || histPeriodFilter !== "all";
+
+        return (
+          <div>
+            {/* Barra de filtros */}
+            <div style={{
+              background: '#f3f4f3', borderRadius: 12, border: '1px solid rgba(224,192,177,0.15)',
+              padding: '16px 20px', marginBottom: 24,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14,
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 160px' }}>
+                <label style={FL}>Evento</label>
+                <EventFilterDropdown values={histEventFilter} onValuesChange={setHistEventFilter} options={histEventOptions} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 180px' }}>
+                <label style={FL}>Patrocinador</label>
+                <FilterSelect fullWidth showAllLabelWhenEmpty label="Patrocinador" allLabel="Todos os patrocinadores"
+                  values={histSponsorFilter} onValuesChange={setHistSponsorFilter}
+                  options={histSponsorOptions} triggerStyle={SEL(histSponsorFilter.length > 0)} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: '0 1 160px' }}>
+                <label style={FL}>Período</label>
+                <FilterSelect fullWidth showAllLabelWhenEmpty label="Período" allLabel="Todos os períodos"
+                  value={histPeriodFilter} onChange={setHistPeriodFilter}
+                  options={periodOptions} triggerStyle={SEL(histPeriodFilter !== "all")} />
+              </div>
+              {hasHistFilters && (
+                <button
+                  onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); }}
+                  style={{ height: 38, padding: '0 14px', borderRadius: 8, border: 'none', background: '#0c0a09', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <X style={{ width: 13, height: 13 }} /> Limpar
+                </button>
+              )}
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end' }}>
+                <span style={{ fontSize: 12, color: '#a8a29e', fontWeight: 500, paddingBottom: 10 }}>
+                  {loadingSponsors ? 'Carregando…' : `${historyItems.length} ${historyItems.length === 1 ? 'peça' : 'peças'}`}
+                </span>
+              </div>
+            </div>
+
+            {/* Lista */}
+            {loadingSponsors ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '64px 0' }}>
+                <Loader2 style={{ width: 32, height: 32, color: '#a8a29e' }} className="animate-spin" />
+              </div>
+            ) : historyItems.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '64px 0' }}>
+                <CheckCircle style={{ width: 48, height: 48, color: '#86efac', margin: '0 auto 16px' }} />
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>Nenhuma peça encontrada</h3>
+                <p style={{ color: '#78716c', fontSize: 14 }}>
+                  {hasHistFilters ? 'Tente ajustar os filtros.' : 'Ainda não há peças aprovadas pelo patrocinador.'}
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Cabeçalho da tabela */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '56px 1fr 1fr 1fr 1fr 120px 44px',
+                  gap: 12, padding: '0 16px',
+                  fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em',
+                }}>
+                  <span />
+                  <span>Peça</span>
+                  <span>Evento</span>
+                  <span>Patrocinador</span>
+                  <span>Aprovado por</span>
+                  <span>Status atual</span>
+                  <span />
+                </div>
+
+                {historyItems.map((item: any) => {
+                  const ev = evById.get(item.eventId);
+                  const itemSps: any[] = itemSponsorsMap[item.id] || [];
+                  const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+                  const latestApproval = approvals
+                    .filter(a => a.status === 'approved' && a.approvedAt)
+                    .sort((a, b) => new Date(b.approvedAt!).getTime() - new Date(a.approvedAt!).getTime())[0];
+                  const statusCfg = HIST_STATUS[item.status] || { label: item.status, bg: '#f3f4f3', color: '#78716c' };
+
+                  return (
+                    <div key={item.id} style={{
+                      display: 'grid', gridTemplateColumns: '56px 1fr 1fr 1fr 1fr 120px 44px',
+                      gap: 12, padding: '12px 16px', alignItems: 'center',
+                      background: '#fff', borderRadius: 10, border: '1px solid #f5f5f4',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    }}>
+                      {/* Thumbnail */}
+                      <div style={{ width: 44, height: 44, borderRadius: 6, overflow: 'hidden', background: '#f5f5f4', flexShrink: 0 }}>
+                        {(item.approvalThumbUrl || item.finalPreviewUrl)
+                          ? <img src={item.approvalThumbUrl || item.finalPreviewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <FileText style={{ width: 16, height: 16, color: '#a8a29e' }} />
+                            </div>}
+                      </div>
+
+                      {/* Tipo + ID */}
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', margin: 0 }}>{item.type}</p>
+                        <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>{item.displayId}</p>
+                      </div>
+
+                      {/* Evento */}
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 500, color: '#57534e', margin: 0 }}>{ev?.name || '—'}</p>
+                      </div>
+
+                      {/* Patrocinadores */}
+                      <div>
+                        <SponsorChips sponsors={itemSps} variant="gray" size="sm" />
+                      </div>
+
+                      {/* Aprovado por + data */}
+                      <div>
+                        {latestApproval ? (
+                          <>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: '#15803d', margin: 0 }}>
+                              {latestApproval.approvedBy || 'Sistema'}
+                            </p>
+                            <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>
+                              {format(new Date(latestApproval.approvedAt!), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                            </p>
+                          </>
+                        ) : <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>}
+                      </div>
+
+                      {/* Status atual */}
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        fontSize: 10, fontWeight: 700,
+                        backgroundColor: statusCfg.bg, color: statusCfg.color,
+                        padding: '4px 8px', borderRadius: 6,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {statusCfg.label}
+                      </span>
+
+                      {/* Download */}
+                      {item.finalFileUrl ? (
+                        <a
+                          href={item.finalFileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Baixar arquivo final"
+                          style={{
+                            width: 32, height: 32, borderRadius: 8, border: '1px solid #e7e5e4',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#57534e', textDecoration: 'none',
+                          }}
+                        >
+                          <Download style={{ width: 14, height: 14 }} />
+                        </a>
+                      ) : <span />}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ─── MODAL DE REVISÃO (3 colunas) ───────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

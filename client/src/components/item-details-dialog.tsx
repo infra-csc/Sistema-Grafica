@@ -1,4 +1,5 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { FilePreview, isImageUrl, isPdf } from "@/components/file-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
@@ -123,10 +124,7 @@ export function ItemDetailsDialog({
   const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
 
   const thumbUrl = item.approvalThumbUrl;
-  const isThumbImage = thumbUrl && (
-    /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl.toLowerCase()) ||
-    thumbUrl.startsWith('/objects/')
-  );
+  const isThumbImage = thumbUrl && (isImageUrl(thumbUrl) && !isPdf(thumbUrl));
 
   const hasDeliveryPhoto = !!item.deliveryPhotoUrl;
   const hasObservations  = !!item.observations;
@@ -517,26 +515,8 @@ export function ItemDetailsDialog({
 
               {thumbUrl ? (
                 <>
-                  <div
-                    style={{ position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 4, overflow: "hidden", cursor: "pointer", marginBottom: 16 }}
-                    onClick={() => window.open(thumbUrl, "_blank")}
-                    onMouseEnter={e => { const ov = e.currentTarget.querySelector(".thumb-ov") as HTMLElement; if (ov) ov.style.opacity = "1"; }}
-                    onMouseLeave={e => { const ov = e.currentTarget.querySelector(".thumb-ov") as HTMLElement; if (ov) ov.style.opacity = "0"; }}
-                  >
-                    {isThumbImage && (
-                      <img src={thumbUrl} alt="Thumb de aprovação" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                    )}
-                    <div className="thumb-ov" style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.2s" }}>
-                      <span style={{ color: "#ffffff", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                        <Eye style={{ width: 18, height: 18 }} />
-                        {isThumbImage ? "Visualizar Imagem" : "Abrir PDF"}
-                      </span>
-                    </div>
-                    {!isThumbImage && (
-                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(157,67,0,0.05)" }}>
-                        <FileText style={{ width: 48, height: 48, color: "#9d4300", opacity: 0.4 }} />
-                      </div>
-                    )}
+                  <div style={{ position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 4, overflow: "hidden", marginBottom: 16 }}>
+                    <FilePreview url={thumbUrl} linkUrl={thumbUrl} objectFit="cover" />
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "rgba(88,66,55,0.6)", margin: 0 }}>Arquivo de Aprovação</p>

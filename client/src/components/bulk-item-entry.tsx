@@ -475,6 +475,7 @@ export function BulkItemEntry({
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [duplicateConfirm, setDuplicateConfirm] = useState<{
     valid: any[];
     duplicates: Array<{ newItem: any; existingItem: ExistingItem }>;
@@ -604,9 +605,10 @@ export function BulkItemEntry({
         isReuse: r.isReuse || false,
       }));
     if (valid.length === 0) {
+      setSubmitAttempted(true);
       toast({
         title: "Nenhuma peça válida",
-        description: "Preencha pelo menos uma peça completa antes de salvar.",
+        description: "Preencha os campos destacados em vermelho antes de salvar.",
         variant: "destructive",
       });
       return;
@@ -659,6 +661,12 @@ export function BulkItemEntry({
   const validCount = rows.filter(isRowComplete).length;
   /** Linhas com algo digitado mas ainda incompletas — não vão no envio. */
   const leftoverCount = rows.filter(r => !isRowComplete(r) && (r.type || r.description || r.material || r.finish)).length;
+
+  /** Retorna estilo com borda vermelha se campo estiver vazio após tentativa de salvar */
+  const errStyle = (value: string | number, base: React.CSSProperties, rowHasContent: boolean): React.CSSProperties => {
+    if (!submitAttempted || !rowHasContent || value) return base;
+    return { ...base, boxShadow: '0 0 0 1.5px #ef4444', backgroundColor: '#fff5f5' };
+  };
 
   const groupedTypeOptions = useMemo(() => {
     const groupMap: Record<string, string[]> = {};
@@ -1189,38 +1197,42 @@ export function BulkItemEntry({
 
                   {/* 7 · Material */}
                   <td style={{ padding: '2px 4px' }}>
+                    {(() => { const rhc = !!(row.type || row.description || row.visualWidth || row.fileWidth || row.finish); return (
                     <select
                       value={row.material}
-                      onChange={e => updateRow(row.id, 'material', e.target.value)}
-                      style={selectStyle}
+                      onChange={e => { updateRow(row.id, 'material', e.target.value); setSubmitAttempted(false); }}
+                      style={errStyle(row.material, selectStyle, rhc)}
                       data-nav-row={ri} data-nav-field="7"
                       data-testid={`select-material-${ri}`}
                       {...navHandlers(ri, 7)}
                     >
-                      <option value="">Material</option>
+                      <option value="">— selecione —</option>
                       {materialOptions.map(m => <option key={m} value={m}>{m}</option>)}
                       {row.material && !materialOptions.includes(row.material) && (
                         <option value={row.material}>{row.material}</option>
                       )}
                     </select>
+                    ); })()}
                   </td>
 
                   {/* 8 · Acabamento */}
                   <td style={{ padding: '2px 4px' }}>
+                    {(() => { const rhc2 = !!(row.type || row.description || row.visualWidth || row.fileWidth || row.material); return (
                     <select
                       value={row.finish}
-                      onChange={e => updateRow(row.id, 'finish', e.target.value)}
-                      style={selectStyle}
+                      onChange={e => { updateRow(row.id, 'finish', e.target.value); setSubmitAttempted(false); }}
+                      style={errStyle(row.finish, selectStyle, rhc2)}
                       data-nav-row={ri} data-nav-field="8"
                       data-testid={`select-finish-${ri}`}
                       {...navHandlers(ri, 8)}
                     >
-                      <option value="">Acabamento</option>
+                      <option value="">— selecione —</option>
                       {finishOptions.map(f => <option key={f} value={f}>{f}</option>)}
                       {row.finish && !finishOptions.includes(row.finish) && (
                         <option value={row.finish}>{row.finish}</option>
                       )}
                     </select>
+                    ); })()}
                   </td>
 
                   {/* 9 · Obs — last nav field */}

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
+import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor } from "@shared/schema";
@@ -570,13 +571,10 @@ export default function TriagemRetorno() {
             {/* Evento */}
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Evento</label>
-              <FilterSelect
-                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                label="Evento" allLabel="Todos os eventos"
-                value={filterEvent} onChange={setFilterEvent}
+              <EventFilterDropdown
+                value={filterEvent}
+                onChange={setFilterEvent}
                 options={eventFilterOptions}
-                searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
-                testId="select-triage-filter-event" triggerStyle={SEL(filterEvent !== "all")}
               />
             </div>
 

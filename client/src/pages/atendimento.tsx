@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { FilterSelect } from "@/components/filter-select";
+import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, ChevronsUpDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -910,13 +911,10 @@ export default function Atendimento() {
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          <FilterSelect
-            variant="bare" showAllLabelWhenEmpty
-            label="Evento" allLabel="Todos os Eventos"
-            value={eventFilter} onChange={setEventFilter}
+          <EventFilterDropdown
+            value={eventFilter}
+            onChange={setEventFilter}
             options={eventFilterOptions}
-            searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
-            hideWhenEmpty={false} testId="select-event-filter"
           />
 
           <FilterSelect

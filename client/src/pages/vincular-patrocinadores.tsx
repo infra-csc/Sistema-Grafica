@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
 import { FilterSelect } from "@/components/filter-select";
+import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1820,14 +1821,10 @@ export default function VincularPatrocinadores() {
             {/* Filtro por Evento */}
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Evento</label>
-              <FilterSelect
-                showAllLabelWhenEmpty hideWhenEmpty={false}
-                label="Evento" allLabel="Todos os eventos"
-                value={eventFilter} onChange={setEventFilter}
+              <EventFilterDropdown
+                value={eventFilter}
+                onChange={setEventFilter}
                 options={eventFilterOptions}
-                searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
-                panelWidth={288} testId="select-event-filter"
-                triggerClassName="w-full justify-between font-normal h-auto min-h-9 px-3 text-left py-2 border border-input bg-background rounded-md text-sm hover:bg-accent hover:text-accent-foreground"
               />
             </div>
 

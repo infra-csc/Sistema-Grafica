@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { FilterSelect } from "@/components/filter-select";
+import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -313,10 +314,11 @@ export default function DashboardAnalises() {
             {/* divider */}
             <div style={{ width: 1, height: 40, backgroundColor: T.border, flexShrink: 0 }} />
 
-            <Fld
-              label="Evento" allLabel={`Todos os eventos (${events.length})`}
-              value={eventFilter} onChange={setEventFilter} testId="select-event"
-              options={events.map(e => ({ value: e.id, label: e.name }))}
+            <EventFilterDropdown
+              value={eventFilter}
+              onChange={setEventFilter}
+              options={(events as any[]).map(e => ({ value: e.id, label: e.name }))}
+              allLabel={`Todos os eventos (${(events as any[]).length})`}
             />
 
             <Fld

@@ -24,6 +24,7 @@ import { Fragment, useState, useMemo, useEffect, useCallback, useDeferredValue }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploader } from "@/components/FileUploader";
 import { FilterSelect } from "@/components/filter-select";
+import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
@@ -2177,12 +2178,10 @@ export default function Arte() {
               />
             </div>
 
-            <FilterSelect
-              label="Evento" allLabel="Todos os eventos"
-              value={eventFilter} onChange={setEventFilter}
+            <EventFilterDropdown
+              value={eventFilter}
+              onChange={setEventFilter}
               options={eventFilterOptions}
-              searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
-              hideWhenEmpty={false} testId="button-event-filter"
             />
 
             <FilterSelect

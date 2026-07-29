@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
+import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { FilePreview } from "@/components/file-preview";
 import { parseDateLocal } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -401,14 +402,10 @@ export default function Solicitacao() {
           </div>
 
           {/* Event select */}
-          <FilterSelect
-            showAllLabelWhenEmpty hideWhenEmpty={false}
-            label="Evento" allLabel="Todos os Eventos"
-            value={eventFilter} onChange={setEventFilter}
+          <EventFilterDropdown
+            value={eventFilter}
+            onChange={setEventFilter}
             options={eventFilterOptions}
-            searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
-            testId="select-event-filter"
-            triggerStyle={{ backgroundColor: "#f3f4f3", border: "none", fontSize: 13, color: TI.text, minWidth: 180 }}
           />
 
           {/* Type select */}

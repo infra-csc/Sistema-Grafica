@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, Fragment } from "react";
 import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText, Printer } from "lucide-react";
+import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/auth-context";
@@ -329,26 +330,15 @@ export default function PainelGeral() {
           {/* Evento */}
           <div>
             <label style={filterLabel}>Evento</label>
-            <Select value={eventFilter} onValueChange={setEventFilter}>
-              <SelectTrigger style={selectTriggerStyle} data-testid="select-event-filter">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os eventos</SelectItem>
-                {(() => {
-                  const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-                  const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-                  return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e:any) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
-                        {e.priority && <span style={{ width:7, height:7, borderRadius:'50%', backgroundColor:C[e.priority], display:'inline-block', flexShrink:0 }} />}
-                        {e.name}
-                      </span>
-                    </SelectItem>
-                  ));
-                })()}
-              </SelectContent>
-            </Select>
+            <EventFilterDropdown
+              value={eventFilter}
+              onChange={setEventFilter}
+              options={(() => {
+                const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+                const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
+                return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e:any) => ({ value: e.id, label: e.name, dotColor: C[e.priority] }));
+              })()}
+            />
           </div>
 
           {/* Tipo */}

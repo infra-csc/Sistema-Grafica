@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
+import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
   ChevronLeft, ChevronRight, Link2,
@@ -516,13 +517,10 @@ export default function Historico() {
           />
 
           {/* Event select */}
-          <FilterSelect
-            showAllLabelWhenEmpty hideWhenEmpty={false}
-            label="Evento" allLabel="Todos os eventos"
-            value={eventFilter} onChange={handleFilterChange(setEventFilter)}
-            options={events.map(ev => ({ value: ev.id, label: ev.name }))}
-            searchPlaceholder="Buscar evento..." emptyText="Nenhum evento encontrado."
-            testId="select-event-filter" triggerStyle={selectStyle}
+          <EventFilterDropdown
+            value={eventFilter}
+            onChange={handleFilterChange(setEventFilter)}
+            options={events.map((ev: any) => ({ value: ev.id, label: ev.name }))}
           />
 
           {/* Counter chip */}

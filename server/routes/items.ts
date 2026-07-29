@@ -1086,6 +1086,8 @@ export function registerItemRoutes(app: Express): void {
       // Validate request body with Zod
       const finalFileSchema = z.object({
         finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio"),
+        finalFileName: z.string().optional(),
+        finalPreviewUrl: z.string().optional(),
       });
       
       const validatedData = finalFileSchema.parse(req.body);
@@ -1107,6 +1109,9 @@ export function registerItemRoutes(app: Express): void {
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_final_review",
         finalFileUrl: validatedData.finalFileUrl,
+        finalFileName: validatedData.finalFileName || null,
+        finalPreviewUrl: validatedData.finalPreviewUrl || null,
+        finalFileUpdatedAt: new Date(),
       });
       
       if (!item) {
@@ -1141,6 +1146,53 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  // Arte atualiza o caminho do arquivo final já enviado (sem mudar o status do item)
+  app.patch("/api/items/:id/update-final-file", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Arte podem atualizar o arquivo final" });
+      }
+
+      const finalFileSchema = z.object({
+        finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio"),
+        finalFileName: z.string().optional(),
+        finalPreviewUrl: z.string().optional(),
+      });
+      const validatedData = finalFileSchema.parse(req.body);
+
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      if (!currentItem.finalFileUrl) {
+        return res.status(409).json({ error: "Este item ainda não possui um arquivo final enviado" });
+      }
+
+      const item = await storage.updateItem(req.params.id, {
+        finalFileUrl: validatedData.finalFileUrl,
+        finalFileName: validatedData.finalFileName || null,
+        finalPreviewUrl: validatedData.finalPreviewUrl || null,
+        finalFileUpdatedAt: new Date(),
+      });
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'item',
+        item.id,
+        `Arquivo final atualizado`
+      );
+
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Creator reviews and releases item for production (Solicitação module)
   app.patch("/api/items/:id/creator-review", requireAuth, async (req, res) => {
     try {
@@ -1155,12 +1207,22 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // Idempotente: se a peça JÁ foi liberada (ou já avançou na produção), não
+      // é erro clicar "Liberar" de novo (lista desatualizada / clique duplo) —
+      // só devolve a peça como sucesso, sem reprocessar.
+      const alreadyReleased = [
+        "ready_for_production", "approved", "pronto_para_producao", "liberado",
+        "inProduction", "em_producao", "produced", "produzido", "conferred", "delivered", "entregue",
+      ].includes(currentItem.status);
+      if (alreadyReleased) {
+        return res.json(currentItem);
+      }
       if (currentItem.status !== "awaiting_final_review") {
-        return res.status(409).json({ 
-          error: `Item não pode ser revisado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_final_review` 
+        return res.status(409).json({
+          error: `Item não pode ser revisado pelo criador. Status atual: ${translateStatus(currentItem.status)}, esperado: Aguardando Revisão Final`
         });
       }
-      
+
       // Peças de reaproveitamento não passam pela produção: já entram como produzidas
       const nextStatus = currentItem.isReuse ? "produced" : "ready_for_production";
       const item = await storage.updateItem(req.params.id, {

@@ -11,7 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn, parseDateLocal, runInBatches } from "@/lib/utils";
+import { cn, parseDateLocal, runInBatches, fileNameFromPath, folderFromPath } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,10 @@ export default function Arte() {
   const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
   useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
+  const [finalPreviewUrl] = useState<string>(""); // reservado para uso futuro (sem upload por ora)
+  const [finalFileName, setFinalFileName] = useState<string>("");
+  // true quando a Arte trocou o caminho nesta sessão (evita "atualizar" sem mudar).
+  const [finalDirty, setFinalDirty] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [materialFilter, setMaterialFilter] = useState<string>("all");
   const [finishFilter, setFinishFilter] = useState<string>("all");
@@ -175,9 +179,15 @@ export default function Arte() {
     },
   });
 
+  const resetFinalFileState = () => {
+    setFinalFileUrl(""); setFinalFileName(""); setFinalDirty(false);
+  };
+
   const submitFinalFileMutation = useMutation({
-    mutationFn: async ({ itemId, finalFileUrl }: { itemId: string; finalFileUrl: string }) => {
-      return await apiRequest("PATCH", `/api/items/${itemId}/submit-final-file`, { finalFileUrl });
+    mutationFn: async ({ itemId, finalFileUrl, finalPreviewUrl, finalFileName, isUpdate }: { itemId: string; finalFileUrl: string; finalPreviewUrl?: string; finalFileName?: string; isUpdate?: boolean }) => {
+      return isUpdate
+        ? await apiRequest("PATCH", `/api/items/${itemId}/update-final-file`, { finalFileUrl, finalPreviewUrl, finalFileName })
+        : await apiRequest("PATCH", `/api/items/${itemId}/submit-final-file`, { finalFileUrl, finalPreviewUrl, finalFileName });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -1218,6 +1228,8 @@ export default function Arte() {
     setApprovalThumbUrl(item.approvalThumbUrl || "");
     setApprovalThumbPreview(item.approvalThumbUrl || "");
     setFinalFileUrl(item.finalFileUrl || "");
+    setFinalFileName(item.finalFileName || fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl ? "arquivo enviado" : ""));
+    setFinalDirty(false);
   };
 
   const handleSubmitForApproval = () => {
@@ -1239,12 +1251,14 @@ export default function Arte() {
     saveThumbDraftMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
   };
 
+  // Envia (ou atualiza) o caminho do arquivo final.
   const handleSubmitFinalFile = () => {
     if (!selectedItem || !finalFileUrl) {
       toast({ title: "Erro", description: "É necessário informar o caminho do arquivo final", variant: "destructive" });
       return;
     }
-    submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl });
+    const isUpdate = !!selectedItem.finalFileUrl; // já tinha arquivo → é atualização
+    submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl, finalPreviewUrl: "", finalFileName: fileNameFromPath(finalFileUrl) || "", isUpdate });
   };
 
   const toggleItemSelection = (itemId: string) => {
@@ -2625,7 +2639,7 @@ export default function Arte() {
                 );
               })()}
 
-              {/* Input caminho arquivo final */}
+              {/* Caminho do arquivo final (rede) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(20,83,45,0.6)', paddingLeft: 4 }}>
                   Caminho do Arquivo Final
@@ -2634,35 +2648,47 @@ export default function Arte() {
                   <FolderOpen style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#16a34a' }} />
                   <Input
                     id="finalFilePath"
-                    placeholder="Cole o caminho ou link do servidor..."
+                    placeholder="Cole o caminho do ARQUIVO (com nome e extensão)…"
                     value={finalFileUrl}
-                    onChange={(e) => setFinalFileUrl(e.target.value)}
+                    onChange={(e) => { setFinalFileUrl(e.target.value); setFinalDirty(true); }}
                     data-testid="input-final-file-path"
                     style={{ paddingLeft: 36, paddingRight: 16, paddingTop: 12, paddingBottom: 12, background: '#ffffff', border: 'none', boxShadow: '0 0 0 1px #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 500 }}
                   />
                 </div>
+                {finalFileUrl.trim() && (
+                  fileNameFromPath(finalFileUrl)
+                    ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: '#15803d', paddingLeft: 4 }}>
+                        <FileCheck style={{ width: 13, height: 13, flexShrink: 0 }} />
+                        Arquivo: <span style={{ fontFamily: "'DM Mono', monospace" }}>{fileNameFromPath(finalFileUrl)}</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, fontWeight: 600, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '7px 10px' }}>
+                        <AlertTriangle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
+                        <span>Isto parece uma <b>pasta</b>. Cole o caminho do <b>arquivo específico</b> (com nome e extensão, ex.: …\Rolo_Ministerio.tif) para a gráfica não pegar o arquivo errado.</span>
+                      </div>
+                    )
+                )}
               </div>
 
               {/* CTA button */}
               <button
                 onClick={handleSubmitFinalFile}
-                disabled={submitFinalFileMutation.isPending || !finalFileUrl}
+                disabled={submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)}
                 data-testid="button-submit-final"
                 style={{
                   width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
-                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl) ? '#fcd9b7' : '#fd761a',
+                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#fcd9b7' : '#fd761a',
                   color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
                   fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.15em',
-                  cursor: (submitFinalFileMutation.isPending || !finalFileUrl) ? 'not-allowed' : 'pointer',
+                  cursor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   boxShadow: '0 4px 16px rgba(253,118,26,0.2)', transition: 'filter 0.15s, transform 0.1s'
                 }}
                 onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
                 onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                {submitFinalFileMutation.isPending ? 'Enviando...' : 'Enviar para Revisão'}
+                {submitFinalFileMutation.isPending ? 'Enviando...' : (selectedItem.finalFileUrl ? 'Atualizar arquivo' : 'Enviar para Revisão')}
                 {!submitFinalFileMutation.isPending && <ArrowRight style={{ width: 16, height: 16 }} />}
               </button>
             </div>

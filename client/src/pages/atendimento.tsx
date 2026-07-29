@@ -1906,170 +1906,137 @@ export default function Atendimento() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {/* Cabeçalho da tabela */}
-                <div style={{
-                  display: 'grid', gridTemplateColumns: '52px 1fr 140px 1fr 100px 36px',
-                  gap: 12, padding: '0 16px',
-                  fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em',
-                }}>
-                  <span />
-                  <span>Peça / Evento</span>
-                  <span>Status</span>
-                  <span>Aprovações por patrocinador</span>
-                  <span style={{ textAlign: 'center' }}>Resumo</span>
-                  <span />
-                </div>
-
                 {historyItems.map((item: any) => {
                   const ev = evById.get(item.eventId);
                   const itemSps: any[] = itemSponsorsMap[item.id] || [];
                   const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
                   const statusCfg = HIST_STATUS[item.status] || { label: item.status, bg: '#f3f4f3', color: '#78716c' };
 
-                  // Para cada patrocinador, encontra sua aprovação individual
                   const sponsorApprovals = itemSps.map(sp => {
                     const appr = approvals.find(a => a.sponsorId === sp.id);
                     return { sponsor: sp, appr };
                   });
                   const approvedOnes = sponsorApprovals.filter(x => x.appr?.status === 'approved');
                   const pendingOnes  = sponsorApprovals.filter(x => !x.appr || x.appr.status !== 'approved');
+                  const allApproved  = approvedOnes.length === sponsorApprovals.length && sponsorApprovals.length > 0;
 
-                  // Mini-timeline helpers
-                  const fmtDt = (d: string | null | undefined) => {
+                  const fmtDt = (d: string | null | undefined, short = false) => {
                     if (!d) return null;
-                    const dt = new Date(d);
-                    return format(dt, "dd/MM/yy 'às' HH:mm", { locale: ptBR });
+                    return format(new Date(d), short ? "dd/MM" : "dd/MM/yy 'às' HH:mm", { locale: ptBR });
                   };
                   const lastApprovedAt = approvedOnes.length > 0
-                    ? approvedOnes.map(x => x.appr?.approvedAt).filter(Boolean).sort().reverse()[0]
-                    : null;
+                    ? approvedOnes.map(x => x.appr?.approvedAt).filter(Boolean).sort().reverse()[0] : null;
                   const lastApprovedBy = approvedOnes.length > 0
-                    ? approvedOnes.sort((a, b) => (b.appr?.approvedAt || '') > (a.appr?.approvedAt || '') ? 1 : -1)[0]?.appr?.approvedBy
-                    : null;
-
-                  const milestones: { icon: React.ReactNode; label: string; date: string; by?: string | null; color: string }[] = [];
-                  if (item.createdAt) milestones.push({ icon: <PlusCircle style={{ width: 10, height: 10 }} />, label: 'Criado', date: fmtDt(item.createdAt)!, color: '#2563eb' });
-                  if (item.sponsorApprovedAt) milestones.push({ icon: <CheckCircle style={{ width: 10, height: 10 }} />, label: 'Todos aprovaram', date: fmtDt(item.sponsorApprovedAt)!, color: '#15803d' });
-                  else if (lastApprovedAt) milestones.push({ icon: <CheckCircle style={{ width: 10, height: 10 }} />, label: `Última aprovação (${approvedOnes.length})`, date: fmtDt(lastApprovedAt)!, by: lastApprovedBy, color: '#15803d' });
-                  if (item.approvedAt) milestones.push({ icon: <FileCheck style={{ width: 10, height: 10 }} />, label: 'Liberado p/ produção', date: fmtDt(item.approvedAt)!, color: '#7c3aed' });
+                    ? approvedOnes.sort((a, b) => (b.appr?.approvedAt || '') > (a.appr?.approvedAt || '') ? 1 : -1)[0]?.appr?.approvedBy : null;
 
                   return (
                     <div key={item.id} style={{
-                      display: 'grid', gridTemplateColumns: '52px 1fr 140px 1fr 100px 36px',
-                      gap: 12, padding: '12px 16px', alignItems: 'start',
-                      background: '#fff', borderRadius: 10, border: '1px solid #f5f5f4',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      background: '#fff', borderRadius: 12,
+                      border: `1px solid ${allApproved ? '#bbf7d0' : '#f0eeec'}`,
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+                      overflow: 'hidden',
                     }}>
-                      {/* Thumbnail */}
-                      <div style={{ width: 44, height: 44, borderRadius: 6, overflow: 'hidden', background: '#f5f5f4', flexShrink: 0, marginTop: 2 }}>
-                        {(item.approvalThumbUrl || item.finalPreviewUrl)
-                          ? <img src={item.approvalThumbUrl || item.finalPreviewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <FileText style={{ width: 16, height: 16, color: '#a8a29e' }} />
-                            </div>}
+                      {/* ── Cabeçalho do card ── */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px 0' }}>
+                        {/* Thumb */}
+                        <div style={{ width: 52, height: 52, borderRadius: 8, overflow: 'hidden', background: '#f5f5f4', flexShrink: 0 }}>
+                          {(item.approvalThumbUrl || item.finalPreviewUrl)
+                            ? <img src={item.approvalThumbUrl || item.finalPreviewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <FileText style={{ width: 18, height: 18, color: '#a8a29e' }} />
+                              </div>}
+                        </div>
+
+                        {/* Identidade */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: 0, lineHeight: 1.2 }}>{item.type}</p>
+                            <span style={{ fontSize: 10, color: '#a8a29e', fontWeight: 500 }}>{item.displayId}</span>
+                            <span style={{
+                              fontSize: 10, fontWeight: 700,
+                              backgroundColor: statusCfg.bg, color: statusCfg.color,
+                              padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap',
+                            }}>{statusCfg.label}</span>
+                          </div>
+                          <p style={{ fontSize: 11, color: '#78716c', margin: '3px 0 0', fontWeight: 500 }}>{ev?.name || '—'}</p>
+                        </div>
+
+                        {/* Resumo + download */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          {sponsorApprovals.length > 0 && (
+                            <span style={{
+                              fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 20,
+                              background: allApproved ? '#dcfce7' : '#fef9c3',
+                              color: allApproved ? '#15803d' : '#a16207',
+                            }}>
+                              {approvedOnes.length}/{sponsorApprovals.length} ✓
+                            </span>
+                          )}
+                          {item.finalFileUrl && (
+                            <a href={item.finalFileUrl} target="_blank" rel="noreferrer" title="Abrir arquivo final"
+                              style={{ width: 30, height: 30, borderRadius: 7, border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#57534e', textDecoration: 'none' }}>
+                              <Download style={{ width: 13, height: 13 }} />
+                            </a>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Tipo + ID + Evento + mini-timeline */}
-                      <div style={{ paddingTop: 2 }}>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', margin: 0 }}>{item.type}</p>
-                        <p style={{ fontSize: 11, color: '#a8a29e', margin: '1px 0 0' }}>{item.displayId}</p>
-                        <p style={{ fontSize: 11, color: '#57534e', margin: '3px 0 0', fontWeight: 500 }}>{ev?.name || '—'}</p>
-                        {milestones.length > 0 && (
-                          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            {milestones.map((m, i) => (
-                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                <span style={{ color: m.color, display: 'flex', alignItems: 'center', flexShrink: 0 }}>{m.icon}</span>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: '#78716c', whiteSpace: 'nowrap' }}>{m.label}:</span>
-                                <span style={{ fontSize: 10, color: '#a8a29e' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>
+                      {/* ── Timeline horizontal ── */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 0, padding: '10px 16px 0', overflowX: 'auto' }}>
+                        {[
+                          item.createdAt && { dot: '#2563eb', label: 'Criado', date: fmtDt(item.createdAt) },
+                          !item.sponsorApprovedAt && lastApprovedAt && { dot: '#15803d', label: `Últ. aprovação (${approvedOnes.length})`, date: fmtDt(lastApprovedAt), by: lastApprovedBy },
+                          item.sponsorApprovedAt && { dot: '#15803d', label: 'Todos aprovaram', date: fmtDt(item.sponsorApprovedAt) },
+                          item.approvedAt && { dot: '#7c3aed', label: 'Liberado', date: fmtDt(item.approvedAt) },
+                        ].filter(Boolean).map((m: any, i: number, arr: any[]) => (
+                          <React.Fragment key={i}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.dot, flexShrink: 0 }} />
+                              <span style={{ fontSize: 10, fontWeight: 600, color: '#57534e' }}>{m.label}</span>
+                              <span style={{ fontSize: 10, color: '#a8a29e' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>
+                            </div>
+                            {i < arr.length - 1 && <span style={{ width: 20, height: 1, background: '#e5e7eb', margin: '0 6px', flexShrink: 0 }} />}
+                          </React.Fragment>
+                        ))}
+                      </div>
+
+                      {/* ── Grade de patrocinadores ── */}
+                      {sponsorApprovals.length > 0 && (
+                        <div style={{ padding: '10px 16px 14px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {sponsorApprovals.map(({ sponsor, appr }) => {
+                            const isApproved = appr?.status === 'approved';
+                            const isRejected = appr?.status === 'rejected';
+                            return (
+                              <div key={sponsor.id} style={{
+                                display: 'flex', alignItems: 'center', gap: 5,
+                                padding: '4px 10px 4px 6px', borderRadius: 20,
+                                background: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#f5f5f4',
+                                border: `1px solid ${isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : '#e5e7eb'}`,
+                                flexShrink: 0,
+                              }}>
+                                <span style={{
+                                  width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+                                  background: isApproved ? '#dcfce7' : isRejected ? '#fecaca' : '#e5e7eb',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                  {isApproved
+                                    ? <CheckCircle style={{ width: 9, height: 9, color: '#15803d' }} />
+                                    : <span style={{ width: 5, height: 5, borderRadius: '50%', background: isRejected ? '#dc2626' : '#9ca3af', display: 'block' }} />}
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: isApproved ? '#15803d' : isRejected ? '#dc2626' : '#57534e' }}>
+                                  {sponsor.name}
+                                </span>
+                                {isApproved && appr?.approvedAt && (
+                                  <span style={{ fontSize: 9, color: '#86efac', fontWeight: 500 }}>{fmtDt(appr.approvedAt, true)}</span>
+                                )}
+                                {isRejected && (
+                                  <span style={{ fontSize: 9, color: '#fca5a5', fontWeight: 500 }}>Reprovado</span>
+                                )}
                               </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Status atual */}
-                      <div style={{ paddingTop: 4 }}>
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center',
-                          fontSize: 10, fontWeight: 700,
-                          backgroundColor: statusCfg.bg, color: statusCfg.color,
-                          padding: '4px 8px', borderRadius: 6,
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {statusCfg.label}
-                        </span>
-                      </div>
-
-                      {/* Aprovações por patrocinador */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 2 }}>
-                        {sponsorApprovals.length === 0 && <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>}
-                        {approvedOnes.map(({ sponsor, appr }) => (
-                          <div key={sponsor.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: 16, height: 16, borderRadius: '50%', background: '#dcfce7', flexShrink: 0, marginTop: 1,
-                            }}>
-                              <CheckCircle style={{ width: 10, height: 10, color: '#15803d' }} />
-                            </span>
-                            <div>
-                              <p style={{ fontSize: 11, fontWeight: 600, color: '#1c1917', margin: 0 }}>{sponsor.name}</p>
-                              {appr?.approvedBy && (
-                                <p style={{ fontSize: 10, color: '#15803d', margin: '1px 0 0' }}>
-                                  {appr.approvedBy}
-                                  {appr.approvedAt && (
-                                    <span style={{ color: '#a8a29e', fontWeight: 400 }}>{' · '}{format(new Date(appr.approvedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
-                                  )}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        {pendingOnes.map(({ sponsor, appr }) => (
-                          <div key={sponsor.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: 16, height: 16, borderRadius: '50%', background: '#fef2f2', flexShrink: 0, marginTop: 1,
-                            }}>
-                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: appr?.status === 'rejected' ? '#dc2626' : '#a8a29e', display: 'block' }} />
-                            </span>
-                            <div>
-                              <p style={{ fontSize: 11, fontWeight: 600, color: '#78716c', margin: 0 }}>{sponsor.name}</p>
-                              <p style={{ fontSize: 10, color: '#a8a29e', margin: '1px 0 0' }}>
-                                {appr?.status === 'rejected' ? 'Reprovado' : appr?.status === 'new_version_pending' ? 'Nova versão' : 'Aguardando'}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Contagem aprovações */}
-                      <div style={{ paddingTop: 4, textAlign: 'center' }}>
-                        {sponsorApprovals.length > 0 && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 700,
-                            color: approvedOnes.length === sponsorApprovals.length ? '#15803d' : '#a16207',
-                          }}>
-                            {approvedOnes.length}/{sponsorApprovals.length} aprovado{approvedOnes.length !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Download */}
-                      {item.finalFileUrl ? (
-                        <a
-                          href={item.finalFileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Baixar arquivo final"
-                          style={{
-                            width: 32, height: 32, borderRadius: 8, border: '1px solid #e7e5e4',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#57534e', textDecoration: 'none', marginTop: 2,
-                          }}
-                        >
-                          <Download style={{ width: 14, height: 14 }} />
-                        </a>
-                      ) : <span />}
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

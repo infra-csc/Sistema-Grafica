@@ -31,7 +31,7 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [eventFilter, setEventFilter] = useState<string>("all");
+  const [eventFilter, setEventFilter] = useState<string[]>([]);
   // Persiste a aba ativa para não voltar ao padrão ao abrir uma peça e retornar.
   const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
   useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
@@ -40,13 +40,13 @@ export default function Arte() {
   const [finalFileName, setFinalFileName] = useState<string>("");
   // true quando a Arte trocou o caminho nesta sessão (evita "atualizar" sem mudar).
   const [finalDirty, setFinalDirty] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [materialFilter, setMaterialFilter] = useState<string>("all");
-  const [finishFilter, setFinishFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [materialFilter, setMaterialFilter] = useState<string[]>([]);
+  const [finishFilter, setFinishFilter] = useState<string[]>([]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [openEventCombobox, setOpenEventCombobox] = useState(false);
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
-  const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [monthFilter, setMonthFilter] = useState<string[]>([]);
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -62,7 +62,7 @@ export default function Arte() {
   const [correcaoThumbUrl, setCorrecaoThumbUrl] = useState<string>("");
   const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
   const [correcaoSponsorFilter, setCorrecaoSponsorFilter] = useState<string>("all");
-  const [sponsorFilter, setSponsorFilter] = useState<string>("all");
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
   const [semThumb, setSemThumb] = useState(false);
   const [comThumb, setComThumb] = useState(false);
   const [semFinal, setSemFinal] = useState(false);
@@ -894,7 +894,7 @@ export default function Arte() {
   }, [arteItemsPool]);
 
   const openBookModal = () => {
-    const ev = eventFilter !== "all" ? eventFilter : (bookEventOptions[0]?.value || "");
+    const ev = eventFilter.length > 0 ? eventFilter[0] : (bookEventOptions[0]?.value || "");
     setBookEventId(ev);
     setBookFileUrl(""); setBookFileName("");
     setShowBookModal(true);
@@ -1045,10 +1045,10 @@ export default function Arte() {
   // que um filtro esvazie a si mesmo.
   const facetPool = (exclude: 'event' | 'sponsor' | 'type' | 'material') =>
     tabPoolItems.filter((i: any) => {
-      if (exclude !== 'event' && eventFilter !== 'all' && i.eventId !== eventFilter) return false;
-      if (exclude !== 'sponsor' && sponsorFilter !== 'all' && !(i.sponsors ?? []).some((s: any) => s.id === sponsorFilter)) return false;
-      if (exclude !== 'type' && typeFilter !== 'all' && i.type !== typeFilter) return false;
-      if (exclude !== 'material' && materialFilter !== 'all' && i.material !== materialFilter) return false;
+      if (exclude !== 'event' && eventFilter.length > 0 && !eventFilter.includes(i.eventId)) return false;
+      if (exclude !== 'sponsor' && sponsorFilter.length > 0 && !(i.sponsors ?? []).some((s: any) => sponsorFilter.includes(s.id))) return false;
+      if (exclude !== 'type' && typeFilter.length > 0 && !typeFilter.includes(i.type)) return false;
+      if (exclude !== 'material' && materialFilter.length > 0 && !materialFilter.includes(i.material)) return false;
       return true;
     });
 
@@ -1093,12 +1093,12 @@ export default function Arte() {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (searchFilter) count++;
-    if (eventFilter !== "all") count++;
-    if (sponsorFilter !== "all") count++;
-    if (monthFilter !== "all") count++;
+    if (eventFilter.length > 0) count += eventFilter.length;
+    if (sponsorFilter.length > 0) count += sponsorFilter.length;
+    if (monthFilter.length > 0) count++;
     if (next10DaysFilter) count++;
-    if (typeFilter !== "all") count++;
-    if (materialFilter !== "all") count++;
+    if (typeFilter.length > 0) count += typeFilter.length;
+    if (materialFilter.length > 0) count += materialFilter.length;
     if (semThumb) count++;
     if (comThumb) count++;
     if (semFinal) count++;
@@ -1110,13 +1110,13 @@ export default function Arte() {
 
   const clearAllFilters = () => {
     setSearchFilter("");
-    setEventFilter("all");
-    setSponsorFilter("all");
-    setMonthFilter("all");
+    setEventFilter([]);
+    setSponsorFilter([]);
+    setMonthFilter([]);
     setNext10DaysFilter(false);
-    setTypeFilter("all");
-    setMaterialFilter("all");
-    setFinishFilter("all");
+    setTypeFilter([]);
+    setMaterialFilter([]);
+    setFinishFilter([]);
     setSemThumb(false);
     setComThumb(false);
     setSemFinal(false);
@@ -1138,7 +1138,7 @@ export default function Arte() {
   const getFilteredItemsForTab = (tab: string) => {
     return allItems
       .filter(item => {
-        const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
+        const matchesEvent = eventFilter.length === 0 || eventFilter.includes(item.eventId);
         let matchesView = false;
         if (tab === "criar-aprovacoes") {
           matchesView = item.status === 'awaiting_submission';
@@ -1161,9 +1161,9 @@ export default function Arte() {
             'entregue',
           ].includes(item.status);
         }
-        const matchesType = typeFilter === "all" || item.type === typeFilter;
-        const matchesMaterial = materialFilter === "all" || item.material === materialFilter;
-        const matchesFinish = finishFilter === "all" || item.finish === finishFilter;
+        const matchesType = typeFilter.length === 0 || typeFilter.includes(item.type);
+        const matchesMaterial = materialFilter.length === 0 || materialFilter.includes(item.material);
+        const matchesFinish = finishFilter.length === 0 || finishFilter.includes(item.finish);
         let matchesNext10Days = true;
         if (next10DaysFilter && item.event?.truckDepartureDate) {
           const today = new Date(); today.setHours(0,0,0,0);
@@ -1172,13 +1172,13 @@ export default function Arte() {
           matchesNext10Days = dep >= today && dep <= tenDaysFromNow;
         }
         let matchesMonth = true;
-        if (monthFilter !== "all" && item.event?.truckDepartureDate) {
-          matchesMonth = (new Date(item.event.truckDepartureDate).getMonth() + 1).toString() === monthFilter;
+        if (monthFilter.length > 0 && item.event?.truckDepartureDate) {
+          matchesMonth = monthFilter.includes((new Date(item.event.truckDepartureDate).getMonth() + 1).toString());
         }
         const matchesSearch = !deferredSearch || [item.displayId, item.type, item.description, item.event?.name].some(
           f => f && f.toLowerCase().includes(deferredSearch.toLowerCase())
         );
-        const matchesSponsor = sponsorFilter === "all" || (item.sponsors ?? []).some((s: any) => s.id === sponsorFilter);
+        const matchesSponsor = sponsorFilter.length === 0 || (item.sponsors ?? []).some((s: any) => sponsorFilter.includes(s.id));
         const matchesSemThumb = !semThumb || !item.approvalThumbUrl;
         const matchesComThumb = !comThumb || !!item.approvalThumbUrl;
         const matchesSemFinal = !semFinal || !item.finalFileUrl;
@@ -1216,7 +1216,7 @@ export default function Arte() {
   };
 
   const filteredItems = getFilteredItemsForTab(activeTab);
-  const itemsForEvent = eventFilter === "all" ? allItems : allItems.filter(item => item.eventId === eventFilter);
+  const itemsForEvent = eventFilter.length === 0 ? allItems : allItems.filter(item => eventFilter.includes(item.eventId));
   const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
   const aguardandoCount = getFilteredItemsForTab("aguardando-patrocinador").length;
   const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
@@ -1284,18 +1284,18 @@ export default function Arte() {
   // ─── ACTIVE CHIPS ──────────────────────────────────────────────────────────
   const activeChips = useMemo(() => {
     const chips: string[] = [];
-    if (eventFilter !== "all") {
-      const ev = (events as any[]).find((e: any) => e.id === eventFilter);
+    if (eventFilter.length === 1) {
+      const ev = (events as any[]).find((e: any) => e.id === eventFilter[0]);
       chips.push(`Evento: ${ev?.name || 'Selecionado'}`);
     }
-    if (sponsorFilter !== "all") {
-      const sp = (uniqueSponsors as any[]).find((s: any) => s.id === sponsorFilter);
+    if (sponsorFilter.length === 1) {
+      const sp = (uniqueSponsors as any[]).find((s: any) => s.id === sponsorFilter[0]);
       chips.push(`Patrocinador: ${sp?.name || 'Selecionado'}`);
     }
-    if (typeFilter !== "all") chips.push(`Tipo: ${typeFilter}`);
-    if (materialFilter !== "all") chips.push(`Material: ${materialFilter}`);
-    if (monthFilter !== "all") {
-      const m = months.find(x => x.value === monthFilter);
+    if (typeFilter.length > 0) typeFilter.forEach(t => chips.push(`Tipo: ${t}`));
+    if (materialFilter.length > 0) materialFilter.forEach(m => chips.push(`Material: ${m}`));
+    if (monthFilter.length > 0) {
+      const m = months.find(x => x.value === monthFilter[0]);
       chips.push(`Mês: ${m?.label || monthFilter}`);
     }
     if (next10DaysFilter) chips.push("Próximos 10 dias");
@@ -1310,11 +1310,11 @@ export default function Arte() {
   }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, semThumb, comThumb, semFinal, comFinal, searchFilter, events, uniqueSponsors, months]);
 
   const removeChipFilter = (chip: string) => {
-    if (chip.startsWith("Evento:")) setEventFilter("all");
-    else if (chip.startsWith("Patrocinador:")) setSponsorFilter("all");
-    else if (chip.startsWith("Tipo:")) setTypeFilter("all");
-    else if (chip.startsWith("Material:")) setMaterialFilter("all");
-    else if (chip.startsWith("Mês:")) setMonthFilter("all");
+    if (chip.startsWith("Evento:")) { const name = chip.replace("Evento: ", ""); setEventFilter(prev => prev.filter(v => { const ev = (window as any).__evList?.find((e: any) => e.name === name); return ev ? v !== ev.id : true; })); }
+    else if (chip.startsWith("Patrocinador:")) setSponsorFilter([]);
+    else if (chip.startsWith("Tipo:")) { const t = chip.replace("Tipo: ", ""); setTypeFilter(prev => prev.filter(v => v !== t)); }
+    else if (chip.startsWith("Material:")) { const m = chip.replace("Material: ", ""); setMaterialFilter(prev => prev.filter(v => v !== m)); }
+    else if (chip.startsWith("Mês:")) setMonthFilter([]);
     else if (chip === "Próximos 10 dias") setNext10DaysFilter(false);
     else if (chip.startsWith("Período:")) setPeriodFilter("Todos");
     else if (chip === "Urgente") setUrgenteFilter(false);
@@ -1430,7 +1430,7 @@ export default function Arte() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Resumo por evento — chips clicáveis para filtrar/pular */}
-        {eventFilter === "all" && eventSummary.length > 1 && (
+        {eventFilter.length === 0 && eventSummary.length > 1 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '12px 14px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>
               {eventSummary.length} eventos
@@ -1438,7 +1438,7 @@ export default function Arte() {
             {eventSummary.map(ev => (
               <button
                 key={ev.id || ev.name}
-                onClick={() => { if (ev.id) setEventFilter(ev.id); }}
+                onClick={() => { if (ev.id) setEventFilter([ev.id]); }}
                 title={ev.id ? `Filtrar por ${ev.name}` : ev.name}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 11px', borderRadius: 9999, border: '1px solid #fdba74', backgroundColor: '#fff7ed', color: '#c2410c', fontSize: 12, fontWeight: 600, cursor: ev.id ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
               >
@@ -2179,14 +2179,14 @@ export default function Arte() {
             </div>
 
             <EventFilterDropdown
-              value={eventFilter}
-              onChange={setEventFilter}
+              values={eventFilter}
+              onValuesChange={setEventFilter}
               options={eventFilterOptions}
             />
 
             <FilterSelect
               label="Patrocinador" allLabel="Todos os patrocinadores"
-              value={sponsorFilter} onChange={setSponsorFilter}
+              values={sponsorFilter} onValuesChange={setSponsorFilter}
               options={sponsorFilterOptions}
               searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
               testId="select-sponsor-filter"
@@ -2194,7 +2194,7 @@ export default function Arte() {
 
             <FilterSelect
               label="Tipo de Peça" allLabel="Todos os tipos"
-              value={typeFilter} onChange={setTypeFilter}
+              values={typeFilter} onValuesChange={setTypeFilter}
               options={typeFilterOptions}
               searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
               testId="select-type-filter"
@@ -2202,7 +2202,7 @@ export default function Arte() {
 
             <FilterSelect
               label="Material" allLabel="Todos os materiais"
-              value={materialFilter} onChange={setMaterialFilter}
+              values={materialFilter} onValuesChange={setMaterialFilter}
               options={materialFilterOptions}
               searchPlaceholder="Buscar material..." emptyText="Nenhum material encontrado."
               testId="select-material-filter"

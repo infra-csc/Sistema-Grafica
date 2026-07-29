@@ -241,9 +241,9 @@ export default function TriagemRetorno() {
   const [entries, setEntries] = useState<Record<string, TriagemEntry>>({});
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [filterEvent, setFilterEvent] = useState("all");
-  const [filterSponsor, setFilterSponsor] = useState("all");
-  const [filterLocation, setFilterLocation] = useState("all");
+  const [filterEvent, setFilterEvent] = useState<string[]>([]);
+  const [filterSponsor, setFilterSponsor] = useState<string[]>([]);
+  const [filterLocation, setFilterLocation] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EnrichedAsset | null>(null);
@@ -413,9 +413,9 @@ export default function TriagemRetorno() {
     const q = search.trim().toLowerCase();
     return awaitingAssets.filter(a => {
       if (savedIds.has(a.id)) return false;
-      const me = filterEvent === "all" || a.eventName === filterEvent;
-      const msp = filterSponsor === "all" || (a.sponsors ?? []).some(s => s.id === filterSponsor);
-      const mloc = filterLocation === "all" || a.location === filterLocation;
+      const me = filterEvent.length === 0 || filterEvent.includes(a.eventName ?? "");
+      const msp = filterSponsor.length === 0 || (a.sponsors ?? []).some(s => filterSponsor.includes(s.id));
+      const mloc = filterLocation.length === 0 || filterLocation.includes(a.location ?? "");
       const msearch = !q || (a.name ?? "").toLowerCase().includes(q) || (a.displayId ?? "").toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q);
       return me && msp && mloc && msearch;
     });
@@ -426,9 +426,9 @@ export default function TriagemRetorno() {
   const tFacetPool = (exclude: 'event' | 'sponsor' | 'location') =>
     awaitingAssets.filter(a => {
       if (savedIds.has(a.id)) return false;
-      if (exclude !== 'event' && filterEvent !== "all" && a.eventName !== filterEvent) return false;
-      if (exclude !== 'sponsor' && filterSponsor !== "all" && !(a.sponsors ?? []).some(s => s.id === filterSponsor)) return false;
-      if (exclude !== 'location' && filterLocation !== "all" && a.location !== filterLocation) return false;
+      if (exclude !== 'event' && filterEvent.length > 0 && !filterEvent.includes(a.eventName ?? "")) return false;
+      if (exclude !== 'sponsor' && filterSponsor.length > 0 && !(a.sponsors ?? []).some(s => filterSponsor.includes(s.id))) return false;
+      if (exclude !== 'location' && filterLocation.length > 0 && !filterLocation.includes(a.location ?? "")) return false;
       return true;
     });
   const tTally = (rows: any[], key: (r: any) => { value: string; label: string } | null) => {
@@ -483,7 +483,7 @@ export default function TriagemRetorno() {
     setEntries(prev => ({ ...prev, ...update }));
   };
 
-  const hasFilters = filterEvent !== "all" || filterSponsor !== "all" || filterLocation !== "all" || !!search;
+  const hasFilters = filterEvent.length > 0 || filterSponsor.length > 0 || filterLocation.length > 0 || !!search;
 
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
@@ -572,8 +572,8 @@ export default function TriagemRetorno() {
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Evento</label>
               <EventFilterDropdown
-                value={filterEvent}
-                onChange={setFilterEvent}
+                values={filterEvent}
+                onValuesChange={setFilterEvent}
                 options={eventFilterOptions}
               />
             </div>
@@ -584,10 +584,10 @@ export default function TriagemRetorno() {
               <FilterSelect
                 fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
                 label="Patrocinador" allLabel="Todos os patrocinadores"
-                value={filterSponsor} onChange={setFilterSponsor}
+                values={filterSponsor} onValuesChange={setFilterSponsor}
                 options={sponsorFilterOptions}
                 searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
-                testId="select-triage-filter-sponsor" triggerStyle={SEL(filterSponsor !== "all")}
+                testId="select-triage-filter-sponsor" triggerStyle={SEL(filterSponsor.length > 0)}
               />
             </div>
 
@@ -598,10 +598,10 @@ export default function TriagemRetorno() {
                 <FilterSelect
                   fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
                   label="Local" allLabel="Todos os locais"
-                  value={filterLocation} onChange={setFilterLocation}
+                  values={filterLocation} onValuesChange={setFilterLocation}
                   options={locationFilterOptions}
                   searchPlaceholder="Buscar local..." emptyText="Nenhum local encontrado."
-                  testId="select-triage-filter-location" triggerStyle={SEL(filterLocation !== "all")}
+                  testId="select-triage-filter-location" triggerStyle={SEL(filterLocation.length > 0)}
                 />
               </div>
             )}
@@ -634,7 +634,7 @@ export default function TriagemRetorno() {
               <button
                 data-testid="button-triage-clear-filters"
                 disabled={!hasFilters}
-                onClick={() => { setFilterEvent("all"); setFilterSponsor("all"); setFilterLocation("all"); setSearch(""); }}
+                onClick={() => { setFilterEvent([]); setFilterSponsor([]); setFilterLocation([]); setSearch(""); }}
                 style={{
                   height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
                   borderRadius: 8,

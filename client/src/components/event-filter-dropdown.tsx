@@ -1,30 +1,37 @@
 /**
- * EventFilterDropdown — dropdown redesenhado de filtro por evento.
- * Usado em todas as páginas que têm filtro "Todos os Eventos".
+ * EventFilterDropdown — dropdown de filtro por evento com multi-seleção.
+ * Modo simples: value/onChange. Modo múltiplo: values/onValuesChange.
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Search, ChevronDown, Check, X } from "lucide-react";
 
 export interface EventOption {
   value: string;
   label: string;
-  count?: number;      // contagem de itens (opcional)
-  dotColor?: string;   // cor do dot de prioridade
+  count?: number;
+  dotColor?: string;
 }
 
 interface Props {
-  value: string;
-  onChange: (v: string) => void;
+  // Modo simples
+  value?: string;
+  onChange?: (v: string) => void;
+  // Modo múltiplo
+  values?: string[];
+  onValuesChange?: (v: string[]) => void;
   options: EventOption[];
-  allLabel?: string;   // padrão: "Todos os Eventos"
+  allLabel?: string;
 }
 
 export function EventFilterDropdown({
   value,
   onChange,
+  values,
+  onValuesChange,
   options,
   allLabel = "Todos os Eventos",
 }: Props) {
+  const multiple = values !== undefined && onValuesChange !== undefined;
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -38,44 +45,74 @@ export function EventFilterDropdown({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const selected = options.find(o => o.value === value);
   // Ordenação alfabética pt-BR
-  const sortedOptions = [...options].sort((a, b) =>
-    a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" })
+  const sortedOptions = useMemo(() =>
+    [...options].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" })),
+    [options]
   );
+
   const filtered = search.trim()
     ? sortedOptions.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
     : sortedOptions;
 
-  const triggerLabel = selected ? selected.label : allLabel;
-  const isFiltered = value !== "all";
+  // ── Estado ativo ──────────────────────────────────────────────────────
+  const isActive = multiple ? values!.length > 0 : (value !== undefined && value !== "all");
+
+  // ── Label do trigger ──────────────────────────────────────────────────
+  let triggerLabel: string;
+  if (multiple) {
+    if (values!.length === 0) triggerLabel = allLabel;
+    else if (values!.length === 1) triggerLabel = sortedOptions.find(o => o.value === values![0])?.label ?? values![0];
+    else triggerLabel = `${values!.length} eventos`;
+  } else {
+    const selected = sortedOptions.find(o => o.value === value);
+    triggerLabel = selected ? selected.label : allLabel;
+  }
+
+  // ── Handlers ─────────────────────────────────────────────────────────
+  const handleSelectSingle = (v: string) => { onChange?.(v); setSearch(""); setOpen(false); };
+  const handleToggleMultiple = (v: string) => {
+    const cur = values!;
+    onValuesChange!(cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v]);
+  };
+  const handleClear = () => {
+    if (multiple) onValuesChange!([]);
+    else onChange?.("all");
+    setSearch("");
+  };
 
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
-      {/* Trigger */}
+      {/* ── Trigger ── */}
       <button
         onClick={() => setOpen(v => !v)}
         style={{
           display: "flex", alignItems: "center", gap: 6,
           height: 36, padding: "0 10px 0 12px",
-          backgroundColor: open || isFiltered ? "#FFF7ED" : "#ffffff",
-          border: isFiltered ? "1.5px solid #FB923C" : open ? "1.5px solid #FB923C" : "1px solid #e2e8f0",
+          backgroundColor: open || isActive ? "#FFF7ED" : "#ffffff",
+          border: isActive ? "1.5px solid #FB923C" : open ? "1.5px solid #FB923C" : "1px solid #e2e8f0",
           borderRadius: 7, cursor: "pointer",
-          fontSize: 13, fontWeight: isFiltered ? 600 : 400,
-          color: isFiltered ? "#C2410C" : "#1c1917",
+          fontSize: 13, fontWeight: isActive ? 600 : 400,
+          color: isActive ? "#C2410C" : "#1c1917",
           transition: "background 0.15s, border 0.15s, color 0.15s",
-          maxWidth: 240, outline: "none",
-          whiteSpace: "nowrap",
+          maxWidth: 260, outline: "none", whiteSpace: "nowrap",
         }}
       >
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>
           {triggerLabel}
         </span>
 
-        {isFiltered && (
+        {/* Badge de contagem (2+) */}
+        {multiple && values!.length > 1 && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99, backgroundColor: "#FB923C", color: "#fff", flexShrink: 0 }}>
+            {values!.length}
+          </span>
+        )}
+
+        {isActive && (
           <span
             role="button"
-            onClick={e => { e.stopPropagation(); onChange("all"); setSearch(""); }}
+            onClick={e => { e.stopPropagation(); handleClear(); }}
             style={{ display: "flex", alignItems: "center", color: "#FB923C", marginLeft: 2, cursor: "pointer", flexShrink: 0 }}
             title="Limpar filtro"
           >
@@ -83,17 +120,15 @@ export function EventFilterDropdown({
           </span>
         )}
 
-        <ChevronDown
-          style={{
-            width: 14, height: 14, flexShrink: 0, marginLeft: 2,
-            color: isFiltered ? "#FB923C" : "#78716c",
-            transition: "transform 0.2s",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-          }}
-        />
+        <ChevronDown style={{
+          width: 14, height: 14, flexShrink: 0, marginLeft: 2,
+          color: isActive ? "#FB923C" : "#78716c",
+          transition: "transform 0.2s",
+          transform: open ? "rotate(180deg)" : "rotate(0deg)",
+        }} />
       </button>
 
-      {/* Dropdown panel */}
+      {/* ── Dropdown panel ── */}
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 9999,
@@ -106,17 +141,13 @@ export function EventFilterDropdown({
             <div style={{ position: "relative" }}>
               <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#9CA3AF" }} />
               <input
-                autoFocus
-                type="text"
-                placeholder="Buscar evento..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                autoFocus type="text" placeholder="Buscar evento..."
+                value={search} onChange={e => setSearch(e.target.value)}
                 style={{
                   width: "100%", boxSizing: "border-box",
                   paddingLeft: 30, paddingRight: 10, paddingTop: 7, paddingBottom: 7,
                   backgroundColor: "#F9FAFB", border: "1.5px solid #E5E7EB",
                   borderRadius: 6, fontSize: 12, color: "#111827", outline: "none",
-                  transition: "border 0.15s, box-shadow 0.15s",
                 }}
                 onFocus={e => { e.target.style.border = "1.5px solid #FB923C"; e.target.style.boxShadow = "0 0 0 3px rgba(251,146,60,0.15)"; }}
                 onBlur={e => { e.target.style.border = "1.5px solid #E5E7EB"; e.target.style.boxShadow = "none"; }}
@@ -125,28 +156,34 @@ export function EventFilterDropdown({
           </div>
 
           {/* List */}
-          <div style={{
-            maxHeight: 280, overflowY: "auto",
-            scrollbarWidth: "thin", scrollbarColor: "#E5E7EB transparent",
-          }}>
-            {/* "Todos os Eventos" row */}
+          <div style={{ maxHeight: 280, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#E5E7EB transparent" }}>
+            {/* "Todos" row */}
             {!search.trim() && (
               <button
-                onClick={() => { onChange("all"); setSearch(""); setOpen(false); }}
+                onClick={() => { if (multiple) { onValuesChange!([]); } else { handleSelectSingle("all"); } }}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 8,
                   padding: "9px 12px", border: "none", cursor: "pointer", textAlign: "left",
-                  backgroundColor: value === "all" ? "#F97316" : "transparent",
-                  color: value === "all" ? "#fff" : "#374151",
-                  fontWeight: 700, fontSize: 12,
-                  transition: "background 0.1s",
+                  backgroundColor: !isActive ? "#F97316" : "transparent",
+                  color: !isActive ? "#fff" : "#374151",
+                  fontWeight: 700, fontSize: 12, transition: "background 0.1s",
                   borderBottom: "1px solid #F3F4F6",
                 }}
-                onMouseEnter={e => { if (value !== "all") (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
-                onMouseLeave={e => { if (value !== "all") (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                onMouseEnter={e => { if (isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
+                onMouseLeave={e => { if (isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
               >
+                {multiple && (
+                  <span style={{
+                    width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                    border: !isActive ? "none" : "1.5px solid #D1D5DB",
+                    backgroundColor: !isActive ? "#fff" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {!isActive && <Check style={{ width: 10, height: 10, color: "#F97316" }} />}
+                  </span>
+                )}
                 <span style={{ flex: 1 }}>{allLabel}</span>
-                {value === "all" && <Check style={{ width: 13, height: 13, flexShrink: 0 }} />}
+                {!multiple && !isActive && <Check style={{ width: 13, height: 13, flexShrink: 0 }} />}
               </button>
             )}
 
@@ -155,56 +192,60 @@ export function EventFilterDropdown({
               <div style={{ padding: "20px 12px", textAlign: "center", fontSize: 12, color: "#9CA3AF" }}>
                 Nenhum evento encontrado
               </div>
-            ) : (
-              filtered.map(opt => {
-                const isSelected = value === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => { onChange(opt.value); setSearch(""); setOpen(false); }}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "center", gap: 8,
-                      padding: "8px 12px", border: "none", cursor: "pointer", textAlign: "left",
-                      backgroundColor: isSelected ? "#FFF7ED" : "transparent",
-                      transition: "background 0.1s",
-                    }}
-                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
-                    onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
-                  >
-                    {/* dot */}
+            ) : filtered.map(opt => {
+              const isSel = multiple ? values!.includes(opt.value) : value === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => { if (multiple) handleToggleMultiple(opt.value); else handleSelectSingle(opt.value); }}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 12px", border: "none", cursor: "pointer", textAlign: "left",
+                    backgroundColor: isSel ? "#FFF7ED" : "transparent", transition: "background 0.1s",
+                  }}
+                  onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = isSel ? "#FFF7ED" : "transparent"; }}
+                >
+                  {multiple ? (
                     <span style={{
-                      width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                      backgroundColor: opt.dotColor || (isSelected ? "#F97316" : "#D1D5DB"),
-                    }} />
-
-                    {/* name */}
-                    <span style={{
-                      flex: 1, fontSize: 12, fontWeight: isSelected ? 600 : 400,
-                      color: isSelected ? "#C2410C" : "#374151",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                      border: isSel ? "none" : "1.5px solid #D1D5DB",
+                      backgroundColor: isSel ? "#F97316" : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      {opt.label}
+                      {isSel && <Check style={{ width: 10, height: 10, color: "#fff" }} />}
                     </span>
+                  ) : (
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, backgroundColor: opt.dotColor || (isSel ? "#F97316" : "#D1D5DB") }} />
+                  )}
 
-                    {/* badge — só mostra se count fornecido */}
-                    {opt.count !== undefined && (
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
-                        backgroundColor: isSelected ? "#FB923C" : "#F3F4F6",
-                        color: isSelected ? "#fff" : "#6B7280",
-                        flexShrink: 0,
-                      }}>
-                        {opt.count}
-                      </span>
-                    )}
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: isSel ? 600 : 400, color: isSel ? "#C2410C" : "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {opt.label}
+                  </span>
 
-                    {/* check */}
-                    {isSelected && <Check style={{ width: 12, height: 12, color: "#F97316", flexShrink: 0 }} />}
-                  </button>
-                );
-              })
-            )}
+                  {opt.count !== undefined && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99, backgroundColor: isSel ? "#FB923C" : "#F3F4F6", color: isSel ? "#fff" : "#6B7280", flexShrink: 0 }}>
+                      {opt.count}
+                    </span>
+                  )}
+
+                  {!multiple && isSel && <Check style={{ width: 12, height: 12, color: "#F97316", flexShrink: 0 }} />}
+                </button>
+              );
+            })}
           </div>
+
+          {/* Footer multi-select */}
+          {multiple && values!.length > 0 && (
+            <div style={{ padding: "8px 12px", borderTop: "1px solid #F3F4F6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "#78716c" }}>
+                {values!.length} {values!.length === 1 ? "evento" : "eventos"} selecionados
+              </span>
+              <button onClick={() => onValuesChange!([])} style={{ fontSize: 11, fontWeight: 700, color: "#F97316", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
+                Limpar
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

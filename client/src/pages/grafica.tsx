@@ -78,14 +78,14 @@ export default function Grafica() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalType, setModalType] = useState<"production" | "delivery" | "conference" | null>(null);
   const [viewDetailsItem, setViewDetailsItem] = useState<any>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [eventFilter, setEventFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [materialFilter, setMaterialFilter] = useState<string>("all");
-  const [finishFilter, setFinishFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [eventFilter, setEventFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [materialFilter, setMaterialFilter] = useState<string[]>([]);
+  const [finishFilter, setFinishFilter] = useState<string[]>([]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
-  const [monthFilter, setMonthFilter] = useState<string>("all");
+  const [monthFilter, setMonthFilter] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [openRecipientCombobox, setOpenRecipientCombobox] = useState(false);
   const [productionData, setProductionData] = useState({ quantityProduced: 0 });
@@ -170,16 +170,16 @@ export default function Grafica() {
   // aplicando os OUTROS filtros ativos (com contagem por opção).
   const gFacetPool = (exclude: 'event' | 'status' | 'type' | 'material' | 'finish') =>
     (items as any[]).filter((item: any) => {
-      if (exclude !== 'status' && statusFilter !== "all") {
-        const ok = statusFilter === "ready_for_production"
+      if (exclude !== 'status' && statusFilter.length > 0) {
+        const ok = statusFilter.some(sf => sf === "ready_for_production"
           ? (item.status === "ready_for_production" || item.status === "pronto_para_producao" || item.status === "approved")
-          : item.status === statusFilter;
+          : item.status === sf);
         if (!ok) return false;
       }
-      if (exclude !== 'event' && eventFilter !== "all" && item.eventId !== eventFilter) return false;
-      if (exclude !== 'type' && typeFilter !== "all" && item.type !== typeFilter) return false;
-      if (exclude !== 'material' && materialFilter !== "all" && item.material !== materialFilter) return false;
-      if (exclude !== 'finish' && finishFilter !== "all" && item.finish !== finishFilter) return false;
+      if (exclude !== 'event' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
+      if (exclude !== 'type' && typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
+      if (exclude !== 'material' && materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
+      if (exclude !== 'finish' && finishFilter.length > 0 && !finishFilter.includes(item.finish)) return false;
       return true;
     });
 
@@ -230,25 +230,25 @@ export default function Grafica() {
             !item.displayId?.toLowerCase().includes(q) &&
             !item.event?.name?.toLowerCase().includes(q)) return false;
       }
-      if (statusFilter !== "all") {
-        const matchesFilter = statusFilter === "ready_for_production"
+      if (statusFilter.length > 0) {
+        const matchesFilter = statusFilter.some(sf => sf === "ready_for_production"
           ? (item.status === "ready_for_production" || item.status === "pronto_para_producao" || item.status === "approved")
-          : item.status === statusFilter;
+          : item.status === sf);
         if (!matchesFilter) return false;
       }
-      if (eventFilter !== "all" && item.eventId !== eventFilter) return false;
-      if (typeFilter !== "all" && item.type !== typeFilter) return false;
-      if (materialFilter !== "all" && item.material !== materialFilter) return false;
-      if (finishFilter !== "all" && item.finish !== finishFilter) return false;
+      if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
+      if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
+      if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
+      if (finishFilter.length > 0 && !finishFilter.includes(item.finish)) return false;
       if (next10DaysFilter && item.event?.truckDepartureDate) {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const tenDays = new Date(today); tenDays.setDate(tenDays.getDate() + 10);
         const dep = new Date(item.event.truckDepartureDate);
         if (!(dep >= today && dep <= tenDays)) return false;
       }
-      if (monthFilter !== "all" && item.event?.truckDepartureDate) {
+      if (monthFilter.length > 0 && item.event?.truckDepartureDate) {
         const month = new Date(item.event.truckDepartureDate).getMonth() + 1;
-        if (month.toString() !== monthFilter) return false;
+        if (!monthFilter.includes(month.toString())) return false;
       }
       return true;
     })
@@ -260,19 +260,19 @@ export default function Grafica() {
 
   // statsPool: todos os filtros ativos (exceto status) — os cards mostram contagens dentro do contexto atual
   const statsPool = (items as any[]).filter((item: any) => {
-    if (eventFilter !== "all" && item.eventId !== eventFilter) return false;
-    if (typeFilter !== "all" && item.type !== typeFilter) return false;
-    if (materialFilter !== "all" && item.material !== materialFilter) return false;
-    if (finishFilter !== "all" && item.finish !== finishFilter) return false;
+    if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
+    if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
+    if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
+    if (finishFilter.length > 0 && !finishFilter.includes(item.finish)) return false;
     if (next10DaysFilter && item.event?.truckDepartureDate) {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const tenDays = new Date(today); tenDays.setDate(tenDays.getDate() + 10);
       const dep = new Date(item.event.truckDepartureDate);
       if (!(dep >= today && dep <= tenDays)) return false;
     }
-    if (monthFilter !== "all" && item.event?.truckDepartureDate) {
+    if (monthFilter.length > 0 && item.event?.truckDepartureDate) {
       const month = new Date(item.event.truckDepartureDate).getMonth() + 1;
-      if (month.toString() !== monthFilter) return false;
+      if (!monthFilter.includes(month.toString())) return false;
     }
     if (searchFilter) {
       const q = searchFilter.toLowerCase();
@@ -396,11 +396,11 @@ export default function Grafica() {
           { label: "Conferidos",   value: stats.conferidos, sub: "Aguard. entrega",   borderColor: "#0891b2", numColor: "#0e7490", testId: "stat-conferred",   filterVal: "conferred" },
           { label: "Entregues",    value: stats.entregues,  sub: "Concluído",         borderColor: "#0284c7", numColor: "#166534", testId: "stat-delivered",   filterVal: "delivered" },
         ].map(kpi => {
-          const isActive = statusFilter === kpi.filterVal;
+          const isActive = statusFilter.includes(kpi.filterVal);
           return (
             <div
               key={kpi.label}
-              onClick={() => setStatusFilter(isActive ? "all" : kpi.filterVal)}
+              onClick={() => setStatusFilter(isActive ? [] : [kpi.filterVal])}
               data-testid={kpi.testId}
               style={{
                 backgroundColor: isActive ? kpi.borderColor : TI.surface,
@@ -424,13 +424,13 @@ export default function Grafica() {
         })}
         {/* Total — dark card, clica para resetar */}
         <div
-          onClick={() => setStatusFilter("all")}
+          onClick={() => setStatusFilter([])}
           data-testid="stat-total"
           style={{
             backgroundColor: TI.text, borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
             padding: "16px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)",
             cursor: "pointer", transition: "opacity 0.15s",
-            outline: statusFilter === "all" ? `2px solid ${TI.accent}` : "2px solid transparent",
+            outline: statusFilter.length === 0 ? `2px solid ${TI.accent}` : "2px solid transparent",
             outlineOffset: 2,
           }}
           onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.opacity = "0.85")}
@@ -438,7 +438,7 @@ export default function Grafica() {
         >
           <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", marginBottom: 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total Geral</div>
           <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }}>{stats.total}</div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{statusFilter === "all" ? "Todos selecionados" : "Ver todos"}</div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{statusFilter.length === 0 ? "Todos selecionados" : "Ver todos"}</div>
         </div>
       </div>
 
@@ -459,8 +459,8 @@ export default function Grafica() {
 
         {/* Event */}
         <EventFilterDropdown
-          value={eventFilter}
-          onChange={setEventFilter}
+          values={eventFilter}
+          onValuesChange={setEventFilter}
           options={eventFilterOptions}
         />
 
@@ -468,7 +468,7 @@ export default function Grafica() {
         <FilterSelect
           showAllLabelWhenEmpty hideWhenEmpty={false}
           label="Status" allLabel="Todos os status"
-          value={statusFilter} onChange={setStatusFilter}
+          values={statusFilter} onValuesChange={setStatusFilter}
           options={[
             { value: "ready_for_production", label: "Pronto p/ Produção", pinned: true },
             { value: "approved", label: "Liberados", pinned: true },
@@ -486,7 +486,7 @@ export default function Grafica() {
         <FilterSelect
           showAllLabelWhenEmpty hideWhenEmpty={false}
           label="Mês" allLabel={months.find(m => m.value === "all")?.label || "Todos os meses"}
-          value={monthFilter} onChange={setMonthFilter}
+          values={monthFilter} onValuesChange={setMonthFilter}
           options={months.filter(m => m.value !== "all").map(m => ({ value: m.value, label: m.label, pinned: true }))}
           searchPlaceholder="Buscar mês..." emptyText="Nenhum mês encontrado."
           testId="select-month-filter"
@@ -527,15 +527,15 @@ export default function Grafica() {
         {showAdvancedFilters && (
           <div style={{ width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10, marginTop: 2 }}>
             {[
-              { label: "Tipo", allLabel: "Todos os tipos", value: typeFilter, onChange: setTypeFilter, options: typeFilterOptions, testId: "select-type-filter" },
-              { label: "Material", allLabel: "Todos os materiais", value: materialFilter, onChange: setMaterialFilter, options: materialFilterOptions, testId: "select-material-filter" },
-              { label: "Acabamento", allLabel: "Todos os acabamentos", value: finishFilter, onChange: setFinishFilter, options: finishFilterOptions, testId: "select-finish-filter" },
+              { label: "Tipo", allLabel: "Todos os tipos", values: typeFilter, onValuesChange: setTypeFilter, options: typeFilterOptions, testId: "select-type-filter" },
+              { label: "Material", allLabel: "Todos os materiais", values: materialFilter, onValuesChange: setMaterialFilter, options: materialFilterOptions, testId: "select-material-filter" },
+              { label: "Acabamento", allLabel: "Todos os acabamentos", values: finishFilter, onValuesChange: setFinishFilter, options: finishFilterOptions, testId: "select-finish-filter" },
             ].map(f => (
               <FilterSelect
                 key={f.label}
                 fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
                 label={f.label} allLabel={f.allLabel}
-                value={f.value} onChange={f.onChange}
+                values={f.values} onValuesChange={f.onValuesChange}
                 options={f.options}
                 searchPlaceholder={`Buscar ${f.label.toLowerCase()}...`}
                 emptyText="Nada encontrado."
@@ -543,9 +543,9 @@ export default function Grafica() {
                 triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", fontSize: 13, color: TI.text }}
               />
             ))}
-            {(typeFilter !== "all" || materialFilter !== "all" || finishFilter !== "all") && (
+            {(typeFilter.length > 0 || materialFilter.length > 0 || finishFilter.length > 0) && (
               <div style={{ gridColumn: "1 / -1" }}>
-                <button onClick={() => { setTypeFilter("all"); setMaterialFilter("all"); setFinishFilter("all"); }} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
+                <button onClick={() => { setTypeFilter([]); setMaterialFilter([]); setFinishFilter([]); }} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
                   Limpar filtros avançados
                 </button>
               </div>

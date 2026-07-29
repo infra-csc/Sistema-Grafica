@@ -75,11 +75,11 @@ export default function PainelGeral() {
   const isAdmin = user?.role === "admin";
 
   const [searchTerm, setSearchTerm]     = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [eventFilter, setEventFilter]   = useState<string>("all");
-  const [sponsorFilter, setSponsorFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter]     = useState<string>("all");
-  const [dateFilter, setDateFilter]     = useState<string>("all");
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter]     = useState<string[]>([]);
+  const [dateFilter, setDateFilter]     = useState<string[]>([]);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
@@ -117,31 +117,27 @@ export default function PainelGeral() {
       (item.event?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.displayId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.description || "").toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEvent   = eventFilter === "all"   || item.eventId === eventFilter;
-    const matchesType    = typeFilter === "all"    || item.type === typeFilter;
-    const matchesSponsor = sponsorFilter === "all" ||
-      (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => s.id === sponsorFilter));
-    const matchesDate = dateFilter === "all" || (() => {
+    const matchesEvent   = eventFilter.length === 0   || eventFilter.includes(item.eventId);
+    const matchesType    = typeFilter.length === 0    || typeFilter.includes(item.type);
+    const matchesSponsor = sponsorFilter.length === 0 ||
+      (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => sponsorFilter.includes(s.id)));
+    const dateRangeMap: Record<string, (diff: number) => boolean> = {
+      today: d => d === 0, next3days: d => d >= 0 && d <= 3, next7days: d => d >= 0 && d <= 7,
+      next10days: d => d >= 0 && d <= 10, next15days: d => d >= 0 && d <= 15,
+      next30days: d => d >= 0 && d <= 30, overdue: d => d < 0,
+    };
+    const matchesDate = dateFilter.length === 0 || (() => {
       if (!item.event?.startDate) return false;
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const evDate = parseDateLocal(item.event.startDate); evDate.setHours(0, 0, 0, 0);
       const diff = Math.ceil((evDate.getTime() - today.getTime()) / 86400000);
-      switch (dateFilter) {
-        case "today":       return diff === 0;
-        case "next3days":   return diff >= 0 && diff <= 3;
-        case "next7days":   return diff >= 0 && diff <= 7;
-        case "next10days":  return diff >= 0 && diff <= 10;
-        case "next15days":  return diff >= 0 && diff <= 15;
-        case "next30days":  return diff >= 0 && diff <= 30;
-        case "overdue":     return diff < 0;
-        default:            return true;
-      }
+      return dateFilter.some(df => dateRangeMap[df] ? dateRangeMap[df](diff) : true);
     })();
     return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
   };
 
-  const matchesStatus = (item: any, f: string) => {
-    if (f === "all") return true;
+  const matchesStatus = (item: any, f: string[]) => {
+    if (f.length === 0) return true;
     const map: Record<string, string[]> = {
       requested:             ["draft", "requested"],
       awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
@@ -149,7 +145,7 @@ export default function PainelGeral() {
       awaiting_final_review: ["awaiting_final_review"],
       ready_for_production:  ["ready_for_production", "pronto_para_producao"],
     };
-    return map[f] ? map[f].includes(item.status) : item.status === f;
+    return f.some(fv => map[fv] ? map[fv].includes(item.status) : item.status === fv);
   };
 
   const statsItems    = items.filter(applyBaseFilters);
@@ -190,10 +186,10 @@ export default function PainelGeral() {
   const StatusCard = ({
     label, value, dot, color, filterKey,
   }: { label: string; value: number; dot: string; color: string; filterKey: string }) => {
-    const isActive = statusFilter === filterKey;
+    const isActive = statusFilter.includes(filterKey);
     return (
       <div
-        onClick={() => setStatusFilter(isActive ? "all" : filterKey)}
+        onClick={() => setStatusFilter(isActive ? [] : [filterKey])}
         data-testid={`stat-card-${filterKey}`}
         style={{
           backgroundColor: "#ffffff",
@@ -262,7 +258,7 @@ export default function PainelGeral() {
 
         {/* Total card — dark */}
         <div
-          onClick={() => setStatusFilter("all")}
+          onClick={() => setStatusFilter([])}
           data-testid="stat-total"
           style={{
             backgroundColor: "#1c1917",
@@ -270,7 +266,7 @@ export default function PainelGeral() {
             padding: 16, minHeight: 100,
             display: "flex", flexDirection: "column", justifyContent: "space-between",
             cursor: "pointer",
-            outline: statusFilter === "all" ? "2px solid #f97316" : "none",
+            outline: statusFilter.length === 0 ? "2px solid #f97316" : "none",
             outlineOffset: -2,
           }}
         >
@@ -338,7 +334,7 @@ export default function PainelGeral() {
             <label style={filterLabel}>Tipo</label>
             <FilterSelect
               label="Tipo" allLabel="Todos os tipos"
-              value={typeFilter} onChange={setTypeFilter}
+              values={typeFilter} onValuesChange={setTypeFilter}
               hideWhenEmpty={false}
               options={uniqueTypes.map((t: string) => ({ value: t, label: t }))}
               testId="select-type-filter"
@@ -351,7 +347,7 @@ export default function PainelGeral() {
             <label style={filterLabel}>Patrocinador</label>
             <FilterSelect
               label="Patrocinador" allLabel="Todos os patrocinadores"
-              value={sponsorFilter} onChange={setSponsorFilter}
+              values={sponsorFilter} onValuesChange={setSponsorFilter}
               hideWhenEmpty={false}
               options={(sponsors as any[]).map((s: any) => ({ value: s.id, label: s.name }))}
               testId="select-sponsor-filter"
@@ -364,7 +360,7 @@ export default function PainelGeral() {
             <label style={filterLabel}>Status</label>
             <FilterSelect
               label="Status" allLabel="Qualquer status"
-              value={statusFilter} onChange={setStatusFilter}
+              values={statusFilter} onValuesChange={setStatusFilter}
               hideWhenEmpty={false}
               options={[
                 { value: "requested",              label: "Rascunho",           pinned: true },
@@ -389,7 +385,7 @@ export default function PainelGeral() {
             <label style={filterLabel}>Data</label>
             <FilterSelect
               label="Data" allLabel="Todas as datas"
-              value={dateFilter} onChange={setDateFilter}
+              values={dateFilter} onValuesChange={setDateFilter}
               hideWhenEmpty={false}
               options={[
                 { value: "overdue",    label: "Atrasados",         pinned: true },

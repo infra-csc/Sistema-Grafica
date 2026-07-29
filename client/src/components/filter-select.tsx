@@ -1,12 +1,6 @@
 /**
  * FilterSelect — componente de filtro padrão do app.
- * Visual idêntico ao EventFilterDropdown: dropdown customizado com busca,
- * dots de cor, badges de contagem e destaque laranja quando ativo.
- *
- * Props preservadas para compatibilidade com todos os usos existentes:
- * label, allLabel, value, options, onChange, searchPlaceholder, emptyText,
- * hideWhenEmpty, panelWidth, testId, fullWidth, variant, triggerStyle,
- * triggerClassName, showAllLabelWhenEmpty, disabled, dotColor, count, group.
+ * Suporta seleção simples (value/onChange) e múltipla (values/onValuesChange).
  */
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Search, ChevronDown, Check, X } from "lucide-react";
@@ -15,30 +9,28 @@ export interface FilterOption {
   value: string;
   label: string;
   count?: number;
-  /** Bolinha colorida à esquerda (ex.: prioridade do evento). */
   dotColor?: string;
-  /** Mantém a opção no topo, fora da ordenação alfabética. */
   pinned?: boolean;
-  /** Agrupa a opção sob um cabeçalho. */
   group?: string;
 }
 
 interface FilterSelectProps {
   label: string;
   allLabel?: string;
-  value: string;
+  // ── Modo simples ─────────────────────────────────────────────────────
+  value?: string;
+  onChange?: (value: string) => void;
+  // ── Modo múltiplo ────────────────────────────────────────────────────
+  values?: string[];
+  onValuesChange?: (values: string[]) => void;
+  // ─────────────────────────────────────────────────────────────────────
   options: FilterOption[];
-  onChange: (value: string) => void;
   searchPlaceholder?: string;
   emptyText?: string;
   hideWhenEmpty?: boolean;
   panelWidth?: number;
   testId?: string;
   fullWidth?: boolean;
-  /**
-   * "pill" (padrão) — compacto com borda, igual a EventFilterDropdown.
-   * "bare" — maior e sem borda, para cabeçalhos (ex.: Atendimento).
-   */
   variant?: "pill" | "bare";
   triggerStyle?: React.CSSProperties;
   triggerClassName?: string;
@@ -50,8 +42,10 @@ export function FilterSelect({
   label,
   allLabel,
   value,
-  options,
   onChange,
+  values,
+  onValuesChange,
+  options,
   searchPlaceholder,
   emptyText = "Nada encontrado.",
   hideWhenEmpty = true,
@@ -64,11 +58,11 @@ export function FilterSelect({
   showAllLabelWhenEmpty = false,
   disabled = false,
 }: FilterSelectProps) {
+  const multiple = values !== undefined && onValuesChange !== undefined;
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
-  // Fechar ao clicar fora
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -78,7 +72,6 @@ export function FilterSelect({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  // Ordenação: pinned primeiro, depois alfabético pt-BR
   const sorted = useMemo(() => {
     const pinned = options.filter(o => o.pinned);
     const rest = options
@@ -88,7 +81,6 @@ export function FilterSelect({
     return [...pinned, ...rest];
   }, [options]);
 
-  // Hook deve vir antes do return antecipado
   const hasGroups = sorted.some(o => o.group);
   const groupedEntries = useMemo(() => {
     if (!hasGroups) return [];
@@ -103,68 +95,106 @@ export function FilterSelect({
 
   if (hideWhenEmpty && sorted.length === 0) return null;
 
-  const isActive = value !== "all";
-  const selected = sorted.find(o => o.value === value);
-  const emptyText_ = showAllLabelWhenEmpty ? (allLabel || label) : label;
-  const triggerText = isActive ? (selected?.label ?? label) : emptyText_;
+  // ── Estado activo ─────────────────────────────────────────────────────
+  const isActive = multiple
+    ? (values!.length > 0)
+    : (value !== undefined && value !== "all");
 
-  // Filtragem por busca
+  // ── Label do trigger ──────────────────────────────────────────────────
+  const allLabelText = allLabel || `Todos — ${label.toLowerCase()}`;
+  let triggerText: string;
+  if (multiple) {
+    if (values!.length === 0) {
+      triggerText = allLabelText;
+    } else if (values!.length === 1) {
+      triggerText = sorted.find(o => o.value === values![0])?.label ?? values![0];
+    } else {
+      triggerText = `${values!.length} selecionados`;
+    }
+  } else {
+    const selected = sorted.find(o => o.value === value);
+    const emptyText_ = showAllLabelWhenEmpty ? allLabelText : label;
+    triggerText = isActive ? (selected?.label ?? label) : emptyText_;
+  }
+
+  // ── dotColor do trigger (modo simples com 1 selecionado) ──────────────
+  const triggerDot = !multiple && isActive
+    ? sorted.find(o => o.value === value)?.dotColor
+    : undefined;
+
+  // ── Busca ─────────────────────────────────────────────────────────────
   const searchTrimmed = search.trim().toLowerCase();
   const filteredSorted = searchTrimmed
     ? sorted.filter(o => o.label.toLowerCase().includes(searchTrimmed))
     : sorted;
 
-  // ── Estilos do trigger ────────────────────────────────────────────────
-  const pillTriggerStyle: React.CSSProperties = {
+  // ── Handlers ──────────────────────────────────────────────────────────
+  const handleSelectSingle = (v: string) => {
+    onChange?.(v);
+    setSearch("");
+    setOpen(false);
+  };
+
+  const handleToggleMultiple = (v: string) => {
+    const cur = values!;
+    const next = cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v];
+    onValuesChange!(next);
+  };
+
+  const handleClearMultiple = () => {
+    onValuesChange!([]);
+  };
+
+  // ── Estilos ───────────────────────────────────────────────────────────
+  const pillTrigger: React.CSSProperties = {
     display: "flex", alignItems: "center",
-    gap: 6,
-    height: fullWidth ? 36 : 36,
+    gap: 6, height: 36,
     padding: "0 10px 0 12px",
     backgroundColor: open || isActive ? "#FFF7ED" : "#ffffff",
     border: isActive ? "1.5px solid #FB923C" : open ? "1.5px solid #FB923C" : "1px solid #e2e8f0",
     borderRadius: 7,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
-    fontSize: 13,
-    fontWeight: isActive ? 600 : 400,
+    fontSize: 13, fontWeight: isActive ? 600 : 400,
     color: isActive ? "#C2410C" : "#1c1917",
     transition: "background 0.15s, border 0.15s, color 0.15s",
-    outline: "none",
-    whiteSpace: "nowrap",
-    ...(fullWidth ? { width: "100%", justifyContent: "space-between" } : { maxWidth: 240 }),
+    outline: "none", whiteSpace: "nowrap",
+    ...(fullWidth ? { width: "100%", justifyContent: "space-between" } : { maxWidth: 260 }),
     ...triggerStyle,
   };
 
-  const bareTriggerStyle: React.CSSProperties = {
+  const bareTrigger: React.CSSProperties = {
     display: "flex", alignItems: "center",
-    gap: 8,
-    padding: "12px 16px",
-    border: "none",
-    borderRadius: 8,
+    gap: 8, padding: "12px 16px",
+    border: "none", borderRadius: 8,
     backgroundColor: isActive ? "#FFF7ED" : "#ffffff",
     color: isActive ? "#C2410C" : "#1c1917",
     fontSize: 14, fontWeight: 600,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
-    outline: "none",
-    whiteSpace: "nowrap",
+    outline: "none", whiteSpace: "nowrap",
     ...(fullWidth ? { width: "100%", justifyContent: "space-between" } : { maxWidth: 260 }),
     ...triggerStyle,
   };
 
-  const resolvedTriggerStyle = triggerClassName
+  const resolvedTrigger = triggerClassName
     ? { display: "flex", alignItems: "center", gap: 5, ...triggerStyle }
-    : variant === "bare" ? bareTriggerStyle : pillTriggerStyle;
+    : variant === "bare" ? bareTrigger : pillTrigger;
 
-  const chevronSize = variant === "bare" ? 14 : 13;
-
-  // ── Render de uma opção ───────────────────────────────────────────────
+  // ── Render opção ──────────────────────────────────────────────────────
   const renderOption = (opt: FilterOption) => {
-    const isSel = value === opt.value;
+    const isSel = multiple ? values!.includes(opt.value) : value === opt.value;
     return (
       <button
         key={opt.value}
-        onClick={() => { if (!disabled) { onChange(opt.value); setSearch(""); setOpen(false); } }}
+        onClick={() => {
+          if (disabled) return;
+          if (multiple) {
+            handleToggleMultiple(opt.value);
+          } else {
+            handleSelectSingle(opt.value);
+          }
+        }}
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 8,
           padding: "8px 12px", border: "none", cursor: "pointer", textAlign: "left",
@@ -172,16 +202,26 @@ export function FilterSelect({
           transition: "background 0.1s",
         }}
         onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
-        onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLButtonElement).style.backgroundColor = isSel ? "#FFF7ED" : "transparent"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = isSel ? "#FFF7ED" : "transparent"; }}
       >
-        {/* dot */}
-        {(opt.dotColor || true) && (
+        {/* Checkbox (multi) ou dot (single) */}
+        {multiple ? (
+          <span style={{
+            width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+            border: isSel ? "none" : "1.5px solid #D1D5DB",
+            backgroundColor: isSel ? "#F97316" : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {isSel && <Check style={{ width: 10, height: 10, color: "#fff" }} />}
+          </span>
+        ) : (
           <span style={{
             width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
             backgroundColor: opt.dotColor || (isSel ? "#F97316" : "#D1D5DB"),
           }} />
         )}
-        {/* label */}
+
+        {/* Label */}
         <span style={{
           flex: 1, fontSize: 12, fontWeight: isSel ? 600 : 400,
           color: isSel ? "#C2410C" : "#374151",
@@ -189,24 +229,24 @@ export function FilterSelect({
         }}>
           {opt.label}
         </span>
-        {/* count badge */}
+
+        {/* Count badge */}
         {opt.count !== undefined && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
             backgroundColor: isSel ? "#FB923C" : "#F3F4F6",
-            color: isSel ? "#fff" : "#6B7280",
-            flexShrink: 0,
+            color: isSel ? "#fff" : "#6B7280", flexShrink: 0,
           }}>
             {opt.count}
           </span>
         )}
-        {/* check */}
-        {isSel && <Check style={{ width: 12, height: 12, color: "#F97316", flexShrink: 0 }} />}
+
+        {/* Check mark (modo simples) */}
+        {!multiple && isSel && <Check style={{ width: 12, height: 12, color: "#F97316", flexShrink: 0 }} />}
       </button>
     );
   };
 
-  const allLabelText = allLabel || `Todos — ${label.toLowerCase()}`;
   const panelW = panelWidth ?? (fullWidth ? undefined : 280);
 
   return (
@@ -217,21 +257,37 @@ export function FilterSelect({
         disabled={disabled}
         data-testid={testId}
         className={triggerClassName}
-        title={isActive ? `${label}: ${triggerText}` : label}
+        title={isActive ? triggerText : label}
         onClick={() => { if (!disabled) setOpen(v => !v); }}
-        style={resolvedTriggerStyle}
+        style={resolvedTrigger}
       >
-        {isActive && selected?.dotColor && (
-          <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: selected.dotColor, flexShrink: 0 }} />
+        {triggerDot && (
+          <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: triggerDot, flexShrink: 0 }} />
         )}
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", flex: fullWidth ? 1 : undefined }}>
           {triggerText}
         </span>
 
+        {/* Badge de contagem (multi, 2+) */}
+        {multiple && values!.length > 1 && (
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
+            backgroundColor: "#FB923C", color: "#fff", flexShrink: 0, marginLeft: 2,
+          }}>
+            {values!.length}
+          </span>
+        )}
+
+        {/* Botão X — limpar */}
         {isActive && (
           <span
             role="button"
-            onClick={e => { e.stopPropagation(); onChange("all"); setSearch(""); }}
+            onClick={e => {
+              e.stopPropagation();
+              if (multiple) handleClearMultiple();
+              else onChange?.("all");
+              setSearch("");
+            }}
             style={{ display: "flex", alignItems: "center", color: "#FB923C", marginLeft: 2, cursor: "pointer", flexShrink: 0 }}
             title="Limpar filtro"
           >
@@ -240,7 +296,8 @@ export function FilterSelect({
         )}
 
         <ChevronDown style={{
-          width: chevronSize, height: chevronSize, flexShrink: 0, marginLeft: 2,
+          width: variant === "bare" ? 14 : 13, height: variant === "bare" ? 14 : 13,
+          flexShrink: 0, marginLeft: 2,
           color: isActive ? "#FB923C" : "#78716c",
           transition: "transform 0.2s",
           transform: open ? "rotate(180deg)" : "rotate(0deg)",
@@ -280,24 +337,40 @@ export function FilterSelect({
 
           {/* List */}
           <div style={{ maxHeight: 280, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#E5E7EB transparent" }}>
-            {/* "Todos" row — só quando não busca */}
+            {/* "Todos" row */}
             {!searchTrimmed && (
               <button
-                onClick={() => { onChange("all"); setSearch(""); setOpen(false); }}
+                onClick={() => {
+                  if (multiple) {
+                    handleClearMultiple();
+                  } else {
+                    handleSelectSingle("all");
+                  }
+                }}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 8,
                   padding: "9px 12px", border: "none", cursor: "pointer", textAlign: "left",
-                  backgroundColor: value === "all" ? "#F97316" : "transparent",
-                  color: value === "all" ? "#fff" : "#374151",
+                  backgroundColor: !isActive ? "#F97316" : "transparent",
+                  color: !isActive ? "#fff" : "#374151",
                   fontWeight: 700, fontSize: 12,
                   transition: "background 0.1s",
                   borderBottom: "1px solid #F3F4F6",
                 }}
-                onMouseEnter={e => { if (value !== "all") (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
-                onMouseLeave={e => { if (value !== "all") (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                onMouseEnter={e => { if (isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
+                onMouseLeave={e => { if (isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
               >
+                {multiple && (
+                  <span style={{
+                    width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                    border: !isActive ? "none" : "1.5px solid #D1D5DB",
+                    backgroundColor: !isActive ? "#fff" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {!isActive && <Check style={{ width: 10, height: 10, color: "#F97316" }} />}
+                  </span>
+                )}
                 <span style={{ flex: 1 }}>{allLabelText}</span>
-                {value === "all" && <Check style={{ width: 13, height: 13, flexShrink: 0 }} />}
+                {!multiple && !isActive && <Check style={{ width: 13, height: 13, flexShrink: 0 }} />}
               </button>
             )}
 
@@ -321,6 +394,21 @@ export function FilterSelect({
               filteredSorted.map(renderOption)
             )}
           </div>
+
+          {/* Footer — modo múltiplo com seleção ativa */}
+          {multiple && values!.length > 0 && (
+            <div style={{ padding: "8px 12px", borderTop: "1px solid #F3F4F6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "#78716c" }}>
+                {values!.length} {values!.length === 1 ? "selecionado" : "selecionados"}
+              </span>
+              <button
+                onClick={handleClearMultiple}
+                style={{ fontSize: 11, fontWeight: 700, color: "#F97316", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+              >
+                Limpar
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

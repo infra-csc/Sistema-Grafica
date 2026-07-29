@@ -192,8 +192,8 @@ function buildDescription(e: TimelineEvent) {
 
 export default function Historico() {
   const [, setLocation] = useLocation();
-  const [eventFilter, setEventFilter] = useState("all");
-  const [actionFilter, setActionFilter] = useState("all");
+  const [eventFilter, setEventFilter] = useState<string[]>([]);
+  const [actionFilter, setActionFilter] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
   const [page, setPage] = useState(1);
 
@@ -396,8 +396,8 @@ export default function Historico() {
   const sorted = timeline.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
   /* ── Filters ── */
-  let filtered = eventFilter === "all" ? sorted : sorted.filter(e => e.eventId === eventFilter);
-  if (actionFilter !== "all") filtered = filtered.filter(e => e.type === actionFilter);
+  let filtered = eventFilter.length === 0 ? sorted : sorted.filter(e => eventFilter.includes(e.eventId));
+  if (actionFilter.length > 0) filtered = filtered.filter(e => actionFilter.includes(e.type));
   if (searchFilter.trim()) {
     const q = searchFilter.toLowerCase();
     filtered = filtered.filter(e =>
@@ -414,7 +414,7 @@ export default function Historico() {
   const safePage   = Math.min(page, totalPages);
   const pageItems  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const handleFilterChange = (setter: (v: string) => void) => (v: string) => {
+  const handleFilterChange = (setter: (v: string[]) => void) => (v: string[]) => {
     setter(v);
     setPage(1);
   };
@@ -495,7 +495,7 @@ export default function Historico() {
           <FilterSelect
             showAllLabelWhenEmpty hideWhenEmpty={false}
             label="Ação" allLabel="Todas as ações"
-            value={actionFilter} onChange={handleFilterChange(setActionFilter)}
+            values={actionFilter} onValuesChange={handleFilterChange(setActionFilter)}
             options={[
               { value: "event_created", label: "Eventos criados", group: "Criação", pinned: true },
               { value: "item_created", label: "Itens adicionados", group: "Criação", pinned: true },
@@ -518,8 +518,8 @@ export default function Historico() {
 
           {/* Event select */}
           <EventFilterDropdown
-            value={eventFilter}
-            onChange={handleFilterChange(setEventFilter)}
+            values={eventFilter}
+            onValuesChange={handleFilterChange(setEventFilter)}
             options={events.map((ev: any) => ({ value: ev.id, label: ev.name }))}
           />
 

@@ -168,11 +168,11 @@ export default function VincularPatrocinadores() {
   // Estados de filtro
   const [searchQuery, setSearchQuery] = useState("");
   // Persiste o filtro de evento para não refazer a filtragem ao navegar e voltar.
-  const [eventFilter, setEventFilter] = useState<string>(() => sessionStorage.getItem("vincular:eventFilter") || "all");
-  useEffect(() => { sessionStorage.setItem("vincular:eventFilter", eventFilter); }, [eventFilter]);
-  const [sponsorFilter, setSponsorFilter] = useState<string>("all");
-  const [itemFilter, setItemFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [eventFilter, setEventFilter] = useState<string[]>(() => { try { return JSON.parse(sessionStorage.getItem("vincular:eventFilter") || "[]"); } catch { return []; } });
+  useEffect(() => { sessionStorage.setItem("vincular:eventFilter", JSON.stringify(eventFilter)); }, [eventFilter]);
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
+  const [itemFilter, setItemFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
   const [eventComboOpen, setEventComboOpen] = useState(false);
   
@@ -394,24 +394,24 @@ export default function VincularPatrocinadores() {
       }
 
       // Filtro por tipo de item
-      if (itemFilter !== "all" && item.type !== itemFilter) {
+      if (itemFilter.length > 0 && !itemFilter.includes(item.type)) {
         return false;
       }
 
       // Filtro por patrocinador (usar dados SALVOS, não locais)
-      if (sponsorFilter !== "all") {
+      if (sponsorFilter.length > 0) {
         const savedSponsors = originalSponsorsMap[item.id] || [];
-        if (!savedSponsors.includes(sponsorFilter)) {
+        if (!sponsorFilter.some(sf => savedSponsors.includes(sf))) {
           return false;
         }
       }
 
       // Filtro por status UI (PENDENTE/RASCUNHO/PRONTO/ENVIADO)
-      if (statusFilter !== "all") {
+      if (statusFilter.length > 0) {
         const originalSponsors = originalSponsorsMap[item.id] || [];
         const pendingChange = pendingChanges[item.id];
         const uiSt = getItemUIStatus(item, originalSponsors, pendingChange);
-        if (uiSt !== statusFilter) return false;
+        if (!statusFilter.includes(uiSt)) return false;
       }
 
       return true;
@@ -427,7 +427,7 @@ export default function VincularPatrocinadores() {
       if (!event) return false;
 
       // Filtro por evento específico
-      if (eventFilter !== "all" && eventId !== eventFilter) {
+      if (eventFilter.length > 0 && !eventFilter.includes(eventId)) {
         return false;
       }
 
@@ -480,8 +480,8 @@ export default function VincularPatrocinadores() {
 
   // Items visíveis respeitando o eventFilter (para contadores de contexto e ações em lote)
   const contextVisibleItems = useMemo(() => {
-    if (eventFilter === "all") return visibleItems;
-    return visibleItems.filter(item => item.eventId === eventFilter);
+    if (eventFilter.length === 0) return visibleItems;
+    return visibleItems.filter(item => eventFilter.includes(item.eventId));
   }, [visibleItems, eventFilter]);
 
   // Opções dos filtros facetadas: só o que existe na lista, aplicando o OUTRO
@@ -490,7 +490,7 @@ export default function VincularPatrocinadores() {
     const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     visibleItems
-      .filter(i => sponsorFilter === "all" || (itemSponsorsMap[i.id] ?? []).includes(sponsorFilter))
+      .filter(i => sponsorFilter.length === 0 || (itemSponsorsMap[i.id] ?? []).some(sf => sponsorFilter.includes(sf)))
       .forEach(i => {
         if (!i.eventId) return;
         const cur = map.get(i.eventId);
@@ -527,15 +527,15 @@ export default function VincularPatrocinadores() {
             !(item.description?.toLowerCase().includes(q)) &&
             !(event?.name?.toLowerCase().includes(q))) return false;
       }
-      if (itemFilter !== "all" && item.type !== itemFilter) return false;
-      if (sponsorFilter !== "all") {
+      if (itemFilter.length > 0 && !itemFilter.includes(item.type)) return false;
+      if (sponsorFilter.length > 0) {
         const saved = originalSponsorsMap[item.id] || [];
-        if (!saved.includes(sponsorFilter)) return false;
+        if (!sponsorFilter.some(sf => saved.includes(sf))) return false;
       }
-      if (statusFilter !== "all") {
+      if (statusFilter.length > 0) {
         const orig = originalSponsorsMap[item.id] || [];
         const pc = pendingChanges[item.id];
-        if (getItemUIStatus(item, orig, pc) !== statusFilter) return false;
+        if (!statusFilter.includes(getItemUIStatus(item, orig, pc))) return false;
       }
       return true;
     });
@@ -1099,13 +1099,13 @@ export default function VincularPatrocinadores() {
             !item.description?.toLowerCase().includes(q) &&
             !eventName.toLowerCase().includes(q)) return false;
       }
-      if (itemFilter !== "all" && item.type !== itemFilter) return false;
+      if (itemFilter.length > 0 && !itemFilter.includes(item.type)) return false;
       return true;
     };
 
     return Object.entries(itemsByEvent)
       .filter(([eventId]) => {
-        if (eventFilter !== "all" && eventId !== eventFilter) return false;
+        if (eventFilter.length > 0 && !eventFilter.includes(eventId)) return false;
         const event = events.find(e => e.id === eventId);
         return !!event;
       })
@@ -1114,8 +1114,8 @@ export default function VincularPatrocinadores() {
         const eventSponsorList = getEventSponsors(eventId);
 
         // Filtrar por patrocinador selecionado no filtro
-        const sponsorsToShow = sponsorFilter !== "all"
-          ? eventSponsorList.filter(s => s.id === sponsorFilter)
+        const sponsorsToShow = sponsorFilter.length > 0
+          ? eventSponsorList.filter(s => sponsorFilter.includes(s.id))
           : eventSponsorList;
 
         const sponsorGroups = sponsorsToShow.map(sponsor => {
@@ -1584,14 +1584,14 @@ export default function VincularPatrocinadores() {
         <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
           <button
             data-testid="button-auto-vincular"
-            disabled={eventFilter === 'all'}
+            disabled={eventFilter.length !== 1}
             onClick={async () => {
-              if (eventFilter === 'all') return;
+              if (eventFilter.length !== 1) return;
               setAutoLinkOpen(true);
               setAutoLinkPreview(null);
               setAutoLinkLoading(true);
               try {
-                const res = await fetch(`/api/events/${eventFilter}/auto-link-preview`, { credentials: 'include' });
+                const res = await fetch(`/api/events/${eventFilter[0]}/auto-link-preview`, { credentials: 'include' });
                 const data = await res.json();
                 setAutoLinkPreview(data);
               } catch {
@@ -1600,10 +1600,10 @@ export default function VincularPatrocinadores() {
                 setAutoLinkLoading(false);
               }
             }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', backgroundColor: eventFilter === 'all' ? '#e7e5e4' : '#4f46e5', color: eventFilter === 'all' ? '#a8a29e' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: eventFilter === 'all' ? 'not-allowed' : 'pointer' }}
-            onMouseEnter={e => { if (eventFilter !== 'all') e.currentTarget.style.filter = 'brightness(1.1)'; }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', backgroundColor: eventFilter.length !== 1 ? '#e7e5e4' : '#4f46e5', color: eventFilter.length !== 1 ? '#a8a29e' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: eventFilter.length !== 1 ? 'not-allowed' : 'pointer' }}
+            onMouseEnter={e => { if (eventFilter.length === 1) e.currentTarget.style.filter = 'brightness(1.1)'; }}
             onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
-            title={eventFilter === 'all' ? 'Selecione um evento para usar o auto-vínculo' : 'Vincular patrocinadores automaticamente pela cota'}
+            title={eventFilter.length !== 1 ? 'Selecione exatamente um evento para usar o auto-vínculo' : 'Vincular patrocinadores automaticamente pela cota'}
           >
             <Zap style={{ width: 13, height: 13 }} />
             Auto-vincular por Cota
@@ -1821,8 +1821,8 @@ export default function VincularPatrocinadores() {
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">Evento</label>
               <EventFilterDropdown
-                value={eventFilter}
-                onChange={setEventFilter}
+                values={eventFilter}
+                onValuesChange={setEventFilter}
                 options={eventFilterOptions}
               />
             </div>
@@ -1833,7 +1833,7 @@ export default function VincularPatrocinadores() {
               <FilterSelect
                 showAllLabelWhenEmpty hideWhenEmpty={false}
                 label="Patrocinador" allLabel="Todos os patrocinadores"
-                value={sponsorFilter} onChange={setSponsorFilter}
+                values={sponsorFilter} onValuesChange={setSponsorFilter}
                 options={sponsorFilterOptions}
                 searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
                 panelWidth={256} testId="select-sponsor-filter"
@@ -1846,7 +1846,7 @@ export default function VincularPatrocinadores() {
               <label className="text-xs text-muted-foreground mb-1.5 block">Peça</label>
               <FilterSelect
                 label="Peça" allLabel="Todos os tipos"
-                value={itemFilter} onChange={setItemFilter}
+                values={itemFilter} onValuesChange={setItemFilter}
                 hideWhenEmpty={false}
                 options={itemTypes.map(t => ({ value: t, label: t }))}
                 testId="select-item-filter"
@@ -1859,7 +1859,7 @@ export default function VincularPatrocinadores() {
               <label className="text-xs text-muted-foreground mb-1.5 block">Status</label>
               <FilterSelect
                 label="Status" allLabel="Todos os status"
-                value={statusFilter} onChange={setStatusFilter}
+                values={statusFilter} onValuesChange={setStatusFilter}
                 hideWhenEmpty={false}
                 options={[
                   { value: "PENDENTE", label: "Pendente" },
@@ -3144,8 +3144,8 @@ export default function VincularPatrocinadores() {
 
             {/* Lista de patrocinadores — filtrada pelo evento selecionado */}
             {(() => {
-              const bulkSponsors = eventFilter !== 'all'
-                ? getEventSponsors(eventFilter)
+              const bulkSponsors = eventFilter.length === 1
+                ? getEventSponsors(eventFilter[0])
                 : sponsors;
               if (bulkSponsors.length === 0) return (
                 <p style={{ fontSize: 13, textAlign: 'center', padding: '24px 0', color: '#625d5b' }}>

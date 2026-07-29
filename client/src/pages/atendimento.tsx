@@ -49,10 +49,10 @@ export default function Atendimento() {
   // Adia o termo usado na filtragem (input segue responsivo, tabela não engasga).
   const deferredSearchTerm = useDeferredValue(searchTerm);
   // Persiste o filtro de evento ao abrir uma peça e voltar.
-  const [eventFilter, setEventFilter] = useState<string>(() => sessionStorage.getItem("atendimento:eventFilter") || "all");
-  useEffect(() => { sessionStorage.setItem("atendimento:eventFilter", eventFilter); }, [eventFilter]);
-  const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
-  const [sponsorFilter, setSponsorFilter] = useState<string>("all");
+  const [eventFilter, setEventFilter] = useState<string[]>(() => { try { return JSON.parse(sessionStorage.getItem("atendimento:eventFilter") || "[]"); } catch { return []; } });
+  useEffect(() => { sessionStorage.setItem("atendimento:eventFilter", JSON.stringify(eventFilter)); }, [eventFilter]);
+  const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
   const [eventComboOpen, setEventComboOpen] = useState(false);
   const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
 
@@ -375,10 +375,10 @@ export default function Atendimento() {
         item.description?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
         item.name?.toLowerCase().includes(deferredSearchTerm.toLowerCase());
 
-      const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-      const matchesType = itemTypeFilter === "all" || item.type === itemTypeFilter;
-      const matchesSponsor = sponsorFilter === "all" ||
-        itemSponsorsMap[item.id]?.some(sponsor => sponsor.id === sponsorFilter);
+      const matchesEvent = eventFilter.length === 0 || eventFilter.includes(item.eventId);
+      const matchesType = itemTypeFilter.length === 0 || itemTypeFilter.includes(item.type);
+      const matchesSponsor = sponsorFilter.length === 0 ||
+        itemSponsorsMap[item.id]?.some(sponsor => sponsorFilter.includes(sponsor.id));
 
       return matchesSearch && matchesEvent && matchesType && matchesSponsor;
     });
@@ -398,9 +398,9 @@ export default function Atendimento() {
   const facetPool = (exclude: 'event' | 'type' | 'sponsor') =>
     pendingItems.filter((item: any) => {
       if (!(itemSponsorsMap[item.id]?.length > 0) && !loadingSponsors) return false;
-      if (exclude !== 'event' && eventFilter !== "all" && item.eventId !== eventFilter) return false;
-      if (exclude !== 'type' && itemTypeFilter !== "all" && item.type !== itemTypeFilter) return false;
-      if (exclude !== 'sponsor' && sponsorFilter !== "all" && !itemSponsorsMap[item.id]?.some(s => s.id === sponsorFilter)) return false;
+      if (exclude !== 'event' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
+      if (exclude !== 'type' && itemTypeFilter.length > 0 && !itemTypeFilter.includes(item.type)) return false;
+      if (exclude !== 'sponsor' && sponsorFilter.length > 0 && !itemSponsorsMap[item.id]?.some(s => sponsorFilter.includes(s.id))) return false;
       return true;
     });
   const facetDeps = [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors];
@@ -912,15 +912,15 @@ export default function Atendimento() {
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           <EventFilterDropdown
-            value={eventFilter}
-            onChange={setEventFilter}
+            values={eventFilter}
+            onValuesChange={setEventFilter}
             options={eventFilterOptions}
           />
 
           <FilterSelect
             variant="bare"
             label="Tipo de Entrega" allLabel="Todos os tipos"
-            value={itemTypeFilter} onChange={setItemTypeFilter}
+            values={itemTypeFilter} onValuesChange={setItemTypeFilter}
             options={typeFilterOptions}
             searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
             testId="select-type-filter"
@@ -929,16 +929,16 @@ export default function Atendimento() {
           <FilterSelect
             variant="bare"
             label="Patrocinador" allLabel="Todos os Patrocinadores"
-            value={sponsorFilter} onChange={setSponsorFilter}
+            values={sponsorFilter} onValuesChange={setSponsorFilter}
             options={sponsorFilterOptions} panelWidth={260}
             searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
             testId="select-sponsor-filter"
           />
 
           {/* Limpar filtros */}
-          {(searchTerm || eventFilter !== "all" || itemTypeFilter !== "all" || sponsorFilter !== "all") && (
+          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || sponsorFilter.length > 0) && (
             <button
-              onClick={() => { setSearchTerm(""); setEventFilter("all"); setItemTypeFilter("all"); setSponsorFilter("all"); }}
+              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSponsorFilter([]); }}
               data-testid="button-clear-filters"
               style={{
                 backgroundColor: '#0c0a09', color: '#ffffff',

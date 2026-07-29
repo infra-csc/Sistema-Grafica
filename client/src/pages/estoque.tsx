@@ -909,11 +909,11 @@ export default function Estoque() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterCondition, setFilterCondition] = useState("all");
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const [filterCondition, setFilterCondition] = useState<string[]>([]);
   const [filterAutoAdded, setFilterAutoAdded] = useState("all");
-  const [filterEvent, setFilterEvent] = useState("all");
-  const [filterSponsor, setFilterSponsor] = useState("all");
+  const [filterEvent, setFilterEvent] = useState<string[]>([]);
+  const [filterSponsor, setFilterSponsor] = useState<string[]>([]);
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
   const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" | "status" } | null>(null);
@@ -981,31 +981,31 @@ export default function Estoque() {
 
   const filtered = acervoAssets.filter(a => {
     // Hide DESCARTADO by default — only show when explicitly filtered
-    if (filterStatus === "all" && a.trackingStatus === "DESCARTADO") return false;
+    if (filterStatus.length === 0 && a.trackingStatus === "DESCARTADO") return false;
     const q = search.toLowerCase();
     const ms = !q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q));
-    const mst = filterStatus === "all" || a.trackingStatus === filterStatus;
-    const mc = filterCondition === "all" || a.condition === filterCondition;
+    const mst = filterStatus.length === 0 || filterStatus.includes(a.trackingStatus);
+    const mc = filterCondition.length === 0 || filterCondition.includes(a.condition);
     const ma = filterAutoAdded === "all" || (filterAutoAdded === "auto" ? a.autoAdded : !a.autoAdded);
-    const me = filterEvent === "all" || assetEventMap[a.id]?.id === filterEvent;
-    const msp = filterSponsor === "all" || (a.sponsorIds ?? []).includes(filterSponsor);
+    const me = filterEvent.length === 0 || filterEvent.includes(assetEventMap[a.id]?.id);
+    const msp = filterSponsor.length === 0 || (a.sponsorIds ?? []).some(sid => filterSponsor.includes(sid));
     return ms && mst && mc && ma && me && msp;
   });
 
-  const hasFilters = !!(search || filterStatus !== "all" || filterCondition !== "all" || filterAutoAdded !== "all" || filterEvent !== "all" || filterSponsor !== "all");
+  const hasFilters = !!(search || filterStatus.length > 0 || filterCondition.length > 0 || filterAutoAdded !== "all" || filterEvent.length > 0 || filterSponsor.length > 0);
 
   // Filtros facetados: cada filtro lista só o que existe no acervo já recortado
   // pelos OUTROS filtros ativos, com a contagem de ativos por opção.
   const eFacetPool = (exclude: 'status' | 'condition' | 'auto' | 'event' | 'sponsor') =>
     acervoAssets.filter(a => {
       if (exclude !== 'status') {
-        if (filterStatus === "all" && a.trackingStatus === "DESCARTADO") return false;
-        if (filterStatus !== "all" && a.trackingStatus !== filterStatus) return false;
+        if (filterStatus.length === 0 && a.trackingStatus === "DESCARTADO") return false;
+        if (filterStatus.length > 0 && !filterStatus.includes(a.trackingStatus)) return false;
       }
-      if (exclude !== 'condition' && filterCondition !== "all" && a.condition !== filterCondition) return false;
+      if (exclude !== 'condition' && filterCondition.length > 0 && !filterCondition.includes(a.condition)) return false;
       if (exclude !== 'auto' && filterAutoAdded !== "all" && (filterAutoAdded === "auto" ? !a.autoAdded : a.autoAdded)) return false;
-      if (exclude !== 'event' && filterEvent !== "all" && assetEventMap[a.id]?.id !== filterEvent) return false;
-      if (exclude !== 'sponsor' && filterSponsor !== "all" && !(a.sponsorIds ?? []).includes(filterSponsor)) return false;
+      if (exclude !== 'event' && filterEvent.length > 0 && !filterEvent.includes(assetEventMap[a.id]?.id)) return false;
+      if (exclude !== 'sponsor' && filterSponsor.length > 0 && !(a.sponsorIds ?? []).some(sid => filterSponsor.includes(sid))) return false;
       return true;
     });
 
@@ -1089,27 +1089,27 @@ export default function Estoque() {
         <StatCard
           label="Total Acervo" value={total} Icon={Package} color="#2563eb"
           subtext="Ativos cadastrados"
-          active={filterStatus === "all" && filterCondition === "all" && filterAutoAdded === "all"}
-          onClick={() => { setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); }}
+          active={filterStatus.length === 0 && filterCondition.length === 0 && filterAutoAdded === "all"}
+          onClick={() => { setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); }}
         />
         <StatCard
           label="Descartados" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
           subtext={byStatus("DESCARTADO") > 0 ? "Ver na tabela →" : "Nenhum descartado"}
           subColor={byStatus("DESCARTADO") > 0 ? "#6b7280" : "#94a3b8"}
-          active={filterStatus === "DESCARTADO"}
-          onClick={() => setFilterStatus(filterStatus === "DESCARTADO" ? "all" : "DESCARTADO")}
+          active={filterStatus.length === 1 && filterStatus[0] === "DESCARTADO"}
+          onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "DESCARTADO" ? [] : ["DESCARTADO"])}
         />
         <StatCard
           label="No Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#16a34a"
           subtext="Disponível no depósito"
-          active={filterStatus === "NO_GALPAO"}
-          onClick={() => setFilterStatus(filterStatus === "NO_GALPAO" ? "all" : "NO_GALPAO")}
+          active={filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO"}
+          onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO" ? [] : ["NO_GALPAO"])}
         />
         <StatCard
           label="Em Uso" value={byStatus("EM_USO")} Icon={Truck} color="#ea580c"
           subtext="Frota ativa"
-          active={filterStatus === "EM_USO"}
-          onClick={() => setFilterStatus(filterStatus === "EM_USO" ? "all" : "EM_USO")}
+          active={filterStatus.length === 1 && filterStatus[0] === "EM_USO"}
+          onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_USO" ? [] : ["EM_USO"])}
         />
         <StatCard
           label="Ag. Triagem" value={triageCount} Icon={ScanSearch} color="#b45309"
@@ -1145,8 +1145,8 @@ export default function Estoque() {
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Evento</label>
               <EventFilterDropdown
-                value={filterEvent}
-                onChange={setFilterEvent}
+                values={filterEvent}
+                onValuesChange={setFilterEvent}
                 options={eventFilterOptions}
               />
             </div>
@@ -1157,10 +1157,10 @@ export default function Estoque() {
               <FilterSelect
                 fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
                 label="Patrocinador" allLabel="Todos os patrocinadores"
-                value={filterSponsor} onChange={setFilterSponsor}
+                values={filterSponsor} onValuesChange={setFilterSponsor}
                 options={sponsorFilterOptions}
                 searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
-                testId="select-filter-sponsor" triggerStyle={SEL(filterSponsor !== "all")}
+                testId="select-filter-sponsor" triggerStyle={SEL(filterSponsor.length > 0)}
               />
             </div>
 
@@ -1170,10 +1170,10 @@ export default function Estoque() {
               <FilterSelect
                 fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
                 label="Status" allLabel="Qualquer status"
-                value={filterStatus} onChange={setFilterStatus}
+                values={filterStatus} onValuesChange={setFilterStatus}
                 options={statusFilterOptions}
                 searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
-                testId="select-filter-status" triggerStyle={SEL(filterStatus !== "all")}
+                testId="select-filter-status" triggerStyle={SEL(filterStatus.length > 0)}
               />
             </div>
 
@@ -1183,10 +1183,10 @@ export default function Estoque() {
               <FilterSelect
                 fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
                 label="Condição" allLabel="Todas as condições"
-                value={filterCondition} onChange={setFilterCondition}
+                values={filterCondition} onValuesChange={setFilterCondition}
                 options={conditionFilterOptions}
                 searchPlaceholder="Buscar condição..." emptyText="Nenhuma condição encontrada."
-                testId="select-filter-condition" triggerStyle={SEL(filterCondition !== "all")}
+                testId="select-filter-condition" triggerStyle={SEL(filterCondition.length > 0)}
               />
             </div>
 
@@ -1227,7 +1227,7 @@ export default function Estoque() {
               <button
                 data-testid="button-clear-filters"
                 disabled={!hasFilters}
-                onClick={() => { setSearch(""); setFilterStatus("all"); setFilterCondition("all"); setFilterAutoAdded("all"); setFilterEvent("all"); setFilterSponsor("all"); }}
+                onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); }}
                 style={{
                   height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
                   borderRadius: 8,

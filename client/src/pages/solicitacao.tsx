@@ -49,8 +49,8 @@ export default function Solicitacao() {
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [eventFilter, setEventFilter] = useState<string>("all");
-  const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
+  const [eventFilter, setEventFilter] = useState<string[]>([]);
+  const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
@@ -182,8 +182,8 @@ export default function Solicitacao() {
       item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.displayId?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEvent = eventFilter === "all" || item.eventId === eventFilter;
-    const matchesType = itemTypeFilter === "all" || item.type === itemTypeFilter;
+    const matchesEvent = eventFilter.length === 0 || eventFilter.includes(item.eventId);
+    const matchesType = itemTypeFilter.length === 0 || itemTypeFilter.includes(item.type);
     return matchesSearch && matchesEvent && matchesType;
   }), [pendingItems, searchTerm, eventFilter, itemTypeFilter]);
 
@@ -200,7 +200,7 @@ export default function Solicitacao() {
     const byId = new Map(events.map((e: any) => [e.id, e]));
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     pendingItems
-      .filter(i => itemTypeFilter === "all" || i.type === itemTypeFilter)
+      .filter(i => itemTypeFilter.length === 0 || itemTypeFilter.includes(i.type))
       .forEach((i: any) => {
         if (!i.eventId) return;
         const cur = map.get(i.eventId);
@@ -216,7 +216,7 @@ export default function Solicitacao() {
   const typeFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
     pendingItems
-      .filter(i => eventFilter === "all" || i.eventId === eventFilter)
+      .filter(i => eventFilter.length === 0 || eventFilter.includes(i.eventId))
       .forEach((i: any) => {
         if (!i.type) return;
         const cur = map.get(i.type);
@@ -409,24 +409,24 @@ export default function Solicitacao() {
 
           {/* Event select */}
           <EventFilterDropdown
-            value={eventFilter}
-            onChange={setEventFilter}
+            values={eventFilter}
+            onValuesChange={setEventFilter}
             options={eventFilterOptions}
           />
 
           {/* Type select */}
           <FilterSelect
             label="Tipo de Peça" allLabel="Todos os tipos"
-            value={itemTypeFilter} onChange={setItemTypeFilter}
+            values={itemTypeFilter} onValuesChange={setItemTypeFilter}
             options={typeFilterOptions}
             searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
             testId="select-type-filter"
             triggerStyle={{ backgroundColor: "#f3f4f3", border: "none", fontSize: 13, color: TI.text, minWidth: 150 }}
           />
 
-          {(searchTerm || eventFilter !== "all" || itemTypeFilter !== "all") && (
+          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0) && (
             <button
-              onClick={() => { setSearchTerm(""); setEventFilter("all"); setItemTypeFilter("all"); }}
+              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); }}
               data-testid="button-clear-filters"
               style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", background: "none", border: "none", cursor: "pointer", padding: "0 8px" }}>
               Limpar filtros

@@ -76,7 +76,7 @@ export default function PainelGeral() {
 
   const [searchTerm, setSearchTerm]     = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [eventFilter, setEventFilter]   = useState<string>("all");
+  const [eventFilter, setEventFilter]   = useState<string[]>([]);
   const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
   const [typeFilter, setTypeFilter]     = useState<string[]>([]);
   const [dateFilter, setDateFilter]     = useState<string[]>([]);
@@ -319,8 +319,8 @@ export default function PainelGeral() {
           <div>
             <label style={filterLabel}>Evento</label>
             <EventFilterDropdown
-              value={eventFilter}
-              onChange={setEventFilter}
+              values={eventFilter}
+              onValuesChange={setEventFilter}
               options={(() => {
                 const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
                 const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };

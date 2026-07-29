@@ -1868,39 +1868,27 @@ export default function Atendimento() {
             {/* Barra de filtros */}
             <div style={{
               background: '#f3f4f3', borderRadius: 12, border: '1px solid rgba(224,192,177,0.15)',
-              padding: '14px 20px', marginBottom: 24,
+              padding: '16px 20px', marginBottom: 24,
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
             }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 180, flex: '2 1 180px' }}>
-                  <label style={FL}>Evento</label>
-                  <EventFilterDropdown values={histEventFilter} onValuesChange={setHistEventFilter} options={histEventOptions} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 200, flex: '2 1 200px' }}>
-                  <label style={FL}>Patrocinador</label>
-                  <FilterSelect fullWidth showAllLabelWhenEmpty label="Patrocinador" allLabel="Todos os patrocinadores"
-                    values={histSponsorFilter} onValuesChange={setHistSponsorFilter}
-                    options={histSponsorOptions} triggerStyle={SEL(histSponsorFilter.length > 0)} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 150, flex: '1 1 150px' }}>
-                  <label style={FL}>Período</label>
-                  <FilterSelect fullWidth showAllLabelWhenEmpty label="Período" allLabel="Todos os períodos"
-                    value={histPeriodFilter} onChange={setHistPeriodFilter}
-                    options={periodOptions} triggerStyle={SEL(histPeriodFilter !== "all")} />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 1 }}>
-                  {hasHistFilters && (
-                    <button
-                      onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); }}
-                      style={{ height: 36, padding: '0 12px', borderRadius: 8, border: 'none', background: '#0c0a09', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-                    >
-                      <X style={{ width: 12, height: 12 }} /> Limpar
-                    </button>
-                  )}
-                  <span style={{ fontSize: 12, color: '#a8a29e', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                    {loadingSponsors ? 'Carregando…' : `${historyItems.length} ${historyItems.length === 1 ? 'peça' : 'peças'}`}
-                  </span>
-                </div>
-              </div>
+              <EventFilterDropdown values={histEventFilter} onValuesChange={setHistEventFilter} options={histEventOptions} />
+              <FilterSelect showAllLabelWhenEmpty label="Patrocinador" allLabel="Todos os patrocinadores"
+                values={histSponsorFilter} onValuesChange={setHistSponsorFilter}
+                options={histSponsorOptions} />
+              <FilterSelect showAllLabelWhenEmpty label="Período" allLabel="Todos os períodos"
+                value={histPeriodFilter} onChange={setHistPeriodFilter}
+                options={periodOptions} />
+              {hasHistFilters && (
+                <button
+                  onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); }}
+                  style={{ backgroundColor: '#0c0a09', color: '#fff', padding: '12px', borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X style={{ width: 18, height: 18 }} />
+                </button>
+              )}
+              <span style={{ marginLeft: 'auto', fontSize: 13, color: '#a8a29e', fontWeight: 600 }}>
+                {loadingSponsors ? 'Carregando…' : `${historyItems.length} ${historyItems.length === 1 ? 'peça' : 'peças'}`}
+              </span>
             </div>
 
             {/* Lista */}

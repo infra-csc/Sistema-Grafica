@@ -1160,12 +1160,22 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // Idempotente: se a peça JÁ foi liberada (ou já avançou na produção), não
+      // é erro clicar "Liberar" de novo (lista desatualizada / clique duplo) —
+      // só devolve a peça como sucesso, sem reprocessar.
+      const alreadyReleased = [
+        "ready_for_production", "approved", "pronto_para_producao", "liberado",
+        "inProduction", "em_producao", "produced", "produzido", "conferred", "delivered", "entregue",
+      ].includes(currentItem.status);
+      if (alreadyReleased) {
+        return res.json(currentItem);
+      }
       if (currentItem.status !== "awaiting_final_review") {
-        return res.status(409).json({ 
-          error: `Item não pode ser revisado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_final_review` 
+        return res.status(409).json({
+          error: `Item não pode ser revisado pelo criador. Status atual: ${translateStatus(currentItem.status)}, esperado: Aguardando Revisão Final`
         });
       }
-      
+
       const item = await storage.updateItem(req.params.id, {
         status: "ready_for_production",
         creatorReviewedAt: new Date(),

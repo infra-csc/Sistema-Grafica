@@ -556,13 +556,16 @@ export default function Atendimento() {
     awaiting_finalization:    { label: 'Aguard. Finalização', bg: '#fff7ed', color: '#c2410c' },
     awaiting_final_review:    { label: 'Aguard. Revisão',    bg: '#fff7ed', color: '#c2410c' },
     awaiting_creator_review:  { label: 'Aguard. Revisão',    bg: '#fff7ed', color: '#c2410c' },
+    awaiting_linking:         { label: 'Aguard. Vinculação', bg: '#f0f9ff', color: '#0369a1' },
     ready_for_production:     { label: 'Pronto p/ Produção', bg: '#eff6ff', color: '#1d4ed8' },
     inProduction:             { label: 'Em Produção',        bg: '#fffbeb', color: '#b45309' },
+    in_production:            { label: 'Em Produção',        bg: '#fffbeb', color: '#b45309' },
     produced:                 { label: 'Produzido',          bg: '#e0e7ff', color: '#4338ca' },
     conferred:                { label: 'Conferido',          bg: '#ecfdf5', color: '#065f46' },
     delivered:                { label: 'Entregue',           bg: '#ede9fe', color: '#7c3aed' },
-    awaiting_submission:      { label: 'Nova versão',        bg: '#fef2f2', color: '#b91c1c' },
+    awaiting_submission:      { label: 'Correção solicitada', bg: '#fef2f2', color: '#b91c1c' },
     awaiting_sponsor_approval:{ label: 'Aguard. Aprovação',  bg: '#fefce8', color: '#a16207' },
+    sponsor_approved:         { label: 'Aprovado',           bg: '#dcfce7', color: '#15803d' },
   };
 
   const historyItems = useMemo(() => {
@@ -1865,37 +1868,38 @@ export default function Atendimento() {
             {/* Barra de filtros */}
             <div style={{
               background: '#f3f4f3', borderRadius: 12, border: '1px solid rgba(224,192,177,0.15)',
-              padding: '16px 20px', marginBottom: 24,
-              display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14,
+              padding: '14px 20px', marginBottom: 24,
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 160px' }}>
-                <label style={FL}>Evento</label>
-                <EventFilterDropdown values={histEventFilter} onValuesChange={setHistEventFilter} options={histEventOptions} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 180px' }}>
-                <label style={FL}>Patrocinador</label>
-                <FilterSelect fullWidth showAllLabelWhenEmpty label="Patrocinador" allLabel="Todos os patrocinadores"
-                  values={histSponsorFilter} onValuesChange={setHistSponsorFilter}
-                  options={histSponsorOptions} triggerStyle={SEL(histSponsorFilter.length > 0)} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: '0 1 160px' }}>
-                <label style={FL}>Período</label>
-                <FilterSelect fullWidth showAllLabelWhenEmpty label="Período" allLabel="Todos os períodos"
-                  value={histPeriodFilter} onChange={setHistPeriodFilter}
-                  options={periodOptions} triggerStyle={SEL(histPeriodFilter !== "all")} />
-              </div>
-              {hasHistFilters && (
-                <button
-                  onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); }}
-                  style={{ height: 38, padding: '0 14px', borderRadius: 8, border: 'none', background: '#0c0a09', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <X style={{ width: 13, height: 13 }} /> Limpar
-                </button>
-              )}
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end' }}>
-                <span style={{ fontSize: 12, color: '#a8a29e', fontWeight: 500, paddingBottom: 10 }}>
-                  {loadingSponsors ? 'Carregando…' : `${historyItems.length} ${historyItems.length === 1 ? 'peça' : 'peças'}`}
-                </span>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 180, flex: '2 1 180px' }}>
+                  <label style={FL}>Evento</label>
+                  <EventFilterDropdown values={histEventFilter} onValuesChange={setHistEventFilter} options={histEventOptions} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 200, flex: '2 1 200px' }}>
+                  <label style={FL}>Patrocinador</label>
+                  <FilterSelect fullWidth showAllLabelWhenEmpty label="Patrocinador" allLabel="Todos os patrocinadores"
+                    values={histSponsorFilter} onValuesChange={setHistSponsorFilter}
+                    options={histSponsorOptions} triggerStyle={SEL(histSponsorFilter.length > 0)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 150, flex: '1 1 150px' }}>
+                  <label style={FL}>Período</label>
+                  <FilterSelect fullWidth showAllLabelWhenEmpty label="Período" allLabel="Todos os períodos"
+                    value={histPeriodFilter} onChange={setHistPeriodFilter}
+                    options={periodOptions} triggerStyle={SEL(histPeriodFilter !== "all")} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 1 }}>
+                  {hasHistFilters && (
+                    <button
+                      onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); }}
+                      style={{ height: 36, padding: '0 12px', borderRadius: 8, border: 'none', background: '#0c0a09', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                    >
+                      <X style={{ width: 12, height: 12 }} /> Limpar
+                    </button>
+                  )}
+                  <span style={{ fontSize: 12, color: '#a8a29e', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                    {loadingSponsors ? 'Carregando…' : `${historyItems.length} ${historyItems.length === 1 ? 'peça' : 'peças'}`}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -1916,16 +1920,15 @@ export default function Atendimento() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {/* Cabeçalho da tabela */}
                 <div style={{
-                  display: 'grid', gridTemplateColumns: '56px 1fr 1fr 1fr 1fr 120px 44px',
+                  display: 'grid', gridTemplateColumns: '52px 1fr 140px 1fr 100px 36px',
                   gap: 12, padding: '0 16px',
                   fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em',
                 }}>
                   <span />
-                  <span>Peça</span>
-                  <span>Evento</span>
-                  <span>Patrocinador</span>
-                  <span>Aprovado por</span>
-                  <span>Status atual</span>
+                  <span>Peça / Evento</span>
+                  <span>Status</span>
+                  <span>Aprovações por patrocinador</span>
+                  <span style={{ textAlign: 'center' }}>Resumo</span>
                   <span />
                 </div>
 
@@ -1933,20 +1936,25 @@ export default function Atendimento() {
                   const ev = evById.get(item.eventId);
                   const itemSps: any[] = itemSponsorsMap[item.id] || [];
                   const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
-                  const latestApproval = approvals
-                    .filter(a => a.status === 'approved' && a.approvedAt)
-                    .sort((a, b) => new Date(b.approvedAt!).getTime() - new Date(a.approvedAt!).getTime())[0];
                   const statusCfg = HIST_STATUS[item.status] || { label: item.status, bg: '#f3f4f3', color: '#78716c' };
+
+                  // Para cada patrocinador, encontra sua aprovação individual
+                  const sponsorApprovals = itemSps.map(sp => {
+                    const appr = approvals.find(a => a.sponsorId === sp.id);
+                    return { sponsor: sp, appr };
+                  });
+                  const approvedOnes = sponsorApprovals.filter(x => x.appr?.status === 'approved');
+                  const pendingOnes  = sponsorApprovals.filter(x => !x.appr || x.appr.status !== 'approved');
 
                   return (
                     <div key={item.id} style={{
-                      display: 'grid', gridTemplateColumns: '56px 1fr 1fr 1fr 1fr 120px 44px',
-                      gap: 12, padding: '12px 16px', alignItems: 'center',
+                      display: 'grid', gridTemplateColumns: '52px 1fr 140px 1fr 100px 36px',
+                      gap: 12, padding: '12px 16px', alignItems: 'start',
                       background: '#fff', borderRadius: 10, border: '1px solid #f5f5f4',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     }}>
                       {/* Thumbnail */}
-                      <div style={{ width: 44, height: 44, borderRadius: 6, overflow: 'hidden', background: '#f5f5f4', flexShrink: 0 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 6, overflow: 'hidden', background: '#f5f5f4', flexShrink: 0, marginTop: 2 }}>
                         {(item.approvalThumbUrl || item.finalPreviewUrl)
                           ? <img src={item.approvalThumbUrl || item.finalPreviewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1954,46 +1962,79 @@ export default function Atendimento() {
                             </div>}
                       </div>
 
-                      {/* Tipo + ID */}
-                      <div>
+                      {/* Tipo + ID + Evento */}
+                      <div style={{ paddingTop: 2 }}>
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', margin: 0 }}>{item.type}</p>
-                        <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>{item.displayId}</p>
-                      </div>
-
-                      {/* Evento */}
-                      <div>
-                        <p style={{ fontSize: 12, fontWeight: 500, color: '#57534e', margin: 0 }}>{ev?.name || '—'}</p>
-                      </div>
-
-                      {/* Patrocinadores */}
-                      <div>
-                        <SponsorChips sponsors={itemSps} variant="gray" size="sm" />
-                      </div>
-
-                      {/* Aprovado por + data */}
-                      <div>
-                        {latestApproval ? (
-                          <>
-                            <p style={{ fontSize: 12, fontWeight: 600, color: '#15803d', margin: 0 }}>
-                              {latestApproval.approvedBy || 'Sistema'}
-                            </p>
-                            <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>
-                              {format(new Date(latestApproval.approvedAt!), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                            </p>
-                          </>
-                        ) : <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>}
+                        <p style={{ fontSize: 11, color: '#a8a29e', margin: '1px 0 0' }}>{item.displayId}</p>
+                        <p style={{ fontSize: 11, color: '#57534e', margin: '3px 0 0', fontWeight: 500 }}>{ev?.name || '—'}</p>
                       </div>
 
                       {/* Status atual */}
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center',
-                        fontSize: 10, fontWeight: 700,
-                        backgroundColor: statusCfg.bg, color: statusCfg.color,
-                        padding: '4px 8px', borderRadius: 6,
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {statusCfg.label}
-                      </span>
+                      <div style={{ paddingTop: 4 }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center',
+                          fontSize: 10, fontWeight: 700,
+                          backgroundColor: statusCfg.bg, color: statusCfg.color,
+                          padding: '4px 8px', borderRadius: 6,
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {statusCfg.label}
+                        </span>
+                      </div>
+
+                      {/* Aprovações por patrocinador */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 2 }}>
+                        {sponsorApprovals.length === 0 && <span style={{ fontSize: 12, color: '#a8a29e' }}>—</span>}
+                        {approvedOnes.map(({ sponsor, appr }) => (
+                          <div key={sponsor.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: 16, height: 16, borderRadius: '50%', background: '#dcfce7', flexShrink: 0, marginTop: 1,
+                            }}>
+                              <CheckCircle style={{ width: 10, height: 10, color: '#15803d' }} />
+                            </span>
+                            <div>
+                              <p style={{ fontSize: 11, fontWeight: 600, color: '#1c1917', margin: 0 }}>{sponsor.name}</p>
+                              {appr?.approvedBy && (
+                                <p style={{ fontSize: 10, color: '#15803d', margin: '1px 0 0' }}>
+                                  {appr.approvedBy}
+                                  {appr.approvedAt && (
+                                    <span style={{ color: '#a8a29e', fontWeight: 400 }}>{' · '}{format(new Date(appr.approvedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}</span>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {pendingOnes.map(({ sponsor, appr }) => (
+                          <div key={sponsor.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: 16, height: 16, borderRadius: '50%', background: '#fef2f2', flexShrink: 0, marginTop: 1,
+                            }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: appr?.status === 'rejected' ? '#dc2626' : '#a8a29e', display: 'block' }} />
+                            </span>
+                            <div>
+                              <p style={{ fontSize: 11, fontWeight: 600, color: '#78716c', margin: 0 }}>{sponsor.name}</p>
+                              <p style={{ fontSize: 10, color: '#a8a29e', margin: '1px 0 0' }}>
+                                {appr?.status === 'rejected' ? 'Reprovado' : appr?.status === 'new_version_pending' ? 'Nova versão' : 'Aguardando'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Contagem aprovações */}
+                      <div style={{ paddingTop: 4, textAlign: 'center' }}>
+                        {sponsorApprovals.length > 0 && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 700,
+                            color: approvedOnes.length === sponsorApprovals.length ? '#15803d' : '#a16207',
+                          }}>
+                            {approvedOnes.length}/{sponsorApprovals.length} aprovado{approvedOnes.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
 
                       {/* Download */}
                       {item.finalFileUrl ? (
@@ -2005,7 +2046,7 @@ export default function Atendimento() {
                           style={{
                             width: 32, height: 32, borderRadius: 8, border: '1px solid #e7e5e4',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#57534e', textDecoration: 'none',
+                            color: '#57534e', textDecoration: 'none', marginTop: 2,
                           }}
                         >
                           <Download style={{ width: 14, height: 14 }} />

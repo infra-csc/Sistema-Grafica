@@ -2080,9 +2080,9 @@ export default function VincularPatrocinadores() {
                             const groupTextColor = allSent ? '#15803d' : allReady ? '#166534' : '#c2410c';
 
                             return (
-                              <tr key={`type-${item.type}-${itemIndex}`}>
+                              <tr key={`type-${item.type}-${itemIndex}`} style={{ borderLeft: `4px solid ${groupBorder}` }}>
                                 <td colSpan={6} style={{ padding: 0 }}>
-                                  <div style={{ backgroundColor: groupBg, borderLeft: `4px solid ${groupBorder}`, display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                  <div style={{ backgroundColor: groupBg, display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                                     {/* Coluna do checkbox — mesma largura do td de item (50px) */}
                                     <div style={{ width: 50, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '6px 0' }}>
                                       <Checkbox

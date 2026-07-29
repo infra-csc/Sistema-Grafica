@@ -702,6 +702,16 @@ export default function Grafica() {
                             REF
                           </a>
                         )}
+                        {/* Arquivo final foi substituído pela Arte após envio inicial */}
+                        {item.previousFinalFileUrl && (
+                          <div
+                            title={`Anterior: ${item.previousFinalFileUrl}`}
+                            data-testid={`badge-arquivo-atualizado-${item.id}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 10, fontWeight: 800, color: "#92400e", backgroundColor: "#fef3c7", border: "1px solid #fbbf24", borderRadius: 3, padding: "2px 7px", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                          >
+                            ⚠ Arquivo atualizado
+                          </div>
+                        )}
                       </td>
                       {/* Qtd */}
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text }}>{item.quantity}</td>

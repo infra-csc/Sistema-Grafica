@@ -1201,25 +1201,42 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: "Este item ainda não possui um arquivo final enviado" });
       }
 
+      const prevUrl  = currentItem.finalFileUrl;
+      const prevName = currentItem.finalFileName || null;
+
       const item = await storage.updateItem(req.params.id, {
         finalFileUrl: validatedData.finalFileUrl,
         finalFileName: validatedData.finalFileName || null,
         finalPreviewUrl: validatedData.finalPreviewUrl || null,
         finalFileUpdatedAt: new Date(),
+        previousFinalFileUrl:  prevUrl,
+        previousFinalFileName: prevName,
       });
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
+
+      const event = await storage.getEvent(item.eventId);
 
       await createAuditLog(
         req.userName!,
         'updated',
         'item',
         item.id,
-        `Arquivo final atualizado`
+        `Arquivo final substituído por ${req.userName}. Anterior: ${prevUrl} → Novo: ${validatedData.finalFileUrl}`
       );
 
+      // Notifica gráfica que o arquivo foi trocado e precisa ser re-verificado
+      const notification = await storage.createNotification({
+        type: "arteApproved",
+        message: `⚠ Arquivo final atualizado: ${item.type}${event ? ` — ${event.name}` : ""} (verifique antes de produzir)`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["grafica"],
+      });
+
       broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
       res.json(item);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

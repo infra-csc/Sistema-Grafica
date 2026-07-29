@@ -2638,6 +2638,16 @@ export default function Arte() {
                 );
               })()}
 
+              {/* Arquivo anterior — exibido quando Arte substitui o arquivo enviado */}
+              {selectedItem.previousFinalFileUrl && (
+                <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.1em' }}>⚠ Substituindo — arquivo anterior gravado</span>
+                  <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#78716c', wordBreak: 'break-all' }}>
+                    {selectedItem.previousFinalFileName || selectedItem.previousFinalFileUrl}
+                  </span>
+                </div>
+              )}
+
               {/* Caminho do arquivo final (rede) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(20,83,45,0.6)', paddingLeft: 4 }}>

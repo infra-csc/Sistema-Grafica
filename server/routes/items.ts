@@ -585,7 +585,7 @@ export function registerItemRoutes(app: Express): void {
           'updated',
           'item',
           item.id,
-          `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)} (sem aprovação de patrocinador)`
+          `Enviado para Arte — Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)} (sem aprovação de patrocinador)`
         );
         
         // Notifica Solicitação para revisar
@@ -613,7 +613,7 @@ export function registerItemRoutes(app: Express): void {
           'updated',
           'item',
           item.id,
-          `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)}`
+          `Enviado para Arte — Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(nextStatus)}`
         );
         
         // Notifica Atendimento para aprovar com patrocinador

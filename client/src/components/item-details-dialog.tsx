@@ -112,7 +112,7 @@ export function ItemDetailsDialog({
   const historyStages = [
     { label: "Criado / Solicitado",            keywords: ["criado"],                    pool: itemLogs,          actionType: "created" },
     { label: "Vinculação de patrocinador",      keywords: ["patrocinadores atualizados"], pool: itemLogs },
-    { label: "Enviado para Arte",               keywords: ["enviado","para arte"],       pool: itemLogsInclusive },
+    { label: "Enviado para Arte",               keywords: ["enviado para arte","aguard. envio →","aguard envio →"], pool: itemLogsInclusive },
     { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogs },
     { label: "Aprovado — Finalização",          keywords: ["todos os patrocinadores aprovaram","aguardando finaliz","aprovado pelo patrocinador"], pool: itemLogs },
     { label: "Aguardando revisão final",        keywords: ["arquivo final adicionado","aguardando revisão final"], pool: itemLogs },
@@ -140,7 +140,9 @@ export function ItemDetailsDialog({
   });
   const sentToArteLog = itemLogsInclusive.find((l: any) => {
     const d = (l.details || l.action || "").toLowerCase();
-    return d.includes("enviado") && d.includes("arte");
+    return (d.includes("enviado") && d.includes("arte")) ||
+           d.includes("aguard. envio →") ||
+           d.includes("aguard envio →");
   });
   const awaitingSponsorLog = itemLogs.find((l: any) => {
     const d = (l.details || l.action || "").toLowerCase();

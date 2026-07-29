@@ -54,7 +54,7 @@ export function EventFilterDropdown({
         style={{
           display: "flex", alignItems: "center", gap: 6,
           height: 34, padding: "0 10px 0 12px",
-          backgroundColor: open || isFiltered ? "#FFF7ED" : "#e8e8e7",
+          backgroundColor: open || isFiltered ? "#FFF7ED" : "#ffffff",
           border: open || isFiltered ? "1.5px solid #FB923C" : "1.5px solid transparent",
           borderRadius: 7, cursor: "pointer",
           fontSize: 13, fontWeight: isFiltered ? 600 : 400,

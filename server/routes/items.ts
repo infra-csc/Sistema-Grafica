@@ -438,6 +438,10 @@ export function registerItemRoutes(app: Express): void {
   // Delete item
   app.delete("/api/items/:id", requireAuth, async (req, res) => {
     try {
+      // APENAS admin pode excluir peças
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem excluir peças" });
+      }
       const item = await storage.getItem(req.params.id);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });

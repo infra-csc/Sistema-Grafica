@@ -750,21 +750,19 @@ export default function Grafica() {
                           {/* Reaproveitar — disponível enquanto ainda em produção/pronto */}
                           {!isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
                             reuseConfirmItemId === item.id ? (
-                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                <span style={{ fontSize: 10, color: "#065f46", fontWeight: 700 }}>Confirmar?</span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                                 <button
                                   onClick={() => markReuseMutation.mutate(item.id)}
                                   disabled={markReuseMutation.isPending}
                                   title="Confirmar reaproveitamento"
-                                  style={{ backgroundColor: "#059669", color: "#fff", border: "none", borderRadius: 6, height: 28, padding: "0 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "pointer", display: "flex", alignItems: "center", gap: 3 }}
+                                  style={{ backgroundColor: "#059669", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
                                 >
-                                  <RotateCcw style={{ width: 10, height: 10 }} />
                                   Sim
                                 </button>
                                 <button
                                   onClick={() => setReuseConfirmItemId(null)}
                                   title="Cancelar"
-                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 28, padding: "0 8px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 5, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
                                 >
                                   Não
                                 </button>
@@ -772,14 +770,13 @@ export default function Grafica() {
                             ) : (
                               <button
                                 onClick={() => setReuseConfirmItemId(item.id)}
-                                title="Marcar como reaproveitamento (pula produção)"
+                                title="Reaproveitar (pula produção)"
                                 data-testid={`button-reuse-${item.id}`}
-                                style={{ backgroundColor: "#d1fae5", color: "#065f46", border: "1px solid #6ee7b7", borderRadius: 6, height: 30, padding: "0 10px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "background-color 0.15s" }}
-                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#a7f3d0")}
-                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d1fae5")}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "#059669", padding: 4, borderRadius: 4, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#065f46")}
+                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#059669")}
                               >
-                                <RotateCcw style={{ width: 11, height: 11 }} />
-                                Reaproveitar
+                                <RotateCcw style={{ width: 15, height: 15 }} />
                               </button>
                             )
                           )}

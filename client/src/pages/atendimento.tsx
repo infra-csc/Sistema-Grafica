@@ -156,7 +156,7 @@ export default function Atendimento() {
 
     apiRequest("GET", "/api/items/batch-approval-data")
       .then(res => res.json())
-      .then(({ sponsorsByItem, approvalsByItem }) => {
+      .then(({ sponsorsByItem = {}, approvalsByItem = {} } = {}) => {
         if (currentRequestId !== requestIdRef.current) return;
         setItemSponsorsMap(sponsorsByItem);
         setItemApprovalsMap(approvalsByItem);

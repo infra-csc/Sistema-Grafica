@@ -1816,10 +1816,10 @@ export default function VincularPatrocinadores() {
       {/* Dialogs e Modals */}
       <Card className="mb-6">
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
             {/* Filtro por Evento */}
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Evento</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Evento</label>
               <EventFilterDropdown
                 values={eventFilter}
                 onValuesChange={setEventFilter}
@@ -1827,9 +1827,9 @@ export default function VincularPatrocinadores() {
               />
             </div>
 
-            {/* Filtro por Patrocinador — Combobox buscável com cor */}
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Patrocinador</label>
+            {/* Filtro por Patrocinador */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Patrocinador</label>
               <FilterSelect
                 showAllLabelWhenEmpty hideWhenEmpty={false}
                 label="Patrocinador" allLabel="Todos os patrocinadores"
@@ -1837,30 +1837,28 @@ export default function VincularPatrocinadores() {
                 options={sponsorFilterOptions}
                 searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
                 panelWidth={256} testId="select-sponsor-filter"
-                triggerClassName="w-full justify-between font-normal h-9 px-3 text-left border border-input bg-background rounded-md text-sm hover:bg-accent hover:text-accent-foreground"
               />
             </div>
 
             {/* Filtro por Item (tipo) */}
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Peça</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Peça</label>
               <FilterSelect
-                label="Peça" allLabel="Todos os tipos"
+                label="Peça" allLabel="Todas as peças"
                 values={itemFilter} onValuesChange={setItemFilter}
-                hideWhenEmpty={false}
+                hideWhenEmpty={false} showAllLabelWhenEmpty
                 options={itemTypes.map(t => ({ value: t, label: t }))}
                 testId="select-item-filter"
-                fullWidth
               />
             </div>
 
             {/* Filtro por Status */}
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Status</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Status</label>
               <FilterSelect
                 label="Status" allLabel="Todos os status"
                 values={statusFilter} onValuesChange={setStatusFilter}
-                hideWhenEmpty={false}
+                hideWhenEmpty={false} showAllLabelWhenEmpty
                 options={[
                   { value: "PENDENTE", label: "Pendente" },
                   { value: "RASCUNHO", label: "Rascunho" },
@@ -1868,7 +1866,6 @@ export default function VincularPatrocinadores() {
                   { value: "ENVIADO", label: "Enviado" },
                 ]}
                 testId="select-status-filter"
-                fullWidth
               />
             </div>
 

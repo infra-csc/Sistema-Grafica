@@ -34,7 +34,7 @@ const productionItems: MenuItem[] = [
   { title: "Arte",                    url: "/arte",                    icon: CheckCircle,    roles: ["arte", "atendimento", "admin"] },
   { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
   { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "admin"] },
-  { title: "Solicitação",             url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
+  { title: "Revisão",                 url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
   { title: "Gráfica",                 url: "/grafica",                 icon: Factory,        roles: ["grafica", "solicitacao", "admin"] },
   { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"] },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },

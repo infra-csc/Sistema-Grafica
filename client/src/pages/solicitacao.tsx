@@ -157,13 +157,19 @@ export default function Solicitacao() {
   });
 
   const toggleReuseMutation = useMutation({
-    mutationFn: async ({ itemId, isReuse }: { itemId: string; isReuse: boolean }) =>
-      await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse }),
+    mutationFn: async ({ itemId, isReuse }: { itemId: string; isReuse: boolean }) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse });
+      // Ao marcar reaproveitamento, libera automaticamente para Gráfica (status → produced)
+      if (isReuse) {
+        await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {});
+      }
+    },
     onSuccess: (_, { isReuse }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       toast({
-        title: isReuse ? "Marcado para reaproveitamento" : "Marcação removida",
-        description: isReuse ? "A peça será reaproveitada, sem nova produção." : "A peça voltará ao fluxo normal.",
+        title: isReuse ? "Reaproveitamento confirmado" : "Marcação removida",
+        description: isReuse ? "Peça enviada diretamente para a Gráfica como produzida." : "A peça voltará ao fluxo normal.",
       });
     },
     onError: (error: any) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
@@ -307,7 +313,7 @@ export default function Solicitacao() {
               letterSpacing: "0.18em", textTransform: "uppercase", color: "#a8a29e",
               borderLeft: "2px solid #f97316",
             }}>
-              REVISÃO FINAL · SOLICITAÇÃO
+              REVISÃO FINAL
             </span>
             <h1 style={{
               fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900,

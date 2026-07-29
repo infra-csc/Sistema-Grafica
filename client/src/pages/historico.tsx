@@ -93,14 +93,15 @@ const PAGE_SIZE = 25;
 
 /* ── Initials helper ── */
 function getInitials(name: string) {
-  return (name || "?")
+  return (name || "Sistema")
     .split(" ").filter(Boolean).slice(0, 2)
     .map(n => n[0].toUpperCase()).join("");
 }
 
 /* ── User avatar ── */
 function UserAvatar({ name }: { name?: string }) {
-  const initials = getInitials(name || "");
+  const display = name || "Sistema";
+  const initials = getInitials(display);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{
@@ -113,7 +114,7 @@ function UserAvatar({ name }: { name?: string }) {
         {initials}
       </div>
       <span style={{ fontSize: 12, fontWeight: 700, color: P.text, whiteSpace: "nowrap" }}>
-        {name || "—"}
+        {display}
       </span>
     </div>
   );

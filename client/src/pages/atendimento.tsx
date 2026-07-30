@@ -1982,7 +1982,7 @@ export default function Atendimento() {
 
                   return (
                     <div key={item.id}
-                      onClick={() => setHistDetailItem(item)}
+                      onClick={() => setHistDetailItem({ ...item, _ev: ev })}
                       style={{
                         background: '#fff', borderRadius: 12,
                         border: `1px solid ${allApproved ? '#d1fae5' : '#ede9e6'}`,
@@ -2030,7 +2030,11 @@ export default function Atendimento() {
                           </div>
 
                           {/* Resumo + download */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: '#f5f5f4', border: '1px solid #ebe8e4' }}>
+                              <Eye style={{ width: 11, height: 11, color: '#a8a29e' }} />
+                              <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', whiteSpace: 'nowrap' }}>Ver detalhes</span>
+                            </div>
                             {sponsorApprovals.length > 0 && (
                               <div style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -2075,7 +2079,7 @@ export default function Atendimento() {
                         )}
 
                         {/* ── Pipeline de fluxo ── */}
-                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 0 }}>
+                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 0, minHeight: 36 }}>
                           {PIPELINE_STAGES.map((stage, si) => {
                             const isDone    = si < currentPipelineIdx;
                             const isCurrent = si === currentPipelineIdx;
@@ -2173,7 +2177,7 @@ export default function Atendimento() {
             const di = histDetailItem;
             const diSps: any[] = itemSponsorsMap[di.id] || [];
             const diApprovals: SponsorApproval[] = itemApprovalsMap[di.id] || [];
-            const ev = evById.get(di.eventId);
+            const ev = di._ev;
             const fmtFull = (d: any) => d ? format(new Date(d), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : null;
             const approvedCount = diApprovals.filter(a => a.status === 'approved').length;
             const allApp = diSps.length > 0 && approvedCount === diSps.length;

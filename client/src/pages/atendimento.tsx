@@ -2081,7 +2081,7 @@ export default function Atendimento() {
                         {/* ── Pipeline de fluxo ── */}
                         <div style={{ borderTop: '1px solid #f5f5f4', padding: '12px 16px 14px' }}>
                           {/* stepper: linha absoluta + dots + labels */}
-                          <div style={{ position: 'relative' }}>
+                          <div className="pipeline-scroll"><div style={{ position: 'relative', minWidth: 500 }}>
                             {/* linha conectora de fundo */}
                             <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 2, background: '#ede9e4', borderRadius: 1 }} />
                             {/* linha preenchida até etapa atual */}
@@ -2115,7 +2115,7 @@ export default function Atendimento() {
                                   </div>
                                 );
                               })}
-                            </div>
+                            </div></div>
                           </div>
                         </div>
 
@@ -2362,7 +2362,7 @@ export default function Atendimento() {
                 </div>
 
                 {/* Modal Body: 3 colunas */}
-                <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 2fr 1fr' }}>
+                <div className="review-modal-body">
 
                   {/* Coluna esquerda: Metadados técnicos */}
                   <div style={{

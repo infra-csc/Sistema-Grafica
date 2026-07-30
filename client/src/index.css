@@ -479,3 +479,54 @@
     background: #f5f5f4;
   }
 }
+
+/* ── Orange token system ─────────────────────────────────────────
+   --orange-soft  : #fff7ed  backgrounds leves
+   --orange-border: #fb923c  bordas de controles ativos (orange-400)
+   --orange-brand : #f97316  ações primárias, ícones (orange-500)
+   --orange-deep  : #ea580c  gradientes, pressed (orange-600)
+──────────────────────────────────────────────────────────────── */
+:root {
+  --orange-soft   : #fff7ed;
+  --orange-border : #fb923c;
+  --orange-brand  : #f97316;
+  --orange-deep   : #ea580c;
+}
+
+/* ── Focus visible – acessibilidade ─────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--orange-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Modal de revisão – responsivo ──────────────────────────── */
+.review-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+}
+@media (max-width: 900px) {
+  .review-modal-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Pipeline de fluxo – overflow horizontal seguro ─────────── */
+.pipeline-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+.pipeline-scroll::-webkit-scrollbar {
+  height: 3px;
+}
+.pipeline-scroll::-webkit-scrollbar-thumb {
+  background: #e7e5e4;
+  border-radius: 2px;
+}

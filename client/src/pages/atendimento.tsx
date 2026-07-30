@@ -210,20 +210,50 @@ export default function Atendimento() {
     }
   }, [dialogOpen, selectedItem]);
 
+  /**
+   * Atualiza a peça já no cache em vez de recarregar a lista inteira.
+   * Recarregar /api/items (milhares de peças) + /api/audit-logs (milhares de
+   * registros) a cada decisão deixava a revisão lenta. Eventos e logs são
+   * marcados como desatualizados e só recarregam quando a tela precisar.
+   */
+  const applyItemDecisionToCache = (updatedItem?: any) => {
+    if (updatedItem?.id) {
+      const patch = (list?: any[]) =>
+        list ? list.map(i => (i.id === updatedItem.id ? { ...i, ...updatedItem } : i)) : list;
+      queryClient.setQueryData<any[]>(["/api/items"], patch);
+      queryClient.setQueryData<any[]>(["/api/items/approved"], patch);
+    } else {
+      // Sem o item na resposta não dá para remendar com segurança: recarrega.
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/events"], refetchType: "none" });
+    // Só recarrega os logs se o histórico estiver aberto na tela.
+    queryClient.invalidateQueries({
+      queryKey: ["/api/audit-logs"],
+      refetchType: dialogOpen ? "active" : "none",
+    });
+  };
+
   const individualApproveMutation = useMutation({
     mutationFn: async ({ itemId, sponsorId }: { itemId: string; sponsorId: string }) => {
       const response = await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/${sponsorId}/approve`, {});
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      applyItemDecisionToCache(data.item);
 
       if (data.allApproved) {
-        setDialogOpen(false);
-        setSelectedItem(null);
-        toast({ title: "Todos patrocinadores aprovaram", description: "A peça avançou para finalização do arquivo" });
+        // Peça concluída: segue direto para a próxima da fila, sem voltar à lista.
+        const idx = reviewQueue.findIndex((i: any) => i.id === selectedItem?.id);
+        const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
+        if (next) {
+          setSelectedItem(next);
+          toast({ title: "Peça aprovada", description: `Seguindo para ${next.displayId} · ${next.type}` });
+        } else {
+          setDialogOpen(false);
+          setSelectedItem(null);
+          toast({ title: "Todos patrocinadores aprovaram", description: "Você revisou a última peça da fila." });
+        }
       } else {
         if (selectedItem) {
           apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
@@ -245,20 +275,27 @@ export default function Atendimento() {
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      applyItemDecisionToCache(data.item);
       setRejectionReason("");
       setRejectingSponsorId(null);
 
-      if (selectedItem) {
-        apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
-          .then(r => r.json()).then(setSponsorApprovals).catch(console.error);
-      }
-
       if (data.allDecided) {
-        toast({ title: "Todos patrocinadores decidiram", description: "Peça retornou para Arte refazer o thumb." });
+        // Peça resolvida (volta para a Arte): segue para a próxima da fila.
+        const idx = reviewQueue.findIndex((i: any) => i.id === selectedItem?.id);
+        const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
+        if (next) {
+          setSelectedItem(next);
+          toast({ title: "Peça devolvida para a Arte", description: `Seguindo para ${next.displayId} · ${next.type}` });
+        } else {
+          setDialogOpen(false);
+          setSelectedItem(null);
+          toast({ title: "Todos patrocinadores decidiram", description: "Peça retornou para Arte refazer o thumb." });
+        }
       } else {
+        if (selectedItem) {
+          apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
+            .then(r => r.json()).then(setSponsorApprovals).catch(console.error);
+        }
         toast({ title: "Reprovação registrada", description: `Aguardando ${data.pendingCount} patrocinador(es).` });
       }
     },
@@ -274,7 +311,7 @@ export default function Atendimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({ title: "Peça aprovada", description: "A peça foi aprovada pelo patrocinador com sucesso!" });
@@ -291,7 +328,7 @@ export default function Atendimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
       setDialogOpen(false);
       setSelectedItem(null);
       toast({ title: "Peça reprovada", description: "A peça retornou para a Arte refazer." });
@@ -308,7 +345,7 @@ export default function Atendimento() {
     onSuccess: (_, itemIds) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
       setSelectedItemIds(new Set());
       toast({ title: "Peças aprovadas", description: `${itemIds.length} peças aprovadas com sucesso!` });
     },
@@ -324,7 +361,7 @@ export default function Atendimento() {
     onSuccess: (_, itemIds) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
       setSelectedItemIds(new Set());
       toast({ title: "Peças reprovadas", description: `${itemIds.length} peças retornaram para a Arte.` });
     },
@@ -357,7 +394,7 @@ export default function Atendimento() {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
       setBatchSponsorId("");
       setBatchEventId("");
       setBatchRejectReason("");
@@ -652,6 +689,35 @@ export default function Atendimento() {
       return latestApproval(b) - latestApproval(a);
     });
   }, [items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter]);
+
+  // Fila de revisão: todas as peças pendentes na MESMA ordem em que aparecem
+  // na tela (agrupadas por evento). É o que permite ir para a próxima peça sem
+  // fechar o modal e voltar para a lista.
+  const reviewQueue = useMemo(() => {
+    const sorted = [...pendingGroup].sort((a, b) => {
+      const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
+      return ga.localeCompare(gb) || a.type.localeCompare(b.type);
+    });
+    const byEvent = new Map<string, any[]>();
+    sorted.forEach(item => {
+      const eid = item.eventId || '__none__';
+      if (!byEvent.has(eid)) byEvent.set(eid, []);
+      byEvent.get(eid)!.push(item);
+    });
+    return Array.from(byEvent.values()).flat();
+  }, [pendingGroup, typeToGroup]);
+
+  /** Vai para a peça anterior/seguinte da fila. Sem próxima, encerra a revisão. */
+  const goToAdjacentItem = (dir: 1 | -1) => {
+    const idx = reviewQueue.findIndex((i: any) => i.id === selectedItem?.id);
+    const next = idx >= 0 ? reviewQueue[idx + dir] : undefined;
+    if (next) {
+      setSelectedItem(next);
+    } else {
+      setDialogOpen(false);
+      setSelectedItem(null);
+    }
+  };
 
   // Group pendingGroup by event - must be before any early return
   const itemsByEvent = useMemo(() => {
@@ -2345,20 +2411,64 @@ export default function Atendimento() {
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setDialogOpen(false)}
-                    data-testid="button-close-dialog"
-                    style={{
-                      width: 36, height: 36, borderRadius: '50%',
-                      border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
+                  {/* Navegação da fila + fechar */}
+                  {(() => {
+                    const qIdx = reviewQueue.findIndex((i: any) => i.id === selectedItem.id);
+                    const hasPrev = qIdx > 0;
+                    const hasNext = qIdx >= 0 && qIdx < reviewQueue.length - 1;
+                    const navBtn = (enabled: boolean): React.CSSProperties => ({
+                      width: 34, height: 34, borderRadius: 9,
+                      border: '1px solid #e7e5e4',
+                      backgroundColor: '#ffffff',
+                      cursor: enabled ? 'pointer' : 'not-allowed',
+                      opacity: enabled ? 1 : 0.4,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#78716c', transition: 'background-color 0.15s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f0ef'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
-                    <X style={{ width: 18, height: 18 }} />
-                  </button>
+                      color: '#57534e',
+                    });
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {qIdx >= 0 && reviewQueue.length > 1 && (
+                          <>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                              {qIdx + 1} / {reviewQueue.length}
+                            </span>
+                            <button
+                              onClick={() => hasPrev && goToAdjacentItem(-1)}
+                              disabled={!hasPrev}
+                              data-testid="button-prev-item"
+                              title="Peça anterior"
+                              style={navBtn(hasPrev)}
+                            >
+                              <ChevronRight style={{ width: 16, height: 16, transform: 'rotate(180deg)' }} />
+                            </button>
+                            <button
+                              onClick={() => hasNext && goToAdjacentItem(1)}
+                              disabled={!hasNext}
+                              data-testid="button-next-item"
+                              title="Próxima peça"
+                              style={navBtn(hasNext)}
+                            >
+                              <ChevronRight style={{ width: 16, height: 16 }} />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setDialogOpen(false)}
+                          data-testid="button-close-dialog"
+                          style={{
+                            width: 36, height: 36, borderRadius: '50%',
+                            border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#78716c', transition: 'background-color 0.15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f0ef'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <X style={{ width: 18, height: 18 }} />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Modal Body: 3 colunas */}

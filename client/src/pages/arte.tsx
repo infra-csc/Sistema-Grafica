@@ -2920,19 +2920,39 @@ export default function Arte() {
       {/* MODAL — SUBIR BOOK (PDF) e escolher as peças cobertas               */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showBookModal} onOpenChange={setShowBookModal}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 620, width: '95vw', borderRadius: 14, overflow: 'hidden' }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 600, width: '95vw', borderRadius: 14, overflow: 'hidden', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.22)' }}>
           <DialogTitle className="sr-only">Subir book de aprovação</DialogTitle>
           <DialogDescription className="sr-only">Envie o PDF do book e selecione as peças que ele cobre</DialogDescription>
 
-          <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0ede8' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1c1917', margin: 0, fontFamily: '"Space Grotesk", sans-serif' }}>Subir book (PDF)</h2>
-            <p style={{ fontSize: 12, color: '#a8a29e', margin: '2px 0 0' }}>Envie o book com o layout pronto e marque as peças que ele cobre — para mandar aos patrocinadores.</p>
+          {/* ── Header escuro ── */}
+          <div style={{ padding: '22px 28px 18px', background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderRadius: '14px 14px 0 0' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#f97316,#ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(249,115,22,0.35)' }}>
+                  <FileText style={{ width: 15, height: 15, color: '#fff' }} />
+                </div>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', margin: 0, fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.03em' }}>Subir book (PDF)</h2>
+              </div>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.50)', margin: '0 0 0 42px', lineHeight: 1.4 }}>
+                Envie o layout pronto e marque as peças cobertas — serão enviadas aos patrocinadores.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowBookModal(false)}
+              style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', lineHeight: 1, flexShrink: 0, transition: 'background 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
+            >
+              <X style={{ width: 16, height: 16 }} />
+            </button>
           </div>
 
-          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto' }}>
+          {/* ── Body ── */}
+          <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 18, maxHeight: '62vh', overflowY: 'auto', backgroundColor: '#fafaf9' }}>
+
             {/* Evento */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 6 }}>Evento</label>
+              <label style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', display: 'block', marginBottom: 6 }}>Evento</label>
               <FilterSelect
                 fullWidth hideWhenEmpty={false} showAllLabelWhenEmpty
                 label="Evento" allLabel="Selecione um evento"
@@ -2944,12 +2964,34 @@ export default function Arte() {
 
             {/* Upload do PDF */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e', display: 'block', marginBottom: 6 }}>Arquivo do book</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 10, border: `1.5px dashed ${bookFileUrl ? '#a78bfa' : '#d4d4d0'}`, background: bookFileUrl ? '#f5f3ff' : '#fafaf9', cursor: 'pointer' }}>
-                <FileText style={{ width: 18, height: 18, color: bookFileUrl ? '#6d28d9' : '#a8a29e', flexShrink: 0 }} />
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: bookFileUrl ? '#6d28d9' : '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {bookUploading ? 'Enviando…' : bookFileName || 'Escolher PDF do book…'}
-                </span>
+              <label style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', display: 'block', marginBottom: 6 }}>Arquivo do book</label>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10,
+                border: `1.5px dashed ${bookFileUrl ? '#f97316' : '#d4d4d0'}`,
+                background: bookFileUrl ? '#fff7ed' : '#ffffff',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+                onMouseEnter={e => { if (!bookFileUrl) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#a8a29e'; (e.currentTarget as HTMLLabelElement).style.background = '#f5f5f4'; } }}
+                onMouseLeave={e => { if (!bookFileUrl) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#d4d4d0'; (e.currentTarget as HTMLLabelElement).style.background = '#ffffff'; } }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: bookFileUrl ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', boxShadow: bookFileUrl ? '0 3px 8px rgba(249,115,22,0.28)' : 'none' }}>
+                  {bookUploading
+                    ? <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(249,115,22,0.3)', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
+                    : <FileText style={{ width: 16, height: 16, color: bookFileUrl ? '#fff' : '#a8a29e' }} />
+                  }
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: bookFileUrl ? '#c2410c' : '#78716c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {bookUploading ? 'Enviando arquivo…' : bookFileName || 'Escolher PDF do book…'}
+                  </p>
+                  {!bookFileUrl && !bookUploading && (
+                    <p style={{ fontSize: 10, color: '#a8a29e', margin: '1px 0 0' }}>Somente arquivos .PDF</p>
+                  )}
+                  {bookFileUrl && (
+                    <p style={{ fontSize: 10, color: '#f97316', margin: '1px 0 0', fontWeight: 600 }}>✓ Arquivo carregado</p>
+                  )}
+                </div>
+                {bookFileUrl && <span style={{ fontSize: 10, fontWeight: 700, color: '#f97316', flexShrink: 0 }}>Trocar</span>}
                 <input type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
                   onChange={e => { handleBookFile(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
@@ -2957,38 +2999,60 @@ export default function Arte() {
 
             {/* Peças do evento */}
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: '#57534e' }}>
-                  Peças no book — {bookSelectedIds.size} de {bookEventPieces.length}
-                </label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => setBookSelectedIds(new Set(bookEventPieces.map((i: any) => i.id)))}
-                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: '#6d28d9', cursor: 'pointer' }}>Todas</button>
-                  <span style={{ color: '#e7e5e4' }}>·</span>
-                  <button onClick={() => setBookSelectedIds(new Set())}
-                    style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: '#6d28d9', cursor: 'pointer' }}>Nenhuma</button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e' }}>Peças no book</span>
+                  {bookEventPieces.length > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif' }}>
+                      {bookSelectedIds.size}<span style={{ fontWeight: 500, color: '#a8a29e' }}> / {bookEventPieces.length}</span>
+                    </span>
+                  )}
                 </div>
+                {bookEventPieces.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <button onClick={() => setBookSelectedIds(new Set(bookEventPieces.map((i: any) => i.id)))}
+                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#57534e', cursor: 'pointer', borderRadius: 6, transition: 'background 0.1s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#f0efee'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                    >Todas</button>
+                    <span style={{ color: '#d4d4d0' }}>·</span>
+                    <button onClick={() => setBookSelectedIds(new Set())}
+                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#57534e', cursor: 'pointer', borderRadius: 6, transition: 'background 0.1s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#f0efee'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                    >Nenhuma</button>
+                  </div>
+                )}
               </div>
-              <div style={{ border: '1px solid #f0ede8', borderRadius: 10, maxHeight: 260, overflowY: 'auto' }}>
+              <div style={{ border: '1px solid #ebe8e3', borderRadius: 10, maxHeight: 240, overflowY: 'auto', backgroundColor: '#ffffff' }}>
                 {bookEventPieces.length === 0 ? (
-                  <p style={{ fontSize: 12, color: '#a8a29e', textAlign: 'center', padding: 20, margin: 0 }}>Selecione um evento com peças.</p>
-                ) : bookEventPieces.map((item: any) => {
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 20px', gap: 8 }}>
+                    <FileText style={{ width: 26, height: 26, color: '#d4d4d0' }} />
+                    <p style={{ fontSize: 12, color: '#a8a29e', margin: 0, textAlign: 'center' }}>Selecione um evento para ver as peças disponíveis.</p>
+                  </div>
+                ) : bookEventPieces.map((item: any, idx: number) => {
                   const on = bookSelectedIds.has(item.id);
+                  const isLast = idx === bookEventPieces.length - 1;
                   return (
                     <div key={item.id}
                       onClick={() => setBookSelectedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; })}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: '1px solid #f5f4f2', cursor: 'pointer', background: on ? '#faf5ff' : '#fff' }}>
-                      <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${on ? '#7c3aed' : '#d4d4d0'}`, background: on ? '#7c3aed' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {on && <Check style={{ width: 10, height: 10, color: '#fff' }} />}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: isLast ? 'none' : '1px solid #f5f4f2', cursor: 'pointer', background: on ? '#fff7ed' : '#ffffff', transition: 'background 0.1s' }}
+                      onMouseEnter={e => { if (!on) e.currentTarget.style.background = '#fafaf9'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = on ? '#fff7ed' : '#ffffff'; }}
+                    >
+                      <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${on ? '#f97316' : '#d4d4d0'}`, background: on ? '#f97316' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}>
+                        {on && <Check style={{ width: 9, height: 9, color: '#fff' }} />}
                       </div>
-                      <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#7c3aed', flexShrink: 0 }}>{item.displayId}</span>
+                      <span style={{ fontFamily: '"Space Grotesk", monospace', fontSize: 10, fontWeight: 800, color: on ? '#c2410c' : '#a8a29e', background: on ? '#fed7aa' : '#f0efee', padding: '2px 6px', borderRadius: 4, flexShrink: 0, letterSpacing: '0.02em', transition: 'all 0.12s' }}>{item.displayId}</span>
                       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: on ? '#1c1917' : '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.1s' }}>{item.type}</span>
                         {item.description && item.description !== item.type && (
-                          <span style={{ fontSize: 10, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
+                          <span style={{ fontSize: 10, color: '#a8a29e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
                         )}
                       </span>
-                      {item.bookUrl && <span title="Já tem book" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 9, fontWeight: 700, color: '#6d28d9', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 4, padding: '1px 5px' }}>BOOK</span>}
+                      {item.bookUrl && (
+                        <span title="Já tem book" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 9, fontWeight: 800, color: '#92400e', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '2px 6px', letterSpacing: '0.04em' }}>BOOK</span>
+                      )}
                     </div>
                   );
                 })}
@@ -2996,14 +3060,31 @@ export default function Arte() {
             </div>
           </div>
 
-          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0ede8', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          {/* ── Footer ── */}
+          <div style={{ padding: '14px 28px', borderTop: '1px solid #ebe8e3', display: 'flex', gap: 10, justifyContent: 'flex-end', backgroundColor: '#ffffff' }}>
             <button onClick={() => setShowBookModal(false)}
-              style={{ height: 38, padding: '0 16px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              style={{ height: 38, padding: '0 16px', borderRadius: 8, background: 'transparent', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background 0.12s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >Cancelar</button>
             <button
               onClick={() => saveBookMutation.mutate()}
               disabled={!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending}
-              style={{ height: 38, padding: '0 18px', borderRadius: 8, border: 'none', background: (!bookFileUrl || bookSelectedIds.size === 0) ? '#e7e5e4' : '#7c3aed', color: (!bookFileUrl || bookSelectedIds.size === 0) ? '#a8a29e' : '#fff', fontSize: 13, fontWeight: 700, cursor: (!bookFileUrl || bookSelectedIds.size === 0) ? 'not-allowed' : 'pointer' }}>
-              {saveBookMutation.isPending ? 'Salvando…' : `Salvar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}
+              style={{
+                height: 38, padding: '0 20px', borderRadius: 8, border: 'none',
+                background: (!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending) ? '#e7e5e4' : 'linear-gradient(135deg,#1c1917,#292524)',
+                color: (!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending) ? '#a8a29e' : '#fff',
+                fontSize: 13, fontWeight: 700, cursor: (!bookFileUrl || bookSelectedIds.size === 0) ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 7, transition: 'filter 0.12s',
+                boxShadow: (!bookFileUrl || bookSelectedIds.size === 0) ? 'none' : '0 2px 8px rgba(28,25,23,0.2)',
+              }}
+              onMouseEnter={e => { if (bookFileUrl && bookSelectedIds.size > 0) e.currentTarget.style.filter = 'brightness(1.15)'; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+            >
+              {saveBookMutation.isPending
+                ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Salvando…</>
+                : <><FileText style={{ width: 13, height: 13 }} />{`Salvar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
+              }
             </button>
           </div>
         </DialogContent>

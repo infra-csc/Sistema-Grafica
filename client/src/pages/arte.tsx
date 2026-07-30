@@ -3045,7 +3045,12 @@ export default function Arte() {
                       </div>
                       <span style={{ fontFamily: '"Space Grotesk", monospace', fontSize: 10, fontWeight: 800, color: on ? '#c2410c' : '#a8a29e', background: on ? '#fed7aa' : '#f0efee', padding: '2px 6px', borderRadius: 4, flexShrink: 0, letterSpacing: '0.02em', transition: 'all 0.12s' }}>{item.displayId}</span>
                       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: on ? '#1c1917' : '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.1s' }}>{item.type}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
+                          {groupOf(item.type) && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: on ? '#f97316' : '#b8b3ad', background: on ? '#fff7ed' : '#f5f4f2', border: `1px solid ${on ? '#fed7aa' : '#ebe8e3'}`, borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.03em', transition: 'all 0.12s' }}>{groupOf(item.type)}</span>
+                          )}
+                          <span style={{ fontSize: 12, fontWeight: 600, color: on ? '#1c1917' : '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.1s' }}>{item.type}</span>
+                        </div>
                         {item.description && item.description !== item.type && (
                           <span style={{ fontSize: 10, color: '#a8a29e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
                         )}

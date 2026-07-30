@@ -73,6 +73,15 @@ export default function Atendimento() {
   const [histVisible, setHistVisible] = useState(PAGE_SIZE);
   const [pendVisible, setPendVisible] = useState(PAGE_SIZE);
 
+  // Eventos recolhidos na aba Pendentes (o cabeçalho vira um card clicável).
+  const [collapsedEvents, setCollapsedEvents] = useState<Set<string>>(new Set());
+  const toggleEventCollapsed = (id: string) =>
+    setCollapsedEvents(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
   const [expEventFilter, setExpEventFilter] = useState("all");
@@ -488,6 +497,20 @@ export default function Atendimento() {
       return true;
     });
   }, [pendingItems, itemSponsorsMap, loadingSponsors, expEventFilter, expGroupFilter, expTypeFilter, expSponsorFilter, expIncludeNoThumb, expStatusFilter]);
+
+  // Patrocinadores da peça já com o status de aprovação de cada um, para os
+  // chips mostrarem a cor da marca E a decisão (aprovado / reprovado / aguardando).
+  const sponsorsWithStatus = (item: any) => {
+    const sps = itemSponsorsMap[item.id] || [];
+    const apps: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+    return sps.map((s: any) => {
+      const st = apps.find(a => a.sponsorId === s.id)?.status;
+      return {
+        ...s,
+        approvalStatus: st === 'approved' ? 'approved' : st === 'rejected' ? 'rejected' : 'pending',
+      };
+    });
+  };
 
   const isItemEligibleForBatch = (item: any): boolean => {
     const itemSps = itemSponsorsMap[item.id] || [];
@@ -1463,12 +1486,25 @@ export default function Atendimento() {
             const ev = getEventInfo(eventId);
             return (
               <div key={eventId}>
-                {/* Group Header */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 16,
-                  paddingBottom: 16, marginBottom: 16,
-                  borderBottom: '1px solid #e7e5e4',
-                }}>
+                {/* Group Header — clicável para recolher/expandir o evento */}
+                <div
+                  onClick={() => toggleEventCollapsed(eventId)}
+                  data-testid={`toggle-event-${eventId}`}
+                  title={collapsedEvents.has(eventId) ? 'Expandir evento' : 'Recolher evento'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 16,
+                    paddingBottom: 16, marginBottom: 16,
+                    borderBottom: '1px solid #e7e5e4',
+                    cursor: 'pointer', userSelect: 'none',
+                  }}
+                >
+                  <ChevronDown
+                    style={{
+                      width: 16, height: 16, color: '#a8a29e', flexShrink: 0,
+                      transform: collapsedEvents.has(eventId) ? 'rotate(-90deg)' : 'none',
+                      transition: 'transform 0.15s',
+                    }}
+                  />
                   <div style={{
                     width: 8, height: 8, borderRadius: '50%',
                     backgroundColor: '#fd761a', flexShrink: 0,
@@ -1516,7 +1552,7 @@ export default function Atendimento() {
                 </div>
 
                 {/* Cards */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: collapsedEvents.has(eventId) ? 'none' : 'flex', flexDirection: 'column', gap: 12 }}>
                   {eventItems.map((item, idx) => {
                     const itemSps = itemSponsorsMap[item.id] || [];
                     const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
@@ -1628,7 +1664,7 @@ export default function Atendimento() {
                               {loadingSponsors ? (
                                 <span style={{ fontSize: 12, color: '#a8a29e' }}>...</span>
                               ) : (
-                                <SponsorChips sponsors={itemSps} variant="colored" size="sm" />
+                                <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" />
                               )}
                             </div>
 

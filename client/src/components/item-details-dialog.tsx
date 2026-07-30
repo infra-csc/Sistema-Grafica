@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface ItemDetailsDialogProps {
   item: any | null;
@@ -67,7 +67,23 @@ export function ItemDetailsDialog({
   const [editMode, setEditMode]     = useState(false);
   const [editedItem, setEditedItem] = useState(item);
 
+  // Aprovação por patrocinador não vem no payload de /api/items — sem buscar
+  // aqui, peças com várias marcas apareciam sempre como "Aguardando" no Painel
+  // Geral e no detalhe do evento, mesmo já aprovadas.
+  const [fetchedApprovals, setFetchedApprovals] = useState<any[]>([]);
+  useEffect(() => {
+    if (!open || !item?.id || item?.sponsorApprovals) { setFetchedApprovals([]); return; }
+    let cancelled = false;
+    fetch(`/api/items/${item.id}/sponsor-approvals`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : []))
+      .then(data => { if (!cancelled) setFetchedApprovals(Array.isArray(data) ? data : []); })
+      .catch(() => { /* silencioso: sem as aprovações os chips ficam como estavam */ });
+    return () => { cancelled = true; };
+  }, [open, item?.id]);
+
   if (!item) return null;
+
+  const approvalsList: any[] = item.sponsorApprovals ?? fetchedApprovals;
 
   const rawStatus = (item.status || "").trim();
   const step = STATUS_STEP[rawStatus] ?? STATUS_STEP[rawStatus.toLowerCase()] ?? -1;
@@ -446,9 +462,11 @@ export function ItemDetailsDialog({
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {item.sponsors.map((s: any) => {
-                    const approval = item.sponsorApprovals?.find((a: any) => a.sponsorId === s.id);
-                    const isApproved = approval?.approved === true;
-                    const isRejected = approval?.approved === false;
+                    const approval = approvalsList.find((a: any) => a.sponsorId === s.id);
+                    // A tabela usa status ('pending' | 'approved' | 'rejected').
+                    // O booleano `approved` nunca existiu — por isso tudo ficava "Aguardando".
+                    const isApproved = approval?.status === "approved" || approval?.approved === true;
+                    const isRejected = approval?.status === "rejected" || approval?.approved === false;
                     return (
                       <div
                         key={s.id}
@@ -467,12 +485,18 @@ export function ItemDetailsDialog({
                           </div>
                           <div>
                             <span style={{ fontWeight: 700, fontSize: 14, color: "#1a1c1c", display: "block" }}>{s.name}</span>
-                            {approval?.approvedAt && (
+                            {approval?.approvedAt ? (
                               <span style={{ fontSize: 10, color: "#78716c", fontFamily: "'DM Mono', monospace" }}>
                                 {format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
                                 {approval.approvedBy ? ` · ${approval.approvedBy}` : ""}
                               </span>
-                            )}
+                            ) : approval?.rejectedAt ? (
+                              <span style={{ fontSize: 10, color: "#ba1a1a", fontFamily: "'DM Mono', monospace" }}>
+                                {format(new Date(approval.rejectedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+                                {approval.rejectedBy ? ` · ${approval.rejectedBy}` : ""}
+                                {approval.rejectionReason ? ` — ${approval.rejectionReason}` : ""}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         {isApproved ? (

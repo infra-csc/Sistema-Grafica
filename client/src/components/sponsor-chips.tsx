@@ -4,6 +4,8 @@ interface Sponsor {
   id: string;
   name: string;
   color?: string | null;
+  /** Status da aprovação deste patrocinador para a peça, quando disponível. */
+  approvalStatus?: "approved" | "rejected" | "pending" | null;
 }
 
 interface SponsorChipsProps {
@@ -92,16 +94,23 @@ export function SponsorChips({
         const bg     = useColor ? hexToRgba(c!, 0.10) : chip.bg;
         const color  = useColor ? c! : chip.color;
         const border = useColor ? `1px solid ${hexToRgba(c!, 0.30)}` : chip.border;
+        // Status da aprovação: mantém a identidade visual (cor do patrocinador)
+        // e sinaliza a decisão — aprovado some com a dúvida, reprovado salta aos olhos.
+        const st = s.approvalStatus;
+        const statusTitle = st === "approved" ? "Aprovado"
+          : st === "rejected" ? "Reprovado"
+          : st === "pending" ? "Aguardando aprovação" : undefined;
         return (
           <span
             key={s.id}
+            title={statusTitle ? `${s.name} — ${statusTitle}` : s.name}
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 4,
-              backgroundColor: bg,
-              color,
-              border,
+              backgroundColor: st === "rejected" ? "#fef2f2" : st === "approved" ? "#f0fdf4" : bg,
+              color: st === "rejected" ? "#b91c1c" : st === "approved" ? "#15803d" : color,
+              border: st === "rejected" ? "1px solid #fecaca" : st === "approved" ? "1px solid #bbf7d0" : border,
               borderRadius: chip.borderRadius,
               whiteSpace: "nowrap",
               ...sz,
@@ -114,6 +123,9 @@ export function SponsorChips({
               }} />
             )}
             {s.name}
+            {st === "approved" && <span style={{ fontWeight: 900, lineHeight: 1 }}>✓</span>}
+            {st === "rejected" && <span style={{ fontWeight: 900, lineHeight: 1 }}>✕</span>}
+            {st === "pending" && <span style={{ opacity: 0.55, lineHeight: 1 }}>•</span>}
           </span>
         );
       })}

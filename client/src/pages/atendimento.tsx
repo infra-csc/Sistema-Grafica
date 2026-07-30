@@ -1172,7 +1172,7 @@ export default function Atendimento() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
               <FilterSelect
                 label="Patrocinador"
-                allLabel="Selecionar patrocinador..."
+                allLabel="Patrocinador..."
                 value={batchSponsorId || "all"}
                 onChange={v => {
                   const next = v === "all" ? "" : v;

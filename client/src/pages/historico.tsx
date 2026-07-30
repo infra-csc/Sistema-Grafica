@@ -4,7 +4,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
-  ChevronLeft, ChevronRight, Link2,
+  ChevronLeft, ChevronRight, Link2, FileText,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -82,6 +82,22 @@ const TYPE_CONFIG: Record<string, {
     label: "Peça Entregue", dot: "#9333ea", bg: "#faf5ff", border: "#e9d5ff", color: "#7e22ce",
     icon: Truck,
   },
+  book_sent: {
+    label: "Envio de Book", dot: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", color: "#6d28d9",
+    icon: FileText,
+  },
+  item_conferred: {
+    label: "Conferência", dot: "#0891b2", bg: "#ecfeff", border: "#a5f3fc", color: "#0e7490",
+    icon: FileCheck,
+  },
+  item_canceled: {
+    label: "Cancelada", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
+    icon: Activity,
+  },
+  item_returned: {
+    label: "Devolvida p/ Arte", dot: "#d97706", bg: "#fffbeb", border: "#fde68a", color: "#b45309",
+    icon: Activity,
+  },
 };
 
 const DEFAULT_CFG = {
@@ -100,20 +116,26 @@ function getInitials(name: string) {
 
 /* ── User avatar ── */
 function UserAvatar({ name }: { name?: string }) {
-  const display = name || "Sistema";
-  const initials = getInitials(display);
+  // Sem autor registrado não dá para afirmar que foi o "Sistema": são ações
+  // feitas antes de o app passar a gravar quem executou. Mostrar "—" é honesto.
+  const unknown = !name || name === "Sistema";
+  const display = unknown ? "—" : name!;
+  const initials = unknown ? "—" : getInitials(display);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div
+      style={{ display: "flex", alignItems: "center", gap: 10 }}
+      title={unknown ? "Autor não registrado (ação anterior ao registro de autoria)" : display}
+    >
       <div style={{
         width: 28, height: 28, borderRadius: "50%",
         backgroundColor: "#e8e8e7",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 9, fontWeight: 800, color: P.text,
+        fontSize: 9, fontWeight: 800, color: unknown ? P.muted : P.text,
         flexShrink: 0, letterSpacing: "0.02em",
       }}>
         {initials}
       </div>
-      <span style={{ fontSize: 12, fontWeight: 700, color: P.text, whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: unknown ? P.muted : P.text, whiteSpace: "nowrap" }}>
         {display}
       </span>
     </div>
@@ -186,6 +208,22 @@ function buildDescription(e: TimelineEvent) {
           {e.receivedBy && <> para <strong style={{ color: P.text }}>{e.receivedBy}</strong></>}
         </span>
       );
+    case "item_conferred":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> conferida{e.logDetails?.match(/\((\d+\/\d+)\)/) ? <> — {e.logDetails.match(/\((\d+\/\d+)\)/)![1]} un.</> : null} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "item_canceled":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> cancelada · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "item_returned":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> devolvida para a Arte · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "book_sent": {
+      const removido = (e.logDetails || "").toLowerCase().includes("removido");
+      return (
+        <span>
+          Book de aprovação {removido ? "removido de" : "enviado com"}{" "}
+          {e.quantity ? <strong style={{ color: P.text }}>{e.quantity} peça{e.quantity === 1 ? "" : "s"}</strong> : "peças"}
+          {" "}· evento <strong style={{ color: P.text }}>{e.eventName}</strong>
+        </span>
+      );
+    }
     default:
       return <span>Atividade registrada</span>;
   }
@@ -303,6 +341,27 @@ export default function Historico() {
     const ts = log.createdAt ?? log.created_at;
     const userName = log.userName ?? log.user_name;
 
+    // Logs de EVENTO: hoje só o envio/remoção do book de aprovação interessa
+    // aqui (os demais viram entradas próprias a partir da tabela de eventos).
+    if (entityType === "event") {
+      if (detailsLower.includes("book")) {
+        const ev = events.find(e => e.id === itemId);
+        const qtd = details.match(/(\d+)\s+pe/i)?.[1];
+        timeline.push({
+          id: `book-${log.id ?? itemId + ts}`,
+          type: "book_sent",
+          timestamp: new Date(ts),
+          eventName: ev?.name || "Evento desconhecido",
+          eventId: itemId,
+          itemId,
+          quantity: qtd ? parseInt(qtd, 10) : undefined,
+          userName,
+          logDetails: details,
+        });
+      }
+      return;
+    }
+
     // Only process item-related logs
     if (entityType !== "item") {
       return;
@@ -332,6 +391,25 @@ export default function Historico() {
       userName,
       logDetails: details,
     };
+
+    // Conferência da Gráfica (parcial ou concluída)
+    if (detailsLower.includes("conferência")) {
+      timeline.push({ id: `conferred-${log.id ?? itemId + ts}`, type: "item_conferred", ...base });
+      return;
+    }
+
+    // Peça cancelada
+    if (detailsLower.includes("item cancelado")) {
+      timeline.push({ id: `canceled-${log.id ?? itemId + ts}`, type: "item_canceled", ...base });
+      return;
+    }
+
+    // Devolvida para a Arte
+    if (detailsLower.includes("devolvido para arte") || detailsLower.includes("devolvida para arte")
+      || detailsLower.includes("devolvido para criação")) {
+      timeline.push({ id: `returned-${log.id ?? itemId + ts}`, type: "item_returned", ...base });
+      return;
+    }
 
     // Sponsor linking
     if (action === "updated" && detailsLower.includes("patrocinadores atualizados")) {
@@ -524,6 +602,7 @@ export default function Historico() {
               { value: "sponsor_linked", label: "Vinculações", group: "Arte", pinned: true },
               { value: "thumb_uploaded", label: "Thumbs enviados", group: "Arte", pinned: true },
               { value: "item_sent", label: "Enviados p/ aprovação", group: "Arte", pinned: true },
+              { value: "book_sent", label: "Envio de book", group: "Arte", pinned: true },
               { value: "final_file_added", label: "Arq. finais adicionados", group: "Arte", pinned: true },
               { value: "item_dispensed", label: "Dispensados", group: "Arte", pinned: true },
               { value: "sponsor_approved", label: "Pat. aprovou", group: "Aprovação", pinned: true },
@@ -531,7 +610,10 @@ export default function Historico() {
               { value: "item_released", label: "Lib. p/ produção", group: "Aprovação", pinned: true },
               { value: "item_approved", label: "Itens liberados", group: "Produção", pinned: true },
               { value: "production_started", label: "Em produção", group: "Produção", pinned: true },
+              { value: "item_conferred", label: "Conferências", group: "Produção", pinned: true },
               { value: "item_delivered", label: "Entregas", group: "Produção", pinned: true },
+              { value: "item_returned", label: "Devolvidas p/ Arte", group: "Aprovação", pinned: true },
+              { value: "item_canceled", label: "Canceladas", group: "Criação", pinned: true },
             ]}
             searchPlaceholder="Buscar ação..." emptyText="Nenhuma ação encontrada."
             testId="select-action-filter" triggerStyle={selectStyle}

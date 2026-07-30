@@ -2230,9 +2230,9 @@ export default function Atendimento() {
                         const isNewVersion = appr?.status === 'new_version_pending';
                         const c = sp.color || '#94a3b8';
                         const statusLabel = isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando';
-                        const statusColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#78716c';
-                        const statusBg    = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
-                        const statusBorder= isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e7e5e4';
+                        const statusColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#92400e';
+                        const statusBg    = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#fff7ed';
+                        const statusBorder= isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#fed7aa';
                         const dotColor    = isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db';
                         return (
                           <div key={sp.id} style={{ padding: '14px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -2273,7 +2273,6 @@ export default function Atendimento() {
                               {isNewVersion && <span style={{ fontSize: 11, color: '#92400e' }}>Nova versão de arte solicitada</span>}
                               {!appr && <span style={{ fontSize: 11, color: '#a8a29e' }}>Aguardando resposta do patrocinador</span>}
                             </div>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0, marginTop: 5 }} />
                           </div>
                         );
                       })
@@ -2281,7 +2280,7 @@ export default function Atendimento() {
                 </div>
                 {/* Footer */}
                 <div style={{ padding: '12px 24px', borderTop: '1px solid #f0ede8', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={() => setHistDetailItem(null)} style={{ height: 36, padding: '0 20px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Fechar</button>
+                  <button onClick={() => setHistDetailItem(null)} style={{ height: 36, padding: '0 20px', borderRadius: 8, background: '#1c1917', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: 13, fontWeight: 700, letterSpacing: '0.01em' }}>Fechar</button>
                 </div>
               </>
             );

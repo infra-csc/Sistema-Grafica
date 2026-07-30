@@ -1604,7 +1604,6 @@ export default function Atendimento() {
                     return (
                       <Fragment key={item.id}>
                         {showGroupHeader && (
-                        {showGroupHeader && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0 4px', marginTop: 4 }}>
                             <div style={{ width: 3, height: 16, borderRadius: 2, background: '#f97316', flexShrink: 0 }} />
                             <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
@@ -1617,6 +1616,7 @@ export default function Atendimento() {
                             <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
                           </div>
                         )}
+                      <div
                         key={`card-${item.id}`}
                         data-testid={`row-item-${item.id}`}
                         className="group"

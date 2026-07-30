@@ -97,10 +97,13 @@ export function SponsorChips({
         // O chip mantém SEMPRE a cor do patrocinador (identidade da marca).
         // O status vai num selo à direita, com cor própria de status — assim
         // não se confunde a cor da marca com a decisão.
+        // Quando há decisão do patrocinador, a COR do chip comunica o status
+        // (verde aprovado, vermelho reprovado, cinza sem ação) — não a cor da
+        // marca, que aqui confundiria com a decisão.
         const st = s.approvalStatus;
-        const stStyle = st === "approved" ? { color: "#15803d", bg: "#f0fdf4", mark: "aprovado", title: "Aprovado" }
-          : st === "rejected" ? { color: "#b91c1c", bg: "#fef2f2", mark: "reprovado", title: "Reprovado" }
-          : st === "pending" ? { color: "#78716c", bg: "#f5f5f4", mark: "sem ação", title: "Sem ação do patrocinador" }
+        const stStyle = st === "approved" ? { color: "#15803d", bg: "#f0fdf4", bd: "#bbf7d0", title: "Aprovado" }
+          : st === "rejected" ? { color: "#b91c1c", bg: "#fef2f2", bd: "#fecaca", title: "Reprovado" }
+          : st === "pending" ? { color: "#78716c", bg: "#f5f5f4", bd: "#e7e5e4", title: "Sem ação do patrocinador" }
           : null;
         return (
           <span
@@ -110,39 +113,19 @@ export function SponsorChips({
               display: "inline-flex",
               alignItems: "center",
               gap: 4,
-              backgroundColor: bg,
-              color,
-              border,
+              backgroundColor: stStyle ? stStyle.bg : bg,
+              color: stStyle ? stStyle.color : color,
+              border: stStyle ? `1px solid ${stStyle.bd}` : border,
               borderRadius: chip.borderRadius,
               whiteSpace: "nowrap",
               ...sz,
             }}
           >
-            {useColor && (
-              <span style={{
-                width: 5, height: 5, borderRadius: "50%",
-                background: c!, flexShrink: 0, display: "inline-block",
-              }} />
-            )}
+            <span style={{
+              width: 5, height: 5, borderRadius: "50%", flexShrink: 0, display: "inline-block",
+              background: stStyle ? stStyle.color : (useColor ? c! : "transparent"),
+            }} />
             {s.name}
-            {stStyle && (
-              <span style={{
-                color: stStyle.color,
-                backgroundColor: stStyle.bg,
-                border: `1px solid ${stStyle.color}33`,
-                borderRadius: 3,
-                fontSize: Math.max(8, (sz.fontSize as number) - 1),
-                fontWeight: 700,
-                lineHeight: 1,
-                padding: "1px 4px",
-                marginLeft: 2,
-                flexShrink: 0,
-                textTransform: "uppercase",
-                letterSpacing: "0.02em",
-              }}>
-                {stStyle.mark}
-              </span>
-            )}
           </span>
         );
       })}

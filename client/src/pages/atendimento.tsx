@@ -2027,24 +2027,6 @@ export default function Atendimento() {
                                 </span>
                               </div>
                             )}
-                            {item.finalFileUrl && (
-                              <a
-                                href={item.finalFileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                title="Baixar arquivo final"
-                                download
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                  width: 32, height: 32, borderRadius: 8, border: '1px solid #e7e5e4',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  color: '#78716c', textDecoration: 'none', background: '#fafaf9',
-                                  flexShrink: 0, cursor: 'pointer',
-                                }}
-                              >
-                                <Download style={{ width: 14, height: 14 }} />
-                              </a>
-                            )}
                           </div>
                         </div>
 

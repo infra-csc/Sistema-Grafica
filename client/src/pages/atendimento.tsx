@@ -1154,7 +1154,7 @@ export default function Atendimento() {
                 label="Evento"
                 allLabel={batchSponsorId
                   ? (batchEligibleEvents.length > 0 ? `${batchEligibleEvents.length} evento${batchEligibleEvents.length !== 1 ? 's' : ''} disponível${batchEligibleEvents.length !== 1 ? 'is' : ''}` : 'Nenhum evento')
-                  : 'Selecione um patrocinador primeiro'}
+                  : 'Selecione o patrocinador antes'}
                 value={batchEventId || "all"}
                 onChange={v => {
                   const next = v === "all" ? "" : v;

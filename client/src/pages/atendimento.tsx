@@ -1962,13 +1962,18 @@ export default function Atendimento() {
                     : item.status === 'ready_for_production' ? '#2563eb'
                     : '#e5e7eb';
 
-                  // Pipeline de fluxo
+                  // Pipeline de fluxo (10 etapas)
                   const PIPELINE_STAGES = [
-                    { key: 'solicitado',  label: 'Solicitado',  statuses: ['awaiting_submission','awaiting_sponsor_approval','draft','requested','solicitado'] },
-                    { key: 'aprovado',    label: 'Aprovado',    statuses: ['sponsor_approved'] },
-                    { key: 'arte',        label: 'Arte',        statuses: ['awaiting_creator_review','awaiting_final_review','awaiting_finalization','awaiting_linking','in_review'] },
-                    { key: 'producao',    label: 'Produção',    statuses: ['ready_for_production','inProduction','in_production','produced','liberado','pronto_para_producao','em_producao','produzido'] },
-                    { key: 'entregue',    label: 'Entregue',    statuses: ['conferred','delivered','entregue','conferido'] },
+                    { key: 'solicitado',   label: 'Solicitado',      color: '#f97316', statuses: ['draft','requested','solicitado'] },
+                    { key: 'vinculacao',   label: 'Vinculação',      color: '#78716c', statuses: ['awaiting_linking'] },
+                    { key: 'ag_aprovacao', label: 'Ag. Aprovação',   color: '#f97316', statuses: ['awaiting_submission','awaiting_approval','awaiting_sponsor_approval'] },
+                    { key: 'aprovado',     label: 'Aprovado',        color: '#22c55e', statuses: ['sponsor_approved'] },
+                    { key: 'finalizacao',  label: 'Finalização',     color: '#a855f7', statuses: ['awaiting_finalization','awaiting_creator_review'] },
+                    { key: 'revisao',      label: 'Revisão',         color: '#d946ef', statuses: ['awaiting_final_review'] },
+                    { key: 'pronto',       label: 'Pronto p/ Prod.', color: '#10b981', statuses: ['ready_for_production','pronto_para_producao','approved','liberado'] },
+                    { key: 'producao',     label: 'Em Produção',     color: '#f59e0b', statuses: ['inProduction','in_production','em_producao'] },
+                    { key: 'produzido',    label: 'Produzido',       color: '#ec4899', statuses: ['produced','produzido'] },
+                    { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: ['conferred','conferido','delivered','entregue'] },
                   ];
                   const pipelineIdx = PIPELINE_STAGES.findIndex(s => s.statuses.includes(item.status));
                   const currentPipelineIdx = pipelineIdx === -1 ? 0 : pipelineIdx;
@@ -2079,43 +2084,58 @@ export default function Atendimento() {
                         )}
 
                         {/* ── Pipeline de fluxo ── */}
-                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 0, minHeight: 36 }}>
-                          {PIPELINE_STAGES.map((stage, si) => {
-                            const isDone    = si < currentPipelineIdx;
-                            const isCurrent = si === currentPipelineIdx;
-                            const color = isCurrent
-                              ? stage.key === 'entregue'  ? '#7c3aed'
-                              : stage.key === 'producao'  ? '#2563eb'
-                              : stage.key === 'arte'      ? '#c2410c'
-                              : stage.key === 'aprovado'  ? '#15803d'
-                              : '#78716c'
-                              : isDone ? '#a8a29e' : '#d4d0ca';
-                            return (
-                              <Fragment key={stage.key}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '10px 16px 12px' }}>
+                          {/* linha de dots + conectores */}
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+                            {PIPELINE_STAGES.map((stage, si) => {
+                              const isDone    = si < currentPipelineIdx;
+                              const isCurrent = si === currentPipelineIdx;
+                              const stageColor = isCurrent ? (stage as any).color || '#78716c' : isDone ? '#c4bfb8' : '#e5e0da';
+                              return (
+                                <Fragment key={stage.key}>
                                   <div style={{
-                                    width: isCurrent ? 8 : 6, height: isCurrent ? 8 : 6,
+                                    width: isCurrent ? 12 : isDone ? 8 : 7,
+                                    height: isCurrent ? 12 : isDone ? 8 : 7,
                                     borderRadius: '50%',
-                                    background: isCurrent ? color : isDone ? '#d4d0ca' : '#ede9e6',
-                                    border: isCurrent ? `2px solid ${color}` : 'none',
-                                    boxShadow: isCurrent ? `0 0 0 3px ${color}22` : 'none',
                                     flexShrink: 0,
+                                    background: isCurrent ? stageColor : isDone ? '#c4bfb8' : '#ede9e4',
+                                    border: isCurrent ? `2px solid ${stageColor}` : 'none',
+                                    boxShadow: isCurrent ? `0 0 0 3px ${stageColor}30` : 'none',
                                     transition: 'all 0.15s',
+                                    zIndex: 1,
                                   }} />
-                                  <span style={{
-                                    fontSize: isCurrent ? 11 : 10,
-                                    fontWeight: isCurrent ? 800 : 500,
-                                    color: isCurrent ? color : isDone ? '#a8a29e' : '#d4d0ca',
-                                    whiteSpace: 'nowrap',
-                                    letterSpacing: isCurrent ? '-0.01em' : undefined,
-                                  }}>{stage.label}</span>
-                                </div>
-                                {si < PIPELINE_STAGES.length - 1 && (
-                                  <div style={{ flex: 1, height: 1, background: si < currentPipelineIdx ? '#d4d0ca' : '#ede9e6', margin: '0 6px', minWidth: 10 }} />
-                                )}
-                              </Fragment>
-                            );
-                          })}
+                                  {si < PIPELINE_STAGES.length - 1 && (
+                                    <div style={{ flex: 1, height: 2, background: si < currentPipelineIdx ? '#c4bfb8' : '#ede9e4', borderRadius: 1 }} />
+                                  )}
+                                </Fragment>
+                              );
+                            })}
+                          </div>
+                          {/* labels abaixo dos dots */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                            {PIPELINE_STAGES.map((stage, si) => {
+                              const isDone    = si < currentPipelineIdx;
+                              const isCurrent = si === currentPipelineIdx;
+                              const stageColor = isCurrent ? (stage as any).color || '#78716c' : isDone ? '#a8a29e' : '#d4d0ca';
+                              return (
+                                <Fragment key={stage.key}>
+                                  <div style={{ display: 'flex', justifyContent: 'center', flexShrink: 0, width: isCurrent ? 12 : isDone ? 8 : 7 }}>
+                                    <span style={{
+                                      fontSize: isCurrent ? 10 : 9,
+                                      fontWeight: isCurrent ? 800 : 500,
+                                      color: stageColor,
+                                      whiteSpace: 'nowrap',
+                                      lineHeight: 1.2,
+                                      transform: 'translateX(-50%)',
+                                      display: 'block',
+                                      paddingLeft: '50%',
+                                    }}>{stage.label}</span>
+                                  </div>
+                                  {si < PIPELINE_STAGES.length - 1 && <div style={{ flex: 1 }} />}
+                                </Fragment>
+                              );
+                            })}
+                          </div>
                         </div>
 
                         {/* ── Chips de patrocinadores ── */}

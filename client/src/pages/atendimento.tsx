@@ -1604,16 +1604,19 @@ export default function Atendimento() {
                     return (
                       <Fragment key={item.id}>
                         {showGroupHeader && (
+                        {showGroupHeader && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0 4px', marginTop: 4 }}>
                             <div style={{ width: 3, height: 16, borderRadius: 2, background: '#f97316', flexShrink: 0 }} />
                             <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
                             <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
+                          </div>
+                        )}
                         {showTypeHeader && (
-                          <div style={{ backgroundColor: '#f0ede8', borderRadius: 6, padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 2px' }}>
                             <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{item.type}</span>
                             <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
-                      <div
+                          </div>
+                        )}
                         key={`card-${item.id}`}
                         data-testid={`row-item-${item.id}`}
                         className="group"
@@ -1697,7 +1700,7 @@ export default function Atendimento() {
                               {loadingSponsors ? (
                                 <span style={{ fontSize: 12, color: '#a8a29e' }}>...</span>
                               ) : (
-                                <SponsorChips sponsors={itemSps} variant="gray" size="sm" />
+                                <SponsorChips sponsors={itemSps} variant="colored" size="sm" />
                               )}
                             </div>
 
@@ -1831,7 +1834,7 @@ export default function Atendimento() {
                               <h5 style={{ fontSize: 13, fontWeight: 600, color: '#78716c', margin: 0 }}>{item.type}</h5>
                               <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0' }}>{item.displayId}</p>
                             </div>
-                            <SponsorChips sponsors={itemSps} variant="gray" size="sm" />
+                            <SponsorChips sponsors={itemSps} variant="colored" size="sm" />
                             <span data-testid={`badge-aprovado-${item.id}`} style={{
                               display: 'inline-flex', alignItems: 'center', gap: 4,
                               fontSize: 10, fontWeight: 700, color: '#15803d',

@@ -9,7 +9,7 @@ interface Sponsor {
 interface SponsorChipsProps {
   sponsors: Sponsor[];
   max?: number;
-  variant?: "orange" | "gray" | "plain" | "dark";
+  variant?: "orange" | "gray" | "plain" | "dark" | "colored";
   size?: "xs" | "sm" | "md";
   emptyText?: string;
 }
@@ -27,6 +27,9 @@ const VARIANT_STYLES = {
   dark: {
     bg: "#292524", color: "#e7e5e4", border: "1px solid #44403c", borderRadius: 4,
   },
+  colored: {
+    bg: "#f5f5f4", color: "#57534e", border: "1px solid #e7e5e4", borderRadius: 4,
+  },
 };
 
 const SIZE_STYLES = {
@@ -36,11 +39,21 @@ const SIZE_STYLES = {
 };
 
 const OVERFLOW_STYLES = {
-  orange: { bg: "#fed7aa", color: "#92400e" },
-  gray:   { bg: "#e7e5e4", color: "#78716c" },
-  plain:  { bg: "#e2e8f0", color: "#64748b" },
-  dark:   { bg: "#44403c", color: "#a8a29e" },
+  orange:  { bg: "#fed7aa", color: "#92400e" },
+  gray:    { bg: "#e7e5e4", color: "#78716c" },
+  plain:   { bg: "#e2e8f0", color: "#64748b" },
+  dark:    { bg: "#44403c", color: "#a8a29e" },
+  colored: { bg: "#e7e5e4", color: "#78716c" },
 };
+
+/** Convert a hex color to rgba with given alpha */
+function hexToRgba(hex: string, alpha: number) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 export function SponsorChips({
   sponsors,
@@ -73,22 +86,37 @@ export function SponsorChips({
       style={{ display: "flex", flexWrap: "wrap", gap: 3, alignItems: "center" }}
       title={allNames}
     >
-      {visible.map(s => (
-        <span
-          key={s.id}
-          style={{
-            display: "inline-block",
-            backgroundColor: chip.bg,
-            color: chip.color,
-            border: chip.border,
-            borderRadius: chip.borderRadius,
-            whiteSpace: "nowrap",
-            ...sz,
-          }}
-        >
-          {s.name}
-        </span>
-      ))}
+      {visible.map(s => {
+        const c = s.color && s.color.startsWith("#") ? s.color : null;
+        const useColor = variant === "colored" && c;
+        const bg     = useColor ? hexToRgba(c!, 0.10) : chip.bg;
+        const color  = useColor ? c! : chip.color;
+        const border = useColor ? `1px solid ${hexToRgba(c!, 0.30)}` : chip.border;
+        return (
+          <span
+            key={s.id}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              backgroundColor: bg,
+              color,
+              border,
+              borderRadius: chip.borderRadius,
+              whiteSpace: "nowrap",
+              ...sz,
+            }}
+          >
+            {useColor && (
+              <span style={{
+                width: 5, height: 5, borderRadius: "50%",
+                background: c!, flexShrink: 0, display: "inline-block",
+              }} />
+            )}
+            {s.name}
+          </span>
+        );
+      })}
       {!showAll && overflow > 0 && (
         <button
           onClick={e => { e.stopPropagation(); setShowAll(true); }}

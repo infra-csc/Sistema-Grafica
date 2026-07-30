@@ -38,15 +38,6 @@ const PRESET_COLORS = [
 
 const PAGE_SIZE = 20;
 
-const QUOTA_OPTIONS = [
-  { value: "MASTER",     label: "Master",      color: "#ef4444" },
-  { value: "GOLD",       label: "Gold",        color: "#1d4ed8" },
-  { value: "SILVER",     label: "Silver",      color: "#7c3aed" },
-  { value: "APOIO",      label: "Apoio",       color: "#6b7280" },
-  { value: "MIDIA",      label: "Mídia",       color: "#0891b2" },
-  { value: "MINISTERIO", label: "Ministério",  color: "#059669" },
-];
-
 const sponsorSchema = z.object({
   name:          z.string().min(1, "Nome obrigatório"),
   email:         z.string().email("Email inválido").optional().or(z.literal("")),
@@ -67,7 +58,7 @@ export default function Patrocinadores() {
   const [search, setSearch]                   = useState("");
   const [page, setPage]                       = useState(1);
   const [hoveredRow, setHoveredRow]           = useState<string | null>(null);
-  const [sortBy, setSortBy]                   = useState<"name" | "company" | "quota" | "executive" | "events">("name");
+  const [sortBy, setSortBy]                   = useState<"name" | "company" | "executive" | "events">("name");
   const [sortDir, setSortDir]                 = useState<"asc" | "desc">("asc");
   const [execFilter, setExecFilter]           = useState<string>("all");
   const { toast } = useToast();
@@ -180,7 +171,6 @@ export default function Patrocinadores() {
       }
       const val = (s: Sponsor) =>
         sortBy === "company" ? (s.company || "")
-        : sortBy === "quota" ? (s.quota || "")
         : sortBy === "executive" ? execName(s)
         : s.name;
       const cmp = val(a).localeCompare(val(b), "pt-BR", { sensitivity: "base" });
@@ -318,7 +308,6 @@ export default function Patrocinadores() {
                     { key: "name", label: "Nome do Patrocinador" },
                     { key: "company", label: "Empresa" },
                     { key: "executive", label: "Executivo Responsável" },
-                    { key: "quota", label: "Cota" },
                     { key: "events", label: "Eventos" },
                   ] as const).map(col => (
                     <th
@@ -389,20 +378,6 @@ export default function Patrocinadores() {
                         ) : (
                           <span style={{ color: T.muted, fontStyle: "italic", fontSize: 12 }}>não atribuído</span>
                         )}
-                      </td>
-
-                      {/* Cota */}
-                      <td style={{ padding: "16px 20px" }}>
-                        {(() => {
-                          const q = QUOTA_OPTIONS.find(o => o.value === sponsor.quota);
-                          return q ? (
-                            <span style={{
-                              fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
-                              color: q.color, backgroundColor: `${q.color}14`, border: `1px solid ${q.color}33`,
-                              borderRadius: 4, padding: "2px 8px", whiteSpace: "nowrap",
-                            }}>{q.label}</span>
-                          ) : <span style={{ color: T.muted, fontStyle: "italic", fontSize: 12 }}>—</span>;
-                        })()}
                       </td>
 
                       {/* Eventos / peças vinculados */}
@@ -566,25 +541,11 @@ export default function Patrocinadores() {
                         )} />
                       </div>
 
-                      {/* Cota + Executivo responsável */}
+                      {/* Executivo responsável (a cota é definida por evento, em Configurar Cotas) */}
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
-                        <FormField control={form.control} name="quota" render={({ field }) => (
-                          <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Cota</label>
-                            <FormControl>
-                              <select {...field} data-testid="select-quota" style={{ ...tiInput, cursor: "pointer" }}>
-                                <option value="">Sem cota definida</option>
-                                {QUOTA_OPTIONS.map(q => (
-                                  <option key={q.value} value={q.value}>{q.label}</option>
-                                ))}
-                              </select>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
                         <FormField control={form.control} name="accountExecutiveId" render={({ field }) => (
                           <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Executivo Responsável</label>
+                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Executivo responsável (interno)</label>
                             <FormControl>
                               <select {...field} data-testid="select-account-executive" style={{ ...tiInput, cursor: "pointer" }}>
                                 <option value="">Não atribuído</option>
@@ -651,13 +612,13 @@ export default function Patrocinadores() {
 
                     {/* ─ 03 Contato Executivo ─ */}
                     <section>
-                      {sectionLabel("03", "Contato Executivo")}
+                      {sectionLabel("03", "Contato no Patrocinador")}
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                         <FormField control={form.control} name="contactPerson" render={({ field }) => (
                           <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Pessoa de Contato</label>
+                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Pessoa de contato (lado do patrocinador)</label>
                             <FormControl>
-                              <input {...field} placeholder="Nome do Gerente de Conta" data-testid="input-contact-person"
+                              <input {...field} placeholder="Ex.: gerente de marketing do patrocinador" data-testid="input-contact-person"
                                 style={tiInput}
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}

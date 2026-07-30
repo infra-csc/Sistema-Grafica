@@ -36,6 +36,18 @@ export default function Arte() {
   // Persiste a aba ativa para não voltar ao padrão ao abrir uma peça e retornar.
   const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
   useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
+
+  // Trocar de aba troca a lista inteira; manter o scroll onde estava deixava o
+  // usuário no meio da tabela nova, sem ver o cabeçalho. Sempre volta ao topo.
+  const changeTab = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      document.querySelectorAll<HTMLElement>("main, [data-scroll-root]").forEach(el => {
+        if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+  }, []);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
   const [finalPreviewUrl] = useState<string>(""); // reservado para uso futuro (sem upload por ora)
   const [finalFileName, setFinalFileName] = useState<string>("");
@@ -1978,7 +1990,7 @@ export default function Arte() {
               return (
                 <div
                   key={stat.testId}
-                  onClick={() => targetTab && setActiveTab(targetTab)}
+                  onClick={() => targetTab && changeTab(targetTab)}
                   data-testid={stat.testId}
                   style={{
                     flex: 1, padding: '14px 16px 12px', borderRadius: 12,
@@ -2133,7 +2145,7 @@ export default function Arte() {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => changeTab(tab.id)}
                     data-testid={tab.testId}
                     style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent', marginBottom: -1, background: isActive ? `${accent}0d` : 'transparent', color: isActive ? accent : '#78716c', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s' }}
                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}

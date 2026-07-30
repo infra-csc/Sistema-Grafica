@@ -1127,16 +1127,10 @@ export default function Atendimento() {
 
           <div style={{ padding: '24px 28px' }}>
             {/* ── Seletores: Patrocinador + Evento ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
 
               {/* Patrocinador */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#78716c', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ width: 16, height: 16, borderRadius: '50%', background: batchSponsorId ? '#22c55e' : '#e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: '#fff', flexShrink: 0 }}>
-                    {batchSponsorId ? <Check style={{ width: 9, height: 9 }} /> : '1'}
-                  </span>
-                  Patrocinador
-                </label>
+              <div style={{ flex: 1 }}>
                 {(() => {
                   const sortedEligible = [...batchEligibleSponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'));
                   const selSponsor = sortedEligible.find((s: any) => s.id === batchSponsorId);
@@ -1146,13 +1140,15 @@ export default function Atendimento() {
                         <button
                           data-testid="select-batch-sponsor"
                           style={{
-                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            background: selSponsor ? '#fff7ed' : '#ffffff',
-                            border: `1.5px solid ${selSponsor ? '#fb923c' : '#e7e5e4'}`,
-                            color: selSponsor ? '#9a3412' : '#a8a29e',
-                            borderRadius: 10, padding: '11px 14px',
-                            fontSize: 13, fontWeight: selSponsor ? 700 : 400,
-                            cursor: 'pointer', outline: 'none', transition: 'border-color 0.15s',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                            height: 36, padding: '0 10px 0 12px',
+                            backgroundColor: selSponsor ? '#fff7ed' : '#ffffff',
+                            border: selSponsor ? '1.5px solid #fb923c' : '1px solid #e2e8f0',
+                            color: selSponsor ? '#c2410c' : '#1c1917',
+                            borderRadius: 7,
+                            fontSize: 13, fontWeight: selSponsor ? 600 : 400,
+                            cursor: 'pointer', outline: 'none', transition: 'background 0.15s, border 0.15s, color 0.15s',
+                            width: '100%',
                           }}
                         >
                           <span style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
@@ -1199,13 +1195,7 @@ export default function Atendimento() {
               </div>
 
               {/* Evento */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: batchSponsorId ? '#78716c' : '#c4bfbb', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ width: 16, height: 16, borderRadius: '50%', background: batchEventId ? '#22c55e' : batchSponsorId ? '#f97316' : '#e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: '#fff', flexShrink: 0 }}>
-                    {batchEventId ? <Check style={{ width: 9, height: 9 }} /> : '2'}
-                  </span>
-                  Evento
-                </label>
+              <div style={{ flex: 1 }}>
                 {(() => {
                   const selEvent = batchEligibleEvents.find((e: any) => e.id === batchEventId);
                   return (
@@ -1215,14 +1205,16 @@ export default function Atendimento() {
                           data-testid="select-batch-event"
                           disabled={!batchSponsorId}
                           style={{
-                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            background: selEvent ? '#f0fdf4' : '#ffffff',
-                            border: `1.5px solid ${selEvent ? '#86efac' : batchSponsorId ? '#e7e5e4' : '#f0ede8'}`,
-                            color: selEvent ? '#166534' : batchSponsorId ? '#a8a29e' : '#d4d0cd',
-                            borderRadius: 10, padding: '11px 14px',
-                            fontSize: 13, fontWeight: selEvent ? 700 : 400,
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+                            height: 36, padding: '0 10px 0 12px',
+                            backgroundColor: selEvent ? '#f0fdf4' : '#ffffff',
+                            border: selEvent ? '1.5px solid #86efac' : batchSponsorId ? '1px solid #e2e8f0' : '1px solid #f0ede8',
+                            color: selEvent ? '#166534' : batchSponsorId ? '#1c1917' : '#c4bfb8',
+                            borderRadius: 7,
+                            fontSize: 13, fontWeight: selEvent ? 600 : 400,
                             cursor: batchSponsorId ? 'pointer' : 'not-allowed', outline: 'none',
-                            opacity: batchSponsorId ? 1 : 0.55, transition: 'all 0.15s',
+                            opacity: batchSponsorId ? 1 : 0.55, transition: 'background 0.15s, border 0.15s, color 0.15s',
+                            width: '100%',
                           }}
                         >
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

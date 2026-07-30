@@ -37,6 +37,7 @@ interface FilterSelectProps {
   showAllLabelWhenEmpty?: boolean;
   disabled?: boolean;
   dropdownAlign?: "left" | "right";
+  hideClear?: boolean;
 }
 
 export function FilterSelect({
@@ -59,6 +60,7 @@ export function FilterSelect({
   showAllLabelWhenEmpty = false,
   disabled = false,
   dropdownAlign = "left",
+  hideClear = false,
 }: FilterSelectProps) {
   const multiple = values !== undefined && onValuesChange !== undefined;
   const [open, setOpen] = useState(false);
@@ -281,7 +283,7 @@ export function FilterSelect({
         )}
 
         {/* Botão X — limpar */}
-        {isActive && (
+        {isActive && !hideClear && (
           <span
             role="button"
             onClick={e => {

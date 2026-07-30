@@ -1148,6 +1148,7 @@ export default function Atendimento() {
                 showAllLabelWhenEmpty
                 testId="select-batch-sponsor"
                 panelWidth={280}
+                hideClear
               />
               <FilterSelect
                 label="Evento"
@@ -1169,6 +1170,7 @@ export default function Atendimento() {
                 disabled={!batchSponsorId}
                 testId="select-batch-event"
                 panelWidth={300}
+                hideClear
               />
             </div>
 

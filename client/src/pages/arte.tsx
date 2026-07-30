@@ -819,14 +819,22 @@ export default function Arte() {
     const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
     if (!toProcess.length) return;
     setBulkThumbRunning(true);
+    let enviados = 0, salvos = 0;
     for (const entry of toProcess) {
       setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
       try {
         const localPath = await uploadFileRaw(entry.file);
-        if (send) {
+        // "Enviar para aprovação" só vale para peças aguardando envio. Para as
+        // demais (ex.: em correção) o thumb é apenas salvo — antes a tela tentava
+        // enviar mesmo assim e o servidor recusava com erro de status.
+        const alvo = [...allItems, ...correcaoItems].find((i: any) => i.id === entry.matchedItemId);
+        const podeEnviar = send && alvo?.status === 'awaiting_submission';
+        if (podeEnviar) {
           await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
+          enviados++;
         } else {
           await apiRequest("PATCH", `/api/items/${entry.matchedItemId}`, { approvalThumbUrl: localPath });
+          salvos++;
         }
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e));
       } catch (err: any) {
@@ -836,10 +844,13 @@ export default function Arte() {
     setBulkThumbRunning(false);
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
     queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
-    toast(send
-      ? { title: "Upload em lote concluído", description: `${toProcess.length} thumb(s) enviados para aprovação` }
-      : { title: "Thumbs salvos", description: `${toProcess.length} thumb(s) salvos sem enviar. Envie quando quiser.` });
-  }, [bulkThumbEntries, uploadFileRaw]);
+    queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
+    const partes = [
+      enviados ? `${enviados} enviado(s) para aprovação` : "",
+      salvos ? `${salvos} thumb(s) salvo(s)` : "",
+    ].filter(Boolean).join(" · ");
+    toast({ title: "Upload em lote concluído", description: partes || "Nada a processar" });
+  }, [bulkThumbEntries, uploadFileRaw, allItems, correcaoItems]);
 
   const handleBulkThumbUpload = useCallback(() => runBulkThumb(true), [runBulkThumb]);
   const handleBulkThumbSaveDraft = useCallback(() => runBulkThumb(false), [runBulkThumb]);
@@ -3230,8 +3241,14 @@ export default function Arte() {
                   {/* ── 2-column card grid ── */}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignContent: 'start' }}>
                     {bulkThumbEntries.map(entry => {
-                      const pendingPool = allItems.filter((i: any) => {
-                        if (i.status !== 'awaiting_submission') return false;
+                      // Peças que podem receber thumb: as que aguardam envio e as
+                      // que voltaram para correção. Antes só a primeira entrava, e
+                      // quem estava em correção não aparecia para vincular.
+                      const pendingPool = [...allItems, ...correcaoItems].filter((i: any, idx: number, arr: any[]) => {
+                        if (arr.findIndex((x: any) => x.id === i.id) !== idx) return false; // dedup
+                        const podeReceberThumb = i.status === 'awaiting_submission'
+                          || (correcaoItems as any[]).some((c: any) => c.id === i.id);
+                        if (!podeReceberThumb) return false;
                         if (bulkThumbEventFilter !== "all" && i.eventId !== bulkThumbEventFilter) return false;
                         return true;
                       });
@@ -3388,8 +3405,14 @@ export default function Arte() {
                                           <CommandList style={{ maxHeight: 280 }}>
                                             <CommandEmpty>Nenhuma peça encontrada.</CommandEmpty>
                                             {pendingPool.length === 0 && (
-                                              <div style={{ padding: '12px 16px', fontSize: 11, color: '#f97316', fontWeight: 600 }}>
-                                                Nenhuma peça aguardando{bulkThumbEventFilter !== "all" ? " neste evento" : ""}
+                                              <div style={{ padding: '12px 16px', fontSize: 11, color: '#b45309', fontWeight: 600, lineHeight: 1.5 }}>
+                                                Nenhuma peça pronta para receber thumb
+                                                {bulkThumbEventFilter !== "all" ? " neste evento" : ""}.
+                                                <span style={{ display: 'block', fontWeight: 500, color: '#78716c', marginTop: 4 }}>
+                                                  Só aparecem peças aguardando envio ou em correção. Se a peça é nova,
+                                                  ela precisa passar antes por <b>Vincular Patrocinadores</b>.
+                                                  {bulkThumbEventFilter !== "all" && " Você também pode trocar o filtro de evento para 'Todos'."}
+                                                </span>
                                               </div>
                                             )}
                                             {entry.matchedItemId && (

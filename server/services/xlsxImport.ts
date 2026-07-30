@@ -404,11 +404,14 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
       );
       // Log por peça: sem ele o histórico não encontra o autor da peça
       // (procura por itemId) e acaba exibindo o fallback "Sistema".
-      for (const it of created) {
-        await createAuditLog(
-          (req as any).userName, 'created', 'item', it.id,
-          `Item "${it.type}" importado via Excel - Qtd: ${it.quantity}`
-        );
+      // Em lotes para não abrir uma conexão por peça numa importação grande.
+      for (let i = 0; i < created.length; i += 10) {
+        await Promise.all(created.slice(i, i + 10).map(it =>
+          createAuditLog(
+            (req as any).userName, 'created', 'item', it.id,
+            `Item "${it.type}" importado via Excel - Qtd: ${it.quantity}`
+          )
+        ));
       }
       const notification = await storage.createNotification({
         type: "itemAdded",

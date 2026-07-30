@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import compression from "compression";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
@@ -62,6 +63,9 @@ async function seedUsers() {
 
 const app = express();
 app.set("trust proxy", 1); // Replit sits behind a reverse proxy — needed for secure cookies
+// Compressão gzip: as listagens (itens, audit-logs) são JSON grande e repetitivo,
+// que comprime ~10x. Sem isto cada navegação baixava megabytes.
+app.use(compression());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false, limit: "2mb" }));
 

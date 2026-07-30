@@ -145,7 +145,11 @@ export const items = pgTable("items", {
   bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  // Filtros mais usados nas listagens (por evento e por status/fase).
+  index("IDX_items_event_id").on(table.eventId),
+  index("IDX_items_status").on(table.status),
+]);
 
 // Standard items (templates)
 export const standardItems = pgTable("standard_items", {
@@ -238,7 +242,12 @@ export const auditLogs = pgTable("audit_logs", {
   entityId: varchar("entity_id").notNull(),
   details: text("details"), // JSON string with change details
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  // A tabela só cresce e é lida ordenada por data (e filtrada por entidade) em
+  // várias telas — sem índice o Postgres varre e ordena tudo a cada request.
+  index("IDX_audit_logs_created_at").on(table.createdAt),
+  index("IDX_audit_logs_entity").on(table.entityType, table.entityId),
+]);
 
 // Inventory Assets table (Acervo)
 export const inventoryAssets = pgTable("inventory_assets", {

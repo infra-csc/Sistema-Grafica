@@ -1959,6 +1959,17 @@ export default function Atendimento() {
                     : item.status === 'ready_for_production' ? '#2563eb'
                     : '#e5e7eb';
 
+                  // Pipeline de fluxo
+                  const PIPELINE_STAGES = [
+                    { key: 'solicitado',  label: 'Solicitado',  statuses: ['awaiting_submission','awaiting_sponsor_approval','draft','requested','solicitado'] },
+                    { key: 'aprovado',    label: 'Aprovado',    statuses: ['sponsor_approved'] },
+                    { key: 'arte',        label: 'Arte',        statuses: ['awaiting_creator_review','awaiting_final_review','awaiting_finalization','awaiting_linking','in_review'] },
+                    { key: 'producao',    label: 'Produção',    statuses: ['ready_for_production','inProduction','in_production','produced','liberado','pronto_para_producao','em_producao','produzido'] },
+                    { key: 'entregue',    label: 'Entregue',    statuses: ['conferred','delivered','entregue','conferido'] },
+                  ];
+                  const pipelineIdx = PIPELINE_STAGES.findIndex(s => s.statuses.includes(item.status));
+                  const currentPipelineIdx = pipelineIdx === -1 ? 0 : pipelineIdx;
+
                   const timelineMilestones = [
                     item.createdAt && { dot: '#93c5fd', label: 'Criado', date: fmtDt(item.createdAt) },
                     !item.sponsorApprovedAt && lastApprovedAt && { dot: '#4ade80', label: `Últ. aprovação (${approvedOnes.length})`, date: fmtDt(lastApprovedAt), by: lastApprovedBy },
@@ -2054,6 +2065,46 @@ export default function Atendimento() {
                             ))}
                           </div>
                         )}
+
+                        {/* ── Pipeline de fluxo ── */}
+                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 0 }}>
+                          {PIPELINE_STAGES.map((stage, si) => {
+                            const isDone    = si < currentPipelineIdx;
+                            const isCurrent = si === currentPipelineIdx;
+                            const color = isCurrent
+                              ? stage.key === 'entregue'  ? '#7c3aed'
+                              : stage.key === 'producao'  ? '#2563eb'
+                              : stage.key === 'arte'      ? '#c2410c'
+                              : stage.key === 'aprovado'  ? '#15803d'
+                              : '#78716c'
+                              : isDone ? '#a8a29e' : '#d4d0ca';
+                            return (
+                              <Fragment key={stage.key}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                                  <div style={{
+                                    width: isCurrent ? 8 : 6, height: isCurrent ? 8 : 6,
+                                    borderRadius: '50%',
+                                    background: isCurrent ? color : isDone ? '#d4d0ca' : '#ede9e6',
+                                    border: isCurrent ? `2px solid ${color}` : 'none',
+                                    boxShadow: isCurrent ? `0 0 0 3px ${color}22` : 'none',
+                                    flexShrink: 0,
+                                    transition: 'all 0.15s',
+                                  }} />
+                                  <span style={{
+                                    fontSize: isCurrent ? 11 : 10,
+                                    fontWeight: isCurrent ? 800 : 500,
+                                    color: isCurrent ? color : isDone ? '#a8a29e' : '#d4d0ca',
+                                    whiteSpace: 'nowrap',
+                                    letterSpacing: isCurrent ? '-0.01em' : undefined,
+                                  }}>{stage.label}</span>
+                                </div>
+                                {si < PIPELINE_STAGES.length - 1 && (
+                                  <div style={{ flex: 1, height: 1, background: si < currentPipelineIdx ? '#d4d0ca' : '#ede9e6', margin: '0 6px', minWidth: 10 }} />
+                                )}
+                              </Fragment>
+                            );
+                          })}
+                        </div>
 
                         {/* ── Chips de patrocinadores ── */}
                         {sortedApprovals.length > 0 && (

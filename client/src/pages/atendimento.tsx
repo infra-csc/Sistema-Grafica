@@ -1125,12 +1125,12 @@ export default function Atendimento() {
             </div>
           </div>
 
-          <div style={{ padding: '24px 28px' }}>
+          <div style={{ padding: '20px 28px', background: '#fafaf9' }}>
             {/* ── Seletores: Patrocinador + Evento ── */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
 
               {/* Patrocinador */}
-              <div style={{ flex: 1 }}>
+              <div style={{ minWidth: 200, maxWidth: 280 }}>
                 {(() => {
                   const sortedEligible = [...batchEligibleSponsors].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'));
                   const selSponsor = sortedEligible.find((s: any) => s.id === batchSponsorId);
@@ -1141,7 +1141,7 @@ export default function Atendimento() {
                           data-testid="select-batch-sponsor"
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-                            height: 36, padding: '0 10px 0 12px',
+                            height: 36, minHeight: 36, padding: '0 10px 0 12px', boxSizing: 'border-box',
                             backgroundColor: selSponsor ? '#fff7ed' : '#ffffff',
                             border: selSponsor ? '1.5px solid #fb923c' : '1px solid #e2e8f0',
                             color: selSponsor ? '#c2410c' : '#1c1917',
@@ -1159,7 +1159,7 @@ export default function Atendimento() {
                               {selSponsor ? (selSponsor as any).name : 'Selecionar patrocinador...'}
                             </span>
                           </span>
-                          <ChevronsUpDown style={{ width: 13, height: 13, color: '#a8a29e', flexShrink: 0 }} />
+                          <ChevronDown style={{ width: 13, height: 13, color: '#a8a29e', flexShrink: 0 }} />
                         </button>
                       </PopoverTrigger>
                       <PopoverContent className="p-0" style={{ width: 280 }} align="start">
@@ -1195,7 +1195,7 @@ export default function Atendimento() {
               </div>
 
               {/* Evento */}
-              <div style={{ flex: 1 }}>
+              <div style={{ minWidth: 200, maxWidth: 280, flex: 1 }}>
                 {(() => {
                   const selEvent = batchEligibleEvents.find((e: any) => e.id === batchEventId);
                   return (
@@ -1206,7 +1206,7 @@ export default function Atendimento() {
                           disabled={!batchSponsorId}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-                            height: 36, padding: '0 10px 0 12px',
+                            height: 36, minHeight: 36, padding: '0 10px 0 12px', boxSizing: 'border-box',
                             backgroundColor: selEvent ? '#f0fdf4' : '#ffffff',
                             border: selEvent ? '1.5px solid #86efac' : batchSponsorId ? '1px solid #e2e8f0' : '1px solid #f0ede8',
                             color: selEvent ? '#166534' : batchSponsorId ? '#1c1917' : '#c4bfb8',
@@ -1220,7 +1220,7 @@ export default function Atendimento() {
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {selEvent ? (selEvent as any).name : batchSponsorId ? `${batchEligibleEvents.length} evento${batchEligibleEvents.length !== 1 ? 's' : ''} disponível${batchEligibleEvents.length !== 1 ? 'is' : ''}` : 'Selecione um patrocinador primeiro'}
                           </span>
-                          <ChevronsUpDown style={{ width: 13, height: 13, flexShrink: 0 }} />
+                          <ChevronDown style={{ width: 13, height: 13, color: '#a8a29e', flexShrink: 0 }} />
                         </button>
                       </PopoverTrigger>
                       <PopoverContent className="p-0" style={{ width: 300 }} align="start">

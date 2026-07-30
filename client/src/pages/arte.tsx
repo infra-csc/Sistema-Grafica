@@ -3043,21 +3043,25 @@ export default function Arte() {
           </div>
 
           {/* ── Body — 2 columns ── */}
-          <div style={{ display: 'flex', height: 560, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', height: 580, overflow: 'hidden' }}>
 
-            {/* ── Left panel (controls) ── */}
-            <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', backgroundColor: '#fafaf9' }}>
+            {/* ══════════════════════════════════════
+                Left panel — upload + controles
+            ══════════════════════════════════════ */}
+            <div style={{ width: 264, flexShrink: 0, borderRight: '1px solid #ebe8e3', display: 'flex', flexDirection: 'column', backgroundColor: '#fafaf9' }}>
 
-              {/* Drop zone */}
-              <div style={{ padding: '20px 20px 16px' }}>
+              {/* ── Drop zone ── */}
+              <div style={{ padding: '18px 18px 14px' }}>
+                <input id="bulk-thumb-input" type="file" accept="image/*" multiple style={{ display: 'none' }}
+                  onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
                 <div
                   style={{
-                    padding: '28px 16px', borderRadius: 12,
-                    background: isDragOverBulk ? '#f0fdf4' : '#ffffff',
+                    padding: '20px 12px 18px', borderRadius: 12,
+                    background: isDragOverBulk ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#ffffff',
                     border: isDragOverBulk ? '2px dashed #16a34a' : '2px dashed #d4d4d0',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer',
                     transition: 'all 0.15s',
-                    boxShadow: isDragOverBulk ? 'inset 0 0 0 3px rgba(22,163,74,0.08)' : 'none',
+                    boxShadow: isDragOverBulk ? '0 0 0 4px rgba(22,163,74,0.08)' : 'none',
                   }}
                   onDragOver={e => { e.preventDefault(); setIsDragOverBulk(true); }}
                   onDragEnter={e => { e.preventDefault(); setIsDragOverBulk(true); }}
@@ -3065,23 +3069,30 @@ export default function Arte() {
                   onDrop={e => { e.preventDefault(); setIsDragOverBulk(false); if (e.dataTransfer.files.length) handleBulkThumbFilesAdded(e.dataTransfer.files); }}
                   onClick={() => { const inp = document.getElementById('bulk-thumb-input') as HTMLInputElement; inp?.click(); }}
                 >
-                  <input id="bulk-thumb-input" type="file" accept="image/*" multiple style={{ display: 'none' }}
-                    onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
-                  <div style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: isDragOverBulk ? '#dcfce7' : '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
-                    <Upload style={{ width: 22, height: 22, color: isDragOverBulk ? '#16a34a' : '#a8a29e' }} />
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 11,
+                    background: isDragOverBulk ? 'linear-gradient(135deg,#16a34a,#15803d)' : 'linear-gradient(135deg,#f97316,#ea580c)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: isDragOverBulk ? '0 4px 12px rgba(22,163,74,0.3)' : '0 4px 12px rgba(249,115,22,0.3)',
+                    transition: 'all 0.15s',
+                  }}>
+                    <Upload style={{ width: 20, height: 20, color: '#fff' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: isDragOverBulk ? '#15803d' : '#1c1917', margin: '0 0 3px' }}>
-                      {isDragOverBulk ? 'Solte as imagens aqui' : 'Arrastar ou clicar para selecionar'}
+                    <p style={{ fontSize: 12, fontWeight: 700, color: isDragOverBulk ? '#15803d' : '#1c1917', margin: '0 0 2px' }}>
+                      {isDragOverBulk ? 'Solte aqui' : 'Arrastar ou clicar'}
                     </p>
-                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>JPG, PNG, WEBP, SVG</p>
+                    <p style={{ fontSize: 10, color: '#a8a29e', margin: 0, letterSpacing: '0.04em' }}>JPG · PNG · WEBP · SVG</p>
                   </div>
                 </div>
               </div>
 
-              {/* Event filter — combobox pesquisável */}
-              <div style={{ padding: '0 20px 16px' }}>
-                <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: '0 0 6px' }}>Filtrar itens por evento</p>
+              {/* ── Divider ── */}
+              <div style={{ margin: '0 18px', borderTop: '1px solid #ebe8e3' }} />
+
+              {/* ── Event filter ── */}
+              <div style={{ padding: '14px 18px 0' }}>
+                <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: '0 0 6px' }}>Evento</p>
                 {(() => {
                   const sortedEvts = [...(events as any[])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
                   const selEvt = sortedEvts.find(e => e.id === bulkThumbEventFilter);
@@ -3090,7 +3101,7 @@ export default function Arte() {
                       <PopoverTrigger asChild>
                         <button style={{
                           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                          height: 36, borderRadius: 8, border: '1px solid #e7e5e4',
+                          height: 34, borderRadius: 8, border: '1px solid #e7e5e4',
                           backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600,
                           color: selEvt ? '#1c1917' : '#78716c', padding: '0 10px', cursor: 'pointer', outline: 'none',
                         }}>
@@ -3125,59 +3136,67 @@ export default function Arte() {
                 })()}
               </div>
 
-              {/* Stats */}
-              {bulkThumbEntries.length > 0 && (
-                <div style={{ padding: '0 20px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#78716c', margin: 0 }}>Resumo</p>
+              {/* ── Resumo ── */}
+              <div style={{ padding: '14px 18px 0' }}>
+                <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: '0 0 8px' }}>Resumo</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {[
-                    { label: 'Vinculados', count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length, color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
-                    { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
-                    { label: 'Concluídos', count: bulkThumbEntries.filter(e => e.status === 'done').length, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-                    { label: 'Erro', count: bulkThumbEntries.filter(e => e.status === 'error').length, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+                    { label: 'Vinculados',  count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length,  dot: '#16a34a', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+                    { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, dot: '#f59e0b', color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
+                    { label: 'Concluídos', count: bulkThumbEntries.filter(e => e.status === 'done').length,   dot: '#7c3aed', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+                    { label: 'Erro',       count: bulkThumbEntries.filter(e => e.status === 'error').length,  dot: '#dc2626', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
                   ].map(s => (
-                    <div key={s.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderRadius: 8, backgroundColor: s.count > 0 ? s.bg : '#f5f5f4', border: `1px solid ${s.count > 0 ? s.border : '#e7e5e4'}` }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: s.count > 0 ? s.color : '#a8a29e' }}>{s.label}</span>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: s.count > 0 ? s.color : '#d4d4d0', fontFamily: '"Space Grotesk", sans-serif' }}>{s.count}</span>
+                    <div key={s.label} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '6px 10px', borderRadius: 7,
+                      backgroundColor: s.count > 0 ? s.bg : 'transparent',
+                      border: `1px solid ${s.count > 0 ? s.border : '#ebe8e3'}`,
+                      transition: 'all 0.15s',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: s.count > 0 ? s.dot : '#d4d4d0', flexShrink: 0 }} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: s.count > 0 ? s.color : '#a8a29e' }}>{s.label}</span>
+                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: s.count > 0 ? s.color : '#d4d4d0', fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1 }}>{s.count}</span>
                     </div>
                   ))}
                 </div>
-              )}
+              </div>
 
               {/* Spacer */}
               <div style={{ flex: 1 }} />
 
-              {/* Footer actions */}
-              <div style={{ padding: '16px 20px', borderTop: '1px solid #f0ede8', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* ── Footer actions ── */}
+              <div style={{ padding: '14px 18px', borderTop: '1px solid #ebe8e3', display: 'flex', flexDirection: 'column', gap: 7 }}>
                 {bulkThumbEntries.filter(e => e.status === 'done').length > 0 && (
                   <button
                     onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.status !== 'done'))}
-                    style={{ width: '100%', height: 34, borderRadius: 8, background: 'none', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
-                  >
-                    Limpar concluídos
-                  </button>
+                    style={{ width: '100%', height: 32, borderRadius: 7, background: 'none', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                  >Limpar concluídos</button>
                 )}
                 <button
                   onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
-                  style={{ width: '100%', height: 34, borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  style={{ width: '100%', height: 32, borderRadius: 7, background: 'transparent', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'background 0.12s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >Cancelar</button>
-                {/* Salvar thumbs sem enviar (rascunho) */}
                 <button
                   onClick={handleBulkThumbSaveDraft}
                   disabled={bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0}
                   data-testid="button-bulk-thumb-save-draft"
                   style={{
-                    width: '100%', height: 40, borderRadius: 8,
+                    width: '100%', height: 36, borderRadius: 7,
                     backgroundColor: '#ffffff',
                     border: `1.5px solid ${(bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#e7e5e4' : '#ddd6fe'}`,
                     color: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#a8a29e' : '#7c3aed',
-                    fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     cursor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? 'not-allowed' : 'pointer',
                     transition: 'all 0.15s',
                   }}
                   onMouseEnter={e => { if (!bulkThumbRunning && bulkThumbEntries.filter(x => x.matchedItemId && x.status === 'pending').length > 0) e.currentTarget.style.backgroundColor = '#faf5ff'; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                 >
-                  <FileImage style={{ width: 13, height: 13 }} />
+                  <FileImage style={{ width: 12, height: 12 }} />
                   Salvar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s) sem enviar
                 </button>
                 <button
@@ -3186,53 +3205,57 @@ export default function Arte() {
                   data-testid="button-bulk-thumb-confirm"
                   style={{
                     width: '100%', height: 42, borderRadius: 8,
-                    backgroundColor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#e7e5e4' : '#15803d',
+                    background: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0)
+                      ? '#e7e5e4' : 'linear-gradient(135deg,#16a34a,#15803d)',
                     border: 'none',
                     color: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#a8a29e' : '#ffffff',
-                    fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                     cursor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? 'not-allowed' : 'pointer',
+                    boxShadow: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? 'none' : '0 4px 12px rgba(21,128,61,0.28)',
                     transition: 'all 0.15s',
+                    letterSpacing: '-0.01em',
                   }}
-                  onMouseEnter={e => { if (!bulkThumbRunning) e.currentTarget.style.filter = 'brightness(0.9)'; }}
+                  onMouseEnter={e => { if (!bulkThumbRunning) e.currentTarget.style.filter = 'brightness(1.08)'; }}
                   onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
                 >
                   {bulkThumbRunning
-                    ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
-                    : <><Send style={{ width: 13, height: 13 }} />Enviar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s) para aprovação</>
+                    ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+                    : <><Send style={{ width: 14, height: 14 }} />Enviar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s)</>
                   }
                 </button>
               </div>
             </div>
 
-            {/* ── Right panel (entries grid) ── */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#f9f9f8' }}>
+            {/* ══════════════════════════════════════
+                Right panel — lista de arquivos
+            ══════════════════════════════════════ */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: '#f7f6f5' }}>
               {bulkThumbEntries.length === 0 ? (
                 /* ── Empty state ── */
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-                  <div style={{ width: 80, height: 80, borderRadius: 20, backgroundColor: '#f0efee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Upload style={{ width: 34, height: 34, color: '#d4d4d0' }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+                  <div style={{ width: 72, height: 72, borderRadius: 18, background: 'linear-gradient(135deg,#f97316,#ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(249,115,22,0.25)', opacity: 0.4 }}>
+                    <Upload style={{ width: 30, height: 30, color: '#fff' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <p style={{ fontSize: 15, fontWeight: 700, color: '#78716c', margin: '0 0 6px' }}>Nenhuma imagem adicionada</p>
-                    <p style={{ fontSize: 12, color: '#a8a29e', margin: 0, maxWidth: 260, lineHeight: 1.5 }}>
-                      Arraste imagens para a área à esquerda ou clique para selecionar
+                    <p style={{ fontSize: 12, color: '#a8a29e', margin: 0, maxWidth: 240, lineHeight: 1.6 }}>
+                      Arraste para a área ao lado ou clique para selecionar
                     </p>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                     {['JPG', 'PNG', 'WEBP', 'SVG'].map(f => (
-                      <span key={f} style={{ padding: '3px 10px', borderRadius: 20, backgroundColor: '#f0efee', fontSize: 10, fontWeight: 700, color: '#a8a29e', letterSpacing: '0.05em' }}>{f}</span>
+                      <span key={f} style={{ padding: '3px 10px', borderRadius: 20, backgroundColor: '#ebe8e3', fontSize: 9, fontWeight: 800, color: '#a8a29e', letterSpacing: '0.08em' }}>{f}</span>
                     ))}
                   </div>
                 </div>
               ) : (
                 <>
                   {/* ── Panel header ── */}
-                  <div style={{ padding: '12px 20px', borderBottom: '1px solid #ebebea', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, backgroundColor: '#ffffff' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>
+                  <div style={{ padding: '11px 18px', borderBottom: '1px solid #ebe8e3', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, backgroundColor: '#ffffff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif' }}>
                         {bulkThumbEntries.length} {bulkThumbEntries.length === 1 ? 'arquivo' : 'arquivos'}
                       </span>
-                      {/* Status chips */}
                       {(() => {
                         const linked = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length;
                         const unlinked = bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length;
@@ -3240,25 +3263,22 @@ export default function Arte() {
                         const err = bulkThumbEntries.filter(e => e.status === 'error').length;
                         return (
                           <>
-                            {linked > 0 && <span style={{ padding: '2px 9px', borderRadius: 20, backgroundColor: '#dcfce7', color: '#15803d', fontSize: 10, fontWeight: 700 }}>{linked} vinculado{linked !== 1 ? 's' : ''}</span>}
-                            {unlinked > 0 && <span style={{ padding: '2px 9px', borderRadius: 20, backgroundColor: '#fff7ed', color: '#c2410c', fontSize: 10, fontWeight: 700 }}>{unlinked} sem vínculo</span>}
-                            {done > 0 && <span style={{ padding: '2px 9px', borderRadius: 20, backgroundColor: '#f3e8ff', color: '#7c3aed', fontSize: 10, fontWeight: 700 }}>{done} enviado{done !== 1 ? 's' : ''}</span>}
-                            {err > 0 && <span style={{ padding: '2px 9px', borderRadius: 20, backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 10, fontWeight: 700 }}>{err} erro{err !== 1 ? 's' : ''}</span>}
+                            {linked > 0 && <span style={{ padding: '2px 8px', borderRadius: 20, backgroundColor: '#dcfce7', color: '#15803d', fontSize: 10, fontWeight: 700, border: '1px solid #bbf7d0' }}>{linked} vinculado{linked !== 1 ? 's' : ''}</span>}
+                            {unlinked > 0 && <span style={{ padding: '2px 8px', borderRadius: 20, backgroundColor: '#fff7ed', color: '#c2410c', fontSize: 10, fontWeight: 700, border: '1px solid #fed7aa' }}>{unlinked} sem vínculo</span>}
+                            {done > 0 && <span style={{ padding: '2px 8px', borderRadius: 20, backgroundColor: '#f5f3ff', color: '#7c3aed', fontSize: 10, fontWeight: 700, border: '1px solid #ddd6fe' }}>{done} enviado{done !== 1 ? 's' : ''}</span>}
+                            {err > 0 && <span style={{ padding: '2px 8px', borderRadius: 20, backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 10, fontWeight: 700, border: '1px solid #fecaca' }}>{err} erro{err !== 1 ? 's' : ''}</span>}
                           </>
                         );
                       })()}
                     </div>
-                    <span style={{ fontSize: 10, color: '#a8a29e' }}>Confirme o vínculo de cada imagem</span>
+                    <span style={{ fontSize: 10, color: '#b8b3ad', fontStyle: 'italic' }}>Confirme o vínculo de cada imagem</span>
                   </div>
 
-                  {/* ── 2-column card grid ── */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignContent: 'start' }}>
+                  {/* ── Lista de cards (horizontal) ── */}
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {bulkThumbEntries.map(entry => {
-                      // Peças que podem receber thumb: as que aguardam envio e as
-                      // que voltaram para correção. Antes só a primeira entrava, e
-                      // quem estava em correção não aparecia para vincular.
                       const pendingPool = [...allItems, ...correcaoItems].filter((i: any, idx: number, arr: any[]) => {
-                        if (arr.findIndex((x: any) => x.id === i.id) !== idx) return false; // dedup
+                        if (arr.findIndex((x: any) => x.id === i.id) !== idx) return false;
                         const podeReceberThumb = i.status === 'awaiting_submission'
                           || (correcaoItems as any[]).some((c: any) => c.id === i.id);
                         if (!podeReceberThumb) return false;
@@ -3268,114 +3288,112 @@ export default function Arte() {
                       const matchedItem = allItems.find((i: any) => i.id === entry.matchedItemId);
                       const isLinked = !!entry.matchedItemId;
 
-                      /* Card border/bg by state */
-                      const cardBorder = entry.status === 'done' ? '#bbf7d0'
+                      const cardBorderColor = entry.status === 'done' ? '#bbf7d0'
                         : entry.status === 'error' ? '#fecaca'
                         : entry.status === 'uploading' ? '#ddd6fe'
-                        : isLinked ? '#93c5fd' : '#fcd34d';
-                      const cardBg = entry.status === 'done' ? '#f0fdf4'
+                        : isLinked ? '#bfdbfe' : '#fcd34d';
+                      const cardAccentBg = entry.status === 'done' ? '#f0fdf4'
                         : entry.status === 'error' ? '#fef2f2'
                         : entry.status === 'uploading' ? '#faf5ff'
-                        : isLinked ? '#f0f9ff' : '#fffbeb';
+                        : isLinked ? '#eff6ff' : '#fffbeb';
 
                       return (
                         <div key={entry.id} style={{
-                          borderRadius: 12, border: `1.5px solid ${cardBorder}`,
+                          display: 'flex', alignItems: 'stretch', gap: 0,
+                          borderRadius: 10, border: `1.5px solid ${cardBorderColor}`,
                           backgroundColor: '#ffffff',
                           overflow: 'hidden', position: 'relative',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                          transition: 'all 0.12s',
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                          transition: 'box-shadow 0.12s',
                         }}>
-                          {/* ── Thumbnail (tall) ── */}
-                          <div style={{ position: 'relative', width: '100%', height: 120, backgroundColor: '#f3f4f3', overflow: 'hidden' }}>
-                            <img src={entry.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                            {/* Status overlay badge */}
-                            <div style={{ position: 'absolute', top: 8, left: 8 }}>
+                          {/* ── Thumbnail quadrado ── */}
+                          <div style={{ position: 'relative', width: 80, flexShrink: 0, backgroundColor: '#f3f4f3' }}>
+                            <img src={entry.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', minHeight: 80 }} />
+                            {/* Status pill */}
+                            <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
                               {entry.status === 'done' && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 20, backgroundColor: '#15803d', color: '#ffffff', fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', boxShadow: '0 2px 6px rgba(0,0,0,0.18)' }}>
-                                  <CheckCircle style={{ width: 10, height: 10 }} /> Enviado
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 20, backgroundColor: '#15803d', color: '#ffffff', fontSize: 8, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+                                  <CheckCircle style={{ width: 8, height: 8 }} /> OK
                                 </span>
                               )}
                               {entry.status === 'uploading' && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 20, backgroundColor: '#7c3aed', color: '#ffffff', fontSize: 9, fontWeight: 800, boxShadow: '0 2px 6px rgba(0,0,0,0.18)' }}>
-                                  <div style={{ width: 8, height: 8, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} /> Enviando
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 20, backgroundColor: '#7c3aed', color: '#ffffff', fontSize: 8, fontWeight: 800, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+                                  <div style={{ width: 7, height: 7, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />
                                 </span>
                               )}
                               {entry.status === 'error' && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 20, backgroundColor: '#dc2626', color: '#ffffff', fontSize: 9, fontWeight: 800, boxShadow: '0 2px 6px rgba(0,0,0,0.18)' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 20, backgroundColor: '#dc2626', color: '#ffffff', fontSize: 8, fontWeight: 800, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
                                   Erro
                                 </span>
                               )}
                               {entry.status === 'pending' && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 20, backgroundColor: isLinked ? '#1d4ed8' : '#d97706', color: '#ffffff', fontSize: 9, fontWeight: 800, boxShadow: '0 2px 6px rgba(0,0,0,0.18)' }}>
-                                  {isLinked ? 'Vinculado' : 'Sem vínculo'}
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 20, backgroundColor: isLinked ? '#1d4ed8' : '#d97706', color: '#ffffff', fontSize: 8, fontWeight: 800, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
+                                  {isLinked ? '✓' : '?'}
                                 </span>
                               )}
                             </div>
-                            {/* Remove button */}
-                            {(entry.status === 'pending' || entry.status === 'error') && (
-                              <button
-                                onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.id !== entry.id))}
-                                style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: '50%', backgroundColor: 'rgba(28,25,23,0.6)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.12s' }}
-                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(220,38,38,0.85)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(28,25,23,0.6)'; }}
-                              >
-                                <X style={{ width: 12, height: 12, color: '#ffffff' }} />
-                              </button>
-                            )}
                           </div>
 
-                          {/* ── Card body ── */}
-                          <div style={{ padding: '10px 12px 12px', borderTop: `2px solid ${cardBorder}`, backgroundColor: cardBg }}>
-                            {/* File name + size */}
-                            <div style={{ marginBottom: 8 }}>
-                              <p style={{ fontSize: 11, fontWeight: 700, color: '#1c1917', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.file.name}>
-                                {entry.file.name}
-                              </p>
-                              <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>
-                                {(entry.file.size / 1024).toFixed(0)} KB
-                              </p>
+                          {/* ── Card info ── */}
+                          <div style={{ flex: 1, padding: '10px 12px', borderLeft: `3px solid ${cardBorderColor}`, backgroundColor: cardAccentBg, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0 }}>
+                            {/* Top row: filename + remove */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6, marginBottom: 6 }}>
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.file.name}>
+                                  {entry.file.name}
+                                </p>
+                                <p style={{ fontSize: 10, color: '#a8a29e', margin: 0 }}>
+                                  {(entry.file.size / 1024).toFixed(0)} KB
+                                </p>
+                              </div>
+                              {(entry.status === 'pending' || entry.status === 'error') && (
+                                <button
+                                  onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.id !== entry.id))}
+                                  style={{ flexShrink: 0, width: 22, height: 22, borderRadius: '50%', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                >
+                                  <X style={{ width: 10, height: 10, color: '#a8a29e' }} />
+                                </button>
+                              )}
                             </div>
 
                             {/* ── State-specific content ── */}
                             {entry.status === 'done' ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, backgroundColor: '#dcfce7', border: '1px solid #bbf7d0' }}>
-                                <CheckCircle style={{ width: 13, height: 13, color: '#16a34a', flexShrink: 0 }} />
-                                <div style={{ minWidth: 0 }}>
-                                  <p style={{ fontSize: 10, fontWeight: 700, color: '#15803d', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {matchedItem?.displayId} · {matchedItem?.type?.slice(0, 22)}
-                                  </p>
-                                </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 6, backgroundColor: '#dcfce7', border: '1px solid #bbf7d0' }}>
+                                <CheckCircle style={{ width: 11, height: 11, color: '#16a34a', flexShrink: 0 }} />
+                                <p style={{ fontSize: 10, fontWeight: 700, color: '#15803d', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {matchedItem?.displayId} · {matchedItem?.type?.slice(0, 28)}
+                                </p>
                               </div>
                             ) : entry.status === 'uploading' ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', borderRadius: 6, backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe' }}>
-                                <div style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #ddd6fe', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6, backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe' }}>
+                                <div style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid #ddd6fe', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
                                 <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Enviando...</span>
                               </div>
                             ) : entry.status === 'error' ? (
-                              <div style={{ padding: '6px 8px', borderRadius: 6, backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
+                              <div style={{ padding: '5px 8px', borderRadius: 6, backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
                                 <p style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', margin: '0 0 1px' }}>Falha no envio</p>
                                 <p style={{ fontSize: 9, color: '#f87171', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.errorMsg}</p>
                               </div>
                             ) : isLinked && matchedItem ? (
-                              /* ── Vinculado: mostra item + botão de desvincular ── */
-                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                                <div style={{ flex: 1, padding: '6px 8px', borderRadius: 6, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', minWidth: 0 }}>
-                                  <p style={{ fontSize: 9, fontWeight: 800, color: '#3b82f6', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{matchedItem.displayId}</p>
-                                  <p style={{ fontSize: 11, fontWeight: 700, color: '#1e3a5f', margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.type}</p>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ flex: 1, padding: '5px 8px', borderRadius: 6, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                    <span style={{ fontSize: 9, fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>{matchedItem.displayId}</span>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: '#1e3a5f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.type}</span>
+                                  </div>
                                   {matchedItem.event?.name && (
-                                    <p style={{ fontSize: 9, color: '#60a5fa', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
+                                    <p style={{ fontSize: 9, color: '#60a5fa', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
                                   )}
                                 </div>
                                 <button
                                   onClick={() => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: null } : en))}
-                                  title="Alterar vínculo"
-                                  style={{ flexShrink: 0, background: 'none', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', color: '#93c5fd', fontSize: 9, fontWeight: 700, transition: 'all 0.12s' }}
-                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eff6ff'; e.currentTarget.style.color = '#1d4ed8'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#93c5fd'; }}
-                                >
-                                  Trocar
-                                </button>
+                                  title="Trocar vínculo"
+                                  style={{ flexShrink: 0, background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#3b82f6', fontSize: 9, fontWeight: 700, transition: 'all 0.12s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eff6ff'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                                >Trocar</button>
                               </div>
                             ) : (
                               /* ── Sem vínculo: combobox pesquisável com grupos ── */

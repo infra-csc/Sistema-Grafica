@@ -933,15 +933,20 @@ export default function Atendimento() {
           </span>
           <div style={{
             backgroundColor: '#0c0a09', color: '#ffffff',
-            padding: '8px 16px', borderRadius: 8,
-            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '10px 18px', borderRadius: 10,
+            display: 'flex', alignItems: 'center', gap: 14,
           }} data-testid="badge-pendentes-count">
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 900, lineHeight: 1 }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 32, fontWeight: 900, lineHeight: 1 }}>
               {actionableCount ?? '—'}
             </span>
-            <span style={{ fontSize: 10, lineHeight: 1.4, textTransform: 'uppercase', fontWeight: 700, opacity: 0.7 }}>
-              Ativos em<br/>Análise
-            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#f97316' }}>
+                Ativos
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
+                em análise
+              </span>
+            </div>
           </div>
         </div>
       </header>
@@ -1406,15 +1411,15 @@ export default function Atendimento() {
               )
             ) : (
               /* Estado vazio — orientação de uso */
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '24px 28px', backgroundColor: '#fafaf9', borderRadius: 10, border: '1px dashed #e7e5e4' }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: '#f4f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Zap style={{ width: 22, height: 22, color: '#d4d0cd' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', backgroundColor: '#fff7ed', borderRadius: 10, border: '1px solid #fed7aa' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.25)' }}>
+                  <Zap style={{ width: 22, height: 22, color: '#ffffff' }} />
                 </div>
                 <div>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#9a3412', margin: '0 0 3px' }}>
                     {batchSponsorId ? 'Selecione o evento' : 'Selecione o patrocinador'}
                   </p>
-                  <p style={{ fontSize: 12, color: '#a8a29e', margin: 0, lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 12, color: '#c2410c', margin: 0, lineHeight: 1.5, opacity: 0.8 }}>
                     {batchSponsorId
                       ? `${batchEligibleEvents.length} evento${batchEligibleEvents.length !== 1 ? 's' : ''} com peças pendentes para o patrocinador selecionado.`
                       : `${batchEligibleSponsors.length} patrocinador${batchEligibleSponsors.length !== 1 ? 'es' : ''} aguardam decisão — escolha um para iniciar o lote.`}

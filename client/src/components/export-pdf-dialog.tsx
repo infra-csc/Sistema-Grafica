@@ -348,7 +348,8 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false}
                 label="Status" allLabel="Todos"
                 value={statusFilter} onChange={setStatusFilter}
-                options={statusOptions} searchPlaceholder="Buscar..." emptyText="Nenhum." />
+                options={statusOptions} searchPlaceholder="Buscar..." emptyText="Nenhum."
+                dropdownAlign="right" />
               {hasFilters && (
                 <button
                   onClick={clearFilters}

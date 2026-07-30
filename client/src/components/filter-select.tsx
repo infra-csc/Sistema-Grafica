@@ -36,6 +36,7 @@ interface FilterSelectProps {
   triggerClassName?: string;
   showAllLabelWhenEmpty?: boolean;
   disabled?: boolean;
+  dropdownAlign?: "left" | "right";
 }
 
 export function FilterSelect({
@@ -57,6 +58,7 @@ export function FilterSelect({
   triggerClassName,
   showAllLabelWhenEmpty = false,
   disabled = false,
+  dropdownAlign = "left",
 }: FilterSelectProps) {
   const multiple = values !== undefined && onValuesChange !== undefined;
   const [open, setOpen] = useState(false);
@@ -307,7 +309,7 @@ export function FilterSelect({
       {/* ── Dropdown panel ── */}
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 9999,
+          position: "absolute", top: "calc(100% + 6px)", ...(dropdownAlign === "right" ? { right: 0 } : { left: 0 }), zIndex: 9999,
           backgroundColor: "#fff", border: "1px solid #E5E7EB",
           borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
           ...(panelW ? { width: panelW } : { minWidth: "100%" }),

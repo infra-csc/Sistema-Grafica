@@ -73,6 +73,9 @@ export default function Atendimento() {
   const [histVisible, setHistVisible] = useState(PAGE_SIZE);
   const [pendVisible, setPendVisible] = useState(PAGE_SIZE);
 
+  // Peça em preview no lote (clique na arte abre grande, sem mexer na seleção).
+  const [batchPreviewItem, setBatchPreviewItem] = useState<any>(null);
+
   // Eventos recolhidos na aba Pendentes (o cabeçalho vira um card clicável).
   const [collapsedEvents, setCollapsedEvents] = useState<Set<string>>(new Set());
   const toggleEventCollapsed = (id: string) =>
@@ -1282,21 +1285,37 @@ export default function Atendimento() {
                             type="checkbox"
                             checked={isChecked}
                             data-testid={`checkbox-batch-item-${item.id}`}
-                            onChange={e => {
-                              e.stopPropagation();
-                              setBatchSelectedItemIds(prev => {
-                                const next = new Set(prev);
-                                if (next.has(item.id)) next.delete(item.id);
-                                else next.add(item.id);
-                                return next;
-                              });
-                            }}
+                            // O clique no checkbox NÃO pode subir para o card: o card
+                            // também alterna, e os dois toggles se anulavam — por isso
+                            // clicar na caixinha parecia não desmarcar.
+                            onClick={e => e.stopPropagation()}
+                            onChange={() => setBatchSelectedItemIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(item.id)) next.delete(item.id);
+                              else next.add(item.id);
+                              return next;
+                            })}
                             style={{ accentColor: '#ea580c', width: 15, height: 15, cursor: 'pointer', flexShrink: 0 }}
                           />
-                          {/* Thumbnail */}
-                          <div style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: hasThumb ? '#f0ede8' : '#f4f4f3', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${hasThumb ? 'rgba(0,0,0,0.06)' : '#e7e5e4'}`, position: 'relative' }}>
+                          {/* Thumbnail — clique abre a arte em tamanho grande */}
+                          <div
+                            onClick={e => { if (hasThumb) { e.stopPropagation(); setBatchPreviewItem(item); } }}
+                            data-testid={`batch-thumb-${item.id}`}
+                            title={hasThumb ? 'Clique para ver a arte' : 'Sem arte enviada'}
+                            className={hasThumb ? 'group' : undefined}
+                            style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: hasThumb ? '#f0ede8' : '#f4f4f3', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${hasThumb ? 'rgba(0,0,0,0.06)' : '#e7e5e4'}`, position: 'relative', cursor: hasThumb ? 'zoom-in' : 'default' }}
+                          >
                             {hasThumb ? (
-                              <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <>
+                                <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <span
+                                  style={{ position: 'absolute', inset: 0, background: 'rgba(28,25,23,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.12s' }}
+                                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+                                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '0'}
+                                >
+                                  <Eye style={{ width: 16, height: 16, color: '#fff' }} />
+                                </span>
+                              </>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                 <Package style={{ width: 18, height: 18, color: '#c4bfbb' }} />
@@ -2802,6 +2821,36 @@ export default function Atendimento() {
         items={exportPool}
         title="Aprovacao"
       />
+
+      {/* Preview da arte no lote — abre pela miniatura, sem mexer na seleção */}
+      <Dialog open={!!batchPreviewItem} onOpenChange={o => !o && setBatchPreviewItem(null)}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 900, width: '95vw', borderRadius: 14, overflow: 'hidden' }}>
+          <DialogTitle className="sr-only">Arte da peça</DialogTitle>
+          <DialogDescription className="sr-only">Visualização ampliada da arte enviada</DialogDescription>
+          {batchPreviewItem && (
+            <>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '2px 6px' }}>
+                  {batchPreviewItem.displayId}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.type}</p>
+                  {batchPreviewItem.description && (
+                    <p style={{ margin: 0, fontSize: 12, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.description}</p>
+                  )}
+                </div>
+              </div>
+              <div style={{ background: '#f7f8fa', maxHeight: '75vh', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                <img
+                  src={batchPreviewItem.approvalThumbUrl}
+                  alt={batchPreviewItem.type}
+                  style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', display: 'block' }}
+                />
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

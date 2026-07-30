@@ -9,7 +9,7 @@ interface FilePreviewProps {
 }
 
 export function isPdf(url: string): boolean {
-  return /\.pdf$/i.test(url) || url.includes("/pdf") || url.includes("pdf%2F");
+  return /\.pdf(\?|#|$)/i.test(url) || url.includes("pdf%2F");
 }
 
 export function isImageUrl(url: string): boolean {

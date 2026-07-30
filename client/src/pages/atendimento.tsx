@@ -1119,10 +1119,10 @@ export default function Atendimento() {
       {activeTab === "pending" && !loadingSponsors && batchEligibleSponsors.length > 0 && (
         <section
           data-testid="section-batch-sponsor"
-          style={{ marginBottom: 32, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 14, overflow: 'hidden' }}
+          style={{ marginBottom: 32, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 14 }}
         >
           {/* ── Header do painel ── */}
-          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '13px 13px 0 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}>
                 <Zap style={{ width: 18, height: 18, color: '#ffffff' }} />

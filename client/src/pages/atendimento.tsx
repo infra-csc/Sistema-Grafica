@@ -64,6 +64,9 @@ export default function Atendimento() {
   const [histSponsorFilter, setHistSponsorFilter] = useState<string[]>([]);
   const [histPeriodFilter, setHistPeriodFilter] = useState<string>("all");
 
+  // Modal detalhe de aprovações (Histórico)
+  const [histDetailItem, setHistDetailItem] = useState<any>(null);
+
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
   const [expEventFilter, setExpEventFilter] = useState("all");
@@ -1978,13 +1981,18 @@ export default function Atendimento() {
                   ].filter(Boolean) as { dot: string; label: string; date: string | null; by?: string | null }[];
 
                   return (
-                    <div key={item.id} style={{
-                      background: '#fff', borderRadius: 12,
-                      border: `1px solid ${allApproved ? '#d1fae5' : '#ede9e6'}`,
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)',
-                      overflow: 'hidden',
-                      display: 'flex',
-                    }}>
+                    <div key={item.id}
+                      onClick={() => setHistDetailItem(item)}
+                      style={{
+                        background: '#fff', borderRadius: 12,
+                        border: `1px solid ${allApproved ? '#d1fae5' : '#ede9e6'}`,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)',
+                        overflow: 'hidden', display: 'flex',
+                        cursor: 'pointer', transition: 'box-shadow 0.12s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)')}
+                      onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)')}
+                    >
                       {/* Acento lateral */}
                       <div style={{ width: 4, background: accentColor, flexShrink: 0 }} />
 
@@ -2155,6 +2163,117 @@ export default function Atendimento() {
           </div>
         );
       })()}
+
+      {/* ─── MODAL HISTÓRICO DE APROVAÇÕES ─────────────────────── */}
+      <Dialog open={!!histDetailItem} onOpenChange={open => { if (!open) setHistDetailItem(null); }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 620, width: '95vw', borderRadius: 16, border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.2)', overflow: 'hidden' }}>
+          <DialogTitle className="sr-only">Histórico de aprovações</DialogTitle>
+          <DialogDescription className="sr-only">Log completo de aprovações por patrocinador</DialogDescription>
+          {histDetailItem && (() => {
+            const di = histDetailItem;
+            const diSps: any[] = itemSponsorsMap[di.id] || [];
+            const diApprovals: SponsorApproval[] = itemApprovalsMap[di.id] || [];
+            const ev = evById.get(di.eventId);
+            const fmtFull = (d: any) => d ? format(new Date(d), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : null;
+            const approvedCount = diApprovals.filter(a => a.status === 'approved').length;
+            const allApp = diSps.length > 0 && approvedCount === diSps.length;
+            return (
+              <>
+                {/* Header escuro */}
+                <div style={{ padding: '20px 24px 16px', background: 'linear-gradient(135deg,#1c1917,#292524)', display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: '#292524', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {(di.approvalThumbUrl || di.finalPreviewUrl)
+                      ? <img src={di.approvalThumbUrl || di.finalPreviewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText style={{ width: 18, height: 18, color: '#57534e' }} /></div>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{di.type}</h2>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 500, flexShrink: 0 }}>{di.displayId}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{ev?.name || '—'}</span>
+                  </div>
+                  <button onClick={() => setHistDetailItem(null)} style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <X style={{ width: 15, height: 15 }} />
+                  </button>
+                </div>
+                {/* Resumo */}
+                <div style={{ padding: '12px 24px', borderBottom: '1px solid #f0ede8', background: '#fafaf9', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, background: allApp ? '#f0fdf4' : '#f5f5f4', border: `1px solid ${allApp ? '#bbf7d0' : '#e7e5e4'}` }}>
+                    <span style={{ fontSize: 20, fontWeight: 800, color: allApp ? '#15803d' : '#374151', lineHeight: 1 }}>{approvedCount}</span>
+                    <span style={{ fontSize: 11, color: allApp ? '#4ade80' : '#9ca3af', fontWeight: 600 }}>/ {diSps.length} aprovaram</span>
+                  </div>
+                  {di.createdAt && <span style={{ fontSize: 11, color: '#a8a29e' }}>Criado {fmtFull(di.createdAt)}</span>}
+                </div>
+                {/* Lista patrocinadores */}
+                <div style={{ maxHeight: 420, overflowY: 'auto', padding: '4px 0' }}>
+                  {diSps.length === 0
+                    ? <div style={{ padding: '32px 24px', textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>Nenhum patrocinador vinculado</div>
+                    : diSps.map((sp: any, si: number) => {
+                        const appr = diApprovals.find(a => a.sponsorId === sp.id);
+                        const isApproved   = appr?.status === 'approved';
+                        const isRejected   = appr?.status === 'rejected';
+                        const isNewVersion = appr?.status === 'new_version_pending';
+                        const c = sp.color || '#94a3b8';
+                        const statusLabel = isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando';
+                        const statusColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#78716c';
+                        const statusBg    = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
+                        const statusBorder= isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e7e5e4';
+                        const dotColor    = isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db';
+                        return (
+                          <div key={sp.id} style={{ padding: '14px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: c, flexShrink: 0, marginTop: 4, boxShadow: `0 0 0 3px ${c}22` }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{sp.name}</span>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: statusColor, background: statusBg, border: `1px solid ${statusBorder}`, borderRadius: 4, padding: '2px 8px', whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                              </div>
+                              {isApproved && appr?.approvedAt && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <CheckCircle style={{ width: 12, height: 12, color: '#22c55e', flexShrink: 0 }} />
+                                  <span style={{ fontSize: 11, color: '#57534e' }}>
+                                    Aprovado em <strong style={{ fontWeight: 700 }}>{fmtFull(appr.approvedAt)}</strong>
+                                    {appr.approvedBy && <> por <strong style={{ fontWeight: 700, color: '#1c1917' }}>{appr.approvedBy}</strong></>}
+                                  </span>
+                                </div>
+                              )}
+                              {isApproved && !appr?.approvedAt && <span style={{ fontSize: 11, color: '#a8a29e' }}>Data não registrada</span>}
+                              {isRejected && (
+                                <>
+                                  {appr?.rejectedAt && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: appr.rejectionReason ? 6 : 0 }}>
+                                      <X style={{ width: 12, height: 12, color: '#ef4444', flexShrink: 0 }} />
+                                      <span style={{ fontSize: 11, color: '#57534e' }}>
+                                        Reprovado em <strong style={{ fontWeight: 700 }}>{fmtFull(appr.rejectedAt)}</strong>
+                                        {appr.rejectedBy && <> por <strong style={{ fontWeight: 700, color: '#1c1917' }}>{appr.rejectedBy}</strong></>}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {appr?.rejectionReason && (
+                                    <div style={{ padding: '6px 10px', background: '#fef2f2', borderRadius: 6, border: '1px solid #fecaca' }}>
+                                      <span style={{ fontSize: 11, color: '#b91c1c', fontStyle: 'italic' }}>"{appr.rejectionReason}"</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              {isNewVersion && <span style={{ fontSize: 11, color: '#92400e' }}>Nova versão de arte solicitada</span>}
+                              {!appr && <span style={{ fontSize: 11, color: '#a8a29e' }}>Aguardando resposta do patrocinador</span>}
+                            </div>
+                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0, marginTop: 5 }} />
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+                {/* Footer */}
+                <div style={{ padding: '12px 24px', borderTop: '1px solid #f0ede8', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setHistDetailItem(null)} style={{ height: 36, padding: '0 20px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Fechar</button>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* ─── MODAL DE REVISÃO (3 colunas) ───────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -241,7 +241,10 @@ export default function Historico() {
   items.forEach(item => {
     const event = events.find(e => e.id === item.eventId);
     const eventName = event?.name || "Evento desconhecido";
-    const createdLog = auditLogMap.get(`${item.id}-created`);
+    // Peças importadas via Excel antigas só têm o log agregado no evento —
+    // usa-o como fallback para não exibir "Sistema" como autor.
+    const createdLog = auditLogMap.get(`${item.id}-created`)
+      ?? auditLogMap.get(`${item.eventId}-created`);
 
     timeline.push({
       id: `item-created-${item.id}`, type: "item_created",
@@ -267,12 +270,14 @@ export default function Historico() {
     }
 
     if (item.quantityProduced && item.quantityProduced > 0) {
+      const prodLog = auditLogMap.get(`${item.id}-produced`) ?? auditLogMap.get(`${item.id}-production`);
       timeline.push({
         id: `production-${item.id}`, type: "production_started",
         timestamp: new Date(item.productionStartedAt || item.updatedAt),
         eventName, eventId: item.eventId,
         itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
         quantity: item.quantity, quantityProduced: item.quantityProduced,
+        userName: prodLog?.userName ?? prodLog?.user_name,
       });
     }
 

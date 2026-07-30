@@ -2052,11 +2052,21 @@ export function registerItemRoutes(app: Express): void {
       }
 
       const updatedItem = await storage.updateItem(req.params.id, { status: newStatus });
-      
+
       const event = await storage.getEvent(item.eventId);
-      
+
+      // Registra QUEM produziu — sem este log o histórico não tem autor e acaba
+      // exibindo o fallback "Sistema".
+      await createAuditLog(
+        (req as any).userName,
+        newStatus === "produced" ? "produced" : "production",
+        "item",
+        item.id,
+        `Produção: ${validatedData.quantityProduced}/${item.quantity} un. (${translateStatus(item.status)} → ${translateStatus(newStatus)})`
+      );
+
       // Não notificar sobre atualizações de produção
-      
+
       broadcast({ type: "production_updated", item: updatedItem, update: productionUpdate });
       
       res.json({ item: updatedItem, update: productionUpdate });

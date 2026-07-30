@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { SponsorChips } from "@/components/sponsor-chips";
@@ -1921,7 +1920,7 @@ export default function Atendimento() {
                   const pendingOnes  = sponsorApprovals.filter(x => !x.appr || x.appr.status !== 'approved');
                   const allApproved  = approvedOnes.length === sponsorApprovals.length && sponsorApprovals.length > 0;
 
-                  const fmtDt = (d: string | null | undefined, short = false) => {
+                  const fmtDt = (d: string | Date | null | undefined, short = false) => {
                     if (!d) return null;
                     return format(new Date(d), short ? "dd/MM" : "dd/MM/yy 'às' HH:mm", { locale: ptBR });
                   };

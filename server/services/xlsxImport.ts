@@ -402,6 +402,14 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
         (req as any).userName, 'created', 'item', event.id,
         `${created.length} itens importados via Excel${fileName ? ` ("${fileName}")` : ""}`
       );
+      // Log por peça: sem ele o histórico não encontra o autor da peça
+      // (procura por itemId) e acaba exibindo o fallback "Sistema".
+      for (const it of created) {
+        await createAuditLog(
+          (req as any).userName, 'created', 'item', it.id,
+          `Item "${it.type}" importado via Excel - Qtd: ${it.quantity}`
+        );
+      }
       const notification = await storage.createNotification({
         type: "itemAdded",
         message: `${created.length} itens importados via Excel — Evento: ${event.name}`,

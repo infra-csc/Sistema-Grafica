@@ -67,6 +67,12 @@ export default function Atendimento() {
   // Modal detalhe de aprovações (Histórico)
   const [histDetailItem, setHistDetailItem] = useState<any>(null);
 
+  // Quantos cards renderizar por vez. Cada card tem timeline e chips; com
+  // centenas de peças o navegador engasgava ao montar tudo de uma vez.
+  const PAGE_SIZE = 25;
+  const [histVisible, setHistVisible] = useState(PAGE_SIZE);
+  const [pendVisible, setPendVisible] = useState(PAGE_SIZE);
+
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
   const [expEventFilter, setExpEventFilter] = useState("all");
@@ -628,17 +634,22 @@ export default function Atendimento() {
       const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
       return ga.localeCompare(gb) || a.type.localeCompare(b.type);
     });
-    sorted.forEach(item => {
+    // Renderiza só os primeiros; o resto entra via "Carregar mais".
+    sorted.slice(0, pendVisible).forEach(item => {
       const eid = item.eventId || '__none__';
       if (!map.has(eid)) map.set(eid, []);
       map.get(eid)!.push(item);
     });
     return map;
-  }, [pendingGroup, typeToGroup]);
+  }, [pendingGroup, typeToGroup, pendVisible]);
 
   useEffect(() => {
     setBatchSelectedItemIds(new Set(batchEligibleItems.map(i => i.id)));
   }, [batchSponsorId, batchEventId]);
+
+  // Ao trocar de aba ou mexer nos filtros, volta a listagem para o topo.
+  useEffect(() => { setPendVisible(PAGE_SIZE); }, [activeTab, searchTerm, eventFilter, itemTypeFilter, sponsorFilter]);
+  useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter]);
 
   const getEventInfo = (eventId: string) => events.find((e: any) => e.id === eventId);
 
@@ -1706,6 +1717,16 @@ export default function Atendimento() {
             );
           })}
 
+          {pendingGroup.length > pendVisible && (
+            <button
+              onClick={() => setPendVisible(v => v + PAGE_SIZE)}
+              data-testid="button-load-more-pending"
+              style={{ marginTop: 4, marginBottom: 8, padding: '12px 0', width: '100%', borderRadius: 10, border: '1px solid #e7e5e4', background: '#ffffff', color: '#c2410c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Carregar mais ({pendingGroup.length - pendVisible} restantes)
+            </button>
+          )}
+
           {/* Grupo: Aprovados (colapsável) */}
           {approvedGroup.length > 0 && (
             <div>
@@ -1848,7 +1869,7 @@ export default function Atendimento() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {historyItems.map((item: any) => {
+                {historyItems.slice(0, histVisible).map((item: any) => {
                   const ev = evById.get(item.eventId);
                   const itemSps: any[] = itemSponsorsMap[item.id] || [];
                   const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
@@ -2087,6 +2108,15 @@ export default function Atendimento() {
                     </div>
                   );
                 })}
+                {historyItems.length > histVisible && (
+                  <button
+                    onClick={() => setHistVisible(v => v + PAGE_SIZE)}
+                    data-testid="button-load-more-history"
+                    style={{ marginTop: 8, padding: '12px 0', width: '100%', borderRadius: 10, border: '1px solid #e7e5e4', background: '#ffffff', color: '#c2410c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Carregar mais ({historyItems.length - histVisible} restantes)
+                  </button>
+                )}
               </div>
             )}
           </div>

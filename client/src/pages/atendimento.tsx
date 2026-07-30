@@ -1604,15 +1604,15 @@ export default function Atendimento() {
                     return (
                       <Fragment key={item.id}>
                         {showGroupHeader && (
-                          <div style={{ backgroundColor: '#dbeafe', borderRadius: 6, padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
-                          </div>
-                        )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0 4px', marginTop: 4 }}>
+                            <div style={{ width: 3, height: 16, borderRadius: 2, background: '#f97316', flexShrink: 0 }} />
+                            <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
+                            <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
                         {showTypeHeader && (
                           <div style={{ backgroundColor: '#f0ede8', borderRadius: 6, padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.type}</span>
-                          </div>
-                        )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 2px' }}>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{item.type}</span>
+                            <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
                       <div
                         key={`card-${item.id}`}
                         data-testid={`row-item-${item.id}`}
@@ -1631,8 +1631,9 @@ export default function Atendimento() {
 
                           {/* Thumbnail */}
                           <div style={{
-                            width: 64, height: 64, flexShrink: 0, borderRadius: 8,
+                            width: 80, height: 80, flexShrink: 0, borderRadius: 10,
                             overflow: 'hidden', backgroundColor: '#f5f5f4', position: 'relative',
+                            border: '1px solid #ede9e4',
                           }}>
                             {hasThumb ? (
                               <>
@@ -1693,7 +1694,6 @@ export default function Atendimento() {
 
                             {/* Col 2: Patrocinadores */}
                             <div>
-                              <p style={{ fontSize: 10, color: '#a8a29e', textTransform: 'uppercase', fontWeight: 700, margin: '0 0 4px' }}>Patrocinador</p>
                               {loadingSponsors ? (
                                 <span style={{ fontSize: 12, color: '#a8a29e' }}>...</span>
                               ) : (
@@ -1703,7 +1703,6 @@ export default function Atendimento() {
 
                             {/* Col 3: Status Badge */}
                             <div>
-                              <p style={{ fontSize: 10, color: '#a8a29e', textTransform: 'uppercase', fontWeight: 700, margin: '0 0 4px' }}>Status Aprovação</p>
                               {isFullyApproved ? (
                                 <span style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -1727,12 +1726,12 @@ export default function Atendimento() {
                               ) : (
                                 <span style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                                  padding: '4px 8px', borderRadius: 4,
-                                  backgroundColor: '#fff7ed', color: '#c2410c',
-                                  fontSize: 10, fontWeight: 700,
+                                  padding: '5px 10px', borderRadius: 6,
+                                  backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c',
+                                  fontSize: 11, fontWeight: 700,
                                 }}>
-                                  <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#f97316', animation: 'pulse 2s infinite' }} />
-                                  AGUARDANDO REVISÃO
+                                  <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#f97316', flexShrink: 0, animation: 'pulse 2s infinite' }} />
+                                  Ag. Revisão
                                 </span>
                               )}
                             </div>
@@ -1763,13 +1762,13 @@ export default function Atendimento() {
                                   style={{
                                     padding: '8px 20px', borderRadius: 8,
                                     backgroundColor: '#f5f5f4', color: '#1c1917',
-                                    border: 'none', cursor: 'pointer',
+                                    border: '1px solid transparent', cursor: 'pointer',
                                     fontSize: 11, fontWeight: 900, textTransform: 'uppercase',
                                     display: 'flex', alignItems: 'center', gap: 6,
                                     transition: 'all 0.2s',
                                   }}
-                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#0c0a09'; e.currentTarget.style.color = '#ffffff'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#1c1917'; }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f97316'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.border = '1px solid #f97316'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#1c1917'; e.currentTarget.style.border = '1px solid transparent'; }}
                                 >
                                   Revisar
                                   <Eye style={{ width: 14, height: 14 }} />

@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Fragment, useState, useMemo, useEffect, useCallback, useDeferredValue } from "react";
+import { Fragment, useState, useMemo, useEffect, useRef, useCallback, useDeferredValue } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploader } from "@/components/FileUploader";
 import { FilterSelect } from "@/components/filter-select";
@@ -37,15 +37,16 @@ export default function Arte() {
   const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
   useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
 
+  // Quem rola nesta tela é a área de conteúdo (o <main> do app é overflow:hidden),
+  // por isso o scroll precisa ser feito nela e não na window.
+  const contentRef = useRef<HTMLDivElement>(null);
+
   // Trocar de aba troca a lista inteira; manter o scroll onde estava deixava o
-  // usuário no meio da tabela nova, sem ver o cabeçalho. Sempre volta ao topo.
+  // usuário no meio da tabela nova. Sempre volta ao topo da listagem.
   const changeTab = useCallback((tabId: string) => {
     setActiveTab(tabId);
     requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      document.querySelectorAll<HTMLElement>("main, [data-scroll-root]").forEach(el => {
-        if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: "smooth" });
-      });
+      contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
   }, []);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
@@ -2188,7 +2189,7 @@ export default function Arte() {
       </div>
 
       {/* ── 4. SCROLLABLE CONTENT AREA ────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}>
+      <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}>
       {isLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />

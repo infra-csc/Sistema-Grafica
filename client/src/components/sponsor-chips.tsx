@@ -94,23 +94,25 @@ export function SponsorChips({
         const bg     = useColor ? hexToRgba(c!, 0.10) : chip.bg;
         const color  = useColor ? c! : chip.color;
         const border = useColor ? `1px solid ${hexToRgba(c!, 0.30)}` : chip.border;
-        // Status da aprovação: mantém a identidade visual (cor do patrocinador)
-        // e sinaliza a decisão — aprovado some com a dúvida, reprovado salta aos olhos.
+        // O chip mantém SEMPRE a cor do patrocinador (identidade da marca).
+        // O status vai num selo à direita, com cor própria de status — assim
+        // não se confunde a cor da marca com a decisão.
         const st = s.approvalStatus;
-        const statusTitle = st === "approved" ? "Aprovado"
-          : st === "rejected" ? "Reprovado"
-          : st === "pending" ? "Aguardando aprovação" : undefined;
+        const stStyle = st === "approved" ? { color: "#15803d", bg: "#f0fdf4", mark: "aprovado", title: "Aprovado" }
+          : st === "rejected" ? { color: "#b91c1c", bg: "#fef2f2", mark: "reprovado", title: "Reprovado" }
+          : st === "pending" ? { color: "#78716c", bg: "#f5f5f4", mark: "sem ação", title: "Sem ação do patrocinador" }
+          : null;
         return (
           <span
             key={s.id}
-            title={statusTitle ? `${s.name} — ${statusTitle}` : s.name}
+            title={stStyle ? `${s.name} — ${stStyle.title}` : s.name}
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 4,
-              backgroundColor: st === "rejected" ? "#fef2f2" : st === "approved" ? "#f0fdf4" : bg,
-              color: st === "rejected" ? "#b91c1c" : st === "approved" ? "#15803d" : color,
-              border: st === "rejected" ? "1px solid #fecaca" : st === "approved" ? "1px solid #bbf7d0" : border,
+              backgroundColor: bg,
+              color,
+              border,
               borderRadius: chip.borderRadius,
               whiteSpace: "nowrap",
               ...sz,
@@ -123,9 +125,24 @@ export function SponsorChips({
               }} />
             )}
             {s.name}
-            {st === "approved" && <span style={{ fontWeight: 900, lineHeight: 1 }}>✓</span>}
-            {st === "rejected" && <span style={{ fontWeight: 900, lineHeight: 1 }}>✕</span>}
-            {st === "pending" && <span style={{ opacity: 0.55, lineHeight: 1 }}>•</span>}
+            {stStyle && (
+              <span style={{
+                color: stStyle.color,
+                backgroundColor: stStyle.bg,
+                border: `1px solid ${stStyle.color}33`,
+                borderRadius: 3,
+                fontSize: Math.max(8, (sz.fontSize as number) - 1),
+                fontWeight: 700,
+                lineHeight: 1,
+                padding: "1px 4px",
+                marginLeft: 2,
+                flexShrink: 0,
+                textTransform: "uppercase",
+                letterSpacing: "0.02em",
+              }}>
+                {stStyle.mark}
+              </span>
+            )}
           </span>
         );
       })}

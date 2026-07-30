@@ -56,6 +56,7 @@ const sponsorSchema = z.object({
   notes:         z.string().optional(),
   color:         z.string().min(1, "Cor obrigatória"),
   quota:         z.string().optional(),
+  accountExecutiveId: z.string().optional(),
 });
 type SponsorForm = z.infer<typeof sponsorSchema>;
 
@@ -66,15 +67,27 @@ export default function Patrocinadores() {
   const [search, setSearch]                   = useState("");
   const [page, setPage]                       = useState(1);
   const [hoveredRow, setHoveredRow]           = useState<string | null>(null);
+  const [sortBy, setSortBy]                   = useState<"name" | "company" | "quota" | "executive">("name");
+  const [sortDir, setSortDir]                 = useState<"asc" | "desc">("asc");
+  const [execFilter, setExecFilter]           = useState<string>("all");
   const { toast } = useToast();
 
   const { data: sponsors = [], isLoading } = useQuery<Sponsor[]>({
     queryKey: ["/api/sponsors"],
   });
 
+  // Usuários para o seletor de executivo responsável (lista enxuta, sem e-mail).
+  const { data: users = [] } = useQuery<{ id: string; name: string; role: string }[]>({
+    queryKey: ["/api/users/basic"],
+  });
+  const userById = new Map(users.map(u => [u.id, u]));
+  const execName = (s: Sponsor) => (s as any).accountExecutiveId
+    ? userById.get((s as any).accountExecutiveId)?.name ?? "—"
+    : "";
+
   const form = useForm<SponsorForm>({
     resolver: zodResolver(sponsorSchema),
-    defaultValues: { name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", quota: "" },
+    defaultValues: { name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", quota: "", accountExecutiveId: "" },
   });
 
   const selectedColor = form.watch("color") || "#f97316";
@@ -120,13 +133,13 @@ export default function Patrocinadores() {
 
   const openCreate = () => {
     setEditingSponsor(null);
-    form.reset({ name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", quota: "" });
+    form.reset({ name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", quota: "", accountExecutiveId: "" });
     setModalOpen(true);
   };
 
   const openEdit = (s: Sponsor) => {
     setEditingSponsor(s);
-    form.reset({ name: s.name, email: s.email || "", phone: s.phone || "", company: s.company || "", contactPerson: s.contactPerson || "", notes: s.notes || "", color: s.color || "#f97316", quota: (s as any).quota || "" });
+    form.reset({ name: s.name, email: s.email || "", phone: s.phone || "", company: s.company || "", contactPerson: s.contactPerson || "", notes: s.notes || "", color: s.color || "#f97316", quota: (s as any).quota || "", accountExecutiveId: (s as any).accountExecutiveId || "" });
     setModalOpen(true);
   };
 
@@ -140,12 +153,34 @@ export default function Patrocinadores() {
 
   const closeModal = () => { setModalOpen(false); setEditingSponsor(null); form.reset(); };
 
-  /* ── Filtered + paginated ── */
-  const filtered = sponsors.filter(s => {
-    const q = search.toLowerCase();
-    return !q || s.name.toLowerCase().includes(q) || (s.company || "").toLowerCase().includes(q)
-      || (s.email || "").toLowerCase().includes(q) || (s.contactPerson || "").toLowerCase().includes(q);
-  });
+  /* ── Filtered + sorted + paginated ── */
+  const filtered = sponsors
+    .filter(s => {
+      const q = search.toLowerCase();
+      const matchesSearch = !q || s.name.toLowerCase().includes(q) || (s.company || "").toLowerCase().includes(q)
+        || (s.email || "").toLowerCase().includes(q) || (s.contactPerson || "").toLowerCase().includes(q)
+        || execName(s).toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+      if (execFilter === "all") return true;
+      if (execFilter === "__none__") return !(s as any).accountExecutiveId;
+      return (s as any).accountExecutiveId === execFilter;
+    })
+    // Ordenação padrão alfabética (pt-BR, ignorando acentos/maiúsculas).
+    .sort((a, b) => {
+      const val = (s: Sponsor) =>
+        sortBy === "company" ? (s.company || "")
+        : sortBy === "quota" ? (s.quota || "")
+        : sortBy === "executive" ? execName(s)
+        : s.name;
+      const cmp = val(a).localeCompare(val(b), "pt-BR", { sensitivity: "base" });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+  const toggleSort = (col: typeof sortBy) => {
+    if (sortBy === col) setSortDir(d => (d === "asc" ? "desc" : "asc"));
+    else { setSortBy(col); setSortDir("asc"); }
+    setPage(1);
+  };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
@@ -205,20 +240,37 @@ export default function Patrocinadores() {
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Filtrar por nome, empresa ou e-mail..."
+              placeholder="Filtrar por nome, empresa, e-mail ou executivo..."
               data-testid="input-search-sponsors"
               style={{ ...tiInput, paddingLeft: 36, paddingTop: 10, paddingBottom: 10 }}
               onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = `0 0 0 2px rgba(249,115,22,0.2)`; }}
               onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
             />
           </div>
-          {search && (
-            <button onClick={() => { setSearch(""); setPage(1); }}
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 900, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              <X style={{ width: 10, height: 10 }} />
-              Limpar ({filtered.length})
-            </button>
-          )}
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Filtro por executivo responsável */}
+            <select
+              value={execFilter}
+              onChange={e => { setExecFilter(e.target.value); setPage(1); }}
+              data-testid="filter-account-executive"
+              style={{ ...tiInput, width: "auto", minWidth: 200, paddingTop: 10, paddingBottom: 10, cursor: "pointer" }}
+            >
+              <option value="all">Todos os executivos</option>
+              <option value="__none__">Sem executivo</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+
+            {(search || execFilter !== "all") && (
+              <button onClick={() => { setSearch(""); setExecFilter("all"); setPage(1); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 900, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
+                <X style={{ width: 10, height: 10 }} />
+                Limpar ({filtered.length})
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -239,8 +291,26 @@ export default function Patrocinadores() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
-                  <th style={thStyle}>Nome do Patrocinador</th>
-                  <th style={thStyle}>Empresa</th>
+                  {([
+                    { key: "name", label: "Nome do Patrocinador" },
+                    { key: "company", label: "Empresa" },
+                    { key: "executive", label: "Executivo Responsável" },
+                    { key: "quota", label: "Cota" },
+                  ] as const).map(col => (
+                    <th
+                      key={col.key}
+                      style={{ ...thStyle, cursor: "pointer", userSelect: "none" }}
+                      onClick={() => toggleSort(col.key)}
+                      title={`Ordenar por ${col.label.toLowerCase()}`}
+                    >
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        {col.label}
+                        <span style={{ opacity: sortBy === col.key ? 1 : 0.25, fontSize: 9 }}>
+                          {sortBy === col.key && sortDir === "desc" ? "▼" : "▲"}
+                        </span>
+                      </span>
+                    </th>
+                  ))}
                   <th style={thStyle}>Contato Responsável</th>
                   <th style={thStyle}>E-mail</th>
                   <th style={thStyle}>Telefone</th>
@@ -275,6 +345,38 @@ export default function Patrocinadores() {
                         <span style={{ fontSize: 12, color: T.second }}>
                           {sponsor.company || <span style={{ color: T.muted, fontStyle: "italic" }}>—</span>}
                         </span>
+                      </td>
+
+                      {/* Executivo responsável */}
+                      <td style={{ padding: "16px 20px" }}>
+                        {execName(sponsor) ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.text, fontWeight: 600 }}>
+                            <span style={{
+                              width: 22, height: 22, borderRadius: "50%", backgroundColor: T.low,
+                              display: "inline-flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 9, fontWeight: 800, color: T.second, flexShrink: 0,
+                            }}>
+                              {execName(sponsor).split(" ").filter(Boolean).slice(0, 2).map(n => n[0]?.toUpperCase()).join("")}
+                            </span>
+                            {execName(sponsor)}
+                          </span>
+                        ) : (
+                          <span style={{ color: T.muted, fontStyle: "italic", fontSize: 12 }}>não atribuído</span>
+                        )}
+                      </td>
+
+                      {/* Cota */}
+                      <td style={{ padding: "16px 20px" }}>
+                        {(() => {
+                          const q = QUOTA_OPTIONS.find(o => o.value === sponsor.quota);
+                          return q ? (
+                            <span style={{
+                              fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+                              color: q.color, backgroundColor: `${q.color}14`, border: `1px solid ${q.color}33`,
+                              borderRadius: 4, padding: "2px 8px", whiteSpace: "nowrap",
+                            }}>{q.label}</span>
+                          ) : <span style={{ color: T.muted, fontStyle: "italic", fontSize: 12 }}>—</span>;
+                        })()}
                       </td>
 
                       {/* Contato */}
@@ -355,60 +457,6 @@ export default function Patrocinadores() {
         )}
       </div>
 
-      {/* ── Bottom insight cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, marginTop: 32 }}>
-        {/* Dark card */}
-        <div style={{ backgroundColor: T.dark, borderRadius: 12, padding: "36px 40px", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <h3 style={{ fontSize: 28, fontWeight: 900, color: "#fff", margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>
-              Performance de Ativação
-            </h3>
-            <p style={{ fontSize: 12, color: "#a8a29e", margin: 0, maxWidth: 360 }}>
-              Métricas consolidadas de engajamento em todos os contratos ativos no período atual.
-            </p>
-            <div style={{ display: "flex", gap: 40, marginTop: 28 }}>
-              <div>
-                <p style={{ fontSize: 36, fontWeight: 900, color: T.accent, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
-                  {sponsors.length}
-                </p>
-                <p style={{ fontSize: 9, fontWeight: 900, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.18em", margin: 0 }}>
-                  Parceiros Ativos
-                </p>
-              </div>
-              <div>
-                <p style={{ fontSize: 36, fontWeight: 900, color: "#fff", margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif" }}>
-                  {sponsors.filter(s => s.email || s.phone).length}
-                </p>
-                <p style={{ fontSize: 9, fontWeight: 900, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.18em", margin: 0 }}>
-                  Com Contato Vinculado
-                </p>
-              </div>
-            </div>
-          </div>
-          {/* Decorative gradient */}
-          <div style={{ position: "absolute", right: 0, top: 0, height: "100%", width: "33%", background: "linear-gradient(to left, rgba(249,115,22,0.08), transparent)" }} />
-        </div>
-
-        {/* Orange card */}
-        <div style={{ backgroundColor: T.accent, borderRadius: 12, padding: "36px 40px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div>
-            <h4 style={{ fontSize: 20, fontWeight: 900, color: T.dark, margin: "0 0 10px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-              Cadastrar Novo Parceiro
-            </h4>
-            <p style={{ fontSize: 11, color: "rgba(28,25,23,0.6)", margin: 0, fontWeight: 500 }}>
-              Adicione patrocinadores e vincule-os a eventos da plataforma.
-            </p>
-          </div>
-          <button
-            onClick={openCreate}
-            style={{ width: "100%", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, padding: "14px 0", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.14em", cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", marginTop: 24, transition: "background 0.15s" }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
-          >
-            Novo Patrocinador
-          </button>
-        </div>
-      </div>
 
       {/* ══════════════════════════════
           MODAL: Criar / Editar
@@ -470,6 +518,38 @@ export default function Patrocinadores() {
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
                               />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      </div>
+
+                      {/* Cota + Executivo responsável */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
+                        <FormField control={form.control} name="quota" render={({ field }) => (
+                          <FormItem>
+                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Cota</label>
+                            <FormControl>
+                              <select {...field} data-testid="select-quota" style={{ ...tiInput, cursor: "pointer" }}>
+                                <option value="">Sem cota definida</option>
+                                {QUOTA_OPTIONS.map(q => (
+                                  <option key={q.value} value={q.value}>{q.label}</option>
+                                ))}
+                              </select>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="accountExecutiveId" render={({ field }) => (
+                          <FormItem>
+                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Executivo Responsável</label>
+                            <FormControl>
+                              <select {...field} data-testid="select-account-executive" style={{ ...tiInput, cursor: "pointer" }}>
+                                <option value="">Não atribuído</option>
+                                {users.map(u => (
+                                  <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
+                              </select>
                             </FormControl>
                             <FormMessage />
                           </FormItem>

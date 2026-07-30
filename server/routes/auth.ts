@@ -157,6 +157,22 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
+  // Lista enxuta de usuários (id/nome/perfil) para preencher seletores, como o
+  // "executivo responsável" do patrocinador. Não expõe e-mail nem hash — por
+  // isso pode ficar disponível a qualquer usuário autenticado.
+  app.get("/api/users/basic", requireAuth, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(
+        users
+          .map(u => ({ id: u.id, name: u.name, role: u.role }))
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+      );
+    } catch (error: any) {
+      sendSensitiveError(res, error, "Get basic users error", 500);
+    }
+  });
+
   // ============ USER MANAGEMENT (Admin only) ============
 
   // Get all users

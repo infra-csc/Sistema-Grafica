@@ -61,9 +61,14 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
-  // Update sponsor
-  app.patch("/api/sponsors/:id", requireAdmin, async (req, res) => {
+  // Update sponsor — Atendimento e Solicitação também mantêm o cadastro
+  // (mesmos perfis que já enxergam a tela de Patrocinadores).
+  app.patch("/api/sponsors/:id", requireAuth, async (req, res) => {
     try {
+      const role = (req as any).userRole;
+      if (!["admin", "atendimento", "solicitacao"].includes(role)) {
+        return res.status(403).json({ error: "Sem permissão para editar patrocinadores" });
+      }
       const validatedData = insertSponsorSchema.partial().parse(req.body);
       const sponsor = await storage.updateSponsor(req.params.id, validatedData);
       if (!sponsor) {

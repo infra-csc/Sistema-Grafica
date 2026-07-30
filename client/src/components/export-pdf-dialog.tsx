@@ -30,9 +30,17 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
     if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); }
   }, [open]);
 
+  // "Aprovado" cobre todo o pós-aprovação (inclui peças que já seguiram para
+  // produção/entrega) — senão elas não apareceriam ao filtrar por aprovadas.
+  const APPROVED_STATUSES = [
+    "sponsor_approved", "awaiting_creator_review", "awaiting_final_review",
+    "ready_for_production", "approved", "pronto_para_producao", "liberado",
+    "inProduction", "em_producao", "produced", "produzido",
+    "conferred", "delivered", "entregue",
+  ];
   const statusOf = (i: any): "pendente" | "aprovado" | "outro" =>
     i.status === "awaiting_sponsor_approval" ? "pendente"
-      : ["sponsor_approved", "awaiting_creator_review"].includes(i.status) ? "aprovado"
+      : APPROVED_STATUSES.includes(i.status) ? "aprovado"
       : "outro";
 
   // Aplica os filtros, podendo pular um deles (para as opções facetadas).

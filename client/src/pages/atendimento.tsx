@@ -441,16 +441,26 @@ export default function Atendimento() {
   // Itens filtrados para o modal de exportação PDF (filtros independentes da página)
   // Pool para o modal de exportação compartilhado: anexa os patrocinadores
   // (que aqui vivem no itemSponsorsMap) e o evento a cada peça.
+  // Pool de exportação: pendentes E já aprovadas. Órgãos como o Ministério do
+  // Esporte exigem o book COMPLETO da etapa a cada nova solicitação, mesmo
+  // quando só uma peça mudou — se só as pendentes entrassem, o book sairia
+  // incompleto assim que as demais fossem aprovadas.
   const exportPool = useMemo(() => {
     const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
-    return pendingItems
-      .filter(item => (itemSponsorsMap[item.id]?.length ?? 0) > 0)
+    return (items as any[])
+      .filter(item => {
+        if ((itemSponsorsMap[item.id]?.length ?? 0) === 0) return false;
+        // Entrou no fluxo de aprovação: está aguardando OU já tem aprovação.
+        const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+        return item.status === 'awaiting_sponsor_approval'
+          || approvals.some(a => a.status === 'approved');
+      })
       .map(item => ({
         ...item,
         sponsors: itemSponsorsMap[item.id] ?? [],
         event: item.event ?? evById.get(item.eventId),
       }));
-  }, [pendingItems, itemSponsorsMap, events]);
+  }, [items, itemSponsorsMap, itemApprovalsMap, events]);
 
   const exportItems = useMemo(() => {
     return pendingItems.filter(item => {

@@ -401,6 +401,9 @@ export default function Historico() {
 
     // Item criado (log de auditoria, sem item na tabela = item foi criado e deletado)
     if (action === "created" && !item) {
+      // Resumos de importação antigos foram gravados como 'item' mas com o id do
+      // EVENTO — não são peças, e renderizavam "Peça ( un.) — Evento desconhecido".
+      if (events.some(e => e.id === itemId)) return;
       timeline.push({
         id: `item-created-log-${log.id ?? itemId + ts}`,
         type: "item_created",

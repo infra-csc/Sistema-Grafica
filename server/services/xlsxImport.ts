@@ -398,8 +398,11 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
       }
       if (sponsorLinks.length > 0) await Promise.all(sponsorLinks);
 
+      // Resumo da importação: é do EVENTO (o entityId é o evento). Marcar como
+      // 'item' fazia o histórico procurar uma peça inexistente e renderizar
+      // "Peça ( un.) — Evento desconhecido".
       await createAuditLog(
-        (req as any).userName, 'created', 'item', event.id,
+        (req as any).userName, 'created', 'event', event.id,
         `${created.length} itens importados via Excel${fileName ? ` ("${fileName}")` : ""}`
       );
       // Log por peça: sem ele o histórico não encontra o autor da peça

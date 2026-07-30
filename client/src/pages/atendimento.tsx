@@ -2010,49 +2010,42 @@ export default function Atendimento() {
                         ))}
                       </div>
 
-                      {/* ── Grade de patrocinadores ── */}
+                      {/* ── Chips de patrocinadores ── */}
                       {sponsorApprovals.length > 0 && (
-                        <div style={{ padding: '8px 16px 14px', display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        <div style={{ padding: '8px 16px 14px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {sponsorApprovals.map(({ sponsor, appr }) => {
-                            const isApproved = appr?.status === 'approved';
-                            const isRejected = appr?.status === 'rejected';
+                            const isApproved   = appr?.status === 'approved';
+                            const isRejected   = appr?.status === 'rejected';
                             const isNewVersion = appr?.status === 'new_version_pending';
-                            const stateLabel = isApproved ? null : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando';
-                            const dotColor = isApproved ? '#15803d' : isRejected ? '#dc2626' : isNewVersion ? '#d97706' : '#9ca3af';
-                            const bg = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
-                            const border = isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e5e7eb';
-                            const nameColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#57534e';
+
+                            // cores por estado
+                            const bg      = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
+                            const border  = isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e7e5e4';
+                            const txtColor= isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#6b7280';
+                            const dotBg   = isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db';
+
                             return (
-                              <div key={sponsor.id} style={{
-                                display: 'flex', flexDirection: 'column', gap: 1,
-                                padding: '5px 9px 5px 7px', borderRadius: 8,
-                                background: bg, border: `1px solid ${border}`,
-                                flexShrink: 0, minWidth: 90,
-                              }}>
-                                {/* linha 1: indicador + nome */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                  <span style={{
-                                    width: 7, height: 7, borderRadius: '50%',
-                                    background: dotColor, flexShrink: 0,
-                                  }} />
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: nameColor, lineHeight: 1.2 }}>
-                                    {sponsor.name}
+                              <div key={sponsor.id} title={isApproved && appr?.approvedBy ? `${appr.approvedBy} · ${fmtDt(appr.approvedAt) ?? ''}` : undefined}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                                  height: 26, padding: '0 9px 0 7px',
+                                  borderRadius: 13, background: bg, border: `1px solid ${border}`,
+                                  flexShrink: 0, cursor: 'default',
+                                }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotBg, flexShrink: 0 }} />
+                                <span style={{ fontSize: 11, fontWeight: 600, color: txtColor, whiteSpace: 'nowrap', lineHeight: 1 }}>
+                                  {sponsor.name}
+                                </span>
+                                {isApproved && appr?.approvedAt && (
+                                  <span style={{ fontSize: 10, color: '#86efac', fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
+                                    {fmtDt(appr.approvedAt, true)}
                                   </span>
-                                </div>
-                                {/* linha 2: estado / quem aprovou + data */}
-                                {isApproved ? (
-                                  <div style={{ paddingLeft: 12, display: 'flex', flexDirection: 'column', gap: 0 }}>
-                                    {appr?.approvedBy && (
-                                      <span style={{ fontSize: 9, color: '#4ade80', fontWeight: 600, lineHeight: 1.3 }}>{appr.approvedBy}</span>
-                                    )}
-                                    {appr?.approvedAt && (
-                                      <span style={{ fontSize: 9, color: '#86efac', lineHeight: 1.3 }}>{fmtDt(appr.approvedAt)}</span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div style={{ paddingLeft: 12 }}>
-                                    <span style={{ fontSize: 9, fontWeight: 600, color: dotColor, opacity: 0.8, lineHeight: 1.3 }}>{stateLabel}</span>
-                                  </div>
+                                )}
+                                {isRejected && (
+                                  <span style={{ fontSize: 9, color: '#fca5a5', fontWeight: 600, whiteSpace: 'nowrap', lineHeight: 1 }}>✕</span>
+                                )}
+                                {isNewVersion && (
+                                  <span style={{ fontSize: 9, color: '#fcd34d', fontWeight: 600, whiteSpace: 'nowrap', lineHeight: 1 }}>↻</span>
                                 )}
                               </div>
                             );

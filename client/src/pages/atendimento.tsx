@@ -2500,14 +2500,15 @@ export default function Atendimento() {
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                     <div style={{
                                       width: 32, height: 32, borderRadius: '50%',
-                                      backgroundColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#e7e5e4',
+                                      backgroundColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#fff7ed',
                                       display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      border: isPending ? '1.5px solid #fed7aa' : 'none',
                                     }}>
                                       {isApproved
                                         ? <CheckCircle style={{ width: 14, height: 14, color: '#15803d' }} />
                                         : isRejected
                                         ? <XCircle style={{ width: 14, height: 14, color: '#dc2626' }} />
-                                        : <Clock style={{ width: 14, height: 14, color: '#a8a29e' }} />}
+                                        : <Clock style={{ width: 14, height: 14, color: '#f97316' }} />}
                                     </div>
                                     <div>
                                       <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0 }}>{sponsor.name}</p>

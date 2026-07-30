@@ -28,6 +28,16 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Get single sponsor
+  // Uso de cada patrocinador (nº de eventos e de peças) — precisa vir ANTES de
+  // /api/sponsors/:id, senão o Express trata "usage" como um id.
+  app.get("/api/sponsors/usage", requireAuth, async (req, res) => {
+    try {
+      res.json(await storage.getSponsorUsage());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/sponsors/:id", requireAuth, async (req, res) => {
     try {
       const sponsor = await storage.getSponsor(req.params.id);

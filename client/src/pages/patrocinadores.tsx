@@ -36,7 +36,7 @@ const PRESET_COLORS = [
   "#1c1917", "#b45309", "#06b6d4", "#65a30d",
 ];
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 const QUOTA_OPTIONS = [
   { value: "MASTER",     label: "Master",      color: "#ef4444" },
@@ -67,7 +67,7 @@ export default function Patrocinadores() {
   const [search, setSearch]                   = useState("");
   const [page, setPage]                       = useState(1);
   const [hoveredRow, setHoveredRow]           = useState<string | null>(null);
-  const [sortBy, setSortBy]                   = useState<"name" | "company" | "quota" | "executive">("name");
+  const [sortBy, setSortBy]                   = useState<"name" | "company" | "quota" | "executive" | "events">("name");
   const [sortDir, setSortDir]                 = useState<"asc" | "desc">("asc");
   const [execFilter, setExecFilter]           = useState<string>("all");
   const { toast } = useToast();
@@ -80,6 +80,12 @@ export default function Patrocinadores() {
   const { data: users = [] } = useQuery<{ id: string; name: string; role: string }[]>({
     queryKey: ["/api/users/basic"],
   });
+  // Quantos eventos/peças cada patrocinador tem — mostra quem está ativo e
+  // quem nunca foi usado (candidato a limpeza).
+  const { data: usage = {} } = useQuery<Record<string, { events: number; items: number }>>({
+    queryKey: ["/api/sponsors/usage"],
+  });
+
   const userById = new Map(users.map(u => [u.id, u]));
   const execName = (s: Sponsor) => (s as any).accountExecutiveId
     ? userById.get((s as any).accountExecutiveId)?.name ?? "—"
@@ -167,6 +173,11 @@ export default function Patrocinadores() {
     })
     // Ordenação padrão alfabética (pt-BR, ignorando acentos/maiúsculas).
     .sort((a, b) => {
+      if (sortBy === "events") {
+        const n = (s: Sponsor) => usage[s.id]?.events ?? 0;
+        const cmp = n(a) - n(b) || a.name.localeCompare(b.name, "pt-BR");
+        return sortDir === "asc" ? cmp : -cmp;
+      }
       const val = (s: Sponsor) =>
         sortBy === "company" ? (s.company || "")
         : sortBy === "quota" ? (s.quota || "")
@@ -211,12 +222,24 @@ export default function Patrocinadores() {
             <p style={{ fontSize: 28, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>{sponsors.length}</p>
           </div>
           <div style={{ width: 1, height: 44, backgroundColor: T.border }} />
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Com Contato</p>
-            <p style={{ fontSize: 28, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
-              {sponsors.filter(s => s.email || s.phone).length}
-            </p>
-          </div>
+          {/* Contas sem executivo: clicar filtra a lista para resolver. */}
+          {(() => {
+            const semExec = sponsors.filter(s => !(s as any).accountExecutiveId).length;
+            const ativo = execFilter === "__none__";
+            return (
+              <button
+                onClick={() => { setExecFilter(ativo ? "all" : "__none__"); setPage(1); }}
+                data-testid="stat-sem-executivo"
+                title={ativo ? "Mostrar todos" : "Ver apenas patrocinadores sem executivo"}
+                style={{ textAlign: "right", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                <p style={{ fontSize: 10, fontWeight: 900, color: ativo ? T.accent : T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Sem Executivo</p>
+                <p style={{ fontSize: 28, fontWeight: 900, color: semExec > 0 ? "#b45309" : T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
+                  {semExec}
+                </p>
+              </button>
+            );
+          })()}
           <button
             onClick={openCreate}
             data-testid="button-add-sponsor"
@@ -296,6 +319,7 @@ export default function Patrocinadores() {
                     { key: "company", label: "Empresa" },
                     { key: "executive", label: "Executivo Responsável" },
                     { key: "quota", label: "Cota" },
+                    { key: "events", label: "Eventos" },
                   ] as const).map(col => (
                     <th
                       key={col.key}
@@ -327,7 +351,9 @@ export default function Patrocinadores() {
                       data-testid={`sponsor-item-${sponsor.id}`}
                       onMouseEnter={() => setHoveredRow(sponsor.id)}
                       onMouseLeave={() => setHoveredRow(null)}
-                      style={{ borderBottom: i < paginated.length - 1 ? `1px solid ${T.low}` : "none", backgroundColor: isHover ? "rgba(249,115,22,0.03)" : "transparent", transition: "background 0.1s" }}
+                      onClick={() => openEdit(sponsor)}
+                      title="Clique para editar"
+                      style={{ borderBottom: i < paginated.length - 1 ? `1px solid ${T.low}` : "none", backgroundColor: isHover ? "rgba(249,115,22,0.03)" : "transparent", transition: "background 0.1s", cursor: "pointer" }}
                     >
                       {/* Nome */}
                       <td style={{ padding: "16px 20px" }}>
@@ -379,6 +405,22 @@ export default function Patrocinadores() {
                         })()}
                       </td>
 
+                      {/* Eventos / peças vinculados */}
+                      <td style={{ padding: "16px 20px" }}>
+                        {(() => {
+                          const u = usage[sponsor.id];
+                          if (!u || u.events === 0) {
+                            return <span title="Nunca vinculado a um evento" style={{ fontSize: 10, fontWeight: 800, color: "#b45309", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 4, padding: "2px 8px", whiteSpace: "nowrap" }}>sem evento</span>;
+                          }
+                          return (
+                            <span title={`${u.items} peça(s) vinculada(s)`} style={{ fontSize: 12, color: T.text, fontWeight: 700, whiteSpace: "nowrap" }}>
+                              {u.events} <span style={{ fontWeight: 500, color: T.muted }}>{u.events === 1 ? "evento" : "eventos"}</span>
+                              {u.items > 0 && <span style={{ color: T.muted, fontWeight: 500 }}> · {u.items} pç</span>}
+                            </span>
+                          );
+                        })()}
+                      </td>
+
                       {/* Contato */}
                       <td style={{ padding: "16px 20px" }}>
                         <span style={{ fontSize: 12, fontWeight: 500, color: T.text }}>
@@ -401,7 +443,7 @@ export default function Patrocinadores() {
                       </td>
 
                       {/* Ações */}
-                      <td style={{ padding: "16px 20px" }}>
+                      <td style={{ padding: "16px 20px" }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, opacity: isHover ? 1 : 0, transition: "opacity 0.15s" }}>
                           <button
                             data-testid={`button-edit-${sponsor.id}`}

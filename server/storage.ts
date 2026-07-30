@@ -134,6 +134,7 @@ export interface IStorage {
   // Item Sponsors (many-to-many relationship)
   getItemSponsors(itemId: string): Promise<ItemSponsor[]>;
   getAllItemSponsors(): Promise<ItemSponsor[]>;
+  getSponsorUsage(): Promise<Record<string, { events: number; items: number }>>;
   addSponsorToItem(itemSponsor: InsertItemSponsor): Promise<ItemSponsor>;
   removeSponsorFromItem(itemId: string, sponsorId: string): Promise<boolean>;
   bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void>;
@@ -856,6 +857,26 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(itemSponsors)
       .orderBy(desc(itemSponsors.createdAt));
+  }
+
+  /**
+   * Quantos eventos e peças cada patrocinador tem. Duas queries agregadas —
+   * evita carregar os vínculos todos só para contar.
+   */
+  async getSponsorUsage(): Promise<Record<string, { events: number; items: number }>> {
+    const [evRows, itRows] = await Promise.all([
+      db.select({ sponsorId: eventSponsors.sponsorId, n: sql<number>`count(*)::int` })
+        .from(eventSponsors).groupBy(eventSponsors.sponsorId),
+      db.select({ sponsorId: itemSponsors.sponsorId, n: sql<number>`count(*)::int` })
+        .from(itemSponsors).groupBy(itemSponsors.sponsorId),
+    ]);
+    const out: Record<string, { events: number; items: number }> = {};
+    for (const r of evRows) out[r.sponsorId] = { events: Number(r.n) || 0, items: 0 };
+    for (const r of itRows) {
+      if (!out[r.sponsorId]) out[r.sponsorId] = { events: 0, items: 0 };
+      out[r.sponsorId].items = Number(r.n) || 0;
+    }
+    return out;
   }
 
   async addSponsorToItem(insertItemSponsor: InsertItemSponsor): Promise<ItemSponsor> {

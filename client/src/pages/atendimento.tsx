@@ -2084,57 +2084,43 @@ export default function Atendimento() {
                         )}
 
                         {/* ── Pipeline de fluxo ── */}
-                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '10px 16px 12px' }}>
-                          {/* linha de dots + conectores */}
-                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                            {PIPELINE_STAGES.map((stage, si) => {
-                              const isDone    = si < currentPipelineIdx;
-                              const isCurrent = si === currentPipelineIdx;
-                              const stageColor = isCurrent ? (stage as any).color || '#78716c' : isDone ? '#c4bfb8' : '#e5e0da';
-                              return (
-                                <Fragment key={stage.key}>
-                                  <div style={{
-                                    width: isCurrent ? 12 : isDone ? 8 : 7,
-                                    height: isCurrent ? 12 : isDone ? 8 : 7,
-                                    borderRadius: '50%',
-                                    flexShrink: 0,
-                                    background: isCurrent ? stageColor : isDone ? '#c4bfb8' : '#ede9e4',
-                                    border: isCurrent ? `2px solid ${stageColor}` : 'none',
-                                    boxShadow: isCurrent ? `0 0 0 3px ${stageColor}30` : 'none',
-                                    transition: 'all 0.15s',
-                                    zIndex: 1,
-                                  }} />
-                                  {si < PIPELINE_STAGES.length - 1 && (
-                                    <div style={{ flex: 1, height: 2, background: si < currentPipelineIdx ? '#c4bfb8' : '#ede9e4', borderRadius: 1 }} />
-                                  )}
-                                </Fragment>
-                              );
-                            })}
-                          </div>
-                          {/* labels abaixo dos dots */}
-                          <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-                            {PIPELINE_STAGES.map((stage, si) => {
-                              const isDone    = si < currentPipelineIdx;
-                              const isCurrent = si === currentPipelineIdx;
-                              const stageColor = isCurrent ? (stage as any).color || '#78716c' : isDone ? '#a8a29e' : '#d4d0ca';
-                              return (
-                                <Fragment key={stage.key}>
-                                  <div style={{ display: 'flex', justifyContent: 'center', flexShrink: 0, width: isCurrent ? 12 : isDone ? 8 : 7 }}>
+                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '12px 16px 14px' }}>
+                          {/* stepper: linha absoluta + dots + labels */}
+                          <div style={{ position: 'relative' }}>
+                            {/* linha conectora de fundo */}
+                            <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 2, background: '#ede9e4', borderRadius: 1 }} />
+                            {/* linha preenchida até etapa atual */}
+                            <div style={{ position: 'absolute', top: 5, left: 0, height: 2, borderRadius: 1, background: '#c4bfb8', width: `${currentPipelineIdx / (PIPELINE_STAGES.length - 1) * 100}%`, transition: 'width 0.3s' }} />
+                            {/* dots */}
+                            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', zIndex: 1 }}>
+                              {PIPELINE_STAGES.map((stage, si) => {
+                                const isDone    = si < currentPipelineIdx;
+                                const isCurrent = si === currentPipelineIdx;
+                                const stageColor = isCurrent ? (stage as any).color || '#78716c' : '#c4bfb8';
+                                return (
+                                  <div key={stage.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                    <div style={{
+                                      width: isCurrent ? 12 : isDone ? 8 : 8,
+                                      height: isCurrent ? 12 : isDone ? 8 : 8,
+                                      borderRadius: '50%',
+                                      background: isCurrent ? stageColor : isDone ? '#c4bfb8' : '#e8e4e0',
+                                      border: isCurrent ? `2px solid ${stageColor}` : 'none',
+                                      boxShadow: isCurrent ? `0 0 0 3px ${stageColor}30` : 'none',
+                                      transition: 'all 0.15s',
+                                      flexShrink: 0,
+                                    }} />
                                     <span style={{
                                       fontSize: isCurrent ? 10 : 9,
                                       fontWeight: isCurrent ? 800 : 500,
-                                      color: stageColor,
+                                      color: isCurrent ? stageColor : isDone ? '#a8a29e' : '#d0cbc5',
                                       whiteSpace: 'nowrap',
                                       lineHeight: 1.2,
-                                      transform: 'translateX(-50%)',
-                                      display: 'block',
-                                      paddingLeft: '50%',
+                                      textAlign: 'center',
                                     }}>{stage.label}</span>
                                   </div>
-                                  {si < PIPELINE_STAGES.length - 1 && <div style={{ flex: 1 }} />}
-                                </Fragment>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
 

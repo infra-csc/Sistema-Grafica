@@ -2285,26 +2285,15 @@ export default function Arte() {
 
           <div style={{ padding: 24 }}>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{
-                  display: 'inline-block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
-                  fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)',
-                  padding: '2px 8px', borderRadius: 4, width: 'fit-content'
-                }}>Ação Necessária</span>
-                <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.05em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.15 }}>
-                  Enviar Nova Arte
-                </h2>
-              </div>
-              <button
-                onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, borderRadius: 4, lineHeight: 1, flexShrink: 0 }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
-                data-testid="button-close-correcao-dialog"
-              >
-                <X style={{ width: 20, height: 20 }} />
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
+              <span style={{
+                display: 'inline-block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
+                fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)',
+                padding: '2px 8px', borderRadius: 4, width: 'fit-content'
+              }}>Ação Necessária</span>
+              <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.05em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.15 }}>
+                Enviar Nova Arte
+              </h2>
             </div>
 
             {correcaoItem && (

@@ -39,6 +39,10 @@ interface SponsorApproval {
   } | null;
 }
 
+// Reutilizado nos sorts de lista: um Collator criado uma vez é bem mais rápido
+// que chamar localeCompare a cada comparação. Sem locale, como era antes.
+const COLLATOR = new Intl.Collator();
+
 export default function Atendimento() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -696,7 +700,7 @@ export default function Atendimento() {
   const reviewQueue = useMemo(() => {
     const sorted = [...pendingGroup].sort((a, b) => {
       const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-      return ga.localeCompare(gb) || a.type.localeCompare(b.type);
+      return COLLATOR.compare(ga, gb) || COLLATOR.compare(a.type, b.type);
     });
     const byEvent = new Map<string, any[]>();
     sorted.forEach(item => {
@@ -724,7 +728,7 @@ export default function Atendimento() {
     const map = new Map<string, any[]>();
     const sorted = [...pendingGroup].sort((a, b) => {
       const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-      return ga.localeCompare(gb) || a.type.localeCompare(b.type);
+      return COLLATOR.compare(ga, gb) || COLLATOR.compare(a.type, b.type);
     });
     // Renderiza só os primeiros; o resto entra via "Carregar mais".
     sorted.slice(0, pendVisible).forEach(item => {

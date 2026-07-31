@@ -29,6 +29,27 @@ import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
+// Status que alimentam cada aba. Antes ficavam embutidos no filtro, que era
+// reexecutado uma vez por aba só para contar.
+const TAB_STATUSES: Record<string, string[]> = {
+  "criar-aprovacoes": ['awaiting_submission'],
+  "aguardando-patrocinador": ['awaiting_sponsor_approval'],
+  "finalizar-layouts": ['sponsor_approved', 'awaiting_creator_review'],
+  "finalizados": [
+    'awaiting_final_review',
+    'ready_for_production',
+    'pronto_para_producao',
+    'liberado',
+    'inProduction',
+    'em_producao',
+    'produced',
+    'produzido',
+    'conferred',
+    'delivered',
+    'entregue',
+  ],
+};
+
 export default function Arte() {
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -1015,92 +1036,90 @@ export default function Arte() {
     { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
   ];
 
-  const getFilteredItemsForTab = (tab: string) => {
-    return allItems
-      .filter(item => {
-        const matchesEvent = eventFilter.length === 0 || eventFilter.includes(item.eventId);
-        let matchesView = false;
-        if (tab === "criar-aprovacoes") {
-          matchesView = item.status === 'awaiting_submission';
-        } else if (tab === "aguardando-patrocinador") {
-          matchesView = item.status === 'awaiting_sponsor_approval';
-        } else if (tab === "finalizar-layouts") {
-          matchesView = ['sponsor_approved', 'awaiting_creator_review'].includes(item.status);
-        } else if (tab === "finalizados") {
-          matchesView = [
-            'awaiting_final_review',
-            'ready_for_production',
-            'pronto_para_producao',
-            'liberado',
-            'inProduction',
-            'em_producao',
-            'produced',
-            'produzido',
-            'conferred',
-            'delivered',
-            'entregue',
-          ].includes(item.status);
-        }
-        const matchesType = typeFilter.length === 0 || typeFilter.includes(item.type);
-        const matchesMaterial = materialFilter.length === 0 || materialFilter.includes(item.material);
-        const matchesFinish = finishFilter.length === 0 || finishFilter.includes(item.finish);
-        let matchesNext10Days = true;
-        if (next10DaysFilter && item.event?.truckDepartureDate) {
-          const today = new Date(); today.setHours(0,0,0,0);
-          const tenDaysFromNow = new Date(today); tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
-          const dep = new Date(item.event.truckDepartureDate);
-          matchesNext10Days = dep >= today && dep <= tenDaysFromNow;
-        }
-        let matchesMonth = true;
-        if (monthFilter.length > 0 && item.event?.truckDepartureDate) {
-          matchesMonth = monthFilter.includes((new Date(item.event.truckDepartureDate).getMonth() + 1).toString());
-        }
-        const matchesSearch = !deferredSearch || [item.displayId, item.type, item.description, item.event?.name].some(
-          f => f && f.toLowerCase().includes(deferredSearch.toLowerCase())
-        );
-        const matchesSponsor = sponsorFilter.length === 0 || (item.sponsors ?? []).some((s: any) => sponsorFilter.includes(s.id));
-        const matchesSemThumb = !semThumb || !item.approvalThumbUrl;
-        const matchesComThumb = !comThumb || !!item.approvalThumbUrl;
-        const matchesSemFinal = !semFinal || !item.finalFileUrl;
-        const matchesComFinal = !comFinal || !!item.finalFileUrl;
-        const matchesUrgente = !urgenteFilter || item.event?.priority === 'urgent';
-        let matchesPeriod = true;
-        if (periodFilter !== "Todos" && item.event?.truckDepartureDate) {
-          const now = new Date(); now.setHours(0, 0, 0, 0);
-          const dep = new Date(item.event.truckDepartureDate);
-          if (periodFilter === "Hoje") {
-            const tom = new Date(now); tom.setDate(tom.getDate() + 1);
-            matchesPeriod = dep >= now && dep < tom;
-          } else if (periodFilter === "7 dias") {
-            const fut = new Date(now); fut.setDate(fut.getDate() + 7);
-            matchesPeriod = dep <= fut;
-          } else if (periodFilter === "15 dias") {
-            const fut = new Date(now); fut.setDate(fut.getDate() + 15);
-            matchesPeriod = dep <= fut;
-          } else if (periodFilter === "30 dias") {
-            const fut = new Date(now); fut.setDate(fut.getDate() + 30);
-            matchesPeriod = dep <= fut;
-          }
-        }
-        return matchesEvent && matchesView && matchesType && matchesMaterial && matchesFinish && matchesNext10Days && matchesMonth && matchesSearch && matchesSponsor && matchesSemThumb && matchesComThumb && matchesSemFinal && matchesComFinal && matchesUrgente && matchesPeriod;
-      })
-      .sort((a, b) => {
-        const eA = a.event?.name || '', eB = b.event?.name || '';
-        if (eA !== eB) return eA.localeCompare(eB, 'pt-BR');
-        const gA = groupOf(a.type) || '', gB = groupOf(b.type) || '';
-        if (gA !== gB) return gA.localeCompare(gB, 'pt-BR');
-        const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
-        const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
-        return idA - idB;
-      });
-  };
+  // Aplica os filtros uma única vez e separa por aba. As contagens saem do
+  // .length de cada balde; só a aba aberta paga o custo da ordenação.
+  const itemsByTab = useMemo(() => {
+    const search = deferredSearch.toLowerCase();
 
-  const filteredItems = getFilteredItemsForTab(activeTab);
+    // Limites de data calculados uma vez, não por item.
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tenDays = new Date(today); tenDays.setDate(tenDays.getDate() + 10);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    const in7 = new Date(today); in7.setDate(in7.getDate() + 7);
+    const in15 = new Date(today); in15.setDate(in15.getDate() + 15);
+    const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
+
+    const buckets: Record<string, any[]> = {
+      "criar-aprovacoes": [], "aguardando-patrocinador": [],
+      "finalizar-layouts": [], "finalizados": [],
+    };
+
+    for (const item of allItems) {
+      const matchesEvent = eventFilter.length === 0 || eventFilter.includes(item.eventId);
+      if (!matchesEvent) continue;
+      if (typeFilter.length && !typeFilter.includes(item.type)) continue;
+      if (materialFilter.length && !materialFilter.includes(item.material)) continue;
+      if (finishFilter.length && !finishFilter.includes(item.finish)) continue;
+
+      const depRaw = item.event?.truckDepartureDate;
+      if (next10DaysFilter && depRaw) {
+        const dep = new Date(depRaw);
+        if (!(dep >= today && dep <= tenDays)) continue;
+      }
+      if (monthFilter.length > 0 && depRaw) {
+        if (!monthFilter.includes((new Date(depRaw).getMonth() + 1).toString())) continue;
+      }
+      if (search) {
+        const hit = [item.displayId, item.type, item.description, item.event?.name]
+          .some(f => f && f.toLowerCase().includes(search));
+        if (!hit) continue;
+      }
+      if (sponsorFilter.length && !(item.sponsors ?? []).some((s: any) => sponsorFilter.includes(s.id))) continue;
+      if (semThumb && item.approvalThumbUrl) continue;
+      if (comThumb && !item.approvalThumbUrl) continue;
+      if (semFinal && item.finalFileUrl) continue;
+      if (comFinal && !item.finalFileUrl) continue;
+      if (urgenteFilter && item.event?.priority !== 'urgent') continue;
+
+      if (periodFilter !== "Todos" && depRaw) {
+        const dep = new Date(depRaw);
+        if (periodFilter === "Hoje") { if (!(dep >= today && dep < tomorrow)) continue; }
+        else if (periodFilter === "7 dias")  { if (!(dep <= in7))  continue; }
+        else if (periodFilter === "15 dias") { if (!(dep <= in15)) continue; }
+        else if (periodFilter === "30 dias") { if (!(dep <= in30)) continue; }
+      }
+
+      for (const tab in buckets) {
+        if (TAB_STATUSES[tab].includes(item.status)) { buckets[tab].push(item); break; }
+      }
+    }
+    return buckets;
+  }, [
+    allItems, eventFilter, typeFilter, materialFilter, finishFilter,
+    next10DaysFilter, monthFilter, deferredSearch, sponsorFilter,
+    semThumb, comThumb, semFinal, comFinal, urgenteFilter, periodFilter,
+  ]);
+
+  const filteredItems = useMemo(() => {
+    const list = itemsByTab[activeTab] ?? [];
+    // Um Collator reutilizado é bem mais rápido que localeCompare por comparação.
+    const cmp = new Intl.Collator('pt-BR');
+    return [...list].sort((a, b) => {
+      const eA = a.event?.name || '', eB = b.event?.name || '';
+      if (eA !== eB) return cmp.compare(eA, eB);
+      const gA = groupOf(a.type) || '', gB = groupOf(b.type) || '';
+      if (gA !== gB) return cmp.compare(gA, gB);
+      const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
+      const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
+      return idA - idB;
+    });
+  }, [itemsByTab, activeTab, groupMaps]);
+
   const itemsForEvent = eventFilter.length === 0 ? allItems : allItems.filter(item => eventFilter.includes(item.eventId));
-  const pendingCount = getFilteredItemsForTab("criar-aprovacoes").length;
-  const aguardandoCount = getFilteredItemsForTab("aguardando-patrocinador").length;
-  const needsFinalFileCount = getFilteredItemsForTab("finalizar-layouts").length;
-  const finalizadosCount = getFilteredItemsForTab("finalizados").length;
+  const pendingCount = itemsByTab["criar-aprovacoes"].length;
+  const aguardandoCount = itemsByTab["aguardando-patrocinador"].length;
+  const needsFinalFileCount = itemsByTab["finalizar-layouts"].length;
+  const finalizadosCount = itemsByTab["finalizados"].length;
   const correcaoCount = correcaoItems.length;
   const pendingItems = filteredItems.filter(item => item.status === 'awaiting_submission');
 

@@ -152,6 +152,10 @@ const getSponsorColorById = (sponsorId: string, allSponsors: any[]) => {
   return getSponsorColorStyle(sponsor);
 };
 
+// Reutilizado nos sorts de lista: um Collator criado uma vez é bem mais rápido
+// que chamar localeCompare a cada comparação.
+const COLLATOR_PTBR = new Intl.Collator('pt-BR');
+
 export default function VincularPatrocinadores() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -1962,8 +1966,8 @@ export default function VincularPatrocinadores() {
             .slice()
             .sort((a, b) => {
               const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-              if (ga !== gb) return ga.localeCompare(gb, 'pt-BR');
-              if (a.type !== b.type) return a.type.localeCompare(b.type, 'pt-BR');
+              if (ga !== gb) return COLLATOR_PTBR.compare(ga, gb);
+              if (a.type !== b.type) return COLLATOR_PTBR.compare(a.type, b.type);
               const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
               const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
               return idA - idB;

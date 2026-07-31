@@ -1907,7 +1907,9 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Gráfica marca a peça como reaproveitamento (pula produção → vai direto para "Produzido")
+  // Gráfica marca unidades como reaproveitamento — total ou parcial. As unidades
+  // reaproveitadas dispensam produção, mas continuam passando pela conferência
+  // junto com as produzidas.
   app.post("/api/items/:id/mark-reuse", requireAuth, async (req, res) => {
     try {
       if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
@@ -1915,9 +1917,6 @@ export function registerItemRoutes(app: Express): void {
       }
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
-      if (current.isReuse) {
-        return res.status(409).json({ error: "Esta peça já está marcada como reaproveitamento" });
-      }
       if (current.status === "delivered" || current.status === "entregue") {
         return res.status(409).json({ error: "Não é possível reaproveitar uma peça já entregue" });
       }
@@ -1930,9 +1929,25 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: `Status atual não permite reaproveitamento: ${translateStatus(current.status)}` });
       }
 
+      const alreadyReused = current.reuseQty || 0;
+      const produced = current.quantityProduced || 0;
+      // O reuso não pode invadir o que já foi produzido.
+      const room = current.quantity - alreadyReused - produced;
+      if (room <= 0) {
+        return res.status(409).json({ error: `Nada a reaproveitar: ${alreadyReused} reaproveitada(s) e ${produced} produzida(s) de ${current.quantity}.` });
+      }
+
+      // Sem quantidade no corpo, reaproveita tudo o que resta (comportamento antigo).
+      const n = Math.min(room, Math.max(1, Number(req.body?.qty) || room));
+      const newReuse = alreadyReused + n;
+      const isFullReuse = newReuse >= current.quantity;
+      // Fecha em "Produzido" quando reuso + produção cobrem a quantidade toda.
+      const isReady = newReuse + produced >= current.quantity;
+
       const item = await storage.updateItem(req.params.id, {
-        isReuse: true,
-        status: "produced", // pula conferência e vai direto para produzido
+        reuseQty: newReuse,
+        isReuse: isFullReuse,
+        ...(isReady ? { status: "produced" as const } : {}),
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
 
@@ -1941,7 +1956,9 @@ export function registerItemRoutes(app: Express): void {
         'updated',
         'item',
         item.id,
-        `Marcado como reaproveitamento pela Gráfica (status: ${translateStatus(current.status)} → Produzido)`
+        isFullReuse
+          ? `Reaproveitamento total pela Gráfica: ${newReuse}/${current.quantity} un.`
+          : `Reaproveitamento parcial pela Gráfica: ${n} un. (${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} a produzir)`
       );
 
       broadcast({ type: "item_updated", item });
@@ -1960,9 +1977,6 @@ export function registerItemRoutes(app: Express): void {
       const { conferencePhotoUrl, qty, notes } = req.body ?? {};
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
-      if (current.isReuse) {
-        return res.status(409).json({ error: "Peças de reaproveitamento não passam por conferência" });
-      }
       if (!conferencePhotoUrl && !current.conferencePhotoUrl) {
         return res.status(400).json({ error: "Foto da conferência é obrigatória" });
       }
@@ -2013,13 +2027,12 @@ export function registerItemRoutes(app: Express): void {
       }
       
       // Entrega parcial: acumula deliveredQty; só vira "delivered" quando entrega
-      // tudo. Reaproveitamento (isReuse) não passa por conferência → pode entregar
-      // o total direto; caso normal, só entrega o que já foi conferido.
+      // tudo. Só se entrega o que já foi conferido — inclusive o reaproveitamento,
+      // que também passa pela conferência.
       const alreadyDelivered = currentItem.deliveredQty || 0;
-      const maxDeliverable = currentItem.isReuse ? currentItem.quantity : (currentItem.conferredQty || 0);
-      const remaining = maxDeliverable - alreadyDelivered;
+      const remaining = (currentItem.conferredQty || 0) - alreadyDelivered;
       if (remaining <= 0) {
-        return res.status(409).json({ error: `Nada a entregar. Entregue ${alreadyDelivered}/${currentItem.quantity}${currentItem.isReuse ? "" : ` (conferido ${currentItem.conferredQty || 0})`}.` });
+        return res.status(409).json({ error: `Nada a entregar. Entregue ${alreadyDelivered}/${currentItem.quantity} (conferido ${currentItem.conferredQty || 0}).` });
       }
       const n = Math.min(remaining, Math.max(1, Number(req.body.qty) || remaining));
       const newDelivered = alreadyDelivered + n;

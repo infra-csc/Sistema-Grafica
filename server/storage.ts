@@ -423,9 +423,10 @@ export class DatabaseStorage implements IStorage {
     const item = await this.getItem(id);
     if (!item) return undefined;
     
-    // Determine status based on quantity
+    // As unidades reaproveitadas já estão prontas; só falta produzir o restante.
+    // Sem somá-las, uma peça com reuso parcial nunca chegaria a "Produzido".
     let newStatus = 'inProduction';
-    if (quantityProduced >= parseInt(item.quantity.toString())) {
+    if (quantityProduced + (item.reuseQty || 0) >= parseInt(item.quantity.toString())) {
       newStatus = 'produced';
     }
     

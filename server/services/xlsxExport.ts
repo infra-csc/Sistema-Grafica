@@ -153,7 +153,8 @@ async function writeWorkbook(
         fileWidth:    item.fileWidth != null ? parseFloat(item.fileWidth) : "",
         fileHeight:   item.fileHeight != null ? parseFloat(item.fileHeight) : "",
         calculatedM2: item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0,
-        isReuse:      item.isReuse ? "Sim" : "Não",
+        // Reuso parcial precisa aparecer como quantidade, não como Sim/Não.
+        isReuse:      item.isReuse ? "Sim" : (item.reuseQty > 0 ? `${item.reuseQty} un.` : "Não"),
         sponsors:     (item as any).sponsorNames?.join(", ") ?? "",
         observations: item.observations ?? "",
       });

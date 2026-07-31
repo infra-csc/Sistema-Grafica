@@ -101,6 +101,7 @@ export default function Grafica() {
   const removePhoto = (url: string) => setPhotos(prev => prev.filter(p => p !== url));
   const [modalNotes, setModalNotes] = useState("");
   const [reuseConfirmItemId, setReuseConfirmItemId] = useState<string | null>(null);
+  const [reuseQty, setReuseQty] = useState(0); // reaproveitamento parcial
 
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
@@ -153,13 +154,19 @@ export default function Grafica() {
   });
 
   const markReuseMutation = useMutation({
-    mutationFn: async (itemId: string) =>
-      await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, {}),
-    onSuccess: () => {
+    mutationFn: async ({ itemId, qty }: { itemId: string; qty: number }) =>
+      await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, { qty }),
+    onSuccess: (updated: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setReuseConfirmItemId(null);
-      toast({ title: "Reaproveitamento marcado", description: "A peça foi marcada como reaproveitamento e está pronta para entrega." });
+      const falta = (updated?.quantity ?? 0) - (updated?.reuseQty ?? 0);
+      toast({
+        title: "Reaproveitamento registrado",
+        description: falta > 0
+          ? `${updated.reuseQty} un. reaproveitada(s). Faltam ${falta} un. para produzir.`
+          : "Peça inteira reaproveitada. Segue para conferência.",
+      });
     },
     onError: (error: Error) => {
       setReuseConfirmItemId(null);
@@ -351,15 +358,20 @@ export default function Grafica() {
   const isProduced = (item: any) => item.status === "produced" || item.status === "produzido";
   const isInProd = (item: any) => item.status === "inProduction" || item.status === "em_producao";
 
-  // Quantidades para conferência/entrega parcial.
+  // Quantidades para reaproveitamento/conferência/entrega parciais.
   const qtyOf = (item: any) => Number(item.quantity) || 0;
   const conferredOf = (item: any) => Number(item.conferredQty) || 0;
   const deliveredOf = (item: any) => Number(item.deliveredQty) || 0;
+  const reusedOf = (item: any) => Number(item.reuseQty) || 0;
+  const producedOf = (item: any) => Number(item.quantityProduced) || 0;
   const remainingConfer = (item: any) => qtyOf(item) - conferredOf(item);
-  const remainingDeliver = (item: any) => (item.isReuse ? qtyOf(item) : conferredOf(item)) - deliveredOf(item);
+  // Reaproveitado também confere, então a entrega sempre sai do que foi conferido.
+  const remainingDeliver = (item: any) => conferredOf(item) - deliveredOf(item);
+  // Sobra para reaproveitar: o que não foi reaproveitado nem produzido ainda.
+  const remainingReuse = (item: any) => qtyOf(item) - reusedOf(item) - producedOf(item);
   // Botões parciais: dá pra conferir enquanto falta conferir (e já produziu);
   // dá pra entregar enquanto há conferido não entregue.
-  const canConfer = (item: any) => !isDelivered(item) && !item.isReuse && (isProduced(item)) && remainingConfer(item) > 0;
+  const canConfer = (item: any) => !isDelivered(item) && isProduced(item) && remainingConfer(item) > 0;
   const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
 
   // Anexo de fotos usado pelos modais de conferência e entrega. Dois caminhos:
@@ -452,7 +464,8 @@ export default function Grafica() {
   const openProductionModal = (item: any) => {
     setSelectedItem(item);
     setModalType("production");
-    setProductionData({ quantityProduced: item.quantity });
+    // O que já foi reaproveitado não precisa ser produzido de novo.
+    setProductionData({ quantityProduced: qtyOf(item) - reusedOf(item) });
   };
 
   // Exporta a lista visível. Manda os ids em vez de repetir os filtros no
@@ -842,9 +855,11 @@ export default function Grafica() {
                       </td>
                       {/* Descrição */}
                       <td style={{ padding: "13px 16px", maxWidth: 280 }}>
-                        {item.isReuse && (
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: "#059669", color: "#ffffff", borderRadius: 5, padding: "3px 9px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
-                            <RotateCcw style={{ width: 11, height: 11 }} /> Reaproveitamento
+                        {reusedOf(item) > 0 && (
+                          <div title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedOf(item)} de ${qtyOf(item)} un. reaproveitadas`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: item.isReuse ? "#059669" : "#10b981", color: "#ffffff", borderRadius: 5, padding: "3px 9px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                            <RotateCcw style={{ width: 11, height: 11 }} />
+                            {item.isReuse ? "Reaproveitamento" : `Reaprov. ${reusedOf(item)}/${qtyOf(item)}`}
                           </div>
                         )}
                         {item.description ? (
@@ -937,30 +952,43 @@ export default function Grafica() {
                             </button>
                           )}
 
-                          {/* Reaproveitar — disponível enquanto ainda em produção/pronto */}
-                          {!isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
+                          {/* Reaproveitar — total ou parcial, enquanto ainda há
+                              unidades sem produzir nem reaproveitar */}
+                          {!isDelivered(item) && !isProduced(item) && !isConferred(item) && remainingReuse(item) > 0 && (
                             reuseConfirmItemId === item.id ? (
-                              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={remainingReuse(item)}
+                                  value={reuseQty}
+                                  onChange={e => setReuseQty(Math.max(1, Math.min(remainingReuse(item), parseInt(e.target.value) || 1)))}
+                                  title={`Quantas unidades reaproveitar (até ${remainingReuse(item)})`}
+                                  data-testid={`input-reuse-qty-${item.id}`}
+                                  style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 5, border: `1px solid ${TI.border}`, fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center", outline: "none" }}
+                                />
+                                <span style={{ fontSize: 10, color: TI.muted, whiteSpace: "nowrap" }}>de {remainingReuse(item)}</span>
                                 <button
-                                  onClick={() => markReuseMutation.mutate(item.id)}
+                                  onClick={() => markReuseMutation.mutate({ itemId: item.id, qty: reuseQty })}
                                   disabled={markReuseMutation.isPending}
                                   title="Confirmar reaproveitamento"
-                                  style={{ backgroundColor: "#059669", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+                                  data-testid={`button-reuse-confirm-${item.id}`}
+                                  style={{ backgroundColor: "#059669", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                                 >
-                                  Sim
+                                  OK
                                 </button>
                                 <button
                                   onClick={() => setReuseConfirmItemId(null)}
                                   title="Cancelar"
                                   style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 5, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
                                 >
-                                  Não
+                                  <X style={{ width: 10, height: 10 }} />
                                 </button>
                               </div>
                             ) : (
                               <button
-                                onClick={() => setReuseConfirmItemId(item.id)}
-                                title="Reaproveitar (pula produção)"
+                                onClick={e => { e.stopPropagation(); setReuseConfirmItemId(item.id); setReuseQty(remainingReuse(item)); }}
+                                title={`Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
                                 data-testid={`button-reuse-${item.id}`}
                                 style={{ background: "none", border: "none", cursor: "pointer", color: "#059669", padding: 4, borderRadius: 4, display: "flex", alignItems: "center", transition: "color 0.15s" }}
                                 onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#065f46")}
@@ -996,7 +1024,7 @@ export default function Grafica() {
                           {canDeliver(item) && (
                             <button
                               onClick={() => openDeliveryModal(item)}
-                              title={item.isReuse ? "Entregar reaproveitamento" : `Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}
+                              title={`Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}
                               data-testid={`button-deliver-${item.id}`}
                               style={{
                                 backgroundColor: TI.accent, color: "#ffffff",

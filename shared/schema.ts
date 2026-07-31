@@ -121,7 +121,8 @@ export const items = pgTable("items", {
   receivedBy: text("received_by"),
   deliveryPhotoUrl: text("delivery_photo_url"),
   skipApproval: boolean("skip_approval").notNull().default(false), // Se true, pula fase de aprovação de patrocinador
-  isReuse: boolean("is_reuse").notNull().default(false), // Se true, peça é reaproveitamento (não precisa de produção)
+  isReuse: boolean("is_reuse").notNull().default(false), // Reaproveitamento total (reuseQty cobre a quantidade toda)
+  reuseQty: integer("reuse_qty").notNull().default(0), // Unidades reaproveitadas; o restante é produzido normalmente
   approvalThumbUrl: text("approval_thumb_url"), // Thumb/link leve para aprovação
   previousApprovalThumbUrl: text("previous_approval_thumb_url"), // Thumb anterior (preenchido quando Arte troca o thumb já aprovado)
   approvalThumbUpdatedAt: timestamp("approval_thumb_updated_at"), // Quando o thumb foi trocado pela Arte

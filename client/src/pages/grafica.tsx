@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { FilterSelect } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle, ImagePlus } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -92,9 +92,10 @@ export default function Grafica() {
   const [deliveryData, setDeliveryData] = useState({ photoUrl: "", receivedBy: "" });
   const [conferQty, setConferQty] = useState(0);   // conferência parcial
   const [deliverQty, setDeliverQty] = useState(0); // entrega parcial
-  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string>("");
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string>("");
-  const [isPhotoUploaded, setIsPhotoUploaded] = useState(false);
+  // Fotos anexadas no modal aberto (conferência ou entrega). Várias por vez.
+  const [photos, setPhotos] = useState<string[]>([]);
+  const addPhoto = (url: string) => setPhotos(prev => [...prev, url]);
+  const removePhoto = (url: string) => setPhotos(prev => prev.filter(p => p !== url));
   const [reuseConfirmItemId, setReuseConfirmItemId] = useState<string | null>(null);
 
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
@@ -128,7 +129,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null); setModalType(null);
       setDeliveryData({ photoUrl: "", receivedBy: "" });
-      setUploadedPhotoUrl("");
+      setPhotos([]);
       toast({ title: "Entrega confirmada", description: "O item foi marcado como entregue com sucesso" });
     },
     onError: (error: Error) => toast({ title: "Erro ao confirmar entrega", description: error.message, variant: "destructive" }),
@@ -141,7 +142,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null); setModalType(null);
-      setUploadedPhotoUrl(""); setPhotoPreviewUrl(""); setIsPhotoUploaded(false);
+      setPhotos([]);
       toast({ title: "Conferido", description: "A peça foi conferida e está pronta para entrega." });
     },
     onError: (error: Error) => toast({ title: "Erro ao conferir", description: error.message, variant: "destructive" }),
@@ -303,14 +304,16 @@ export default function Grafica() {
       toast({ title: "Campo obrigatório", description: "Por favor, informe quem recebeu o material", variant: "destructive" });
       return;
     }
-    if (uploadedPhotoUrl) {
+    if (photos.length) {
       try {
-        await apiRequest("POST", "/api/delivery-photos", {
-          itemId: selectedItem.id, photoUrl: uploadedPhotoUrl,
-          uploadedBy: (window as any).userName || "Sistema",
-        });
+        await Promise.all(photos.map(photoUrl =>
+          apiRequest("POST", `/api/items/${selectedItem.id}/photos`, {
+            photoUrl, kind: "delivery",
+            uploadedBy: getCurrentUserName(),
+          })
+        ));
       } catch {
-        toast({ title: "Erro ao salvar foto", variant: "destructive" });
+        toast({ title: "Erro ao salvar fotos", variant: "destructive" });
         return;
       }
     }
@@ -320,11 +323,24 @@ export default function Grafica() {
   const handleSubmitConference = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
-    if (!uploadedPhotoUrl) {
-      toast({ title: "Foto obrigatória", description: "Envie a foto da conferência da peça.", variant: "destructive" });
+    if (!photos.length) {
+      toast({ title: "Foto obrigatória", description: "Envie ao menos uma foto da conferência.", variant: "destructive" });
       return;
     }
-    conferMutation.mutate({ itemId: selectedItem.id, conferencePhotoUrl: uploadedPhotoUrl, qty: conferQty });
+    // Todas as fotos ficam na galeria; a primeira também vai para o item, que é
+    // o campo que o restante do app já lê como "foto da conferência".
+    try {
+      await Promise.all(photos.map(photoUrl =>
+        apiRequest("POST", `/api/items/${selectedItem.id}/photos`, {
+          photoUrl, kind: "conference",
+          uploadedBy: getCurrentUserName(),
+        })
+      ));
+    } catch {
+      toast({ title: "Erro ao salvar fotos", variant: "destructive" });
+      return;
+    }
+    conferMutation.mutate({ itemId: selectedItem.id, conferencePhotoUrl: photos[0], qty: conferQty });
   };
 
   const isDelivered = (item: any) => item.status === "delivered" || item.status === "entregue";
@@ -343,6 +359,77 @@ export default function Grafica() {
   const canConfer = (item: any) => !isDelivered(item) && !item.isReuse && (isProduced(item)) && remainingConfer(item) > 0;
   const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
 
+  // Anexo de fotos usado pelos modais de conferência e entrega. Dois caminhos:
+  // "Tirar foto" abre a câmera direto no celular; "Anexar" aceita várias da galeria.
+  const uploadParams = async () => {
+    const res = await fetch("/api/objects/upload", { method: "POST" });
+    const data = await res.json();
+    return { method: "PUT" as const, url: data.uploadURL };
+  };
+  const onPhotoError = (error: Error) =>
+    toast({ title: "Erro no upload", description: error.message, variant: "destructive" });
+
+  const renderPhotoPicker = (hint: string) => (
+    <div>
+      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
+        Fotos <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{hint}</span>
+      </label>
+
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <ObjectUploader
+            capture
+            maxFileSize={10485760}
+            buttonVariant="ghost"
+            buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+            onGetUploadParameters={uploadParams}
+            onComplete={r => addPhoto(r.url)}
+            onError={onPhotoError}
+          >
+            <div style={{ width: "100%", padding: "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <Camera style={{ width: 20, height: 20, color: "#78716c" }} />
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#78716c" }}>Tirar Foto</span>
+            </div>
+          </ObjectUploader>
+        </div>
+        <div style={{ flex: 1 }}>
+          <ObjectUploader
+            multiple
+            maxFileSize={10485760}
+            buttonVariant="ghost"
+            buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+            onGetUploadParameters={uploadParams}
+            onComplete={r => addPhoto(r.url)}
+            onError={onPhotoError}
+          >
+            <div style={{ width: "100%", padding: "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <ImagePlus style={{ width: 20, height: 20, color: "#78716c" }} />
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#78716c" }}>Anexar Fotos</span>
+            </div>
+          </ObjectUploader>
+        </div>
+      </div>
+
+      {photos.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8, marginTop: 12 }}>
+          {photos.map(url => (
+            <div key={url} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: `1px solid ${TI.border}`, backgroundColor: "#f4f3f0" }}>
+              <img src={url} alt="Foto anexada" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <button
+                type="button"
+                onClick={() => removePhoto(url)}
+                title="Remover foto"
+                style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: "50%", border: "none", backgroundColor: "rgba(28,25,23,0.75)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}
+              >
+                <X style={{ width: 11, height: 11 }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const openProductionModal = (item: any) => {
     setSelectedItem(item);
     setModalType("production");
@@ -352,16 +439,14 @@ export default function Grafica() {
   const openConferenceModal = (item: any) => {
     setSelectedItem(item);
     setModalType("conference");
-    setUploadedPhotoUrl(""); setPhotoPreviewUrl("");
-    setIsPhotoUploaded(false);
+    setPhotos([]);
     setConferQty(remainingConfer(item)); // padrão: o que falta conferir
   };
 
   const openDeliveryModal = (item: any) => {
     setSelectedItem(item);
     setModalType("delivery");
-    setUploadedPhotoUrl(""); setPhotoPreviewUrl("");
-    setIsPhotoUploaded(false);
+    setPhotos([]);
     setDeliveryData({ photoUrl: "", receivedBy: "" });
     setDeliverQty(remainingDeliver(item)); // padrão: o que falta entregar
   };
@@ -1064,71 +1149,7 @@ export default function Grafica() {
                 )}
 
                 {/* Comprovante fotográfico */}
-                <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
-                    Comprovante Fotográfico <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(opcional)</span>
-                  </label>
-                  <div style={{ display: "flex", gap: 12 }}>
-                    {/* Área de upload */}
-                    <div style={{ flex: 1 }}>
-                      <ObjectUploader
-                        maxFileSize={10485760}
-                        buttonVariant="ghost"
-                        buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
-                        onFileSelect={(_file, previewUrl) => setPhotoPreviewUrl(previewUrl)}
-                        onGetUploadParameters={async () => {
-                          const res = await fetch("/api/objects/upload", { method: "POST" });
-                          const data = await res.json();
-                          return { method: "PUT" as const, url: data.uploadURL };
-                        }}
-                        onComplete={async (result) => {
-                          setUploadedPhotoUrl(result.url);
-                          setIsPhotoUploaded(true);
-                          toast({ title: "Foto carregada", description: "Foto anexada com sucesso" });
-                        }}
-                        onError={(error) => {
-                          setPhotoPreviewUrl("");
-                          toast({ title: "Erro no upload", description: error.message, variant: "destructive" });
-                        }}
-                      >
-                        <div style={{ width: "100%", aspectRatio: "1", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}>
-                          <Camera style={{ width: 24, height: 24, color: "#a8a29e" }} />
-                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#a8a29e" }}>
-                            {photoPreviewUrl ? "Trocar Foto" : "Anexar Foto"}
-                          </span>
-                        </div>
-                      </ObjectUploader>
-                    </div>
-
-                    {/* Preview */}
-                    <div style={{ flex: 1, aspectRatio: "1", position: "relative", borderRadius: 8, overflow: "hidden", backgroundColor: "#f4f3f0", border: `1px solid ${TI.border}` }}>
-                      {photoPreviewUrl ? (
-                        <>
-                          <img
-                            src={photoPreviewUrl}
-                            alt="Preview da entrega"
-                            data-testid="photo-preview"
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                          />
-                          {isPhotoUploaded && (
-                            <>
-                              <div style={{ position: "absolute", top: 8, right: 8, backgroundColor: "#15803d", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>
-                                <Check style={{ width: 12, height: 12, color: "#ffffff" }} />
-                              </div>
-                              <div style={{ position: "absolute", bottom: 8, left: 8, backgroundColor: "rgba(20,40,20,0.8)", backdropFilter: "blur(4px)", borderRadius: 4, padding: "2px 6px" }}>
-                                <span style={{ fontSize: 8, fontWeight: 700, color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.06em" }}>Upload OK</span>
-                              </div>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Camera style={{ width: 24, height: 24, color: "#d6d3d1" }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                {renderPhotoPicker("(opcional) · pode anexar várias")}
 
                 {/* Footer */}
                 <div style={{ display: "flex", gap: 10 }}>
@@ -1170,63 +1191,15 @@ export default function Grafica() {
                       style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text, outline: "none" }} />
                   </div>
                 )}
-                <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
-                    Foto da Conferência *
-                  </label>
-                  <div style={{ display: "flex", gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <ObjectUploader
-                        maxFileSize={10485760}
-                        buttonVariant="ghost"
-                        buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
-                        onFileSelect={(_file, previewUrl) => setPhotoPreviewUrl(previewUrl)}
-                        onGetUploadParameters={async () => {
-                          const res = await fetch("/api/objects/upload", { method: "POST" });
-                          const data = await res.json();
-                          return { method: "PUT" as const, url: data.uploadURL };
-                        }}
-                        onComplete={async (result) => {
-                          setUploadedPhotoUrl(result.url);
-                          setIsPhotoUploaded(true);
-                          toast({ title: "Foto carregada", description: "Foto da conferência anexada" });
-                        }}
-                        onError={(error) => { setPhotoPreviewUrl(""); toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
-                      >
-                        <div style={{ width: "100%", aspectRatio: "1", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer" }}>
-                          <Camera style={{ width: 24, height: 24, color: "#a8a29e" }} />
-                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#a8a29e" }}>
-                            {photoPreviewUrl ? "Trocar Foto" : "Anexar Foto"}
-                          </span>
-                        </div>
-                      </ObjectUploader>
-                    </div>
-                    <div style={{ flex: 1, aspectRatio: "1", position: "relative", borderRadius: 8, overflow: "hidden", backgroundColor: "#f4f3f0", border: `1px solid ${TI.border}` }}>
-                      {photoPreviewUrl ? (
-                        <>
-                          <img src={photoPreviewUrl} alt="Preview da conferência" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          {isPhotoUploaded && (
-                            <div style={{ position: "absolute", top: 8, right: 8, backgroundColor: "#0e7490", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>
-                              <Check style={{ width: 12, height: 12, color: "#ffffff" }} />
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Camera style={{ width: 24, height: 24, color: "#d6d3d1" }} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                {renderPhotoPicker("· obrigatória, pode anexar várias")}
                 <div style={{ display: "flex", gap: 10 }}>
                   <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
                     style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8 }}>
                     Cancelar
                   </button>
-                  <button type="submit" disabled={conferMutation.isPending || !uploadedPhotoUrl}
+                  <button type="submit" disabled={conferMutation.isPending || !photos.length}
                     data-testid="button-confirm-conference"
-                    style={{ flex: 2, padding: "12px 0", backgroundColor: (!uploadedPhotoUrl) ? "#a5f3fc" : "#0891b2", border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", cursor: (conferMutation.isPending || !uploadedPhotoUrl) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1 }}>
+                    style={{ flex: 2, padding: "12px 0", backgroundColor: (!photos.length) ? "#a5f3fc" : "#0891b2", border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1 }}>
                     {conferMutation.isPending ? "Salvando..." : "Confirmar Conferência"}
                   </button>
                 </div>

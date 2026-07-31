@@ -12,9 +12,14 @@ interface ObjectUploaderProps {
     method: "PUT";
     url: string;
   }>;
+  /** Chamado uma vez por arquivo enviado. */
   onComplete?: (result: { url: string }) => void;
   onError?: (error: Error) => void;
   onFileSelect?: (file: File, previewUrl: string) => void;
+  /** Permite selecionar vários arquivos de uma vez. */
+  multiple?: boolean;
+  /** Abre a câmera traseira direto no celular, em vez da galeria. */
+  capture?: boolean;
   buttonClassName?: string;
   buttonVariant?: "default" | "outline" | "ghost" | "secondary";
   children: ReactNode;
@@ -31,11 +36,13 @@ export function ObjectUploader({
   onComplete,
   onError,
   onFileSelect,
+  multiple = false,
+  capture = false,
   buttonClassName,
   buttonVariant = "default",
   children,
 }: ObjectUploaderProps) {
-  const { fileInputRef, isUploading, validateAndGetFile, uploadFile } = useFileUpload({
+  const { fileInputRef, isUploading, validateAndGetFile, validateAndGetFiles, uploadFile, uploadFiles } = useFileUpload({
     maxFileSize,
     onGetUploadParameters,
     onComplete,
@@ -43,18 +50,25 @@ export function ObjectUploader({
     validateFile: (file) => (!file.type.startsWith("image/") ? "Apenas imagens são permitidas" : null),
   });
 
+  // Preview local imediato, antes do upload terminar.
+  const preview = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => onFileSelect?.(file, e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (multiple) {
+      const files = validateAndGetFiles(event);
+      if (!files.length) return;
+      files.forEach(preview);
+      await uploadFiles(files);
+      return;
+    }
+
     const file = validateAndGetFile(event);
     if (!file) return;
-
-    // Criar preview local IMEDIATAMENTE
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const previewUrl = e.target?.result as string;
-      onFileSelect?.(file, previewUrl);
-    };
-    reader.readAsDataURL(file);
-
+    preview(file);
     await uploadFile(file);
   };
 
@@ -64,6 +78,8 @@ export function ObjectUploader({
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple={multiple}
+        {...(capture ? { capture: "environment" as const } : {})}
         onChange={handleFileSelect}
         className="hidden"
         data-testid="input-file-upload"

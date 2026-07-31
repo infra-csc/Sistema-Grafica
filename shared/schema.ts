@@ -226,11 +226,14 @@ export const comments = pgTable("comments", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
-// Delivery Photos table (multiple photos per delivery)
+// Fotos anexadas pela Gráfica ao longo do fluxo. A tabela nasceu só para
+// entrega; "kind" permite guardar também as da conferência sem duplicar
+// estrutura — o default mantém as linhas antigas como entrega.
 export const deliveryPhotos = pgTable("delivery_photos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
   photoUrl: text("photo_url").notNull(),
+  kind: text("kind").notNull().default("delivery"), // "delivery" | "conference"
   uploadedBy: text("uploaded_by").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });

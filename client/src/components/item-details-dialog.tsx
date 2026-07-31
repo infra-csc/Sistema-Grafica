@@ -60,6 +60,36 @@ const STATUS_LABELS: Record<string, string> = {
   delivered: "Entregue",
 };
 
+/** Faixa de miniaturas; clicar abre a imagem original em nova aba. */
+function PhotoStrip({ urls, alt }: { urls: string[]; alt: string }) {
+  if (urls.length === 1) {
+    return (
+      <a href={urls[0]} target="_blank" rel="noopener noreferrer"
+        style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
+        <img src={urls[0]} alt={alt}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+        <span style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", color: "#ffffff", padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+          <ExternalLink style={{ width: 12, height: 12 }} /> Ver original
+        </span>
+      </a>
+    );
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
+      {urls.map(url => (
+        <a key={url} href={url} target="_blank" rel="noopener noreferrer" title="Ver original"
+          style={{ display: "block", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e7", backgroundColor: "#f3f4f3" }}>
+          <img src={url} alt={alt}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export function ItemDetailsDialog({
   item, auditLogs = [], open, onOpenChange,
   customActions, topActions, onEditSave,
@@ -81,9 +111,32 @@ export function ItemDetailsDialog({
     return () => { cancelled = true; };
   }, [open, item?.id]);
 
+  // Fotos que a Gráfica anexou na conferência e na entrega, para que o registro
+  // acompanhe a peça ao longo do fluxo e não fique só na tela da Gráfica.
+  const [flowPhotos, setFlowPhotos] = useState<any[]>([]);
+  useEffect(() => {
+    if (!open || !item?.id) { setFlowPhotos([]); return; }
+    let cancelled = false;
+    fetch(`/api/items/${item.id}/photos`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : []))
+      .then(data => { if (!cancelled) setFlowPhotos(Array.isArray(data) ? data : []); })
+      .catch(() => { /* silencioso: sem as fotos o restante do card segue igual */ });
+    return () => { cancelled = true; };
+  }, [open, item?.id]);
+
   if (!item) return null;
 
   const approvalsList: any[] = item.sponsorApprovals ?? fetchedApprovals;
+
+  // Junta as fotos da galeria com os campos antigos do item (uma foto só), sem
+  // repetir a mesma URL duas vezes.
+  const photosOfKind = (kind: string, legacyUrl?: string) => {
+    const urls = flowPhotos.filter(p => (p.kind ?? "delivery") === kind).map(p => p.photoUrl);
+    if (legacyUrl && !urls.includes(legacyUrl)) urls.unshift(legacyUrl);
+    return urls;
+  };
+  const conferencePhotos = photosOfKind("conference", item.conferencePhotoUrl);
+  const deliveryPhotos   = photosOfKind("delivery", item.deliveryPhotoUrl);
 
   const rawStatus = (item.status || "").trim();
   const step = STATUS_STEP[rawStatus] ?? STATUS_STEP[rawStatus.toLowerCase()] ?? -1;
@@ -142,7 +195,7 @@ export function ItemDetailsDialog({
   const thumbUrl = item.approvalThumbUrl;
   const isThumbImage = thumbUrl && (isImageUrl(thumbUrl) && !isPdf(thumbUrl));
 
-  const hasDeliveryPhoto = !!item.deliveryPhotoUrl;
+  const hasFlowPhotos    = conferencePhotos.length > 0 || deliveryPhotos.length > 0;
   const hasObservations  = !!item.observations;
   const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt);
 
@@ -683,37 +736,34 @@ export function ItemDetailsDialog({
           {topActions && <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{topActions}</div>}
           {customActions && <div>{customActions}</div>}
 
-          {/* ── Delivery photo + Observations ── */}
-          {(hasDeliveryPhoto || hasObservations) && (
-            <div style={{ display: "grid", gridTemplateColumns: hasDeliveryPhoto && hasObservations ? "1fr 1fr" : "1fr", gap: 32 }}>
-              {hasDeliveryPhoto && (
+          {/* ── Fotos da conferência/entrega + Observações ── */}
+          {(hasFlowPhotos || hasObservations) && (
+            <div style={{ display: "grid", gridTemplateColumns: hasFlowPhotos && hasObservations ? "1fr 1fr" : "1fr", gap: 32 }}>
+              {hasFlowPhotos && (
                 <section>
                   <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
                     <Camera style={{ width: 18, height: 18, color: "#fd761a" }} />
-                    Registro de Entrega
+                    Registros da Gráfica
                   </h3>
-                  <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
-                    <img
-                      src={item.deliveryPhotoUrl}
-                      alt="Foto de entrega"
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                    />
-                    {item.receivedBy && (
-                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", color: "#ffffff" }}>
-                        <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.7, margin: "0 0 2px 0" }}>Recebido por</p>
-                        <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{item.receivedBy}</p>
-                      </div>
-                    )}
-                    <a
-                      href={item.deliveryPhotoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", color: "#ffffff", padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      <ExternalLink style={{ width: 12, height: 12 }} /> Ver original
-                    </a>
-                  </div>
+
+                  {conferencePhotos.length > 0 && (
+                    <div style={{ marginBottom: deliveryPhotos.length ? 20 : 0 }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#0e7490", margin: "0 0 8px 0" }}>
+                        Conferência {conferencePhotos.length > 1 && `· ${conferencePhotos.length} fotos`}
+                      </p>
+                      <PhotoStrip urls={conferencePhotos} alt="Foto da conferência" />
+                    </div>
+                  )}
+
+                  {deliveryPhotos.length > 0 && (
+                    <div>
+                      <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7e22ce", margin: "0 0 8px 0" }}>
+                        Entrega {deliveryPhotos.length > 1 && `· ${deliveryPhotos.length} fotos`}
+                        {item.receivedBy && <span style={{ color: "#84756c", letterSpacing: 0, textTransform: "none", fontWeight: 400 }}> — recebido por {item.receivedBy}</span>}
+                      </p>
+                      <PhotoStrip urls={deliveryPhotos} alt="Foto da entrega" />
+                    </div>
+                  )}
                 </section>
               )}
               {hasObservations && (

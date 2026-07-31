@@ -74,6 +74,7 @@ export default function Arte() {
 
   const [correcaoItem, setCorrecaoItem] = useState<any>(null);
   const [correcaoThumbUrl, setCorrecaoThumbUrl] = useState<string>("");
+  const [correcaoFileName, setCorrecaoFileName] = useState<string>("");
   const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
   const [correcaoSponsorFilter, setCorrecaoSponsorFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
@@ -247,6 +248,7 @@ export default function Arte() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setCorrecaoItem(null);
       setCorrecaoThumbUrl("");
+      setCorrecaoFileName("");
       setCorrecaoSelectedSponsorIds(new Set());
       toast({
         title: "Nova arte enviada",
@@ -339,6 +341,7 @@ export default function Arte() {
       e.preventDefault();
       uploadFileDirect(file, (localPath) => {
         setCorrecaoThumbUrl(localPath);
+        setCorrecaoFileName(file.name || "Imagem colada");
       });
     };
     window.addEventListener("paste", handler);
@@ -1868,6 +1871,7 @@ export default function Arte() {
                     onClick={() => {
                       setCorrecaoItem(item);
                       setCorrecaoThumbUrl("");
+                      setCorrecaoFileName("");
                       setCorrecaoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
                     }}
                     data-testid={`button-open-correcao-${item.id}`}
@@ -2273,7 +2277,7 @@ export default function Arte() {
       {/* MODAL 1 — CORREÇÃO: Enviar Nova Arte                               */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={!!correcaoItem} onOpenChange={(open) => {
-        if (!open) { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }
+        if (!open) { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }
       }}>
         <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 448, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.1)' }}>
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
@@ -2293,7 +2297,7 @@ export default function Arte() {
                 </h2>
               </div>
               <button
-                onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoSelectedSponsorIds(new Set()); }}
+                onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e', padding: 2, borderRadius: 4, lineHeight: 1, flexShrink: 0 }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
                 onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
@@ -2335,13 +2339,18 @@ export default function Arte() {
                       {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl) ? (
                         <img src={correcaoThumbUrl} alt="Nova arte" style={{ maxHeight: 110, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#166534' }}>
-                          <FileText style={{ width: 20, height: 20 }} />
-                          <span style={{ fontSize: 13, fontWeight: 500 }}>Arquivo enviado com sucesso</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#166534' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <FileText style={{ width: 20, height: 20 }} />
+                            <span style={{ fontSize: 13, fontWeight: 600 }}>Arquivo enviado com sucesso</span>
+                          </div>
+                          {correcaoFileName && (
+                            <span style={{ fontSize: 11, color: '#3d9966', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 5, padding: '2px 8px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</span>
+                          )}
                         </div>
                       )}
                       <button
-                        onClick={() => setCorrecaoThumbUrl("")}
+                        onClick={() => { setCorrecaoThumbUrl(""); setCorrecaoFileName(""); }}
                         data-testid="button-remove-correcao-thumb"
                         style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: '1px solid #86efac', borderRadius: 6, color: '#166534', fontSize: 12, padding: '4px 10px', cursor: 'pointer' }}
                       >
@@ -2369,7 +2378,7 @@ export default function Arte() {
                       {!isPasteUploading && (
                         <FileUploader
                           onGetUploadParameters={getUploadUrl}
-                          onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
+                          onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); setCorrecaoFileName(decodeURIComponent(result.url.split('/').pop()?.split('?')[0] || '').replace(/^\d+_/, '') || 'Arquivo enviado'); }}
                           accept="image/*,application/pdf"
                           data-testid="uploader-correcao-thumb"
                           buttonVariant="ghost"

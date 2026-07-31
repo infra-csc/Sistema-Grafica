@@ -78,6 +78,10 @@ const TYPE_CONFIG: Record<string, {
     label: "Em Produção", dot: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8",
     icon: Package,
   },
+  item_produced: {
+    label: "Produzido", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
+    icon: Package,
+  },
   item_delivered: {
     label: "Peça Entregue", dot: "#9333ea", bg: "#faf5ff", border: "#e9d5ff", color: "#7e22ce",
     icon: Truck,
@@ -200,7 +204,9 @@ function buildDescription(e: TimelineEvent) {
     case "item_deleted":
       return <span>Peça <strong style={{ color: P.text }}>{e.itemType}</strong> excluída do evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "production_started":
-      return <span>Produção de {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.quantityProduced}/{e.quantity} un.</span>;
+      return <span>Produção de {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.quantityProduced}/{e.quantity} un. · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "item_produced":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> produzida — {e.quantityProduced ?? e.quantity}/{e.quantity} un. · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "item_delivered":
       return (
         <span>
@@ -255,13 +261,17 @@ export default function Historico() {
 
   // Pre-scan audit logs so the items loop can skip synthetic fallbacks
   // when a proper audit-log entry already covers that step.
-  const itemsWithRelease = new Set<string>(); // covered by item_released from audit log
+  const itemsWithRelease = new Set<string>();    // covered by item_released from audit log
+  const itemsWithProduction = new Set<string>(); // covered by production/produced logs
   auditLogs.forEach((log: any) => {
     const action = (log.action || "").toLowerCase();
     const details = (log.details || "");
+    const itemId = log.entityId ?? log.entity_id;
     if (action === "approved" && details.toLowerCase().includes("liberado para produção")) {
-      const itemId = log.entityId ?? log.entity_id;
       if (itemId) itemsWithRelease.add(itemId);
+    }
+    if (action === "production" || action === "produced") {
+      if (itemId) itemsWithProduction.add(itemId);
     }
   });
 
@@ -307,7 +317,9 @@ export default function Historico() {
       });
     }
 
-    if (item.quantityProduced && item.quantityProduced > 0) {
+    // Fallback para itens antigos: quando não há log de produção, o evento é
+    // derivado do próprio item (sem autor). Com log, quem manda é o loop abaixo.
+    if (item.quantityProduced && item.quantityProduced > 0 && !itemsWithProduction.has(item.id)) {
       const prodLog = auditLogMap.get(`${item.id}-produced`) ?? auditLogMap.get(`${item.id}-production`);
       timeline.push({
         id: `production-${item.id}`, type: "production_started",
@@ -391,6 +403,19 @@ export default function Historico() {
       userName,
       logDetails: details,
     };
+
+    // Produção da Gráfica. Cada lançamento vira uma entrada — produções parciais
+    // aparecem uma a uma, e a que fecha a quantidade entra como "Produzido".
+    if (action === "production" || action === "produced") {
+      const produced = Number(details.match(/Produção:\s*(\d+)/)?.[1]) || undefined;
+      timeline.push({
+        id: `production-${log.id ?? itemId + ts}`,
+        type: action === "produced" ? "item_produced" : "production_started",
+        ...base,
+        quantityProduced: produced,
+      });
+      return;
+    }
 
     // Conferência da Gráfica (parcial ou concluída)
     if (detailsLower.includes("conferência")) {
@@ -610,6 +635,7 @@ export default function Historico() {
               { value: "item_released", label: "Lib. p/ produção", group: "Aprovação", pinned: true },
               { value: "item_approved", label: "Itens liberados", group: "Produção", pinned: true },
               { value: "production_started", label: "Em produção", group: "Produção", pinned: true },
+              { value: "item_produced", label: "Produzido", group: "Produção", pinned: true },
               { value: "item_conferred", label: "Conferências", group: "Produção", pinned: true },
               { value: "item_delivered", label: "Entregas", group: "Produção", pinned: true },
               { value: "item_returned", label: "Devolvidas p/ Arte", group: "Aprovação", pinned: true },

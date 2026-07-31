@@ -1758,11 +1758,24 @@ export function registerItemRoutes(app: Express): void {
         return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
       }
       
+      // Status antes da produção, só para descrever a transição no histórico.
+      const before = await storage.getItem(req.params.id);
+
       const item = await storage.startProduction(req.params.id, quantityProduced);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
-      
+
+      // Esta é a rota que a tela da Gráfica usa. Sem este log, "Em produção" e
+      // "Produzido" não apareciam no Histórico.
+      await createAuditLog(
+        (req as any).userName,
+        item.status === "produced" ? "produced" : "production",
+        "item",
+        item.id,
+        `Produção: ${quantityProduced}/${item.quantity} un.${before ? ` (${translateStatus(before.status)} → ${translateStatus(item.status)})` : ""}`
+      );
+
       const event = await storage.getEvent(item.eventId);
 
       // Auto-add to inventory when fully produced — N individual records

@@ -762,8 +762,9 @@ export default function Grafica() {
                             <Eye style={{ width: 15, height: 15 }} />
                           </button>
 
-                          {/* Iniciar / Continuar Produção — oculto para reaproveitamento */}
-                          {!isDelivered(item) && !isProduced(item) && !item.isReuse && (
+                          {/* Iniciar / Continuar Produção — oculto para reaproveitamento.
+                              Depois de conferida, a peça só tem a entrega pela frente. */}
+                          {!isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
                             <button
                               onClick={() => openProductionModal(item)}
                               title={isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}

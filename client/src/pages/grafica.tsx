@@ -96,6 +96,7 @@ export default function Grafica() {
   const [photos, setPhotos] = useState<string[]>([]);
   const addPhoto = (url: string) => setPhotos(prev => [...prev, url]);
   const removePhoto = (url: string) => setPhotos(prev => prev.filter(p => p !== url));
+  const [modalNotes, setModalNotes] = useState("");
   const [reuseConfirmItemId, setReuseConfirmItemId] = useState<string | null>(null);
 
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
@@ -136,8 +137,8 @@ export default function Grafica() {
   });
 
   const conferMutation = useMutation({
-    mutationFn: async ({ itemId, conferencePhotoUrl, qty }: { itemId: string; conferencePhotoUrl: string; qty: number }) =>
-      await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl, qty }),
+    mutationFn: async ({ itemId, conferencePhotoUrl, qty, notes }: { itemId: string; conferencePhotoUrl: string; qty: number; notes?: string }) =>
+      await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl, qty, notes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -317,7 +318,7 @@ export default function Grafica() {
         return;
       }
     }
-    markDeliveredMutation.mutate({ itemId: selectedItem.id, data: { ...deliveryData, qty: deliverQty } });
+    markDeliveredMutation.mutate({ itemId: selectedItem.id, data: { ...deliveryData, qty: deliverQty, notes: modalNotes } });
   };
 
   const handleSubmitConference = async (e: React.FormEvent) => {
@@ -340,7 +341,7 @@ export default function Grafica() {
       toast({ title: "Erro ao salvar fotos", variant: "destructive" });
       return;
     }
-    conferMutation.mutate({ itemId: selectedItem.id, conferencePhotoUrl: photos[0], qty: conferQty });
+    conferMutation.mutate({ itemId: selectedItem.id, conferencePhotoUrl: photos[0], qty: conferQty, notes: modalNotes });
   };
 
   const isDelivered = (item: any) => item.status === "delivered" || item.status === "entregue";
@@ -368,6 +369,22 @@ export default function Grafica() {
   };
   const onPhotoError = (error: Error) =>
     toast({ title: "Erro no upload", description: error.message, variant: "destructive" });
+
+  const renderNotesField = (placeholder: string) => (
+    <div>
+      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
+        Observação <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(opcional)</span>
+      </label>
+      <textarea
+        value={modalNotes}
+        onChange={e => setModalNotes(e.target.value)}
+        placeholder={placeholder}
+        rows={2}
+        data-testid="input-notes"
+        style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, color: TI.text, outline: "none", resize: "vertical", fontFamily: "inherit" }}
+      />
+    </div>
+  );
 
   const renderPhotoPicker = (hint: string) => (
     <div>
@@ -439,14 +456,14 @@ export default function Grafica() {
   const openConferenceModal = (item: any) => {
     setSelectedItem(item);
     setModalType("conference");
-    setPhotos([]);
+    setPhotos([]); setModalNotes("");
     setConferQty(remainingConfer(item)); // padrão: o que falta conferir
   };
 
   const openDeliveryModal = (item: any) => {
     setSelectedItem(item);
     setModalType("delivery");
-    setPhotos([]);
+    setPhotos([]); setModalNotes("");
     setDeliveryData({ photoUrl: "", receivedBy: "" });
     setDeliverQty(remainingDeliver(item)); // padrão: o que falta entregar
   };
@@ -1151,6 +1168,8 @@ export default function Grafica() {
                 {/* Comprovante fotográfico */}
                 {renderPhotoPicker("(opcional) · pode anexar várias")}
 
+                {renderNotesField("Ex.: entregue na portaria, faltou 1 caixa…")}
+
                 {/* Footer */}
                 <div style={{ display: "flex", gap: 10 }}>
                   <button
@@ -1192,6 +1211,8 @@ export default function Grafica() {
                   </div>
                 )}
                 {renderPhotoPicker("· obrigatória, pode anexar várias")}
+
+                {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
                 <div style={{ display: "flex", gap: 10 }}>
                   <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
                     style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8 }}>

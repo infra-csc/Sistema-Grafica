@@ -2,11 +2,21 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
-import { requireAuth, broadcast } from "./shared";
+import { requireAuth, requireAdmin, broadcast } from "./shared";
 
 export function registerPhotoRoutes(app: Express): void {
   // ============ DELIVERY PHOTOS ============
-  
+
+  // Galeria geral de registros (conferência + entrega) para a tela de Registros.
+  // Restrita a admin por enquanto — deve abrir para os demais perfis depois.
+  app.get("/api/photos", requireAdmin, async (_req, res) => {
+    try {
+      res.json(await storage.getAllDeliveryPhotos());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get delivery photos for an item
   app.get("/api/items/:itemId/photos", requireAuth, async (req, res) => {
     try {

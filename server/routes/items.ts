@@ -1955,7 +1955,7 @@ export function registerItemRoutes(app: Express): void {
       if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
         return res.status(403).json({ error: "Apenas a Gráfica pode conferir" });
       }
-      const { conferencePhotoUrl, qty } = req.body ?? {};
+      const { conferencePhotoUrl, qty, notes } = req.body ?? {};
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
       if (current.isReuse) {
@@ -1974,15 +1974,19 @@ export function registerItemRoutes(app: Express): void {
       const n = Math.min(remaining, Math.max(1, Number(qty) || remaining));
       const newConferred = alreadyConferred + n;
       const isFull = newConferred >= current.quantity;
+      const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
+
       const item = await storage.updateItem(req.params.id, {
         conferredQty: newConferred,
         conferencePhotoUrl: conferencePhotoUrl || current.conferencePhotoUrl || null,
         conferredAt: isFull ? new Date() : current.conferredAt,
+        ...(trimmedNotes ? { conferenceNotes: trimmedNotes } : {}),
         // Status só vira "conferred" quando conferiu tudo; parcial continua "produced".
         ...(isFull ? { status: "conferred" as const } : {}),
       });
       await createAuditLog((req as any).userName, 'updated', 'item', req.params.id,
-        isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`);
+        (isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`)
+        + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : ""));
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {
@@ -1993,8 +1997,9 @@ export function registerItemRoutes(app: Express): void {
   // Mark item as delivered (Gráfica module)
   app.patch("/api/items/:id/deliver", requireAuth, async (req, res) => {
     try {
-      const { receivedBy, photoUrl } = req.body;
-      
+      const { receivedBy, photoUrl, notes } = req.body;
+      const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
+
       if (!receivedBy) {
         return res.status(400).json({ error: "receivedBy is required" });
       }
@@ -2022,6 +2027,7 @@ export function registerItemRoutes(app: Express): void {
         deliveredQty: newDelivered,
         receivedBy,
         deliveryPhotoUrl: photoUrl || currentItem.deliveryPhotoUrl || null,
+        ...(trimmedNotes ? { deliveryNotes: trimmedNotes } : {}),
         ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date() } : {}),
       });
       if (!item) {
@@ -2036,9 +2042,10 @@ export function registerItemRoutes(app: Express): void {
         'delivered',
         'item',
         item.id,
-        isFullDelivery
+        (isFullDelivery
           ? `Entrega concluída (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
-          : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
+          : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`)
+        + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : "")
       );
       
       // Recalculate event status - might become "completed"

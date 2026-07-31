@@ -27,6 +27,7 @@ import Grafica from "@/pages/grafica";
 import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
 import Historico from "@/pages/historico";
+import Registros from "@/pages/registros";
 import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
 import LogsSistema from "@/pages/logs-sistema";
 import Estoque from "@/pages/estoque";
@@ -171,6 +172,10 @@ function Router() {
       </Route>
       <Route path="/historico">
         {() => <ProtectedRoute component={Historico} />}
+      </Route>
+      {/* Registros: hoje só admin; a ideia é abrir para os demais perfis depois. */}
+      <Route path="/registros">
+        {() => <RoleProtectedRoute component={Registros} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/usuarios">
         {() => <RoleProtectedRoute component={Usuarios} allowedRoles={["admin"]} />}

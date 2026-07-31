@@ -1,7 +1,7 @@
 import {
   Calendar, CheckCircle, Factory, Home, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2,
+  Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
@@ -39,6 +39,9 @@ const productionItems: MenuItem[] = [
   { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"] },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
   { title: "Histórico",               url: "/historico",               icon: Activity },
+  // Registros fica aqui (e não dentro da Gráfica) porque a maioria dos perfis
+  // não acessa a Gráfica e este acervo interessa a todos. Só admin por enquanto.
+  { title: "Registros",               url: "/registros",               icon: Camera,         roles: ["admin"] },
   { title: "Análises",                url: "/analises",                icon: BarChart3,      roles: ["admin"] },
 ];
 

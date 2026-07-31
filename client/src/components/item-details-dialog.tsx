@@ -195,7 +195,9 @@ export function ItemDetailsDialog({
   const thumbUrl = item.approvalThumbUrl;
   const isThumbImage = thumbUrl && (isImageUrl(thumbUrl) && !isPdf(thumbUrl));
 
-  const hasFlowPhotos    = conferencePhotos.length > 0 || deliveryPhotos.length > 0;
+  // A seção também aparece quando só há observação, sem foto anexada.
+  const hasFlowPhotos    = conferencePhotos.length > 0 || deliveryPhotos.length > 0
+                        || !!item.conferenceNotes || !!item.deliveryNotes;
   const hasObservations  = !!item.observations;
   const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt);
 
@@ -746,22 +748,28 @@ export function ItemDetailsDialog({
                     Registros da Gráfica
                   </h3>
 
-                  {conferencePhotos.length > 0 && (
-                    <div style={{ marginBottom: deliveryPhotos.length ? 20 : 0 }}>
+                  {(conferencePhotos.length > 0 || item.conferenceNotes) && (
+                    <div style={{ marginBottom: (deliveryPhotos.length || item.deliveryNotes) ? 20 : 0 }}>
                       <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#0e7490", margin: "0 0 8px 0" }}>
                         Conferência {conferencePhotos.length > 1 && `· ${conferencePhotos.length} fotos`}
                       </p>
                       <PhotoStrip urls={conferencePhotos} alt="Foto da conferência" />
+                      {item.conferenceNotes && (
+                        <p style={{ fontSize: 12, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.conferenceNotes}"</p>
+                      )}
                     </div>
                   )}
 
-                  {deliveryPhotos.length > 0 && (
+                  {(deliveryPhotos.length > 0 || item.deliveryNotes) && (
                     <div>
                       <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7e22ce", margin: "0 0 8px 0" }}>
                         Entrega {deliveryPhotos.length > 1 && `· ${deliveryPhotos.length} fotos`}
                         {item.receivedBy && <span style={{ color: "#84756c", letterSpacing: 0, textTransform: "none", fontWeight: 400 }}> — recebido por {item.receivedBy}</span>}
                       </p>
                       <PhotoStrip urls={deliveryPhotos} alt="Foto da entrega" />
+                      {item.deliveryNotes && (
+                        <p style={{ fontSize: 12, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.deliveryNotes}"</p>
+                      )}
                     </div>
                   )}
                 </section>

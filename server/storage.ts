@@ -104,6 +104,7 @@ export interface IStorage {
   
   // Delivery Photos
   getDeliveryPhotos(itemId: string): Promise<DeliveryPhoto[]>;
+  getAllDeliveryPhotos(): Promise<any[]>;
   addDeliveryPhoto(photo: InsertDeliveryPhoto): Promise<DeliveryPhoto>;
   deleteDeliveryPhoto(id: string): Promise<boolean>;
   
@@ -678,6 +679,82 @@ export class DatabaseStorage implements IStorage {
       .from(deliveryPhotos)
       .where(eq(deliveryPhotos.itemId, itemId))
       .orderBy(deliveryPhotos.createdAt);
+  }
+
+  // Todas as fotos com o contexto da peça e do evento, para a tela de registros.
+  // Sem paginação: o volume é o de peças conferidas/entregues, não o de itens.
+  // Inclui as fotos antigas, gravadas direto no item antes da galeria existir.
+  async getAllDeliveryPhotos(): Promise<any[]> {
+    const fromTable = await this.getGalleryPhotos();
+
+    const legacyRows = await db
+      .select({
+        itemId: items.id,
+        displayId: items.displayId,
+        itemType: items.type,
+        itemDescription: items.description,
+        receivedBy: items.receivedBy,
+        conferenceNotes: items.conferenceNotes,
+        deliveryNotes: items.deliveryNotes,
+        conferencePhotoUrl: items.conferencePhotoUrl,
+        deliveryPhotoUrl: items.deliveryPhotoUrl,
+        conferredAt: items.conferredAt,
+        deliveredAt: items.deliveredAt,
+        eventId: events.id,
+        eventName: events.name,
+      })
+      .from(items)
+      .leftJoin(events, eq(items.eventId, events.id))
+      .where(or(
+        sql`${items.conferencePhotoUrl} is not null`,
+        sql`${items.deliveryPhotoUrl} is not null`,
+      ));
+
+    const known = new Set(fromTable.map(p => `${p.itemId}|${p.photoUrl}`));
+    const legacy: any[] = [];
+    for (const r of legacyRows) {
+      const push = (url: string | null, kind: string, at: Date | null) => {
+        if (!url || known.has(`${r.itemId}|${url}`)) return;
+        legacy.push({
+          id: `legacy-${kind}-${r.itemId}`,
+          photoUrl: url, kind, uploadedBy: null, createdAt: at,
+          itemId: r.itemId, displayId: r.displayId, itemType: r.itemType,
+          itemDescription: r.itemDescription, receivedBy: r.receivedBy,
+          conferenceNotes: r.conferenceNotes, deliveryNotes: r.deliveryNotes,
+          eventId: r.eventId, eventName: r.eventName,
+        });
+      };
+      push(r.conferencePhotoUrl, "conference", r.conferredAt);
+      push(r.deliveryPhotoUrl, "delivery", r.deliveredAt);
+    }
+
+    return [...fromTable, ...legacy].sort(
+      (a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
+    );
+  }
+
+  private async getGalleryPhotos(): Promise<any[]> {
+    return await db
+      .select({
+        id: deliveryPhotos.id,
+        photoUrl: deliveryPhotos.photoUrl,
+        kind: deliveryPhotos.kind,
+        uploadedBy: deliveryPhotos.uploadedBy,
+        createdAt: deliveryPhotos.createdAt,
+        itemId: items.id,
+        displayId: items.displayId,
+        itemType: items.type,
+        itemDescription: items.description,
+        receivedBy: items.receivedBy,
+        conferenceNotes: items.conferenceNotes,
+        deliveryNotes: items.deliveryNotes,
+        eventId: events.id,
+        eventName: events.name,
+      })
+      .from(deliveryPhotos)
+      .leftJoin(items, eq(deliveryPhotos.itemId, items.id))
+      .leftJoin(events, eq(items.eventId, events.id))
+      .orderBy(desc(deliveryPhotos.createdAt));
   }
 
   async addDeliveryPhoto(insertPhoto: InsertDeliveryPhoto): Promise<DeliveryPhoto> {

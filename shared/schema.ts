@@ -133,6 +133,8 @@ export const items = pgTable("items", {
   finalFileAckedAt: timestamp("final_file_acked_at"), // Legado: recurso de confirmação de recebimento (não usado nesta branch); coluna preservada para não perder dados
   previousFinalFileUrl: text("previous_final_file_url"), // Arquivo final anterior (preenchido quando Arte substitui o arquivo)
   previousFinalFileName: text("previous_final_file_name"), // Nome do arquivo anterior substituído
+  conferenceNotes: text("conference_notes"), // Observação da última conferência (o histórico completo fica no audit log)
+  deliveryNotes: text("delivery_notes"), // Observação da última entrega (idem)
   conferencePhotoUrl: text("conference_photo_url"), // Foto da conferência (entre Produzido e Entregue)
   conferredAt: timestamp("conferred_at"), // Quando a Gráfica terminou de conferir tudo
   conferredQty: integer("conferred_qty").notNull().default(0), // Quantidade já conferida (conferência parcial)

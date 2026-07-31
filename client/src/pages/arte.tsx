@@ -2279,39 +2279,53 @@ export default function Arte() {
       <Dialog open={!!correcaoItem} onOpenChange={(open) => {
         if (!open) { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }
       }}>
-        <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 448, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.1)' }}>
+        <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 472, borderRadius: 16, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.22), 0 0 0 1px rgba(28,25,23,0.06)' }}>
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
-          <div style={{ padding: 24 }}>
-            {/* Header */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
-              <span style={{
-                display: 'inline-block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
-                fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)',
-                padding: '2px 8px', borderRadius: 4, width: 'fit-content'
-              }}>Ação Necessária</span>
-              <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.05em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.15 }}>
-                Enviar Nova Arte
-              </h2>
+          {/* ── Dark header ── */}
+          <div style={{ background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 50%, #1c1917 100%)', borderRadius: '16px 16px 0 0', padding: '22px 24px 20px', position: 'relative', overflow: 'hidden' }}>
+            {/* Subtle texture */}
+            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 80% 20%, rgba(220,38,38,0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, position: 'relative' }}>
+              {/* Icon */}
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(220,38,38,0.35)' }}>
+                <AlertTriangle style={{ width: 20, height: 20, color: '#fff' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: '#fca5a5', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>Ação Necessária</div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#fff', margin: 0, lineHeight: 1.2 }}>
+                  Enviar Nova Arte
+                </h2>
+                {correcaoItem && (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {correcaoItem.displayId && <span style={{ fontFamily: '"Space Grotesk", monospace', fontWeight: 700, color: 'rgba(252,165,165,0.7)', marginRight: 6 }}>{correcaoItem.displayId}</span>}
+                    {correcaoItem.type}
+                    {correcaoItem.description && correcaoItem.description !== correcaoItem.type && <span style={{ color: 'rgba(255,255,255,0.3)' }}> · {correcaoItem.description}</span>}
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
 
+          {/* ── Body ── */}
+          <div style={{ padding: '20px 24px 0' }}>
             {correcaoItem && (
               <>
-                {/* Rejection alerts — one per sponsor */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                {/* Rejection cards */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
                   {correcaoItem.awaitingArteApprovals.map((approval: any) => (
-                    <div key={approval.id} style={{
-                      backgroundColor: 'rgba(255,218,214,0.2)', borderRadius: 8, padding: '12px 14px',
-                      display: 'flex', gap: 10, borderLeft: '4px solid #dc2626'
-                    }}>
-                      <AlertTriangle style={{ width: 18, height: 18, color: '#dc2626', flexShrink: 0, marginTop: 1 }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <p style={{ fontSize: 11, fontWeight: 700, color: '#93000a', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
-                          Motivo da Rejeição: {approval.sponsor?.name || 'Patrocinador'}
-                        </p>
-                        <p style={{ fontSize: 13, color: '#93000a', margin: 0 }}>
-                          {approval.rejectionReason ? `"${approval.rejectionReason}"` : 'Sem motivo informado.'}
+                    <div key={approval.id} style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #fecaca' }}>
+                      {/* Sponsor bar */}
+                      <div style={{ backgroundColor: '#fff1f1', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 7, borderBottom: '1px solid #fecaca' }}>
+                        {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#dc2626', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.04em' }}>RECUSADO</span>
+                      </div>
+                      {/* Reason */}
+                      <div style={{ backgroundColor: '#fffafa', padding: '10px 14px' }}>
+                        <p style={{ fontSize: 12, color: '#7f1d1d', margin: 0, lineHeight: 1.55, fontStyle: approval.rejectionReason ? 'italic' : 'normal' }}>
+                          {approval.rejectionReason ? `"${approval.rejectionReason}"` : <span style={{ color: '#b45309', fontStyle: 'normal' }}>Sem motivo informado.</span>}
                         </p>
                       </div>
                     </div>
@@ -2319,50 +2333,51 @@ export default function Arte() {
                 </div>
 
                 {/* Upload zone */}
-                <div style={{ marginBottom: 24 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c7164', marginBottom: 8 }}>
-                    Upload da Nova Versão
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', marginBottom: 8 }}>
+                    Nova Versão
                   </label>
                   {correcaoThumbUrl ? (
-                    <div style={{ border: '2px dashed #86efac', borderRadius: 10, backgroundColor: '#f0fdf4', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                      {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl) ? (
-                        <img src={correcaoThumbUrl} alt="Nova arte" style={{ maxHeight: 110, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#166534' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <FileText style={{ width: 20, height: 20 }} />
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>Arquivo enviado com sucesso</span>
-                          </div>
-                          {correcaoFileName && (
-                            <span style={{ fontSize: 11, color: '#3d9966', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 5, padding: '2px 8px', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</span>
-                          )}
-                        </div>
-                      )}
+                    /* Uploaded state — compact pill row */
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, backgroundColor: '#f0fdf4', border: '1.5px solid #86efac' }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #16a34a, #15803d)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl)
+                          ? <img src={correcaoThumbUrl} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />
+                          : <FileText style={{ width: 15, height: 15, color: '#fff' }} />
+                        }
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>Arquivo enviado</div>
+                        {correcaoFileName && (
+                          <div style={{ fontSize: 11, color: '#4ade80', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</div>
+                        )}
+                      </div>
                       <button
                         onClick={() => { setCorrecaoThumbUrl(""); setCorrecaoFileName(""); }}
                         data-testid="button-remove-correcao-thumb"
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: '1px solid #86efac', borderRadius: 6, color: '#166534', fontSize: 12, padding: '4px 10px', cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, color: '#166534', fontSize: 11, fontWeight: 600, padding: '4px 10px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
                       >
-                        <X style={{ width: 12, height: 12 }} /> Remover
+                        <X style={{ width: 11, height: 11 }} /> Trocar
                       </button>
                     </div>
                   ) : (
+                    /* Empty state */
                     <div style={{
-                      height: 160, border: isPasteUploading ? '2px dashed #9d4300' : '2px dashed #e2e2e2', borderRadius: 12,
-                      backgroundColor: isPasteUploading ? '#fdf2e9' : '#f0efee', display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background-color 0.15s'
+                      height: 130, border: isPasteUploading ? '2px dashed #dc2626' : '2px dashed #e2e0dd', borderRadius: 12,
+                      backgroundColor: isPasteUploading ? '#fff5f5' : '#fafaf9', display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center', gap: 2, transition: 'all 0.15s', cursor: 'default'
                     }}
-                      onMouseEnter={e => { if (!isPasteUploading) (e.currentTarget as HTMLElement).style.backgroundColor = '#e8e8e7'; }}
-                      onMouseLeave={e => { if (!isPasteUploading) (e.currentTarget as HTMLElement).style.backgroundColor = isPasteUploading ? '#fdf2e9' : '#f0efee'; }}
+                      onMouseEnter={e => { if (!isPasteUploading) { (e.currentTarget as HTMLElement).style.backgroundColor = '#f5f5f4'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; } }}
+                      onMouseLeave={e => { if (!isPasteUploading) { (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e0dd'; } }}
                     >
-                      <div style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: '#ffffff', boxShadow: '0 1px 4px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
                         {isPasteUploading
-                          ? <div style={{ width: 20, height: 20, borderRadius: '50%', border: '3px solid #fed7aa', borderTopColor: '#9d4300', animation: 'spin 0.8s linear infinite' }} />
-                          : <Upload style={{ width: 20, height: 20, color: '#9d4300' }} />
+                          ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid #fecaca', borderTopColor: '#dc2626', animation: 'spin 0.8s linear infinite' }} />
+                          : <Upload style={{ width: 18, height: 18, color: '#dc2626' }} />
                         }
                       </div>
-                      <p style={{ fontSize: 13, fontWeight: 500, color: '#1c1917', margin: '0 0 2px' }}>
-                        {isPasteUploading ? 'Enviando imagem colada...' : 'Solte o arquivo aqui ou'}
+                      <p style={{ fontSize: 12, fontWeight: 600, color: '#44403c', margin: 0 }}>
+                        {isPasteUploading ? 'Enviando...' : 'Arraste ou'}
                       </p>
                       {!isPasteUploading && (
                         <FileUploader
@@ -2372,38 +2387,48 @@ export default function Arte() {
                           accept="image/*,application/pdf"
                           data-testid="uploader-correcao-thumb"
                           buttonVariant="ghost"
-                          buttonClassName="h-auto py-0 px-0 text-sm font-medium underline decoration-2 underline-offset-2 text-orange-700 hover:bg-transparent"
+                          buttonClassName="h-auto py-0 px-0 text-[12px] font-semibold underline decoration-2 underline-offset-2 text-red-700 hover:bg-transparent"
                         >
-                          procure
+                          escolha um arquivo
                         </FileUploader>
                       )}
-                      <p style={{ fontSize: 10, color: '#a8a29e', margin: '4px 0 0' }}>
-                        {isPasteUploading ? 'Aguarde...' : 'PDF, PNG ou SVG · ou Ctrl+V para colar'}
+                      <p style={{ fontSize: 10, color: '#b8b3ad', margin: '3px 0 0' }}>
+                        {isPasteUploading ? 'Aguarde...' : 'PDF, PNG, SVG · ou Ctrl+V para colar'}
                       </p>
                     </div>
                   )}
                 </div>
 
                 {/* Sponsor checkboxes */}
-                <div style={{ marginBottom: 32 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c7164', marginBottom: 10 }}>
-                    Re-enviar para APROVAÇÃO:
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', marginBottom: 8 }}>
+                    Re-enviar para aprovação
                   </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {correcaoItem.awaitingArteApprovals.map((approval: any) => {
                       const isSelected = correcaoSelectedSponsorIds.has(approval.sponsorId);
-                      const isPendente = true;
                       return (
                         <label
                           key={approval.sponsorId}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '10px 12px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
-                            backgroundColor: '#f0efee', transition: 'background-color 0.15s'
+                            padding: '10px 14px', borderRadius: 10, cursor: 'pointer', userSelect: 'none',
+                            backgroundColor: isSelected ? '#fff5f5' : '#fafaf9',
+                            border: `1.5px solid ${isSelected ? '#fecaca' : '#ebe8e3'}`,
+                            transition: 'all 0.12s'
                           }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#e8e8e7'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#f0efee'; }}
                         >
+                          {/* Custom checkbox */}
+                          <div
+                            style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${isSelected ? '#dc2626' : '#d4d4d0'}`, background: isSelected ? '#dc2626' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
+                            onClick={() => {
+                              const next = new Set(correcaoSelectedSponsorIds);
+                              if (isSelected) next.delete(approval.sponsorId); else next.add(approval.sponsorId);
+                              setCorrecaoSelectedSponsorIds(next);
+                            }}
+                          >
+                            {isSelected && <Check style={{ width: 10, height: 10, color: '#fff' }} />}
+                          </div>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -2413,52 +2438,57 @@ export default function Arte() {
                               setCorrecaoSelectedSponsorIds(next);
                             }}
                             data-testid={`checkbox-correcao-sponsor-${approval.sponsorId}`}
-                            style={{ width: 18, height: 18, accentColor: '#dc2626', borderRadius: 4, cursor: 'pointer', flexShrink: 0 }}
+                            style={{ display: 'none' }}
                           />
                           {approval.sponsor?.color && (
                             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
                           )}
-                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: isPendente ? '#dc2626' : '#78716c', backgroundColor: '#ffffff', padding: '3px 8px', borderRadius: 4 }}>
-                            {isPendente ? 'Pendente' : 'Opcional'}
+                          <span style={{ fontSize: 13, fontWeight: 600, color: isSelected ? '#7f1d1d' : '#44403c', flex: 1, transition: 'color 0.12s' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                          <span style={{ fontSize: 9, fontWeight: 800, color: '#dc2626', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.04em' }}>
+                            Pendente
                           </span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
-
-                {/* Submit button */}
-                <button
-                  disabled={!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending}
-                  onClick={() => {
-                    if (correcaoItem) {
-                      resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: Array.from(correcaoSelectedSponsorIds) });
-                    }
-                  }}
-                  data-testid="button-submit-correcao"
-                  style={{
-                    width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
-                    backgroundColor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#fca5a5' : '#dc2626',
-                    color: '#ffffff', fontWeight: 700, fontSize: 17,
-                    fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.02em',
-                    cursor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 16px rgba(185,28,28,0.2)', transition: 'filter 0.15s, transform 0.1s',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-                  }}
-                  onMouseEnter={e => { if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                  onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                  onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-                >
-                  {resubmitMutation.isPending ? (
-                    <><div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
-                  ) : (
-                    'Confirmar Re-envio'
-                  )}
-                </button>
               </>
             )}
+          </div>
+
+          {/* ── Footer ── */}
+          <div style={{ padding: '16px 24px 24px', borderTop: '1px solid #f0eeec' }}>
+            <button
+              disabled={!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending}
+              onClick={() => {
+                if (correcaoItem) {
+                  resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: Array.from(correcaoSelectedSponsorIds) });
+                }
+              }}
+              data-testid="button-submit-correcao"
+              style={{
+                width: '100%', padding: '13px 0', borderRadius: 10, border: 'none',
+                background: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending)
+                  ? 'linear-gradient(135deg, #fca5a5, #f87171)'
+                  : 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                color: '#ffffff', fontWeight: 700, fontSize: 15,
+                fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.02em',
+                cursor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'not-allowed' : 'pointer',
+                boxShadow: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'none' : '0 4px 16px rgba(185,28,28,0.28)',
+                transition: 'filter 0.15s, transform 0.1s, box-shadow 0.15s',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+              }}
+              onMouseEnter={e => { if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return; e.currentTarget.style.filter = 'brightness(0.93)'; }}
+              onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.985)'; }}
+              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+            >
+              {resubmitMutation.isPending ? (
+                <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+              ) : (
+                <><Send style={{ width: 15, height: 15 }} />Confirmar Re-envio</>
+              )}
+            </button>
           </div>
         </DialogContent>
       </Dialog>

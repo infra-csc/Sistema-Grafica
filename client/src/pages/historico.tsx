@@ -4,7 +4,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
-  ChevronLeft, ChevronRight, Link2, FileText,
+  ChevronLeft, ChevronRight, Link2, FileText, RefreshCw,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -42,9 +42,17 @@ const TYPE_CONFIG: Record<string, {
     label: "Thumb Enviado", dot: "#f59e0b", bg: "#fffbeb", border: "#fde68a", color: "#b45309",
     icon: FileCheck,
   },
+  thumb_replaced: {
+    label: "Thumb Trocado", dot: "#d97706", bg: "#fffbeb", border: "#fcd34d", color: "#92400e",
+    icon: RefreshCw,
+  },
   final_file_added: {
     label: "Arq. Final", dot: "#06b6d4", bg: "#ecfeff", border: "#a5f3fc", color: "#0891b2",
     icon: FileCheck,
+  },
+  final_file_replaced: {
+    label: "Arq. Final Trocado", dot: "#0e7490", bg: "#ecfeff", border: "#67e8f9", color: "#155e75",
+    icon: RefreshCw,
   },
   item_sent: {
     label: "Enviado p/ Aprov.", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#ea580c",
@@ -187,8 +195,12 @@ function buildDescription(e: TimelineEvent) {
       );
     case "thumb_uploaded":
       return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — thumb de aprovação enviado · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "thumb_replaced":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — thumb trocado (versão anterior guardada) · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "final_file_added":
       return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — arquivo final adicionado · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "final_file_replaced":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — arquivo final substituído · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "item_sent":
       return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> enviado para aprovação de patrocinador · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "sponsor_approved":
@@ -445,17 +457,30 @@ export default function Historico() {
       return;
     }
 
-    // Thumb uploaded
+    // Thumb enviado ou trocado pela Arte. A troca preserva a versão anterior,
+    // por isso ganha um tipo próprio.
     if (action === "updated" && detailsLower.includes("thumb de aprovação atualizado")) {
       if (!item) return;
-      timeline.push({ id: `thumb-${log.id ?? itemId + ts}`, type: "thumb_uploaded", ...base });
+      const isReplacement = /anterior:/i.test(details);
+      timeline.push({
+        id: `thumb-${log.id ?? itemId + ts}`,
+        type: isReplacement ? "thumb_replaced" : "thumb_uploaded",
+        ...base,
+      });
       return;
     }
 
-    // Final file added (via add-final-file route OR via general patch with "arquivo final")
-    if (action === "updated" && (detailsLower.includes("arquivo final adicionado") || detailsLower.includes("arquivo final atualizado"))) {
+    // Arquivo final adicionado ou substituído (a substituição usa "substituído",
+    // que antes não casava com nenhum padrão e sumia do histórico).
+    if (action === "updated" && detailsLower.includes("arquivo final")
+        && /adicionad|atualizad|substituíd|substituid/i.test(detailsLower)) {
       if (!item) return;
-      timeline.push({ id: `final-${log.id ?? itemId + ts}`, type: "final_file_added", ...base });
+      const isReplacement = /substitu|atualizad/i.test(detailsLower);
+      timeline.push({
+        id: `final-${log.id ?? itemId + ts}`,
+        type: isReplacement ? "final_file_replaced" : "final_file_added",
+        ...base,
+      });
       return;
     }
 
@@ -626,9 +651,11 @@ export default function Historico() {
               { value: "item_deleted", label: "Itens excluídos", group: "Criação", pinned: true },
               { value: "sponsor_linked", label: "Vinculações", group: "Arte", pinned: true },
               { value: "thumb_uploaded", label: "Thumbs enviados", group: "Arte", pinned: true },
+              { value: "thumb_replaced", label: "Thumbs trocados", group: "Arte", pinned: true },
               { value: "item_sent", label: "Enviados p/ aprovação", group: "Arte", pinned: true },
               { value: "book_sent", label: "Envio de book", group: "Arte", pinned: true },
               { value: "final_file_added", label: "Arq. finais adicionados", group: "Arte", pinned: true },
+              { value: "final_file_replaced", label: "Arq. finais trocados", group: "Arte", pinned: true },
               { value: "item_dispensed", label: "Dispensados", group: "Arte", pinned: true },
               { value: "sponsor_approved", label: "Pat. aprovou", group: "Aprovação", pinned: true },
               { value: "sponsor_rejected", label: "Pat. reprovou", group: "Aprovação", pinned: true },
